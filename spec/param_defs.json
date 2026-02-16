@@ -1,0 +1,90 @@
+{
+  "qsRange": {
+    "type": "range",
+    "min": 0.0,
+    "max": 100.0,
+    "step": 1.0,
+    "default": 50.0,
+    "notes": "Generic quick slider; range remapped per-parameter in UI."
+  },
+  "previewScale": {
+    "type": "range",
+    "min": 0.2,
+    "max": 1.0,
+    "step": 0.05,
+    "default": 0.33,
+    "notes": ""
+  },
+  "alpha": {
+    "type": "range",
+    "min": 0.0,
+    "max": 100.0,
+    "step": 0.1,
+    "default": 50.0,
+    "notes": "Normalized slider 0\u2013100 mapped to formula-specific ranges via FORMULA_RANGES_RAW."
+  },
+  "beta": {
+    "type": "range",
+    "min": 0.0,
+    "max": 100.0,
+    "step": 0.1,
+    "default": 50.0,
+    "notes": "Normalized slider 0\u2013100 mapped to formula-specific ranges via FORMULA_RANGES_RAW."
+  },
+  "gamma": {
+    "type": "range",
+    "min": 0.0,
+    "max": 100.0,
+    "step": 0.1,
+    "default": 50.0,
+    "notes": "Normalized slider 0\u2013100 mapped to formula-specific ranges via FORMULA_RANGES_RAW."
+  },
+  "delta": {
+    "type": "range",
+    "min": 0.0,
+    "max": 100.0,
+    "step": 0.1,
+    "default": 50.0,
+    "notes": "Normalized slider 0\u2013100 mapped to formula-specific ranges via FORMULA_RANGES_RAW."
+  },
+  "orbits": {
+    "type": "range",
+    "min": 1.0,
+    "max": 80.0,
+    "step": 1.0,
+    "default": 25.0,
+    "notes": ""
+  },
+  "iters": {
+    "type": "range",
+    "min": 500.0,
+    "max": 50000.0,
+    "step": 100.0,
+    "default": 8000.0,
+    "notes": ""
+  },
+  "burn": {
+    "type": "range",
+    "min": 0.0,
+    "max": 5000.0,
+    "step": 5.0,
+    "default": 50.0,
+    "notes": ""
+  },
+  "rangeR": {
+    "type": "range",
+    "min": 20.0,
+    "max": 1000.0,
+    "step": 1.0,
+    "default": 300.0,
+    "notes": ""
+  },
+  "initR": {
+    "type": "range",
+    "min": 10.0,
+    "max": 300.0,
+    "step": 1.0,
+    "default": 100.0,
+    "notes": ""
+  }
+}
