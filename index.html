@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Hopalong</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --panel-bg: rgba(12, 14, 20, 0.86);
+        --panel-border: rgba(255, 255, 255, 0.16);
+        --text: #f5f8ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #05070c;
+        color: var(--text);
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      }
+
+      #app {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+
+      #c {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      #paramOverlay {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 10px max(12px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+        background: linear-gradient(180deg, rgba(6, 8, 12, 0), rgba(6, 8, 12, 0.72) 40%, rgba(6, 8, 12, 0.95));
+        pointer-events: none;
+      }
+
+      .poItem {
+        pointer-events: auto;
+        max-width: 440px;
+        margin: 0 auto;
+        background: var(--panel-bg);
+        border: 1px solid var(--panel-border);
+        border-radius: 12px;
+        padding: 10px 12px;
+        backdrop-filter: blur(6px);
+      }
+
+      .poLabel {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        margin-bottom: 6px;
+        opacity: 0.92;
+      }
+
+      .poValue {
+        width: 100%;
+        min-height: 40px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(0, 0, 0, 0.35);
+        color: var(--text);
+        padding: 8px 10px;
+        font-size: 16px;
+      }
+
+      #status {
+        position: absolute;
+        top: calc(12px + env(safe-area-inset-top));
+        left: 12px;
+        right: 12px;
+        margin: 0 auto;
+        max-width: 700px;
+        background: rgba(12, 14, 20, 0.72);
+        border: 1px solid var(--panel-border);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: 13px;
+        line-height: 1.4;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="c"></canvas>
+      <p id="status" aria-live="polite">Loading Hopalong data…</p>
+      <div id="paramOverlay">
+        <div class="poItem">
+          <label for="formulaSelect" class="poLabel">Formula (Slice 1)</label>
+          <select id="formulaSelect" class="poValue" aria-label="Select Hopalong formula"></select>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./js/main.js"></script>
+  </body>
+</html>
