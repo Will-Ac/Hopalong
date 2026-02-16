@@ -1,1 +1,1 @@
-empty placeholder
+Specification files for Hopalong rewrite
