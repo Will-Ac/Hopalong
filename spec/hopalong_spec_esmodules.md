@@ -22,42 +22,42 @@ This rewrite should be implemented as ES modules (multiple `.js` files) loaded f
 ## 2) Public UI surface
 
 ### 2.1 Canvas
-- Canvas element: `#c` (full-screen drawing surface). fileciteturn1file16
+- Canvas element: `#c` (full-screen drawing surface).
 
 ### 2.2 Bottom parameter overlay (always visible)
-Container: `#paramOverlay` (single-row, flex layout). fileciteturn1file19
+Container: `#paramOverlay` (single-row, flex layout).
 
 Each parameter tile (`.poItem`) contains:
-- A *state selector* (`select.poState[data-state="<key>"]`) with values: `fix | manx | many | rand`. fileciteturn1file2
-- A body with label + value button (for numeric params) or select (for formula/cmap). fileciteturn1file16
+- A *state selector* (`select.poState[data-state="<key>"]`) with values: `fix | manx | many | rand`.
+- A body with label + value button (for numeric params) or select (for formula/cmap).
 
 Tools area (`.poTools`):
 - Toggle-all button `#poToggleAll` that toggles all parameter states between Rand and Fix.
   - Border/outline reflects the **last** action performed.
-  - Button label shows what will happen **on next press** ("Rand all" / "Fix all"). fileciteturn1file13
-- Snapshot button `#poSnap` for saving PNG (can be hidden in some responsive layouts). fileciteturn1file4
+  - Button label shows what will happen **on next press** ("Rand all" / "Fix all").
+- Snapshot button `#poSnap` for saving PNG (can be hidden in some responsive layouts).
 
 ### 2.3 Help
-- Help open button: `#helpBtn` ("?"). fileciteturn1file6
-- Help modal overlay: `#helpOverlay` with close button `#helpCloseX` ("✕"). fileciteturn1file12
-- Must not close by tapping outside; close only by X. fileciteturn1file0
+- Help open button: `#helpBtn` ("?").
+- Help modal overlay: `#helpOverlay` with close button `#helpCloseX` ("✕").
+- Must not close by tapping outside; close only by X.
 - While help is open, suppress iOS zoom gestures:
   - `gesturestart` preventDefault
   - `dblclick` preventDefault
-  - extra `touchend` double-tap suppression. fileciteturn1file0
+  - extra `touchend` double-tap suppression.
 
 ### 2.4 Quick slider + state picker popovers
-- Quick slider panel: `#quickSlider` with `#qsRange`, `#qsLabel`, `#qsValue`, `#qsClose`. fileciteturn1file4
-- State picker panel: `#statePicker` with radios for `rand|fix|many|manx`. fileciteturn1file6
+- Quick slider panel: `#quickSlider` with `#qsRange`, `#qsLabel`, `#qsValue`, `#qsClose`.
+- State picker panel: `#statePicker` with radios for `rand|fix|many|manx`.
 
 ### 2.5 Menu (long-press)
-A larger settings menu exists (`#menu`) with sliders, outputs, and per-parameter randomize flags (`.randFlag` checkboxes) and Apply/Close controls. fileciteturn1file9
+A larger settings menu exists (`#menu`) with sliders, outputs, and per-parameter randomize flags (`.randFlag` checkboxes) and Apply/Close controls.
 
 ## 3) Parameters & modes
 
 ### 3.1 Parameter keys
 Numeric parameters:
-- `a`, `b`, `c`, `d` (rendered as α/β/δ/γ in some UI areas; note v124 maps: alpha→a, beta→b, delta→c, gamma→d). fileciteturn1file9
+- `a`, `b`, `c`, `d` (rendered as α/β/δ/γ in some UI areas; note v124 maps: alpha→a, beta→b, delta→c, gamma→d).
 - `orbits` (N), `iters`
 - `burn` (burn-in)
 - `rangeR` (range r)
@@ -68,44 +68,44 @@ Discrete parameters:
 - `cmap` (select)
 
 ### 3.2 Per-parameter state (Rand/Fix/ManX/ManY)
-State is chosen from each `.poState` selector in the bottom overlay. fileciteturn1file2
+State is chosen from each `.poState` selector in the bottom overlay.
 
 Rules:
 - If a parameter is `rand`, the next render step randomizes that parameter value.
 - If `fix`, hold steady unless user adjusts value.
 - If `manx` or `many`, the parameter is driven by gesture modulation (see 4.2).
-- System must enforce: **at most one** parameter assigned to ManX, and at most one to ManY. (v124 behavior implements discovery of the assigned keys during drag.) fileciteturn1file3
+- System must enforce: **at most one** parameter assigned to ManX, and at most one to ManY. (v124 behavior implements discovery of the assigned keys during drag.)
 
 ### 3.3 Interaction sub-modes
 `PAN / MOD / ALL` affect how gestures act:
 - PAN: gestures pan/zoom the view only.
 - MOD: gestures modulate ManX/ManY only.
-- ALL: gestures can pan and pinch-zoom; two-finger drag pans unless pinch threshold exceeded. fileciteturn1file15
+- ALL: gestures can pan and pinch-zoom; two-finger drag pans unless pinch threshold exceeded.
 
 ## 4) Input model
 
 ### 4.1 Tap navigation
 When not in menu, and no gesture movement:
 - Short tap left half: history back (previous frame).
-- Short tap right half: history forward or new render. fileciteturn1file8
+- Short tap right half: history forward or new render.
 
 ### 4.2 Drag & pinch
 Pointer-tracked gestures (`pointerdown/move/up`):
 - 1 finger drag:
-  - If ManX/ManY assigned and not in menu: modulate assigned parameters using absolute screen X/Y. fileciteturn1file3
+  - If ManX/ManY assigned and not in menu: modulate assigned parameters using absolute screen X/Y.
   - Otherwise: pan (desktop can use Space modifier for pan).
 - 2 finger:
-  - Pinch zoom around midpoint, continuously updating baseline. fileciteturn1file15
-  - In ALL mode, near-constant distance => midpoint drag pans. fileciteturn1file15
-- Wheel zoom on desktop (`wheel` event) zooms about cursor point. fileciteturn1file8
+  - Pinch zoom around midpoint, continuously updating baseline.
+  - In ALL mode, near-constant distance => midpoint drag pans.
+- Wheel zoom on desktop (`wheel` event) zooms about cursor point.
 
 ## 5) Rendering & history
 
 Key behaviors:
-- Uses seeded RNG per frame for deterministic history re-renders (mulberry32 + newSeed). fileciteturn1file8
-- Maintains a history stack for stepping back/forward (tap left/right). fileciteturn1file8
-- During gesture modulation, it can render a lower-quality preview and then commit a final full-quality render on release. fileciteturn1file8
-- A user-facing preview quality (`previewScale`) is exposed in help panel and persisted in localStorage. fileciteturn1file18
+- Uses seeded RNG per frame for deterministic history re-renders (mulberry32 + newSeed).
+- Maintains a history stack for stepping back/forward (tap left/right).
+- During gesture modulation, it can render a lower-quality preview and then commit a final full-quality render on release.
+- A user-facing preview quality (`previewScale`) is exposed in help panel and persisted in localStorage.
 
 ## 6) Snapshot export (PNG)
 
@@ -113,14 +113,14 @@ Key behaviors:
 Requirements:
 - Try `canvas.toBlob` first; if blob exists, prefer Web Share (`navigator.canShare` / `navigator.share`) on iOS.
 - Fallback: create object URL + `<a download>` click; if iOS ignores download, navigate same tab so user can save.
-- Fallback of last resort: `canvas.toDataURL('image/png')`. fileciteturn1file17
+- Fallback of last resort: `canvas.toDataURL('image/png')`.
 
 ## 7) Persistence
 
 Persist (localStorage):
 - previewScale: `hopalong_previewScale`
-- per-parameter states / values (v124 has `persistAllStates()` called on state change). fileciteturn1file13
-- install hint dismissal preference (see `#installHint`). fileciteturn1file6
+- per-parameter states / values (v124 has `persistAllStates()` called on state change).
+- install hint dismissal preference (see `#installHint`).
 
 ## 8) Data assets
 
@@ -171,8 +171,8 @@ hopalong-rewrite/
 
 ## 10) Test checklist (acceptance)
 
-- Help: `?` opens; only X closes; while open, double-tap zoom is blocked. fileciteturn1file0
-- Toggle-all: label shows next action; border shows last action; height matches other param boxes. fileciteturn1file1
-- Tap left/right history works only when not dragging and menu closed. fileciteturn1file8
-- 2-finger ALL-mode pan vs pinch threshold behaves as specified. fileciteturn1file15
-- Snapshot works on iOS Safari (share-sheet or downloadable PNG). fileciteturn1file17
+- Help: `?` opens; only X closes; while open, double-tap zoom is blocked.
+- Toggle-all: label shows next action; border shows last action; height matches other param boxes.
+- Tap left/right history works only when not dragging and menu closed.
+- 2-finger ALL-mode pan vs pinch threshold behaves as specified.
+- Snapshot works on iOS Safari (share-sheet or downloadable PNG).

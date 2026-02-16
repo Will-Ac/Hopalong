@@ -11,6 +11,14 @@ Single-page web app that:
 - Saves the canvas as PNG with iOS/Safari-friendly fallbacks.
 - Provides a modal Help overlay opened by `?` and closed only by `X`, with zoom suppression while open.
 
+## 1.1) Implementation note: ES modules
+
+This rewrite should be implemented as ES modules (multiple `.js` files) loaded from `index.html` using:
+
+```html
+<script type="module" src="./js/main.js"></script>
+```
+
 ## 2) Public UI surface
 
 ### 2.1 Canvas
@@ -121,18 +129,48 @@ See `hopalong_data.json` for:
 - Per-formula parameter ranges (a,b,c,d)
 - Colormap names
 
-## 9) Rewrite architecture (recommended)
+## 9) Rewrite architecture (preferred: ES modules, no build)
 
-Split into modules (even if bundled later):
-- `core/formulas.ts`: formula step functions + metadata.
-- `core/ranges.ts`: FORMULA_RANGES + helpers (±10% widening & clamp).
-- `core/rng.ts`: mulberry32 + seeding.
-- `render/renderer.ts`: iteration loop, burn-in, orbit control, draw-to-canvas, colormap sampling.
-- `ui/state.ts`: parameter values, per-param mode, validation (unique ManX/ManY).
-- `ui/components.ts`: bottom bar, quick slider, state picker, help modal.
-- `input/gestures.ts`: pointer tracking, pan/zoom, modulation mapping.
-- `persistence/storage.ts`: localStorage keys, load/save, schema versioning.
-- `export/snapshot.ts`: PNG export with iOS fallbacks.
+**Preferred delivery (for iPad + GitHub Pages):**
+- Plain JavaScript ES modules (multiple `.js` files) loaded by `index.html` with `<script type="module">`.
+- No bundler, no transpiler, no Node build step required.
+
+Recommended repo layout:
+
+```
+hopalong-rewrite/
+├── index.html
+├── data/
+│   └── hopalong_data.json
+└── js/
+    ├── main.js
+    ├── formulas.js
+    ├── renderer.js
+    ├── colormaps.js
+    ├── state.js
+    ├── gestures.js
+    ├── ui.js
+    └── snapshot.js
+```
+
+**Module responsibilities:**
+- `js/formulas.js`: formula step functions + metadata lookup (pure math, no DOM).
+- `js/renderer.js`: iteration loop, burn-in, orbit control, draw-to-canvas, colormap sampling (canvas only).
+- `js/state.js`: parameter values, per-param mode, validation (unique ManX/ManY), history stack.
+- `js/gestures.js`: pointer tracking, pan/zoom, modulation mapping.
+- `js/ui.js`: bottom bar, quick slider, state picker, help modal (DOM only).
+- `js/snapshot.js`: PNG export + iOS/Safari fallbacks.
+- `js/main.js`: bootstraps the app; loads `data/hopalong_data.json` via `fetch()`, wires state↔UI↔renderer↔gestures.
+
+**Notes:**
+- Colormap definitions are part of the app’s visual identity. Do not invent them; implement them exactly as in `colormaps_v124.js` (renamed to `js/colormaps.js`).
+
+- Always include file extensions in imports (e.g. `import { render } from "./renderer.js";`).
+- Must be served over HTTP(S) (GitHub Pages is fine); `file://` won’t reliably allow module imports.
+
+**Optional later upgrade (not required):**
+- Convert to TypeScript + bundler once behavior is stable.
+
 
 ## 10) Test checklist (acceptance)
 
