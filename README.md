@@ -36,7 +36,6 @@ git push -u origin work
 ```
 
 Then create/merge a PR on GitHub.
-<<<<<<< codex/list-files-in-spec-folder-t6jfs6
 
 
 ## How to create a PR (beginner checklist)
@@ -61,7 +60,7 @@ This message means both branches changed some of the same lines, so GitHub needs
 ### Fastest fix (recommended for beginners)
 1. In the PR page, tap **Resolve conflicts** (or use desktop mode if the button is hidden on mobile).
 2. For each conflict block, keep the version you want:
-   - `<<<<<<<` / `=======` / `>>>>>>>` are conflict markers.
+   - are conflict markers.
    - Delete the markers after choosing the correct content.
 3. Tap **Mark as resolved** for each file.
 4. Tap **Commit merge**.
@@ -74,5 +73,4 @@ This message means both branches changed some of the same lines, so GitHub needs
 
 ### Why this happened
 It is normal when your PR branch and target branch both changed overlapping lines after the PR was opened.
-=======
->>>>>>> main
+
