@@ -52,3 +52,25 @@ If you are new to GitHub, follow this exact sequence:
 7. After review, tap **Merge pull request**.
 
 After merge, GitHub Pages will deploy from your configured Pages branch.
+
+
+## If GitHub says "Unable to merge" (conflicts)
+This message means both branches changed some of the same lines, so GitHub needs you to pick which version to keep.
+
+### Fastest fix (recommended for beginners)
+1. In the PR page, tap **Resolve conflicts** (or use desktop mode if the button is hidden on mobile).
+2. For each conflict block, keep the version you want:
+   - are conflict markers.
+   - Delete the markers after choosing the correct content.
+3. Tap **Mark as resolved** for each file.
+4. Tap **Commit merge**.
+5. Return to the PR and merge normally.
+
+### Safer workflow if mobile conflict UI is difficult
+1. Update your PR branch with the latest target branch (usually `main`) in a full desktop Git client.
+2. Resolve conflicts there, commit, and push again.
+3. Re-open the PR; the conflict warning should clear.
+
+### Why this happened
+It is normal when your PR branch and target branch both changed overlapping lines after the PR was opened.
+

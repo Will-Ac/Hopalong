@@ -1,4 +1,3 @@
-import { sampleColorMap } from "./colormaps.js";
 import { renderFrame, getParamsForFormula } from "./renderer.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
@@ -6,71 +5,14 @@ const DEFAULTS_PATH = "./data/defaults.json";
 
 const canvas = document.getElementById("c");
 const statusEl = document.getElementById("status");
-const formulaBtn = document.getElementById("formulaBtn");
-const cmapBtn = document.getElementById("cmapBtn");
-
-const quickSlider = document.getElementById("quickSlider");
-const qsLabel = document.getElementById("qsLabel");
-const qsValue = document.getElementById("qsValue");
-const qsRange = document.getElementById("qsRange");
-const qsMinus = document.getElementById("qsMinus");
-const qsPlus = document.getElementById("qsPlus");
-
-const pickerOverlay = document.getElementById("pickerOverlay");
-const pickerBackdrop = document.getElementById("pickerBackdrop");
-const pickerTitle = document.getElementById("pickerTitle");
-const pickerClose = document.getElementById("pickerClose");
-const pickerList = document.getElementById("pickerList");
-
-const sliderButtons = {
-  alpha: document.getElementById("btnAlpha"),
-  beta: document.getElementById("btnBeta"),
-  gamma: document.getElementById("btnGamma"),
-  delta: document.getElementById("btnDelta"),
-};
-
-const sliderLabelMap = {
-  alpha: "α / a",
-  beta: "β / b",
-  gamma: "γ / d",
-  delta: "δ / c",
-};
-
+const formulaSelect = document.getElementById("formulaSelect");
 const ctx = canvas.getContext("2d", { alpha: false });
+
 let appData = null;
 let currentFormulaId = null;
-let activeSliderKey = null;
-let activePicker = null;
 
 function setStatus(message) {
   statusEl.textContent = message;
-}
-
-function installGlobalZoomBlockers() {
-  document.addEventListener("gesturestart", (event) => event.preventDefault(), { passive: false });
-  document.addEventListener("dblclick", (event) => event.preventDefault(), { passive: false });
-  document.addEventListener(
-    "wheel",
-    (event) => {
-      if (event.ctrlKey) {
-        event.preventDefault();
-      }
-    },
-    { passive: false },
-  );
-
-  let lastTouchEnd = 0;
-  document.addEventListener(
-    "touchend",
-    (event) => {
-      const now = Date.now();
-      if (now - lastTouchEnd < 350) {
-        event.preventDefault();
-      }
-      lastTouchEnd = now;
-    },
-    { passive: false },
-  );
 }
 
 function resizeCanvas() {
@@ -88,169 +30,28 @@ function resizeCanvas() {
   return false;
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function getCurrentFormulaRange() {
-  return appData.formula_ranges_raw[currentFormulaId] || null;
-}
-
-function getDerivedParams() {
-  return getParamsForFormula({
-    rangesForFormula: getCurrentFormulaRange(),
-    sliderDefaults: appData.defaults.sliders,
-  });
+function populateFormulaSelect(formulas) {
+  formulaSelect.innerHTML = "";
+  for (const formula of formulas) {
+    const option = document.createElement("option");
+    option.value = formula.id;
+    option.textContent = formula.name;
+    formulaSelect.append(option);
+  }
 }
 
 function resolveInitialFormulaId() {
   const ids = new Set(appData.formulas.map((formula) => formula.id));
-  return ids.has(appData.defaults.formulaId) ? appData.defaults.formulaId : appData.formulas[0].id;
-}
-
-function resolveInitialColorMap() {
-  const names = new Set(appData.colormaps || []);
-  return names.has(appData.defaults.cmapName) ? appData.defaults.cmapName : appData.colormaps[0];
-}
-
-function formatSliderButton(normalized, actual) {
-  return `${normalized.toFixed(1)}% (${actual.toFixed(2)})`;
-}
-
-function buildColorMapGradient(cmapName) {
-  const stops = [];
-  const count = 9;
-  for (let index = 0; index < count; index += 1) {
-    const t = index / (count - 1);
-    const [r, g, b] = sampleColorMap(cmapName, t);
-    stops.push(`rgb(${r}, ${g}, ${b}) ${Math.round(t * 100)}%`);
+  const preferred = appData.defaults.formulaId;
+  if (ids.has(preferred)) {
+    return preferred;
   }
 
-  return `linear-gradient(90deg, ${stops.join(", ")})`;
+  return appData.formulas[0].id;
 }
 
-function refreshParamButtons() {
-  const params = getDerivedParams();
-  sliderButtons.alpha.textContent = formatSliderButton(appData.defaults.sliders.alpha, params.a);
-  sliderButtons.beta.textContent = formatSliderButton(appData.defaults.sliders.beta, params.b);
-  sliderButtons.gamma.textContent = formatSliderButton(appData.defaults.sliders.gamma, params.d);
-  sliderButtons.delta.textContent = formatSliderButton(appData.defaults.sliders.delta, params.c);
-
-  const formula = appData.formulas.find((item) => item.id === currentFormulaId);
-  formulaBtn.textContent = formula?.name || currentFormulaId;
-  cmapBtn.textContent = appData.defaults.cmapName;
-}
-
-function closePicker() {
-  activePicker = null;
-  pickerOverlay.classList.remove("is-open");
-  pickerOverlay.setAttribute("aria-hidden", "true");
-}
-
-function renderFormulaPicker() {
-  pickerTitle.textContent = "Select formula";
-  pickerList.innerHTML = "";
-
-  for (const formula of appData.formulas) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "pickerOption";
-    if (formula.id === currentFormulaId) {
-      button.classList.add("is-selected");
-    }
-
-    const row = document.createElement("div");
-    row.className = "formulaRow";
-
-    const name = document.createElement("span");
-    name.className = "formulaName";
-    name.textContent = formula.name;
-
-    const desc = document.createElement("span");
-    desc.className = "formulaDesc";
-    desc.textContent = formula.desc;
-
-    row.append(name, desc);
-    button.append(row);
-
-    button.addEventListener("click", () => {
-      currentFormulaId = formula.id;
-      closePicker();
-      draw();
-    });
-
-    pickerList.append(button);
-  }
-}
-
-function renderColorMapPicker() {
-  pickerTitle.textContent = "Select color map";
-  pickerList.innerHTML = "";
-
-  for (const cmapName of appData.colormaps) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "pickerOption";
-    if (cmapName === appData.defaults.cmapName) {
-      button.classList.add("is-selected");
-    }
-
-    const row = document.createElement("div");
-    row.className = "cmapRow";
-
-    const name = document.createElement("span");
-    name.textContent = cmapName;
-
-    const bar = document.createElement("div");
-    bar.className = "cmapBar";
-    bar.style.background = buildColorMapGradient(cmapName);
-
-    row.append(name, bar);
-    button.append(row);
-
-    button.addEventListener("click", () => {
-      appData.defaults.cmapName = cmapName;
-      closePicker();
-      draw();
-    });
-
-    pickerList.append(button);
-  }
-}
-
-function openPicker(kind) {
-  activePicker = kind;
-  pickerOverlay.classList.add("is-open");
-  pickerOverlay.setAttribute("aria-hidden", "false");
-
-  if (kind === "formula") {
-    renderFormulaPicker();
-  } else {
-    renderColorMapPicker();
-  }
-}
-
-function applySliderValue(nextValue) {
-  if (!activeSliderKey) {
-    return;
-  }
-
-  const value = clamp(nextValue, 0, 100);
-  appData.defaults.sliders[activeSliderKey] = value;
-  qsRange.value = value;
-  qsValue.textContent = `${sliderLabelMap[activeSliderKey]}: ${value.toFixed(1)}%`;
-  draw();
-}
-
-function openQuickSlider(sliderKey) {
-  activeSliderKey = sliderKey;
-  quickSlider.classList.add("is-open");
-  quickSlider.setAttribute("aria-hidden", "false");
-
-  const currentValue = appData.defaults.sliders[sliderKey];
-  qsRange.value = currentValue;
-  qsLabel.textContent = sliderLabelMap[sliderKey];
-  qsValue.textContent = `${sliderLabelMap[sliderKey]}: ${currentValue.toFixed(1)}%`;
+function getCurrentFormulaRange() {
+  return appData.formula_ranges_raw[currentFormulaId] || null;
 }
 
 function draw() {
@@ -259,51 +60,21 @@ function draw() {
   }
 
   const didResize = resizeCanvas();
+
   renderFrame({
     ctx,
     canvas,
     formulaId: currentFormulaId,
-    cmapName: appData.defaults.cmapName,
-    params: getDerivedParams(),
+    cmapName: appData.defaults.cmapName || appData.colormaps[0],
+    params: getParamsForFormula({
+      rangesForFormula: getCurrentFormulaRange(),
+      sliderDefaults: appData.defaults.sliders,
+    }),
     iterations: didResize ? 100000 : 120000,
   });
 
-  refreshParamButtons();
-
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
-  setStatus(`Loaded ${formula?.name || currentFormulaId}. Slice 2 sliders ready.`);
-}
-
-function registerHandlers() {
-  formulaBtn.addEventListener("click", () => openPicker("formula"));
-  cmapBtn.addEventListener("click", () => openPicker("cmap"));
-  pickerClose.addEventListener("click", closePicker);
-  pickerBackdrop.addEventListener("click", closePicker);
-
-  for (const [sliderKey, button] of Object.entries(sliderButtons)) {
-    button.addEventListener("click", () => openQuickSlider(sliderKey));
-  }
-
-  qsRange.addEventListener("input", () => {
-    applySliderValue(Number.parseFloat(qsRange.value));
-  });
-
-  qsMinus.addEventListener("click", () => {
-    if (!activeSliderKey) {
-      return;
-    }
-    applySliderValue(appData.defaults.sliders[activeSliderKey] - 0.1);
-  });
-
-  qsPlus.addEventListener("click", () => {
-    if (!activeSliderKey) {
-      return;
-    }
-    applySliderValue(appData.defaults.sliders[activeSliderKey] + 0.1);
-  });
-
-  window.addEventListener("resize", draw, { passive: true });
-  window.addEventListener("orientationchange", draw, { passive: true });
+  setStatus(`Loaded ${formula?.name || currentFormulaId}. Slice 1 ready.`);
 }
 
 async function fetchJson(path) {
@@ -323,22 +94,25 @@ async function loadData() {
     throw new Error("Data file has no formulas. Expected at least one formula option.");
   }
 
-  if (!Array.isArray(data.colormaps) || data.colormaps.length === 0) {
-    throw new Error("Data file has no colormaps. Expected at least one colormap option.");
-  }
-
   return data;
 }
 
 async function bootstrap() {
   try {
-    installGlobalZoomBlockers();
     appData = await loadData();
+    populateFormulaSelect(appData.formulas);
 
     currentFormulaId = resolveInitialFormulaId();
-    appData.defaults.cmapName = resolveInitialColorMap();
+    formulaSelect.value = currentFormulaId;
 
-    registerHandlers();
+    formulaSelect.addEventListener("change", () => {
+      currentFormulaId = formulaSelect.value;
+      draw();
+    });
+
+    window.addEventListener("resize", draw, { passive: true });
+    window.addEventListener("orientationchange", draw, { passive: true });
+
     draw();
   } catch (error) {
     console.error(error);
