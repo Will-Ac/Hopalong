@@ -9,7 +9,8 @@ Single-page web app that:
 - Provides a compact bottom parameter bar with per-parameter mode selection and quick value sliders.
 - Supports gesture-driven modulation (ManX/ManY) and history stepping (tap left/right).
 - Saves the canvas as PNG with iOS/Safari-friendly fallbacks.
-- Provides a modal Help overlay opened by `?` and closed only by `X`, with zoom suppression while open.
+- Provides a modal Help overlay opened by `?` and closed only by `X`.
+- Suppresses page zoom gestures globally (double-tap, pinch gesturestart, ctrl+wheel) so the app never zooms the page.
 
 ## 1.1) Implementation note: ES modules
 
@@ -41,13 +42,19 @@ Tools area (`.poTools`):
 - Help open button: `#helpBtn` ("?"). 
 - Help modal overlay: `#helpOverlay` with close button `#helpCloseX` ("✕"). 
 - Must not close by tapping outside; close only by X. 
-- While help is open, suppress iOS zoom gestures:
+- Global zoom suppression (applies whether help is open or closed):
+  - viewport set to `maximum-scale=1, user-scalable=no`
   - `gesturestart` preventDefault
   - `dblclick` preventDefault
-  - extra `touchend` double-tap suppression. 
+  - `touchend` double-tap suppression
+  - prevent ctrl+wheel page zoom on desktop trackpads.
 
 ### 2.4 Quick slider + state picker popovers
-- Quick slider panel: `#quickSlider` with `#qsRange`, `#qsLabel`, `#qsValue`, `#qsClose`. 
+- Quick slider panel: `#quickSlider` with `#qsRange`, centered `#qsLabel` + `#qsValue`, close button `#qsClose`, and step buttons `#qsMinus` / `#qsPlus`.
+- Slice 2 behavior: opening a numeric parameter shows a **full-width horizontal slider panel** above the bottom bar (must not overlap parameter tiles).
+- Parameter name + value readout must be centered above the slider control so finger contact does not obscure the key readout.
+- Slider readout and bottom parameter tiles must display actual derived `a/b/c/d` values (not normalized %).
+- Tapping +/- changes by a small increment; press-and-hold on +/- must continuously step values until release.
 - State picker panel: `#statePicker` with radios for `rand|fix|many|manx`. 
 
 ### 2.5 Menu (long-press)
@@ -57,7 +64,7 @@ A larger settings menu exists (`#menu`) with sliders, outputs, and per-parameter
 
 ### 3.1 Parameter keys
 Numeric parameters:
-- `a`, `b`, `c`, `d` (rendered as α/β/δ/γ in some UI areas; note v124 maps: alpha→a, beta→b, delta→c, gamma→d). 
+- `a`, `b`, `c`, `d` (UI labels and readouts use `a/b/c/d` only; no Greek letter labels).
 - `orbits` (N), `iters`
 - `burn` (burn-in)
 - `rangeR` (range r)
@@ -66,6 +73,14 @@ Numeric parameters:
 Discrete parameters:
 - `formula` (select)
 - `cmap` (select)
+
+Colormap UI requirement:
+- Bottom bar shows only selected colormap name.
+- Colormap preview strip/gradient is shown in the **open colormap picker popup** (to the right of colormap name), not always visible in the bottom bar.
+
+Formula picker UI requirement:
+- Formula picker popup rows must show short formula name plus full formula expression/description to its right.
+- Formula and colormap pickers use black popup background for high contrast.
 
 ### 3.2 Per-parameter state (Rand/Fix/ManX/ManY)
 State is chosen from each `.poState` selector in the bottom overlay. 
@@ -173,7 +188,16 @@ hopalong-rewrite/
 
 ## 10) Test checklist (acceptance)
 
-- Help: `?` opens; only X closes; while open, double-tap zoom is blocked. 
+- Help: `?` opens; only X closes.
+- Global zoom lock: double-tap and pinch must not zoom page anywhere (canvas or UI).
+- Slice 2 quick slider opens as full-width horizontal panel above bottom bar and does not overlap parameter tiles.
+- Quick slider includes a visible dismiss `X` button.
+- Quick slider includes +/- step buttons for fine incremental control, with press-and-hold continuous stepping.
+- Quick slider shows centered parameter name/value above the slider control.
+- Parameter tiles and quick slider readout display actual values (not %).
+- Colormap bottom tile shows name only; colormap picker popup shows name + visible color-range preview strip.
+- Formula picker popup rows show short name plus full formula description to the right.
+- Formula and colormap picker popups have black background. 
 - Toggle-all: label shows next action; border shows last action; height matches other param boxes. 
 - Tap left/right history works only when not dragging and menu closed. 
 - 2-finger ALL-mode pan vs pinch threshold behaves as specified. 
