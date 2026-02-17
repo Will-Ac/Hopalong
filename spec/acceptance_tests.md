@@ -16,13 +16,18 @@ Use this as a tight punch-list while Codex iterates.
 - Each parameter tile shows its name + current value/selection.
 - Each tile has a mode selector (Rand/Fix/ManX/ManY).
 - Assigning ManX to a new parameter clears prior ManX assignment (same for ManY).
-- Colormap tile shows colormap name plus a visible color-range preview strip.
+- Colormap tile shows colormap name only (no always-visible preview strip).
+- Opening colormap picker shows name plus preview strip in each option row.
+- Formula picker popup rows show short name and full formula description side-by-side.
+- Formula and colormap picker popups use black background.
 
 ## Quick slider
 - Tapping a numeric parameter opens slider popover.
-- Slider appears vertically above the tapped parameter tile.
-- Slider width matches the parameter tile width.
-- Moving slider updates value readout and redraws frame immediately.
+- Slider is full-width horizontal panel above the bottom bar.
+- Slider panel does not overlap parameter tiles.
+- Parameter name and value are shown above slider track.
+- Slider has minus and plus buttons for fine incremental control.
+- Moving slider or using +/- updates value readout and redraws frame immediately.
 
 ## Toggle-all
 - Press once: all modes become Rand OR Fix (depending on current last-action).

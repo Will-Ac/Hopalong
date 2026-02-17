@@ -50,8 +50,9 @@ Tools area (`.poTools`):
   - prevent ctrl+wheel page zoom on desktop trackpads.
 
 ### 2.4 Quick slider + state picker popovers
-- Quick slider panel: `#quickSlider` with `#qsRange`, `#qsLabel`, `#qsValue`, `#qsClose`.
-- Slice 2 behavior: opening a numeric parameter shows the quick slider **vertically above that parameter tile**, matching the tile width.
+- Quick slider panel: `#quickSlider` with `#qsRange`, `#qsLabel`, `#qsValue` and step buttons `#qsMinus` / `#qsPlus`.
+- Slice 2 behavior: opening a numeric parameter shows a **full-width horizontal slider panel** above the bottom bar (must not overlap parameter tiles).
+- Parameter name + value readout must be shown above the slider control so finger contact does not obscure the key readout.
 - State picker panel: `#statePicker` with radios for `rand|fix|many|manx`. 
 
 ### 2.5 Menu (long-press)
@@ -72,7 +73,12 @@ Discrete parameters:
 - `cmap` (select)
 
 Colormap UI requirement:
-- Show the colormap name and a visible preview strip/gradient when changing colormaps.
+- Bottom bar shows only selected colormap name.
+- Colormap preview strip/gradient is shown in the **open colormap picker popup** (to the right of colormap name), not always visible in the bottom bar.
+
+Formula picker UI requirement:
+- Formula picker popup rows must show short formula name plus full formula expression/description to its right.
+- Formula and colormap pickers use black popup background for high contrast.
 
 ### 3.2 Per-parameter state (Rand/Fix/ManX/ManY)
 State is chosen from each `.poState` selector in the bottom overlay. 
@@ -182,8 +188,12 @@ hopalong-rewrite/
 
 - Help: `?` opens; only X closes.
 - Global zoom lock: double-tap and pinch must not zoom page anywhere (canvas or UI).
-- Slice 2 quick slider opens above the tapped parameter tile and matches tile width.
-- Colormap control shows both name and visible color-range preview strip. 
+- Slice 2 quick slider opens as full-width horizontal panel above bottom bar and does not overlap parameter tiles.
+- Quick slider includes +/- step buttons for fine incremental control.
+- Quick slider shows parameter name/value above the slider control.
+- Colormap bottom tile shows name only; colormap picker popup shows name + visible color-range preview strip.
+- Formula picker popup rows show short name plus full formula description to the right.
+- Formula and colormap picker popups have black background. 
 - Toggle-all: label shows next action; border shows last action; height matches other param boxes. 
 - Tap left/right history works only when not dragging and menu closed. 
 - 2-finger ALL-mode pan vs pinch threshold behaves as specified. 
