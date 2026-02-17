@@ -48,14 +48,11 @@ Tools area (`.poTools`):
   - `dblclick` preventDefault
   - `touchend` double-tap suppression
   - prevent ctrl+wheel page zoom on desktop trackpads.
-- Global app text selection is disabled across canvas and controls (no selectable UI text on tap/long-press).
 
 ### 2.4 Quick slider + state picker popovers
-- Quick slider panel: `#quickSlider` with `#qsRange`, centered `#qsLabel` + `#qsValue`, functional close button `#qsClose`, and step buttons `#qsMinus` / `#qsPlus`.
+- Quick slider panel: `#quickSlider` with `#qsRange`, `#qsLabel`, `#qsValue` and step buttons `#qsMinus` / `#qsPlus`.
 - Slice 2 behavior: opening a numeric parameter shows a **full-width horizontal slider panel** above the bottom bar (must not overlap parameter tiles).
-- Parameter name + value readout must be centered above the slider control so finger contact does not obscure the key readout.
-- Slider readout and bottom parameter tiles must display actual derived `a/b/c/d` values (not normalized %).
-- Tapping +/- changes by a small increment; press-and-hold on +/- must continuously step values until release on touch and pointer devices.
+- Parameter name + value readout must be shown above the slider control so finger contact does not obscure the key readout.
 - State picker panel: `#statePicker` with radios for `rand|fix|many|manx`. 
 
 ### 2.5 Menu (long-press)
@@ -191,12 +188,9 @@ hopalong-rewrite/
 
 - Help: `?` opens; only X closes.
 - Global zoom lock: double-tap and pinch must not zoom page anywhere (canvas or UI).
-- UI text is not selectable anywhere in the app.
 - Slice 2 quick slider opens as full-width horizontal panel above bottom bar and does not overlap parameter tiles.
-- Quick slider includes a visible dismiss `X` button and it closes the slider when tapped.
-- Quick slider includes +/- step buttons for fine incremental control, with press-and-hold continuous stepping.
-- Quick slider shows centered parameter name/value above the slider control.
-- Parameter tiles and quick slider readout display actual values (not %).
+- Quick slider includes +/- step buttons for fine incremental control.
+- Quick slider shows parameter name/value above the slider control.
 - Colormap bottom tile shows name only; colormap picker popup shows name + visible color-range preview strip.
 - Formula picker popup rows show short name plus full formula description to the right.
 - Formula and colormap picker popups have black background. 

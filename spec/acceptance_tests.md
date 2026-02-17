@@ -11,7 +11,6 @@ Use this as a tight punch-list while Codex iterates.
 - Double-tap anywhere on page does not zoom (canvas or controls).
 - Pinch gesture does not zoom the page.
 - Ctrl+wheel (desktop trackpad/browser zoom gesture) does not zoom page content.
-- Long-pressing on labels/buttons does not select text anywhere in the app.
 
 ## Bottom bar
 - Each parameter tile shows its name + current value/selection.
@@ -23,13 +22,12 @@ Use this as a tight punch-list while Codex iterates.
 - Formula and colormap picker popups use black background.
 
 ## Quick slider
-- Tapping a numeric parameter opens slider popover, and tapping `X` always dismisses it.
+- Tapping a numeric parameter opens slider popover.
 - Slider is full-width horizontal panel above the bottom bar.
 - Slider panel does not overlap parameter tiles.
-- Parameter name and value are centered above slider track.
-- Slider has minus and plus buttons for fine incremental control, and press-and-hold continuously steps values on touch and pointer devices.
-- Moving slider or using +/- updates actual-value readout (not %) and redraws frame immediately.
-- Parameter tiles use `a/b/c/d` labels only (no Greek letters).
+- Parameter name and value are shown above slider track.
+- Slider has minus and plus buttons for fine incremental control.
+- Moving slider or using +/- updates value readout and redraws frame immediately.
 
 ## Toggle-all
 - Press once: all modes become Rand OR Fix (depending on current last-action).
