@@ -6,12 +6,23 @@ Use this as a tight punch-list while Codex iterates.
 - Tap `?` opens help.
 - Tap outside does nothing (must stay open).
 - Tap `X` closes.
-- While open: pinch zoom / double-tap zoom does nothing.
+
+## Global zoom suppression
+- Double-tap anywhere on page does not zoom (canvas or controls).
+- Pinch gesture does not zoom the page.
+- Ctrl+wheel (desktop trackpad/browser zoom gesture) does not zoom page content.
 
 ## Bottom bar
 - Each parameter tile shows its name + current value/selection.
 - Each tile has a mode selector (Rand/Fix/ManX/ManY).
 - Assigning ManX to a new parameter clears prior ManX assignment (same for ManY).
+- Colormap tile shows colormap name plus a visible color-range preview strip.
+
+## Quick slider
+- Tapping a numeric parameter opens slider popover.
+- Slider appears vertically above the tapped parameter tile.
+- Slider width matches the parameter tile width.
+- Moving slider updates value readout and redraws frame immediately.
 
 ## Toggle-all
 - Press once: all modes become Rand OR Fix (depending on current last-action).

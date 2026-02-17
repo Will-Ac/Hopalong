@@ -9,7 +9,8 @@ Single-page web app that:
 - Provides a compact bottom parameter bar with per-parameter mode selection and quick value sliders.
 - Supports gesture-driven modulation (ManX/ManY) and history stepping (tap left/right).
 - Saves the canvas as PNG with iOS/Safari-friendly fallbacks.
-- Provides a modal Help overlay opened by `?` and closed only by `X`, with zoom suppression while open.
+- Provides a modal Help overlay opened by `?` and closed only by `X`.
+- Suppresses page zoom gestures globally (double-tap, pinch gesturestart, ctrl+wheel) so the app never zooms the page.
 
 ## 1.1) Implementation note: ES modules
 
@@ -41,13 +42,16 @@ Tools area (`.poTools`):
 - Help open button: `#helpBtn` ("?"). 
 - Help modal overlay: `#helpOverlay` with close button `#helpCloseX` ("✕"). 
 - Must not close by tapping outside; close only by X. 
-- While help is open, suppress iOS zoom gestures:
+- Global zoom suppression (applies whether help is open or closed):
+  - viewport set to `maximum-scale=1, user-scalable=no`
   - `gesturestart` preventDefault
   - `dblclick` preventDefault
-  - extra `touchend` double-tap suppression. 
+  - `touchend` double-tap suppression
+  - prevent ctrl+wheel page zoom on desktop trackpads.
 
 ### 2.4 Quick slider + state picker popovers
-- Quick slider panel: `#quickSlider` with `#qsRange`, `#qsLabel`, `#qsValue`, `#qsClose`. 
+- Quick slider panel: `#quickSlider` with `#qsRange`, `#qsLabel`, `#qsValue`, `#qsClose`.
+- Slice 2 behavior: opening a numeric parameter shows the quick slider **vertically above that parameter tile**, matching the tile width.
 - State picker panel: `#statePicker` with radios for `rand|fix|many|manx`. 
 
 ### 2.5 Menu (long-press)
@@ -66,6 +70,9 @@ Numeric parameters:
 Discrete parameters:
 - `formula` (select)
 - `cmap` (select)
+
+Colormap UI requirement:
+- Show the colormap name and a visible preview strip/gradient when changing colormaps.
 
 ### 3.2 Per-parameter state (Rand/Fix/ManX/ManY)
 State is chosen from each `.poState` selector in the bottom overlay. 
@@ -173,7 +180,10 @@ hopalong-rewrite/
 
 ## 10) Test checklist (acceptance)
 
-- Help: `?` opens; only X closes; while open, double-tap zoom is blocked. 
+- Help: `?` opens; only X closes.
+- Global zoom lock: double-tap and pinch must not zoom page anywhere (canvas or UI).
+- Slice 2 quick slider opens above the tapped parameter tile and matches tile width.
+- Colormap control shows both name and visible color-range preview strip. 
 - Toggle-all: label shows next action; border shows last action; height matches other param boxes. 
 - Tap left/right history works only when not dragging and menu closed. 
 - 2-finger ALL-mode pan vs pinch threshold behaves as specified. 
