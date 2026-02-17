@@ -1,12 +1,16 @@
+import { sampleColorMap } from "./colormaps.js";
 import { renderFrame, getParamsForFormula } from "./renderer.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
 
+const appEl = document.getElementById("app");
 const canvas = document.getElementById("c");
 const statusEl = document.getElementById("status");
 const formulaSelect = document.getElementById("formulaSelect");
 const cmapSelect = document.getElementById("cmapSelect");
+const cmapPreviewName = document.getElementById("cmapPreviewName");
+const cmapPreviewBar = document.getElementById("cmapPreviewBar");
 const ctx = canvas.getContext("2d", { alpha: false });
 
 const quickSlider = document.getElementById("quickSlider");
@@ -32,9 +36,51 @@ const sliderLabelMap = {
 let appData = null;
 let currentFormulaId = null;
 let activeSliderKey = null;
+let activeSliderButton = null;
 
 function setStatus(message) {
   statusEl.textContent = message;
+}
+
+function installGlobalZoomBlockers() {
+  document.addEventListener(
+    "gesturestart",
+    (event) => {
+      event.preventDefault();
+    },
+    { passive: false },
+  );
+
+  document.addEventListener(
+    "dblclick",
+    (event) => {
+      event.preventDefault();
+    },
+    { passive: false },
+  );
+
+  document.addEventListener(
+    "wheel",
+    (event) => {
+      if (event.ctrlKey) {
+        event.preventDefault();
+      }
+    },
+    { passive: false },
+  );
+
+  let lastTouchEnd = 0;
+  document.addEventListener(
+    "touchend",
+    (event) => {
+      const now = Date.now();
+      if (now - lastTouchEnd < 350) {
+        event.preventDefault();
+      }
+      lastTouchEnd = now;
+    },
+    { passive: false },
+  );
 }
 
 function resizeCanvas() {
@@ -110,12 +156,56 @@ function formatSliderButton(normalized, actual) {
   return `${normalized.toFixed(1)}% (${actual.toFixed(2)})`;
 }
 
+function buildColorMapGradient(cmapName) {
+  const stops = [];
+  const count = 9;
+  for (let index = 0; index < count; index += 1) {
+    const t = index / (count - 1);
+    const [r, g, b] = sampleColorMap(cmapName, t);
+    stops.push(`rgb(${r}, ${g}, ${b}) ${Math.round(t * 100)}%`);
+  }
+
+  return `linear-gradient(90deg, ${stops.join(", ")})`;
+}
+
+function refreshColorMapPreview() {
+  const name = appData.defaults.cmapName;
+  cmapPreviewName.textContent = name;
+  cmapPreviewBar.style.background = buildColorMapGradient(name);
+}
+
 function refreshParamButtons() {
   const params = getDerivedParams();
   sliderButtons.alpha.textContent = formatSliderButton(appData.defaults.sliders.alpha, params.a);
   sliderButtons.beta.textContent = formatSliderButton(appData.defaults.sliders.beta, params.b);
   sliderButtons.gamma.textContent = formatSliderButton(appData.defaults.sliders.gamma, params.d);
   sliderButtons.delta.textContent = formatSliderButton(appData.defaults.sliders.delta, params.c);
+}
+
+function positionQuickSlider(anchorButton) {
+  if (!anchorButton || !quickSlider.classList.contains("is-open")) {
+    return;
+  }
+
+  const appRect = appEl.getBoundingClientRect();
+  const buttonRect = anchorButton.getBoundingClientRect();
+
+  quickSlider.style.width = `${Math.round(buttonRect.width)}px`;
+
+  const sliderHeight = quickSlider.offsetHeight;
+  const horizontalInset = 10;
+  const verticalGap = 8;
+
+  let left = buttonRect.left - appRect.left;
+  left = clamp(left, horizontalInset, appRect.width - buttonRect.width - horizontalInset);
+
+  let top = buttonRect.top - appRect.top - sliderHeight - verticalGap;
+  if (top < horizontalInset) {
+    top = buttonRect.bottom - appRect.top + verticalGap;
+  }
+
+  quickSlider.style.left = `${Math.round(left)}px`;
+  quickSlider.style.top = `${Math.round(top)}px`;
 }
 
 function draw() {
@@ -135,6 +225,11 @@ function draw() {
   });
 
   refreshParamButtons();
+  refreshColorMapPreview();
+
+  if (activeSliderButton) {
+    positionQuickSlider(activeSliderButton);
+  }
 
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   setStatus(`Loaded ${formula?.name || currentFormulaId}. Slice 2 sliders ready.`);
@@ -142,19 +237,29 @@ function draw() {
 
 function openQuickSlider(sliderKey) {
   activeSliderKey = sliderKey;
+  activeSliderButton = sliderButtons[sliderKey];
+
   quickSlider.classList.add("is-open");
   quickSlider.setAttribute("aria-hidden", "false");
 
   const currentValue = appData.defaults.sliders[sliderKey];
   qsRange.value = currentValue;
-  qsLabel.textContent = `${sliderLabelMap[sliderKey]} (normalized slider)`;
+  qsLabel.textContent = `${sliderLabelMap[sliderKey]}`;
   qsValue.textContent = `${currentValue.toFixed(1)}%`;
+
+  requestAnimationFrame(() => {
+    positionQuickSlider(activeSliderButton);
+  });
 }
 
 function closeQuickSlider() {
   activeSliderKey = null;
+  activeSliderButton = null;
   quickSlider.classList.remove("is-open");
   quickSlider.setAttribute("aria-hidden", "true");
+  quickSlider.style.left = "";
+  quickSlider.style.top = "";
+  quickSlider.style.width = "";
 }
 
 function registerSliderButtonHandlers() {
@@ -204,6 +309,7 @@ async function loadData() {
 
 async function bootstrap() {
   try {
+    installGlobalZoomBlockers();
     appData = await loadData();
 
     populateFormulaSelect(appData.formulas);
