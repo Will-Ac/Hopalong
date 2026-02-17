@@ -286,10 +286,11 @@ function stepActiveSlider(direction) {
 }
 
 function setupStepHold(button, direction) {
-  const onPointerDown = (event) => {
+  const startHold = (event) => {
     event.preventDefault();
-    stepActiveSlider(direction);
+    event.stopPropagation();
     clearStepHold();
+    stepActiveSlider(direction);
     holdTimer = window.setTimeout(() => {
       holdInterval = window.setInterval(() => {
         stepActiveSlider(direction);
@@ -297,14 +298,25 @@ function setupStepHold(button, direction) {
     }, 250);
   };
 
-  const onPointerUp = () => {
+  const stopHold = () => {
     clearStepHold();
   };
 
-  button.addEventListener("pointerdown", onPointerDown);
-  button.addEventListener("pointerup", onPointerUp);
-  button.addEventListener("pointercancel", onPointerUp);
-  button.addEventListener("pointerleave", onPointerUp);
+  if (window.PointerEvent) {
+    button.addEventListener("pointerdown", startHold);
+    button.addEventListener("pointerup", stopHold);
+    button.addEventListener("pointercancel", stopHold);
+    button.addEventListener("pointerleave", stopHold);
+  } else {
+    button.addEventListener("touchstart", startHold, { passive: false });
+    button.addEventListener("touchend", stopHold, { passive: false });
+    button.addEventListener("touchcancel", stopHold, { passive: false });
+    button.addEventListener("mousedown", startHold);
+    button.addEventListener("mouseup", stopHold);
+    button.addEventListener("mouseleave", stopHold);
+  }
+
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
 }
 
 function draw() {
@@ -339,7 +351,14 @@ function registerHandlers() {
     control.button.addEventListener("click", () => openQuickSlider(sliderKey));
   }
 
-  qsClose.addEventListener("click", closeQuickSlider);
+  const closeSliderFromUi = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeQuickSlider();
+  };
+  qsClose.addEventListener("click", closeSliderFromUi);
+  qsClose.addEventListener("pointerup", closeSliderFromUi);
+  qsClose.addEventListener("touchend", closeSliderFromUi, { passive: false });
 
   qsRange.addEventListener("input", () => {
     applySliderValue(Number.parseFloat(qsRange.value));
