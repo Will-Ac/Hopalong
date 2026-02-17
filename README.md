@@ -36,6 +36,7 @@ git push -u origin work
 ```
 
 Then create/merge a PR on GitHub.
+<<<<<<< codex/list-files-in-spec-folder-t6jfs6
 
 
 ## How to create a PR (beginner checklist)
@@ -73,3 +74,5 @@ This message means both branches changed some of the same lines, so GitHub needs
 
 ### Why this happened
 It is normal when your PR branch and target branch both changed overlapping lines after the PR was opened.
+=======
+>>>>>>> main
