@@ -4,20 +4,23 @@ import { renderFrame, getParamsForFormula } from "./renderer.js";
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
 
-const appEl = document.getElementById("app");
 const canvas = document.getElementById("c");
 const statusEl = document.getElementById("status");
-const formulaSelect = document.getElementById("formulaSelect");
-const cmapSelect = document.getElementById("cmapSelect");
-const cmapPreviewName = document.getElementById("cmapPreviewName");
-const cmapPreviewBar = document.getElementById("cmapPreviewBar");
-const ctx = canvas.getContext("2d", { alpha: false });
+const formulaBtn = document.getElementById("formulaBtn");
+const cmapBtn = document.getElementById("cmapBtn");
 
 const quickSlider = document.getElementById("quickSlider");
 const qsLabel = document.getElementById("qsLabel");
 const qsValue = document.getElementById("qsValue");
 const qsRange = document.getElementById("qsRange");
-const qsClose = document.getElementById("qsClose");
+const qsMinus = document.getElementById("qsMinus");
+const qsPlus = document.getElementById("qsPlus");
+
+const pickerOverlay = document.getElementById("pickerOverlay");
+const pickerBackdrop = document.getElementById("pickerBackdrop");
+const pickerTitle = document.getElementById("pickerTitle");
+const pickerClose = document.getElementById("pickerClose");
+const pickerList = document.getElementById("pickerList");
 
 const sliderButtons = {
   alpha: document.getElementById("btnAlpha"),
@@ -33,32 +36,19 @@ const sliderLabelMap = {
   delta: "δ / c",
 };
 
+const ctx = canvas.getContext("2d", { alpha: false });
 let appData = null;
 let currentFormulaId = null;
 let activeSliderKey = null;
-let activeSliderButton = null;
+let activePicker = null;
 
 function setStatus(message) {
   statusEl.textContent = message;
 }
 
 function installGlobalZoomBlockers() {
-  document.addEventListener(
-    "gesturestart",
-    (event) => {
-      event.preventDefault();
-    },
-    { passive: false },
-  );
-
-  document.addEventListener(
-    "dblclick",
-    (event) => {
-      event.preventDefault();
-    },
-    { passive: false },
-  );
-
+  document.addEventListener("gesturestart", (event) => event.preventDefault(), { passive: false });
+  document.addEventListener("dblclick", (event) => event.preventDefault(), { passive: false });
   document.addEventListener(
     "wheel",
     (event) => {
@@ -113,43 +103,14 @@ function getDerivedParams() {
   });
 }
 
-function populateFormulaSelect(formulas) {
-  formulaSelect.innerHTML = "";
-  for (const formula of formulas) {
-    const option = document.createElement("option");
-    option.value = formula.id;
-    option.textContent = formula.name;
-    formulaSelect.append(option);
-  }
-}
-
-function populateColorMapSelect(colormaps) {
-  cmapSelect.innerHTML = "";
-  for (const cmapName of colormaps) {
-    const option = document.createElement("option");
-    option.value = cmapName;
-    option.textContent = cmapName;
-    cmapSelect.append(option);
-  }
-}
-
 function resolveInitialFormulaId() {
   const ids = new Set(appData.formulas.map((formula) => formula.id));
-  const preferred = appData.defaults.formulaId;
-  if (ids.has(preferred)) {
-    return preferred;
-  }
-
-  return appData.formulas[0].id;
+  return ids.has(appData.defaults.formulaId) ? appData.defaults.formulaId : appData.formulas[0].id;
 }
 
 function resolveInitialColorMap() {
   const names = new Set(appData.colormaps || []);
-  if (names.has(appData.defaults.cmapName)) {
-    return appData.defaults.cmapName;
-  }
-
-  return appData.colormaps[0];
+  return names.has(appData.defaults.cmapName) ? appData.defaults.cmapName : appData.colormaps[0];
 }
 
 function formatSliderButton(normalized, actual) {
@@ -168,44 +129,128 @@ function buildColorMapGradient(cmapName) {
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
 
-function refreshColorMapPreview() {
-  const name = appData.defaults.cmapName;
-  cmapPreviewName.textContent = name;
-  cmapPreviewBar.style.background = buildColorMapGradient(name);
-}
-
 function refreshParamButtons() {
   const params = getDerivedParams();
   sliderButtons.alpha.textContent = formatSliderButton(appData.defaults.sliders.alpha, params.a);
   sliderButtons.beta.textContent = formatSliderButton(appData.defaults.sliders.beta, params.b);
   sliderButtons.gamma.textContent = formatSliderButton(appData.defaults.sliders.gamma, params.d);
   sliderButtons.delta.textContent = formatSliderButton(appData.defaults.sliders.delta, params.c);
+
+  const formula = appData.formulas.find((item) => item.id === currentFormulaId);
+  formulaBtn.textContent = formula?.name || currentFormulaId;
+  cmapBtn.textContent = appData.defaults.cmapName;
 }
 
-function positionQuickSlider(anchorButton) {
-  if (!anchorButton || !quickSlider.classList.contains("is-open")) {
+function closePicker() {
+  activePicker = null;
+  pickerOverlay.classList.remove("is-open");
+  pickerOverlay.setAttribute("aria-hidden", "true");
+}
+
+function renderFormulaPicker() {
+  pickerTitle.textContent = "Select formula";
+  pickerList.innerHTML = "";
+
+  for (const formula of appData.formulas) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "pickerOption";
+    if (formula.id === currentFormulaId) {
+      button.classList.add("is-selected");
+    }
+
+    const row = document.createElement("div");
+    row.className = "formulaRow";
+
+    const name = document.createElement("span");
+    name.className = "formulaName";
+    name.textContent = formula.name;
+
+    const desc = document.createElement("span");
+    desc.className = "formulaDesc";
+    desc.textContent = formula.desc;
+
+    row.append(name, desc);
+    button.append(row);
+
+    button.addEventListener("click", () => {
+      currentFormulaId = formula.id;
+      closePicker();
+      draw();
+    });
+
+    pickerList.append(button);
+  }
+}
+
+function renderColorMapPicker() {
+  pickerTitle.textContent = "Select color map";
+  pickerList.innerHTML = "";
+
+  for (const cmapName of appData.colormaps) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "pickerOption";
+    if (cmapName === appData.defaults.cmapName) {
+      button.classList.add("is-selected");
+    }
+
+    const row = document.createElement("div");
+    row.className = "cmapRow";
+
+    const name = document.createElement("span");
+    name.textContent = cmapName;
+
+    const bar = document.createElement("div");
+    bar.className = "cmapBar";
+    bar.style.background = buildColorMapGradient(cmapName);
+
+    row.append(name, bar);
+    button.append(row);
+
+    button.addEventListener("click", () => {
+      appData.defaults.cmapName = cmapName;
+      closePicker();
+      draw();
+    });
+
+    pickerList.append(button);
+  }
+}
+
+function openPicker(kind) {
+  activePicker = kind;
+  pickerOverlay.classList.add("is-open");
+  pickerOverlay.setAttribute("aria-hidden", "false");
+
+  if (kind === "formula") {
+    renderFormulaPicker();
+  } else {
+    renderColorMapPicker();
+  }
+}
+
+function applySliderValue(nextValue) {
+  if (!activeSliderKey) {
     return;
   }
 
-  const appRect = appEl.getBoundingClientRect();
-  const buttonRect = anchorButton.getBoundingClientRect();
+  const value = clamp(nextValue, 0, 100);
+  appData.defaults.sliders[activeSliderKey] = value;
+  qsRange.value = value;
+  qsValue.textContent = `${sliderLabelMap[activeSliderKey]}: ${value.toFixed(1)}%`;
+  draw();
+}
 
-  quickSlider.style.width = `${Math.round(buttonRect.width)}px`;
+function openQuickSlider(sliderKey) {
+  activeSliderKey = sliderKey;
+  quickSlider.classList.add("is-open");
+  quickSlider.setAttribute("aria-hidden", "false");
 
-  const sliderHeight = quickSlider.offsetHeight;
-  const horizontalInset = 10;
-  const verticalGap = 8;
-
-  let left = buttonRect.left - appRect.left;
-  left = clamp(left, horizontalInset, appRect.width - buttonRect.width - horizontalInset);
-
-  let top = buttonRect.top - appRect.top - sliderHeight - verticalGap;
-  if (top < horizontalInset) {
-    top = buttonRect.bottom - appRect.top + verticalGap;
-  }
-
-  quickSlider.style.left = `${Math.round(left)}px`;
-  quickSlider.style.top = `${Math.round(top)}px`;
+  const currentValue = appData.defaults.sliders[sliderKey];
+  qsRange.value = currentValue;
+  qsLabel.textContent = sliderLabelMap[sliderKey];
+  qsValue.textContent = `${sliderLabelMap[sliderKey]}: ${currentValue.toFixed(1)}%`;
 }
 
 function draw() {
@@ -214,7 +259,6 @@ function draw() {
   }
 
   const didResize = resizeCanvas();
-
   renderFrame({
     ctx,
     canvas,
@@ -225,62 +269,41 @@ function draw() {
   });
 
   refreshParamButtons();
-  refreshColorMapPreview();
-
-  if (activeSliderButton) {
-    positionQuickSlider(activeSliderButton);
-  }
 
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   setStatus(`Loaded ${formula?.name || currentFormulaId}. Slice 2 sliders ready.`);
 }
 
-function openQuickSlider(sliderKey) {
-  activeSliderKey = sliderKey;
-  activeSliderButton = sliderButtons[sliderKey];
+function registerHandlers() {
+  formulaBtn.addEventListener("click", () => openPicker("formula"));
+  cmapBtn.addEventListener("click", () => openPicker("cmap"));
+  pickerClose.addEventListener("click", closePicker);
+  pickerBackdrop.addEventListener("click", closePicker);
 
-  quickSlider.classList.add("is-open");
-  quickSlider.setAttribute("aria-hidden", "false");
-
-  const currentValue = appData.defaults.sliders[sliderKey];
-  qsRange.value = currentValue;
-  qsLabel.textContent = `${sliderLabelMap[sliderKey]}`;
-  qsValue.textContent = `${currentValue.toFixed(1)}%`;
-
-  requestAnimationFrame(() => {
-    positionQuickSlider(activeSliderButton);
-  });
-}
-
-function closeQuickSlider() {
-  activeSliderKey = null;
-  activeSliderButton = null;
-  quickSlider.classList.remove("is-open");
-  quickSlider.setAttribute("aria-hidden", "true");
-  quickSlider.style.left = "";
-  quickSlider.style.top = "";
-  quickSlider.style.width = "";
-}
-
-function registerSliderButtonHandlers() {
   for (const [sliderKey, button] of Object.entries(sliderButtons)) {
-    button.addEventListener("click", () => {
-      openQuickSlider(sliderKey);
-    });
+    button.addEventListener("click", () => openQuickSlider(sliderKey));
   }
 
   qsRange.addEventListener("input", () => {
+    applySliderValue(Number.parseFloat(qsRange.value));
+  });
+
+  qsMinus.addEventListener("click", () => {
     if (!activeSliderKey) {
       return;
     }
-
-    const value = clamp(Number.parseFloat(qsRange.value), 0, 100);
-    appData.defaults.sliders[activeSliderKey] = value;
-    qsValue.textContent = `${value.toFixed(1)}%`;
-    draw();
+    applySliderValue(appData.defaults.sliders[activeSliderKey] - 0.1);
   });
 
-  qsClose.addEventListener("click", closeQuickSlider);
+  qsPlus.addEventListener("click", () => {
+    if (!activeSliderKey) {
+      return;
+    }
+    applySliderValue(appData.defaults.sliders[activeSliderKey] + 0.1);
+  });
+
+  window.addEventListener("resize", draw, { passive: true });
+  window.addEventListener("orientationchange", draw, { passive: true });
 }
 
 async function fetchJson(path) {
@@ -312,30 +335,10 @@ async function bootstrap() {
     installGlobalZoomBlockers();
     appData = await loadData();
 
-    populateFormulaSelect(appData.formulas);
-    populateColorMapSelect(appData.colormaps);
-
     currentFormulaId = resolveInitialFormulaId();
     appData.defaults.cmapName = resolveInitialColorMap();
 
-    formulaSelect.value = currentFormulaId;
-    cmapSelect.value = appData.defaults.cmapName;
-
-    formulaSelect.addEventListener("change", () => {
-      currentFormulaId = formulaSelect.value;
-      draw();
-    });
-
-    cmapSelect.addEventListener("change", () => {
-      appData.defaults.cmapName = cmapSelect.value;
-      draw();
-    });
-
-    registerSliderButtonHandlers();
-
-    window.addEventListener("resize", draw, { passive: true });
-    window.addEventListener("orientationchange", draw, { passive: true });
-
+    registerHandlers();
     draw();
   } catch (error) {
     console.error(error);

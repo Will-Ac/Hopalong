@@ -11,13 +11,8 @@
         --panel-border: rgba(255, 255, 255, 0.16);
         --text: #f5f8ff;
       }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      html,
-      body {
+      * { box-sizing: border-box; }
+      html, body {
         margin: 0;
         width: 100%;
         height: 100%;
@@ -27,13 +22,7 @@
         font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
         touch-action: manipulation;
       }
-
-      #app {
-        position: relative;
-        width: 100%;
-        height: 100%;
-      }
-
+      #app { position: relative; width: 100%; height: 100%; }
       #c {
         display: block;
         width: 100%;
@@ -42,79 +31,6 @@
         -webkit-user-select: none;
         user-select: none;
       }
-
-      #paramOverlay {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        padding: 10px max(12px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom))
-          max(12px, env(safe-area-inset-left));
-        background: linear-gradient(180deg, rgba(6, 8, 12, 0), rgba(6, 8, 12, 0.72) 40%, rgba(6, 8, 12, 0.95));
-        pointer-events: none;
-      }
-
-      #paramRow {
-        display: flex;
-        gap: 8px;
-        overflow-x: auto;
-        padding-bottom: 4px;
-        pointer-events: auto;
-      }
-
-      .poItem {
-        flex: 0 0 auto;
-        min-width: 108px;
-        background: var(--panel-bg);
-        border: 1px solid var(--panel-border);
-        border-radius: 12px;
-        padding: 8px;
-        backdrop-filter: blur(6px);
-      }
-
-      .poLabel {
-        display: block;
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.03em;
-        margin-bottom: 6px;
-        opacity: 0.92;
-      }
-
-      .poValue,
-      .poBtn {
-        width: 100%;
-        min-height: 36px;
-        border-radius: 9px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        background: rgba(0, 0, 0, 0.35);
-        color: var(--text);
-        padding: 6px 8px;
-        font-size: 14px;
-      }
-
-      .poBtn {
-        text-align: left;
-      }
-
-      .cmapPreview {
-        margin-top: 7px;
-      }
-
-      #cmapPreviewName {
-        display: block;
-        font-size: 11px;
-        margin-bottom: 4px;
-        opacity: 0.92;
-      }
-
-      #cmapPreviewBar {
-        width: 100%;
-        height: 12px;
-        border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.25);
-      }
-
       #status {
         position: absolute;
         top: calc(12px + env(safe-area-inset-top));
@@ -133,47 +49,158 @@
 
       #quickSlider {
         position: absolute;
+        left: max(12px, env(safe-area-inset-left));
+        right: max(12px, env(safe-area-inset-right));
+        bottom: calc(116px + env(safe-area-inset-bottom));
         z-index: 30;
-        background: rgba(8, 10, 16, 0.95);
+        background: rgba(0, 0, 0, 0.95);
         border: 1px solid var(--panel-border);
         border-radius: 12px;
-        padding: 10px 10px 8px;
+        padding: 10px;
         display: none;
       }
-
-      #quickSlider.is-open {
-        display: block;
-      }
-
+      #quickSlider.is-open { display: block; }
       .qsTop {
         display: flex;
         justify-content: space-between;
         align-items: center;
         margin-bottom: 8px;
       }
-
-      #qsLabel {
-        font-size: 12px;
-        font-weight: 600;
+      #qsLabel { font-size: 12px; font-weight: 600; }
+      #qsValue { font-size: 12px; font-variant-numeric: tabular-nums; opacity: 0.95; }
+      .qsControlRow {
+        display: grid;
+        grid-template-columns: 44px 1fr 44px;
+        gap: 8px;
+        align-items: center;
       }
-
-      #qsValue {
-        font-variant-numeric: tabular-nums;
-        font-size: 12px;
-        opacity: 0.9;
-      }
-
-      #qsClose {
-        min-height: 28px;
-        min-width: 28px;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
+      .qsStepBtn {
+        min-height: 40px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
         background: rgba(255, 255, 255, 0.1);
         color: var(--text);
+        font-size: 20px;
+      }
+      #qsRange { width: 100%; }
+
+      #paramOverlay {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 10px max(12px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+        background: linear-gradient(180deg, rgba(6, 8, 12, 0), rgba(6, 8, 12, 0.72) 40%, rgba(6, 8, 12, 0.95));
+        pointer-events: none;
+      }
+      #paramRow {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        pointer-events: auto;
+      }
+      .poItem {
+        flex: 0 0 auto;
+        min-width: 108px;
+        background: var(--panel-bg);
+        border: 1px solid var(--panel-border);
+        border-radius: 12px;
+        padding: 8px;
+        backdrop-filter: blur(6px);
+      }
+      .poLabel {
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        margin-bottom: 6px;
+        opacity: 0.92;
+      }
+      .poBtn {
+        width: 100%;
+        min-height: 36px;
+        border-radius: 9px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(0, 0, 0, 0.35);
+        color: var(--text);
+        padding: 6px 8px;
+        font-size: 14px;
+        text-align: left;
       }
 
-      #qsRange {
+      #pickerOverlay {
+        position: absolute;
+        inset: 0;
+        z-index: 40;
+        display: none;
+      }
+      #pickerOverlay.is-open { display: block; }
+      #pickerBackdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+      }
+      #pickerPanel {
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        top: calc(58px + env(safe-area-inset-top));
+        bottom: calc(126px + env(safe-area-inset-bottom));
+        background: rgba(0, 0, 0, 0.96);
+        border: 1px solid var(--panel-border);
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+      }
+      .pickerHead {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      #pickerTitle { font-size: 14px; font-weight: 600; }
+      #pickerClose {
+        min-height: 30px;
+        min-width: 30px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.25);
+        background: rgba(255,255,255,0.1);
+        color: var(--text);
+      }
+      #pickerList {
+        overflow-y: auto;
+        padding: 6px;
+      }
+      .pickerOption {
         width: 100%;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--text);
+        text-align: left;
+        padding: 8px;
+        border-radius: 8px;
+      }
+      .pickerOption.is-selected { border-color: rgba(255,255,255,0.24); background: rgba(255,255,255,0.08); }
+      .formulaRow {
+        display: grid;
+        grid-template-columns: 170px 1fr;
+        gap: 8px;
+        align-items: start;
+      }
+      .formulaName { font-weight: 600; }
+      .formulaDesc { opacity: 0.85; font-size: 12px; }
+      .cmapRow {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+      .cmapBar {
+        height: 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.25);
       }
     </style>
   </head>
@@ -185,26 +212,36 @@
       <div id="quickSlider" aria-hidden="true">
         <div class="qsTop">
           <span id="qsLabel">Adjust</span>
-          <button id="qsClose" type="button" aria-label="Close slider">✕</button>
+          <span id="qsValue">0.0</span>
         </div>
-        <input id="qsRange" type="range" min="0" max="100" step="0.1" />
-        <div id="qsValue">0.0</div>
+        <div class="qsControlRow">
+          <button id="qsMinus" class="qsStepBtn" type="button" aria-label="Decrease value">−</button>
+          <input id="qsRange" type="range" min="0" max="100" step="0.1" />
+          <button id="qsPlus" class="qsStepBtn" type="button" aria-label="Increase value">+</button>
+        </div>
+      </div>
+
+      <div id="pickerOverlay" aria-hidden="true">
+        <div id="pickerBackdrop"></div>
+        <div id="pickerPanel" role="dialog" aria-modal="true" aria-label="Picker">
+          <div class="pickerHead">
+            <span id="pickerTitle">Pick</span>
+            <button id="pickerClose" type="button" aria-label="Close picker">✕</button>
+          </div>
+          <div id="pickerList"></div>
+        </div>
       </div>
 
       <div id="paramOverlay">
         <div id="paramRow">
           <div class="poItem">
-            <label for="formulaSelect" class="poLabel">Formula</label>
-            <select id="formulaSelect" class="poValue" aria-label="Select Hopalong formula"></select>
+            <span class="poLabel">Formula</span>
+            <button id="formulaBtn" class="poBtn" type="button">--</button>
           </div>
 
           <div class="poItem">
-            <label for="cmapSelect" class="poLabel">Color map</label>
-            <select id="cmapSelect" class="poValue" aria-label="Select color map"></select>
-            <div class="cmapPreview" aria-hidden="true">
-              <span id="cmapPreviewName">Preview</span>
-              <div id="cmapPreviewBar"></div>
-            </div>
+            <span class="poLabel">Color map</span>
+            <button id="cmapBtn" class="poBtn" type="button">--</button>
           </div>
 
           <div class="poItem">
