@@ -135,7 +135,7 @@ function getActiveActualValue() {
 function refreshParamButtons() {
   const params = getDerivedParams();
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
-    control.button.textContent = params[control.paramKey].toFixed(3);
+    control.button.textContent = params[control.paramKey].toFixed(4);
   }
 
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
@@ -280,7 +280,7 @@ function updateQuickSliderReadout() {
   const control = sliderControls[activeSliderKey];
   const actualValue = getActiveActualValue();
   qsLabel.textContent = control.label;
-  qsValue.textContent = actualValue === null ? "--" : actualValue.toFixed(3);
+  qsValue.textContent = actualValue === null ? "--" : actualValue.toFixed(4);
 }
 
 function applySliderValue(nextValue) {

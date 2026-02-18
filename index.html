@@ -210,19 +210,21 @@
       .pickerOption.is-selected { border-color: rgba(255,255,255,0.24); background: rgba(255,255,255,0.08); }
       .formulaRow {
         display: grid;
-        grid-template-columns: max-content minmax(0, 1fr);
+        grid-template-columns: 128px 1fr;
         gap: 8px;
         align-items: start;
       }
       .formulaName { font-weight: 600; }
-      .formulaDesc { opacity: 0.85; font-size: 12px; min-width: 0; }
+      .formulaDesc { opacity: 0.85; font-size: 12px; width: 232px; max-width: 100%; }
       .cmapRow {
         display: grid;
-        grid-template-columns: max-content minmax(0, 1fr);
+        grid-template-columns: 120px 1fr;
         gap: 10px;
         align-items: center;
       }
       .cmapBar {
+        width: 132px;
+        justify-self: end;
         height: 12px;
         border-radius: 999px;
         border: 1px solid rgba(255,255,255,0.25);
