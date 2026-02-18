@@ -320,7 +320,7 @@ function stepActiveSlider(direction) {
   if (!activeSliderKey) {
     return;
   }
-  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * 0.001);
+  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * 0.0001);
 }
 
 function setupStepHold(button, direction) {

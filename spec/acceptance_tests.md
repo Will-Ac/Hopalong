@@ -18,8 +18,8 @@ Use this as a tight punch-list while Codex iterates.
 - Each tile has a mode selector (Rand/Fix/ManX/ManY).
 - Assigning ManX to a new parameter clears prior ManX assignment (same for ManY).
 - Colormap tile shows colormap name only (no always-visible preview strip).
-- Opening colormap picker shows name plus preview strip in each option row.
-- Formula picker popup rows show short name and full formula description side-by-side.
+- Opening colormap picker shows name plus preview strip in each option row, with name width fit-to-content so preview bars get maximum width.
+- Formula picker popup rows show short name and full formula description side-by-side, with formula-name width fit-to-content so formula text area is maximized.
 - Formula and colormap picker popups use black background and compact width (not full-screen).
 
 ## Quick slider
@@ -27,7 +27,7 @@ Use this as a tight punch-list while Codex iterates.
 - Slider is full-width horizontal panel above the bottom bar with panel bottom aligned to top of parameter tiles.
 - Slider panel does not overlap parameter tiles.
 - Parameter name and value are centered above slider track in `name = value` format.
-- Slider has minus and plus buttons for very fine incremental control (0.001 slider units), and press-and-hold continuously steps values on touch and pointer devices.
+- Slider has minus and plus buttons for very fine incremental control (0.0001 slider units), and press-and-hold continuously steps values on touch and pointer devices.
 - Moving slider or using +/- updates actual-value readout (not %) and redraws frame immediately.
 - Parameter tiles use `a/b/c/d` labels only (no Greek letters).
 

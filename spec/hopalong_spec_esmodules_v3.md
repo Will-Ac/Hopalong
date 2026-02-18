@@ -55,7 +55,7 @@ Tools area (`.poTools`):
 - Slice 2 behavior: opening a numeric parameter shows a **full-width horizontal slider panel** above the bottom bar, with the slider panel bottom edge aligned to the top edge of parameter tiles (must not overlap parameter tiles).
 - Parameter name + value readout must be centered above the slider control so finger contact does not obscure the key readout.
 - Slider readout and bottom parameter tiles must display actual derived `a/b/c/d` values (not normalized %).
-- Tapping +/- changes by a very fine increment (0.001 slider units, i.e. 10% of the prior 0.01 step); press-and-hold on +/- must continuously step values until release on touch and pointer devices.
+- Tapping +/- changes by a very fine increment (0.0001 slider units, i.e. 10% of the prior 0.001 step); press-and-hold on +/- must continuously step values until release on touch and pointer devices.
 - State picker panel: `#statePicker` with radios for `rand|fix|many|manx`. 
 
 ### 2.5 Menu (long-press)
@@ -77,10 +77,10 @@ Discrete parameters:
 
 Colormap UI requirement:
 - Bottom bar shows only selected colormap name.
-- Colormap preview strip/gradient is shown in the **open colormap picker popup** (to the right of colormap name), not always visible in the bottom bar.
+- Colormap preview strip/gradient is shown in the **open colormap picker popup** (to the right of colormap name), not always visible in the bottom bar; colormap-name column auto-sizes to content to maximize preview width.
 
 Formula picker UI requirement:
-- Formula picker popup rows must show short formula name plus full formula expression/description to its right.
+- Formula picker popup rows must show short formula name plus full formula expression/description to its right, with the name column auto-sized to fit the longest visible formula name.
 - Formula and colormap pickers use black popup background for high contrast and open at compact width (about 3x trigger/tile width, not full-screen).
 
 ### 3.2 Per-parameter state (Rand/Fix/ManX/ManY)
