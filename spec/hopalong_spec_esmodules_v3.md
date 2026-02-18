@@ -48,14 +48,13 @@ Tools area (`.poTools`):
   - `dblclick` preventDefault
   - `touchend` double-tap suppression
   - prevent ctrl+wheel page zoom on desktop trackpads.
-- Global app text selection is disabled across canvas and controls (no selectable UI text on tap/long-press).
 
 ### 2.4 Quick slider + state picker popovers
-- Quick slider panel: `#quickSlider` with `#qsRange`, centered inline readout `#qsLabel = #qsValue`, functional close button `#qsClose`, and step buttons `#qsMinus` / `#qsPlus`.
-- Slice 2 behavior: opening a numeric parameter shows a **full-width horizontal slider panel** above the bottom bar, with the slider panel bottom edge aligned to the top edge of parameter tiles (must not overlap parameter tiles).
+- Quick slider panel: `#quickSlider` with `#qsRange`, centered `#qsLabel` + `#qsValue`, close button `#qsClose`, and step buttons `#qsMinus` / `#qsPlus`.
+- Slice 2 behavior: opening a numeric parameter shows a **full-width horizontal slider panel** above the bottom bar (must not overlap parameter tiles).
 - Parameter name + value readout must be centered above the slider control so finger contact does not obscure the key readout.
 - Slider readout and bottom parameter tiles must display actual derived `a/b/c/d` values (not normalized %).
-- Tapping +/- changes by a very fine increment (0.01 slider units, i.e. 10% of the prior 0.1 step); press-and-hold on +/- must continuously step values until release on touch and pointer devices.
+- Tapping +/- changes by a small increment; press-and-hold on +/- must continuously step values until release.
 - State picker panel: `#statePicker` with radios for `rand|fix|many|manx`. 
 
 ### 2.5 Menu (long-press)
@@ -81,7 +80,7 @@ Colormap UI requirement:
 
 Formula picker UI requirement:
 - Formula picker popup rows must show short formula name plus full formula expression/description to its right.
-- Formula and colormap pickers use black popup background for high contrast and open at compact width (about 2x trigger/tile width, not full-screen).
+- Formula and colormap pickers use black popup background for high contrast.
 
 ### 3.2 Per-parameter state (Rand/Fix/ManX/ManY)
 State is chosen from each `.poState` selector in the bottom overlay. 
@@ -191,15 +190,14 @@ hopalong-rewrite/
 
 - Help: `?` opens; only X closes.
 - Global zoom lock: double-tap and pinch must not zoom page anywhere (canvas or UI).
-- UI text is not selectable anywhere in the app.
 - Slice 2 quick slider opens as full-width horizontal panel above bottom bar and does not overlap parameter tiles.
-- Quick slider includes a visible dismiss `X` button and it closes the slider when tapped.
+- Quick slider includes a visible dismiss `X` button.
 - Quick slider includes +/- step buttons for fine incremental control, with press-and-hold continuous stepping.
-- Quick slider shows centered inline parameter readout (`name = value`) above the slider control.
+- Quick slider shows centered parameter name/value above the slider control.
 - Parameter tiles and quick slider readout display actual values (not %).
 - Colormap bottom tile shows name only; colormap picker popup shows name + visible color-range preview strip.
 - Formula picker popup rows show short name plus full formula description to the right.
-- Formula and colormap picker popups have black background and compact width (about 2x trigger width, not full-screen). 
+- Formula and colormap picker popups have black background. 
 - Toggle-all: label shows next action; border shows last action; height matches other param boxes. 
 - Tap left/right history works only when not dragging and menu closed. 
 - 2-finger ALL-mode pan vs pinch threshold behaves as specified. 
