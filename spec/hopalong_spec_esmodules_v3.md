@@ -55,7 +55,7 @@ Tools area (`.poTools`):
 - Slice 2 behavior: opening a numeric parameter shows a **full-width horizontal slider panel** above the bottom bar, with the slider panel bottom edge aligned to the top edge of parameter tiles (must not overlap parameter tiles).
 - Parameter name + value readout must be centered above the slider control so finger contact does not obscure the key readout.
 - Slider readout and bottom parameter tiles must display actual derived `a/b/c/d` values (not normalized %).
-- Tapping +/- changes by a very fine increment (0.01 slider units, i.e. 10% of the prior 0.1 step); press-and-hold on +/- must continuously step values until release on touch and pointer devices.
+- Tapping +/- changes by a very fine increment (0.001 slider units, i.e. 10% of the prior 0.01 step); press-and-hold on +/- must continuously step values until release on touch and pointer devices.
 - State picker panel: `#statePicker` with radios for `rand|fix|many|manx`. 
 
 ### 2.5 Menu (long-press)
@@ -81,7 +81,7 @@ Colormap UI requirement:
 
 Formula picker UI requirement:
 - Formula picker popup rows must show short formula name plus full formula expression/description to its right.
-- Formula and colormap pickers use black popup background for high contrast and open at compact width (about 2x trigger/tile width, not full-screen).
+- Formula and colormap pickers use black popup background for high contrast and open at compact width (about 3x trigger/tile width, not full-screen).
 
 ### 3.2 Per-parameter state (Rand/Fix/ManX/ManY)
 State is chosen from each `.poState` selector in the bottom overlay. 
@@ -199,7 +199,7 @@ hopalong-rewrite/
 - Parameter tiles and quick slider readout display actual values (not %).
 - Colormap bottom tile shows name only; colormap picker popup shows name + visible color-range preview strip.
 - Formula picker popup rows show short name plus full formula description to the right.
-- Formula and colormap picker popups have black background and compact width (about 2x trigger width, not full-screen). 
+- Formula and colormap picker popups have black background and compact width (about 3x trigger width, not full-screen). 
 - Toggle-all: label shows next action; border shows last action; height matches other param boxes. 
 - Tap left/right history works only when not dragging and menu closed. 
 - 2-finger ALL-mode pan vs pinch threshold behaves as specified. 

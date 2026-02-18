@@ -27,7 +27,7 @@ Use this as a tight punch-list while Codex iterates.
 - Slider is full-width horizontal panel above the bottom bar with panel bottom aligned to top of parameter tiles.
 - Slider panel does not overlap parameter tiles.
 - Parameter name and value are centered above slider track in `name = value` format.
-- Slider has minus and plus buttons for very fine incremental control (0.01 slider units), and press-and-hold continuously steps values on touch and pointer devices.
+- Slider has minus and plus buttons for very fine incremental control (0.001 slider units), and press-and-hold continuously steps values on touch and pointer devices.
 - Moving slider or using +/- updates actual-value readout (not %) and redraws frame immediately.
 - Parameter tiles use `a/b/c/d` labels only (no Greek letters).
 

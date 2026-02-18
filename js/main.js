@@ -176,8 +176,8 @@ function layoutPickerPanel() {
   const triggerRect = activePickerTrigger.getBoundingClientRect();
   const viewportWidth = window.innerWidth;
   const margin = 12;
-  const targetWidth = clamp(triggerRect.width * 2, 180, 320);
-  const maxWidth = Math.max(180, viewportWidth - margin * 2);
+  const targetWidth = clamp(triggerRect.width * 3, 270, 480);
+  const maxWidth = Math.max(270, viewportWidth - margin * 2);
   const width = Math.min(targetWidth, maxWidth);
   const triggerCenter = triggerRect.left + triggerRect.width / 2;
   const left = clamp(triggerCenter - width / 2, margin, viewportWidth - margin - width);
@@ -320,7 +320,7 @@ function stepActiveSlider(direction) {
   if (!activeSliderKey) {
     return;
   }
-  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * 0.01);
+  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * 0.001);
 }
 
 function setupStepHold(button, direction) {
