@@ -1,3 +1,4 @@
+import { sampleColorMap } from "./colormaps.js";
 import { renderFrame, getParamsForFormula } from "./renderer.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
@@ -5,14 +6,67 @@ const DEFAULTS_PATH = "./data/defaults.json";
 
 const canvas = document.getElementById("c");
 const statusEl = document.getElementById("status");
-const formulaSelect = document.getElementById("formulaSelect");
-const ctx = canvas.getContext("2d", { alpha: false });
+const formulaBtn = document.getElementById("formulaBtn");
+const cmapBtn = document.getElementById("cmapBtn");
 
+const quickSlider = document.getElementById("quickSlider");
+const qsLabel = document.getElementById("qsLabel");
+const qsValue = document.getElementById("qsValue");
+const qsRange = document.getElementById("qsRange");
+const qsMinus = document.getElementById("qsMinus");
+const qsPlus = document.getElementById("qsPlus");
+const qsClose = document.getElementById("qsClose");
+
+const pickerOverlay = document.getElementById("pickerOverlay");
+const pickerBackdrop = document.getElementById("pickerBackdrop");
+const pickerTitle = document.getElementById("pickerTitle");
+const pickerClose = document.getElementById("pickerClose");
+const pickerList = document.getElementById("pickerList");
+
+const sliderControls = {
+  alpha: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a" },
+  beta: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b" },
+  delta: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c" },
+  gamma: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d" },
+};
+
+const ctx = canvas.getContext("2d", { alpha: false });
 let appData = null;
 let currentFormulaId = null;
+let activeSliderKey = null;
+let activePicker = null;
+let holdTimer = null;
+let holdInterval = null;
 
 function setStatus(message) {
   statusEl.textContent = message;
+}
+
+function installGlobalZoomBlockers() {
+  document.addEventListener("gesturestart", (event) => event.preventDefault(), { passive: false });
+  document.addEventListener("dblclick", (event) => event.preventDefault(), { passive: false });
+  document.addEventListener(
+    "wheel",
+    (event) => {
+      if (event.ctrlKey) {
+        event.preventDefault();
+      }
+    },
+    { passive: false },
+  );
+
+  let lastTouchEnd = 0;
+  document.addEventListener(
+    "touchend",
+    (event) => {
+      const now = Date.now();
+      if (now - lastTouchEnd < 350) {
+        event.preventDefault();
+      }
+      lastTouchEnd = now;
+    },
+    { passive: false },
+  );
 }
 
 function resizeCanvas() {
@@ -30,28 +84,227 @@ function resizeCanvas() {
   return false;
 }
 
-function populateFormulaSelect(formulas) {
-  formulaSelect.innerHTML = "";
-  for (const formula of formulas) {
-    const option = document.createElement("option");
-    option.value = formula.id;
-    option.textContent = formula.name;
-    formulaSelect.append(option);
-  }
-}
-
-function resolveInitialFormulaId() {
-  const ids = new Set(appData.formulas.map((formula) => formula.id));
-  const preferred = appData.defaults.formulaId;
-  if (ids.has(preferred)) {
-    return preferred;
-  }
-
-  return appData.formulas[0].id;
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function getCurrentFormulaRange() {
   return appData.formula_ranges_raw[currentFormulaId] || null;
+}
+
+function getDerivedParams() {
+  return getParamsForFormula({
+    rangesForFormula: getCurrentFormulaRange(),
+    sliderDefaults: appData.defaults.sliders,
+  });
+}
+
+function resolveInitialFormulaId() {
+  const ids = new Set(appData.formulas.map((formula) => formula.id));
+  return ids.has(appData.defaults.formulaId) ? appData.defaults.formulaId : appData.formulas[0].id;
+}
+
+function resolveInitialColorMap() {
+  const names = new Set(appData.colormaps || []);
+  return names.has(appData.defaults.cmapName) ? appData.defaults.cmapName : appData.colormaps[0];
+}
+
+function buildColorMapGradient(cmapName) {
+  const stops = [];
+  const count = 9;
+  for (let index = 0; index < count; index += 1) {
+    const t = index / (count - 1);
+    const [r, g, b] = sampleColorMap(cmapName, t);
+    stops.push(`rgb(${r}, ${g}, ${b}) ${Math.round(t * 100)}%`);
+  }
+
+  return `linear-gradient(90deg, ${stops.join(", ")})`;
+}
+
+function getActiveActualValue() {
+  if (!activeSliderKey) {
+    return null;
+  }
+  const params = getDerivedParams();
+  const control = sliderControls[activeSliderKey];
+  return params[control.paramKey];
+}
+
+function refreshParamButtons() {
+  const params = getDerivedParams();
+  for (const [sliderKey, control] of Object.entries(sliderControls)) {
+    control.button.textContent = params[control.paramKey].toFixed(3);
+  }
+
+  const formula = appData.formulas.find((item) => item.id === currentFormulaId);
+  formulaBtn.textContent = formula?.name || currentFormulaId;
+  cmapBtn.textContent = appData.defaults.cmapName;
+}
+
+function closeQuickSlider() {
+  activeSliderKey = null;
+  quickSlider.classList.remove("is-open");
+  quickSlider.setAttribute("aria-hidden", "true");
+}
+
+function closePicker() {
+  activePicker = null;
+  pickerOverlay.classList.remove("is-open");
+  pickerOverlay.setAttribute("aria-hidden", "true");
+}
+
+function renderFormulaPicker() {
+  pickerTitle.textContent = "Select formula";
+  pickerList.innerHTML = "";
+
+  for (const formula of appData.formulas) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "pickerOption";
+    if (formula.id === currentFormulaId) {
+      button.classList.add("is-selected");
+    }
+
+    const row = document.createElement("div");
+    row.className = "formulaRow";
+
+    const name = document.createElement("span");
+    name.className = "formulaName";
+    name.textContent = formula.name;
+
+    const desc = document.createElement("span");
+    desc.className = "formulaDesc";
+    desc.textContent = formula.desc;
+
+    row.append(name, desc);
+    button.append(row);
+
+    button.addEventListener("click", () => {
+      currentFormulaId = formula.id;
+      closePicker();
+      draw();
+    });
+
+    pickerList.append(button);
+  }
+}
+
+function renderColorMapPicker() {
+  pickerTitle.textContent = "Select color map";
+  pickerList.innerHTML = "";
+
+  for (const cmapName of appData.colormaps) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "pickerOption";
+    if (cmapName === appData.defaults.cmapName) {
+      button.classList.add("is-selected");
+    }
+
+    const row = document.createElement("div");
+    row.className = "cmapRow";
+
+    const name = document.createElement("span");
+    name.textContent = cmapName;
+
+    const bar = document.createElement("div");
+    bar.className = "cmapBar";
+    bar.style.background = buildColorMapGradient(cmapName);
+
+    row.append(name, bar);
+    button.append(row);
+
+    button.addEventListener("click", () => {
+      appData.defaults.cmapName = cmapName;
+      closePicker();
+      draw();
+    });
+
+    pickerList.append(button);
+  }
+}
+
+function openPicker(kind) {
+  activePicker = kind;
+  pickerOverlay.classList.add("is-open");
+  pickerOverlay.setAttribute("aria-hidden", "false");
+
+  if (kind === "formula") {
+    renderFormulaPicker();
+  } else {
+    renderColorMapPicker();
+  }
+}
+
+function updateQuickSliderReadout() {
+  if (!activeSliderKey) {
+    return;
+  }
+  const control = sliderControls[activeSliderKey];
+  const actualValue = getActiveActualValue();
+  qsLabel.textContent = control.label;
+  qsValue.textContent = actualValue === null ? "--" : actualValue.toFixed(3);
+}
+
+function applySliderValue(nextValue) {
+  if (!activeSliderKey) {
+    return;
+  }
+
+  const value = clamp(nextValue, 0, 100);
+  appData.defaults.sliders[activeSliderKey] = value;
+  qsRange.value = value;
+  updateQuickSliderReadout();
+  draw();
+}
+
+function openQuickSlider(sliderKey) {
+  activeSliderKey = sliderKey;
+  quickSlider.classList.add("is-open");
+  quickSlider.setAttribute("aria-hidden", "false");
+
+  qsRange.value = appData.defaults.sliders[sliderKey];
+  updateQuickSliderReadout();
+}
+
+function clearStepHold() {
+  if (holdTimer) {
+    window.clearTimeout(holdTimer);
+    holdTimer = null;
+  }
+  if (holdInterval) {
+    window.clearInterval(holdInterval);
+    holdInterval = null;
+  }
+}
+
+function stepActiveSlider(direction) {
+  if (!activeSliderKey) {
+    return;
+  }
+  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * 0.1);
+}
+
+function setupStepHold(button, direction) {
+  const onPointerDown = (event) => {
+    event.preventDefault();
+    stepActiveSlider(direction);
+    clearStepHold();
+    holdTimer = window.setTimeout(() => {
+      holdInterval = window.setInterval(() => {
+        stepActiveSlider(direction);
+      }, 70);
+    }, 250);
+  };
+
+  const onPointerUp = () => {
+    clearStepHold();
+  };
+
+  button.addEventListener("pointerdown", onPointerDown);
+  button.addEventListener("pointerup", onPointerUp);
+  button.addEventListener("pointercancel", onPointerUp);
+  button.addEventListener("pointerleave", onPointerUp);
 }
 
 function draw() {
@@ -60,21 +313,43 @@ function draw() {
   }
 
   const didResize = resizeCanvas();
-
   renderFrame({
     ctx,
     canvas,
     formulaId: currentFormulaId,
-    cmapName: appData.defaults.cmapName || appData.colormaps[0],
-    params: getParamsForFormula({
-      rangesForFormula: getCurrentFormulaRange(),
-      sliderDefaults: appData.defaults.sliders,
-    }),
+    cmapName: appData.defaults.cmapName,
+    params: getDerivedParams(),
     iterations: didResize ? 100000 : 120000,
   });
 
+  refreshParamButtons();
+  updateQuickSliderReadout();
+
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
-  setStatus(`Loaded ${formula?.name || currentFormulaId}. Slice 1 ready.`);
+  setStatus(`Loaded ${formula?.name || currentFormulaId}. Slice 2.1 controls ready.`);
+}
+
+function registerHandlers() {
+  formulaBtn.addEventListener("click", () => openPicker("formula"));
+  cmapBtn.addEventListener("click", () => openPicker("cmap"));
+  pickerClose.addEventListener("click", closePicker);
+  pickerBackdrop.addEventListener("click", closePicker);
+
+  for (const [sliderKey, control] of Object.entries(sliderControls)) {
+    control.button.addEventListener("click", () => openQuickSlider(sliderKey));
+  }
+
+  qsClose.addEventListener("click", closeQuickSlider);
+
+  qsRange.addEventListener("input", () => {
+    applySliderValue(Number.parseFloat(qsRange.value));
+  });
+
+  setupStepHold(qsMinus, -1);
+  setupStepHold(qsPlus, 1);
+
+  window.addEventListener("resize", draw, { passive: true });
+  window.addEventListener("orientationchange", draw, { passive: true });
 }
 
 async function fetchJson(path) {
@@ -94,25 +369,22 @@ async function loadData() {
     throw new Error("Data file has no formulas. Expected at least one formula option.");
   }
 
+  if (!Array.isArray(data.colormaps) || data.colormaps.length === 0) {
+    throw new Error("Data file has no colormaps. Expected at least one colormap option.");
+  }
+
   return data;
 }
 
 async function bootstrap() {
   try {
+    installGlobalZoomBlockers();
     appData = await loadData();
-    populateFormulaSelect(appData.formulas);
 
     currentFormulaId = resolveInitialFormulaId();
-    formulaSelect.value = currentFormulaId;
+    appData.defaults.cmapName = resolveInitialColorMap();
 
-    formulaSelect.addEventListener("change", () => {
-      currentFormulaId = formulaSelect.value;
-      draw();
-    });
-
-    window.addEventListener("resize", draw, { passive: true });
-    window.addEventListener("orientationchange", draw, { passive: true });
-
+    registerHandlers();
     draw();
   } catch (error) {
     console.error(error);

@@ -22,12 +22,13 @@ Use this as a tight punch-list while Codex iterates.
 - Formula and colormap picker popups use black background.
 
 ## Quick slider
-- Tapping a numeric parameter opens slider popover.
+- Tapping a numeric parameter opens slider popover, and `X` dismisses it.
 - Slider is full-width horizontal panel above the bottom bar.
 - Slider panel does not overlap parameter tiles.
-- Parameter name and value are shown above slider track.
-- Slider has minus and plus buttons for fine incremental control.
-- Moving slider or using +/- updates value readout and redraws frame immediately.
+- Parameter name and value are centered above slider track.
+- Slider has minus and plus buttons for fine incremental control, and press-and-hold continuously steps values.
+- Moving slider or using +/- updates actual-value readout (not %) and redraws frame immediately.
+- Parameter tiles use `a/b/c/d` labels only (no Greek letters).
 
 ## Toggle-all
 - Press once: all modes become Rand OR Fix (depending on current last-action).
