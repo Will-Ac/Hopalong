@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>Hopalong</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --panel-bg: rgba(12, 14, 20, 0.86);
+        --panel-border: rgba(255, 255, 255, 0.16);
+        --text: #f5f8ff;
+      }
+      * {
+        box-sizing: border-box;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+      }
+      html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #05070c;
+        color: var(--text);
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        touch-action: manipulation;
+      }
+      #app { position: relative; width: 100%; height: 100%; }
+      #c {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      #status {
+        position: absolute;
+        top: calc(12px + env(safe-area-inset-top));
+        left: 12px;
+        right: 12px;
+        margin: 0 auto;
+        max-width: 700px;
+        background: rgba(12, 14, 20, 0.72);
+        border: 1px solid var(--panel-border);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: 13px;
+        line-height: 1.4;
+        pointer-events: none;
+      }
+
+      #quickSlider {
+        position: absolute;
+        left: max(12px, env(safe-area-inset-left));
+        right: max(12px, env(safe-area-inset-right));
+        bottom: calc(72px + env(safe-area-inset-bottom));
+        z-index: 30;
+        background: rgba(0, 0, 0, 0.95);
+        border: 1px solid var(--panel-border);
+        border-radius: 12px;
+        padding: 8px;
+        display: none;
+      }
+      #quickSlider.is-open { display: block; }
+      .qsTop {
+        position: relative;
+        margin-bottom: 6px;
+        min-height: 26px;
+      }
+      .qsReadout {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 24px;
+      }
+      #qsLabel { font-size: 12px; font-weight: 600; }
+      #qsEquals { font-size: 12px; opacity: 0.88; }
+      #qsValue { font-size: 12px; font-variant-numeric: tabular-nums; opacity: 0.95; }
+      #qsClose {
+        position: absolute;
+        right: 0;
+        top: 0;
+        min-height: 24px;
+        min-width: 24px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text);
+        font-size: 12px;
+      }
+      .qsControlRow {
+        display: grid;
+        grid-template-columns: 40px 1fr 40px;
+        gap: 6px;
+        align-items: center;
+      }
+      .qsStepBtn {
+        min-height: 32px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text);
+        font-size: 16px;
+      }
+      #qsRange { width: 100%; height: 28px; }
+
+      #paramOverlay {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 10px max(12px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+        background: linear-gradient(180deg, rgba(6, 8, 12, 0), rgba(6, 8, 12, 0.72) 40%, rgba(6, 8, 12, 0.95));
+        pointer-events: none;
+      }
+      #paramRow {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        pointer-events: auto;
+      }
+      .poItem {
+        flex: 0 0 auto;
+        min-width: 108px;
+        background: var(--panel-bg);
+        border: 1px solid var(--panel-border);
+        border-radius: 12px;
+        padding: 8px;
+        backdrop-filter: blur(6px);
+      }
+      .poLabel {
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        margin-bottom: 6px;
+        opacity: 0.92;
+      }
+      .poBtn {
+        width: 100%;
+        min-height: 36px;
+        border-radius: 9px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(0, 0, 0, 0.35);
+        color: var(--text);
+        padding: 6px 8px;
+        font-size: 14px;
+        text-align: left;
+      }
+
+      #pickerOverlay {
+        position: absolute;
+        inset: 0;
+        z-index: 40;
+        display: none;
+      }
+      #pickerOverlay.is-open { display: block; }
+      #pickerBackdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+      }
+      #pickerPanel {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(540px, calc(100vw - 24px));
+        top: calc(58px + env(safe-area-inset-top));
+        bottom: calc(126px + env(safe-area-inset-bottom));
+        background: rgba(0, 0, 0, 0.96);
+        border: 1px solid var(--panel-border);
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+      }
+      .pickerHead {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      #pickerTitle { font-size: 14px; font-weight: 600; }
+      #pickerClose {
+        min-height: 30px;
+        min-width: 30px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.25);
+        background: rgba(255,255,255,0.1);
+        color: var(--text);
+      }
+      #pickerList {
+        overflow-y: auto;
+        padding: 6px;
+      }
+      .pickerOption {
+        width: 100%;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--text);
+        text-align: left;
+        padding: 8px;
+        border-radius: 8px;
+      }
+      .pickerOption.is-selected { border-color: rgba(255,255,255,0.24); background: rgba(255,255,255,0.08); }
+      .formulaRow {
+        display: grid;
+        grid-template-columns: 170px 1fr;
+        gap: 8px;
+        align-items: start;
+      }
+      .formulaName { font-weight: 600; }
+      .formulaDesc { opacity: 0.85; font-size: 12px; }
+      .cmapRow {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+      .cmapBar {
+        height: 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.25);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="c"></canvas>
+      <p id="status" aria-live="polite">Loading Hopalong data…</p>
+
+      <div id="quickSlider" aria-hidden="true">
+        <div class="qsTop">
+          <div class="qsReadout">
+            <span id="qsLabel">Adjust</span>
+            <span id="qsEquals">=</span>
+            <span id="qsValue">0.0</span>
+          </div>
+          <button id="qsClose" type="button" aria-label="Close slider">✕</button>
+        </div>
+        <div class="qsControlRow">
+          <button id="qsMinus" class="qsStepBtn" type="button" aria-label="Decrease value">−</button>
+          <input id="qsRange" type="range" min="0" max="100" step="0.1" />
+          <button id="qsPlus" class="qsStepBtn" type="button" aria-label="Increase value">+</button>
+        </div>
+      </div>
+
+      <div id="pickerOverlay" aria-hidden="true">
+        <div id="pickerBackdrop"></div>
+        <div id="pickerPanel" role="dialog" aria-modal="true" aria-label="Picker">
+          <div class="pickerHead">
+            <span id="pickerTitle">Pick</span>
+            <button id="pickerClose" type="button" aria-label="Close picker">✕</button>
+          </div>
+          <div id="pickerList"></div>
+        </div>
+      </div>
+
+      <div id="paramOverlay">
+        <div id="paramRow">
+          <div class="poItem">
+            <span class="poLabel">Formula</span>
+            <button id="formulaBtn" class="poBtn" type="button">--</button>
+          </div>
+
+          <div class="poItem">
+            <span class="poLabel">Color map</span>
+            <button id="cmapBtn" class="poBtn" type="button">--</button>
+          </div>
+
+          <div class="poItem">
+            <span class="poLabel">a</span>
+            <button id="btnAlpha" class="poBtn" type="button">--</button>
+          </div>
+
+          <div class="poItem">
+            <span class="poLabel">b</span>
+            <button id="btnBeta" class="poBtn" type="button">--</button>
+          </div>
+
+          <div class="poItem">
+            <span class="poLabel">c</span>
+            <button id="btnDelta" class="poBtn" type="button">--</button>
+          </div>
+
+          <div class="poItem">
+            <span class="poLabel">d</span>
+            <button id="btnGamma" class="poBtn" type="button">--</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./js/main.js"></script>
+  </body>
+</html>
