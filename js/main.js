@@ -22,6 +22,7 @@ const pickerBackdrop = document.getElementById("pickerBackdrop");
 const pickerTitle = document.getElementById("pickerTitle");
 const pickerClose = document.getElementById("pickerClose");
 const pickerList = document.getElementById("pickerList");
+const pickerPanel = document.getElementById("pickerPanel");
 
 const sliderControls = {
   alpha: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a" },
@@ -35,6 +36,7 @@ let appData = null;
 let currentFormulaId = null;
 let activeSliderKey = null;
 let activePicker = null;
+let activePickerTrigger = null;
 let holdTimer = null;
 let holdInterval = null;
 
@@ -149,8 +151,40 @@ function closeQuickSlider() {
 
 function closePicker() {
   activePicker = null;
+  activePickerTrigger = null;
   pickerOverlay.classList.remove("is-open");
   pickerOverlay.setAttribute("aria-hidden", "true");
+}
+
+function alignQuickSlider() {
+  const firstTile = document.querySelector("#paramRow .poItem");
+  if (!firstTile) {
+    return;
+  }
+
+  const appRect = canvas.parentElement.getBoundingClientRect();
+  const tileRect = firstTile.getBoundingClientRect();
+  const bottomOffset = Math.max(0, appRect.bottom - tileRect.top);
+  quickSlider.style.bottom = `${bottomOffset}px`;
+}
+
+function layoutPickerPanel() {
+  if (!activePickerTrigger) {
+    return;
+  }
+
+  const triggerRect = activePickerTrigger.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const margin = 12;
+  const targetWidth = clamp(triggerRect.width * 2, 180, 320);
+  const maxWidth = Math.max(180, viewportWidth - margin * 2);
+  const width = Math.min(targetWidth, maxWidth);
+  const triggerCenter = triggerRect.left + triggerRect.width / 2;
+  const left = clamp(triggerCenter - width / 2, margin, viewportWidth - margin - width);
+
+  pickerPanel.style.width = `${width}px`;
+  pickerPanel.style.left = `${left}px`;
+  pickerPanel.style.transform = "none";
 }
 
 function renderFormulaPicker() {
@@ -224,8 +258,9 @@ function renderColorMapPicker() {
   }
 }
 
-function openPicker(kind) {
+function openPicker(kind, triggerEl) {
   activePicker = kind;
+  activePickerTrigger = triggerEl;
   pickerOverlay.classList.add("is-open");
   pickerOverlay.setAttribute("aria-hidden", "false");
 
@@ -234,6 +269,8 @@ function openPicker(kind) {
   } else {
     renderColorMapPicker();
   }
+
+  layoutPickerPanel();
 }
 
 function updateQuickSliderReadout() {
@@ -262,6 +299,7 @@ function openQuickSlider(sliderKey) {
   activeSliderKey = sliderKey;
   quickSlider.classList.add("is-open");
   quickSlider.setAttribute("aria-hidden", "false");
+  alignQuickSlider();
 
   qsRange.value = appData.defaults.sliders[sliderKey];
   updateQuickSliderReadout();
@@ -282,14 +320,15 @@ function stepActiveSlider(direction) {
   if (!activeSliderKey) {
     return;
   }
-  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * 0.1);
+  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * 0.01);
 }
 
 function setupStepHold(button, direction) {
-  const onPointerDown = (event) => {
+  const startHold = (event) => {
     event.preventDefault();
-    stepActiveSlider(direction);
+    event.stopPropagation();
     clearStepHold();
+    stepActiveSlider(direction);
     holdTimer = window.setTimeout(() => {
       holdInterval = window.setInterval(() => {
         stepActiveSlider(direction);
@@ -297,14 +336,25 @@ function setupStepHold(button, direction) {
     }, 250);
   };
 
-  const onPointerUp = () => {
+  const stopHold = () => {
     clearStepHold();
   };
 
-  button.addEventListener("pointerdown", onPointerDown);
-  button.addEventListener("pointerup", onPointerUp);
-  button.addEventListener("pointercancel", onPointerUp);
-  button.addEventListener("pointerleave", onPointerUp);
+  if (window.PointerEvent) {
+    button.addEventListener("pointerdown", startHold);
+    button.addEventListener("pointerup", stopHold);
+    button.addEventListener("pointercancel", stopHold);
+    button.addEventListener("pointerleave", stopHold);
+  } else {
+    button.addEventListener("touchstart", startHold, { passive: false });
+    button.addEventListener("touchend", stopHold, { passive: false });
+    button.addEventListener("touchcancel", stopHold, { passive: false });
+    button.addEventListener("mousedown", startHold);
+    button.addEventListener("mouseup", stopHold);
+    button.addEventListener("mouseleave", stopHold);
+  }
+
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
 }
 
 function draw() {
@@ -330,8 +380,8 @@ function draw() {
 }
 
 function registerHandlers() {
-  formulaBtn.addEventListener("click", () => openPicker("formula"));
-  cmapBtn.addEventListener("click", () => openPicker("cmap"));
+  formulaBtn.addEventListener("click", () => openPicker("formula", formulaBtn));
+  cmapBtn.addEventListener("click", () => openPicker("cmap", cmapBtn));
   pickerClose.addEventListener("click", closePicker);
   pickerBackdrop.addEventListener("click", closePicker);
 
@@ -339,7 +389,14 @@ function registerHandlers() {
     control.button.addEventListener("click", () => openQuickSlider(sliderKey));
   }
 
-  qsClose.addEventListener("click", closeQuickSlider);
+  const closeSliderFromUi = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeQuickSlider();
+  };
+  qsClose.addEventListener("click", closeSliderFromUi);
+  qsClose.addEventListener("pointerup", closeSliderFromUi);
+  qsClose.addEventListener("touchend", closeSliderFromUi, { passive: false });
 
   qsRange.addEventListener("input", () => {
     applySliderValue(Number.parseFloat(qsRange.value));
@@ -348,8 +405,32 @@ function registerHandlers() {
   setupStepHold(qsMinus, -1);
   setupStepHold(qsPlus, 1);
 
-  window.addEventListener("resize", draw, { passive: true });
-  window.addEventListener("orientationchange", draw, { passive: true });
+  window.addEventListener(
+    "resize",
+    () => {
+      if (quickSlider.classList.contains("is-open")) {
+        alignQuickSlider();
+      }
+      if (pickerOverlay.classList.contains("is-open")) {
+        layoutPickerPanel();
+      }
+      draw();
+    },
+    { passive: true },
+  );
+  window.addEventListener(
+    "orientationchange",
+    () => {
+      if (quickSlider.classList.contains("is-open")) {
+        alignQuickSlider();
+      }
+      if (pickerOverlay.classList.contains("is-open")) {
+        layoutPickerPanel();
+      }
+      draw();
+    },
+    { passive: true },
+  );
 }
 
 async function fetchJson(path) {
