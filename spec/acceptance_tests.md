@@ -11,15 +11,15 @@ Use this as a tight punch-list while Codex iterates.
 - Double-tap anywhere on page does not zoom (canvas or controls).
 - Pinch gesture does not zoom the page.
 - Ctrl+wheel (desktop trackpad/browser zoom gesture) does not zoom page content.
-- Long-pressing on labels/buttons does not select text anywhere in the app.
+- Long-pressing/tapping text on any page element (canvas overlays, picker rows, labels, buttons) does not select text anywhere in the app.
 
 ## Bottom bar
 - Each parameter tile shows its name + current value/selection, with numeric values shown to 4 decimal places.
 - Each tile has a mode selector (Rand/Fix/ManX/ManY).
 - Assigning ManX to a new parameter clears prior ManX assignment (same for ManY).
 - Colormap tile shows colormap name only (no always-visible preview strip).
-- Opening colormap picker shows name plus preview strip in each option row, using fixed widths for name and preview columns.
-- Formula picker popup rows show short name and full formula description side-by-side, using fixed widths for both columns.
+- Opening colormap picker shows name plus preview strip in each option row, using reduced fixed widths for name and preview columns so rows fit cleanly in the popup.
+- Formula picker popup rows show short name and full formula description side-by-side, using reduced fixed widths for both columns so details text remains within the popup.
 - Formula and colormap picker popups use black background and compact width (not full-screen).
 
 ## Quick slider

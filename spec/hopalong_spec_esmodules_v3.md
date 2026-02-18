@@ -48,7 +48,7 @@ Tools area (`.poTools`):
   - `dblclick` preventDefault
   - `touchend` double-tap suppression
   - prevent ctrl+wheel page zoom on desktop trackpads.
-- Global app text selection is disabled across canvas and controls (no selectable UI text on tap/long-press).
+- Global app text selection is disabled across all page elements (canvas, overlays, controls, labels, and buttons) so long-press/tap does not trigger text selection on touch devices.
 
 ### 2.4 Quick slider + state picker popovers
 - Quick slider panel: `#quickSlider` with `#qsRange`, centered inline readout `#qsLabel = #qsValue`, functional close button `#qsClose`, and step buttons `#qsMinus` / `#qsPlus`.
@@ -77,10 +77,10 @@ Discrete parameters:
 
 Colormap UI requirement:
 - Bottom bar shows only selected colormap name.
-- Colormap preview strip/gradient is shown in the **open colormap picker popup** (to the right of colormap name), not always visible in the bottom bar; colormap-name column uses fixed width and preview strip uses fixed width so popup rows stay visually aligned.
+- Colormap preview strip/gradient is shown in the **open colormap picker popup** (to the right of colormap name), not always visible in the bottom bar; colormap-name column and preview strip use fixed, reduced widths so popup rows stay visually aligned and fit cleanly within the popup panel.
 
 Formula picker UI requirement:
-- Formula picker popup rows must show short formula name plus full formula expression/description to its right, with fixed-width name and details columns so popup rows stay visually aligned.
+- Formula picker popup rows must show short formula name plus full formula expression/description to its right, with fixed-width, reduced name and details columns so popup rows stay visually aligned and details text stays inside the popup panel.
 - Formula and colormap pickers use black popup background for high contrast and open at compact width (about 3x trigger/tile width, not full-screen).
 
 ### 3.2 Per-parameter state (Rand/Fix/ManX/ManY)
