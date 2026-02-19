@@ -8,6 +8,9 @@ const canvas = document.getElementById("c");
 const statusEl = document.getElementById("status");
 const formulaBtn = document.getElementById("formulaBtn");
 const cmapBtn = document.getElementById("cmapBtn");
+const debugOnEl = document.getElementById("debugOn");
+const debugOffEl = document.getElementById("debugOff");
+const debugInfoEl = document.getElementById("debugInfo");
 
 const quickSlider = document.getElementById("quickSlider");
 const qsLabel = document.getElementById("qsLabel");
@@ -38,6 +41,9 @@ let activeSliderKey = null;
 let activePicker = null;
 let activePickerTrigger = null;
 let holdInterval = null;
+let lastRenderMeta = null;
+let lastDrawTimestamp = 0;
+let fpsEstimate = 0;
 
 const MICRO_STEP = 0.0001;
 const HOLD_REPEAT_MS = 70;
@@ -384,21 +390,112 @@ function setupStepHold(button, direction) {
   button.addEventListener("contextmenu", (event) => event.preventDefault());
 }
 
+function axisScreenPosition(worldMin, worldMax, spanPx) {
+  if (worldMin <= 0 && worldMax >= 0) {
+    return ((0 - worldMin) / (worldMax - worldMin)) * spanPx;
+  }
+
+  return Math.abs(worldMin) <= Math.abs(worldMax) ? 0 : spanPx;
+}
+
+function drawDebugOverlay(meta) {
+  if (!appData.defaults.debug || !meta) {
+    debugInfoEl.textContent = "Debug off";
+    return;
+  }
+
+  const { view, world } = meta;
+  const xAxisY = axisScreenPosition(world.minY, world.maxY, view.height);
+  const yAxisX = axisScreenPosition(world.minX, world.maxX, view.width);
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,255,255,0.65)";
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.lineWidth = 1;
+  ctx.font = "12px system-ui, sans-serif";
+
+  ctx.beginPath();
+  ctx.moveTo(0, xAxisY);
+  ctx.lineTo(view.width, xAxisY);
+  ctx.moveTo(yAxisX, 0);
+  ctx.lineTo(yAxisX, view.height);
+  ctx.stroke();
+
+  const tickCount = 10;
+  for (let index = 0; index < tickCount; index += 1) {
+    const t = index / (tickCount - 1);
+
+    const xTick = t * view.width;
+    const xValue = world.minX + t * (world.maxX - world.minX);
+    ctx.beginPath();
+    ctx.moveTo(xTick, xAxisY - 5);
+    ctx.lineTo(xTick, xAxisY + 5);
+    ctx.stroke();
+    ctx.fillText(xValue.toFixed(3), xTick + 3, xAxisY - 8);
+
+    const yTick = t * view.height;
+    const yValue = world.minY + t * (world.maxY - world.minY);
+    ctx.beginPath();
+    ctx.moveTo(yAxisX - 5, yTick);
+    ctx.lineTo(yAxisX + 5, yTick);
+    ctx.stroke();
+    ctx.fillText(yValue.toFixed(3), yAxisX + 7, yTick - 3);
+  }
+
+  ctx.restore();
+
+  const formula = appData.formulas.find((item) => item.id === currentFormulaId);
+  const params = getDerivedParams();
+  const centerX = (world.minX + world.maxX) / 2;
+  const centerY = (world.minY + world.maxY) / 2;
+
+  debugInfoEl.textContent = [
+    `formula: ${formula?.name || currentFormulaId}`,
+    `a: ${params.a.toFixed(6)}`,
+    `b: ${params.b.toFixed(6)}`,
+    `c: ${params.c.toFixed(6)}`,
+    `d: ${params.d.toFixed(6)}`,
+    `iterations: ${meta.iterations}`,
+    "seeds/orbits: 1",
+    `x range: ${world.minX.toFixed(3)} to ${world.maxX.toFixed(3)}`,
+    `y range: ${world.minY.toFixed(3)} to ${world.maxY.toFixed(3)}`,
+    `range centre: (${centerX.toFixed(3)}, ${centerY.toFixed(3)})`,
+    `fps: ${fpsEstimate.toFixed(1)}`,
+  ].join("\n");
+}
+
 function draw() {
   if (!appData || !currentFormulaId) {
     return;
   }
 
+  const startedAt = performance.now();
   const didResize = resizeCanvas();
-  renderFrame({
+  const iterations = didResize ? 100000 : 120000;
+  const frameMeta = renderFrame({
     ctx,
     canvas,
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
-    iterations: didResize ? 100000 : 120000,
+    iterations,
   });
 
+  const now = performance.now();
+  const delta = lastDrawTimestamp > 0 ? now - lastDrawTimestamp : 0;
+  if (delta > 0) {
+    const instantFps = 1000 / delta;
+    fpsEstimate = fpsEstimate === 0 ? instantFps : fpsEstimate * 0.85 + instantFps * 0.15;
+  }
+  lastDrawTimestamp = now;
+
+  lastRenderMeta = {
+    ...frameMeta,
+    iterations,
+    renderMs: now - startedAt,
+  };
+
+  drawDebugOverlay(lastRenderMeta);
   refreshParamButtons();
   updateQuickSliderReadout();
 
@@ -411,6 +508,14 @@ function registerHandlers() {
   cmapBtn.addEventListener("click", () => openPicker("cmap", cmapBtn));
   pickerClose.addEventListener("click", closePicker);
   pickerBackdrop.addEventListener("click", closePicker);
+  debugOnEl.addEventListener("change", () => {
+    appData.defaults.debug = debugOnEl.checked;
+    draw();
+  });
+  debugOffEl.addEventListener("change", () => {
+    appData.defaults.debug = debugOnEl.checked;
+    draw();
+  });
 
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
     control.button.addEventListener("click", () => openQuickSlider(sliderKey));
@@ -472,6 +577,9 @@ async function fetchJson(path) {
 async function loadData() {
   const [data, defaults] = await Promise.all([fetchJson(DATA_PATH), fetchJson(DEFAULTS_PATH)]);
   data.defaults = defaults;
+  if (typeof data.defaults.debug !== "boolean") {
+    data.defaults.debug = false;
+  }
 
   if (!Array.isArray(data.formulas) || data.formulas.length === 0) {
     throw new Error("Data file has no formulas. Expected at least one formula option.");
@@ -496,6 +604,8 @@ async function bootstrap() {
 
     currentFormulaId = resolveInitialFormulaId();
     appData.defaults.cmapName = resolveInitialColorMap();
+    debugOnEl.checked = Boolean(appData.defaults.debug);
+    debugOffEl.checked = !debugOnEl.checked;
 
     registerHandlers();
     draw();

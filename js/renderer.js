@@ -75,4 +75,22 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   }
 
   ctx.putImageData(image, 0, 0);
+
+  return {
+    world: {
+      minX: (0 - centerX) / scale,
+      maxX: (width - centerX) / scale,
+      minY: (0 - centerY) / scale,
+      maxY: (height - centerY) / scale,
+      centerX: 0,
+      centerY: 0,
+    },
+    view: {
+      width,
+      height,
+      centerX,
+      centerY,
+      scale,
+    },
+  };
 }
