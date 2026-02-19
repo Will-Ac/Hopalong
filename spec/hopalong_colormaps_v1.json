@@ -1,0 +1,242 @@
+{
+  "version": 1,
+  "description": "Custom Hopalong-friendly colormaps (no-black, structure-preserving, plus controlled banded options).",
+  "recommended_remove_from_screenshot": [
+    "Inferno",
+    "Plasma",
+    "Heat",
+    "Rainbow",
+    "Sepia",
+  ],
+  "colormaps": [
+    {
+      "id": "ice_cyan_white",
+      "label": "Ice \u2192 Cyan \u2192 White",
+      "type": "continuous",
+      "stops": [
+        {
+          "t": 0.0,
+          "hex": "#DFF6FF"
+        },
+        {
+          "t": 0.45,
+          "hex": "#6FD3FF"
+        },
+        {
+          "t": 0.75,
+          "hex": "#00AAFF"
+        },
+        {
+          "t": 1.0,
+          "hex": "#FFFFFF"
+        }
+      ]
+    },
+    {
+      "id": "white_indigo",
+      "label": "White \u2192 Indigo",
+      "type": "continuous",
+      "stops": [
+        {
+          "t": 0.0,
+          "hex": "#FFFFFF"
+        },
+        {
+          "t": 0.35,
+          "hex": "#C8D0FF"
+        },
+        {
+          "t": 0.7,
+          "hex": "#6B82FF"
+        },
+        {
+          "t": 1.0,
+          "hex": "#2F3FAE"
+        }
+      ]
+    },
+    {
+      "id": "sand_coral_rose",
+      "label": "Sand \u2192 Coral \u2192 Rose",
+      "type": "continuous",
+      "stops": [
+        {
+          "t": 0.0,
+          "hex": "#FFF6E5"
+        },
+        {
+          "t": 0.45,
+          "hex": "#FFC4A3"
+        },
+        {
+          "t": 0.75,
+          "hex": "#FF7B89"
+        },
+        {
+          "t": 1.0,
+          "hex": "#C9184A"
+        }
+      ]
+    },
+    {
+      "id": "mint_teal_cyan",
+      "label": "Mint \u2192 Teal \u2192 Deep Cyan",
+      "type": "continuous",
+      "stops": [
+        {
+          "t": 0.0,
+          "hex": "#F0FFF7"
+        },
+        {
+          "t": 0.4,
+          "hex": "#8EF6D0"
+        },
+        {
+          "t": 0.72,
+          "hex": "#1BC5BD"
+        },
+        {
+          "t": 1.0,
+          "hex": "#087F8C"
+        }
+      ]
+    },
+    {
+      "id": "white_gold",
+      "label": "White \u2192 Gold",
+      "type": "continuous",
+      "stops": [
+        {
+          "t": 0.0,
+          "hex": "#FFFFFF"
+        },
+        {
+          "t": 0.35,
+          "hex": "#FFF1B0"
+        },
+        {
+          "t": 0.7,
+          "hex": "#FFC300"
+        },
+        {
+          "t": 1.0,
+          "hex": "#B8860B"
+        }
+      ]
+    },
+    {
+      "id": "blue_white_orange_soft",
+      "label": "Soft Blue \u2194 White \u2194 Soft Orange",
+      "type": "continuous_diverging",
+      "stops": [
+        {
+          "t": 0.0,
+          "hex": "#6FA8FF"
+        },
+        {
+          "t": 0.5,
+          "hex": "#FFFFFF"
+        },
+        {
+          "t": 1.0,
+          "hex": "#FFB366"
+        }
+      ]
+    },
+    {
+      "id": "gray_white_lavender_soft",
+      "label": "Cool Gray \u2192 White \u2192 Lavender",
+      "type": "continuous_diverging",
+      "stops": [
+        {
+          "t": 0.0,
+          "hex": "#CFD8DC"
+        },
+        {
+          "t": 0.5,
+          "hex": "#FFFFFF"
+        },
+        {
+          "t": 1.0,
+          "hex": "#D8B4F8"
+        }
+      ]
+    },
+    {
+      "id": "pastel_5_band_contour",
+      "label": "Pastel 5-band (soft contour)",
+      "type": "banded_soft",
+      "bands": [
+        {
+          "hex": "#FFFFFF",
+          "w": 1
+        },
+        {
+          "hex": "#FFE1EA",
+          "w": 1
+        },
+        {
+          "hex": "#FFE9CC",
+          "w": 1
+        },
+        {
+          "hex": "#DDEBFF",
+          "w": 1
+        },
+        {
+          "hex": "#E6FFF2",
+          "w": 1
+        },
+        {
+          "hex": "#FFFFFF",
+          "w": 1
+        }
+      ],
+      "banding": {
+        "mode": "repeat",
+        "count": 6,
+        "smoothness": 0.15
+      }
+    },
+    {
+      "id": "gold_contour_bands",
+      "label": "Gold contour bands",
+      "type": "banded_soft",
+      "bands": [
+        {
+          "hex": "#FFFFFF",
+          "w": 1
+        },
+        {
+          "hex": "#FFF1B0",
+          "w": 1
+        },
+        {
+          "hex": "#FFC300",
+          "w": 1
+        },
+        {
+          "hex": "#B8860B",
+          "w": 1
+        },
+        {
+          "hex": "#FFC300",
+          "w": 1
+        },
+        {
+          "hex": "#FFF1B0",
+          "w": 1
+        },
+        {
+          "hex": "#FFFFFF",
+          "w": 1
+        }
+      ],
+      "banding": {
+        "mode": "repeat",
+        "count": 5,
+        "smoothness": 0.12
+      }
+    }
+  ]
+}
