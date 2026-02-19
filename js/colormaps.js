@@ -69,6 +69,15 @@ function makeBandedSoftMap({ bands, count, smoothness }) {
   };
 }
 
+
+function normalizeColorMapName(name) {
+  return String(name || "")
+    .normalize("NFKC")
+    .replace(/[  -​  　]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export const ColorMaps = {
   Turbo: (t) => fromStops([
     [0.00, [48, 18, 59]], [0.10, [50, 44, 125]], [0.20, [32, 96, 189]], [0.30, [41, 158, 179]],
@@ -123,9 +132,27 @@ export const ColorMaps = {
   }),
 };
 
-export const ColorMapNames = Object.keys(ColorMaps);
+ColorMaps.ice_cyan_white = ColorMaps["Ice → Cyan → White"];
+ColorMaps.white_indigo = ColorMaps["White → Indigo"];
+ColorMaps.sand_coral_rose = ColorMaps["Sand → Coral → Rose"];
+ColorMaps.mint_teal_cyan = ColorMaps["Mint → Teal → Deep Cyan"];
+ColorMaps.white_gold = ColorMaps["White → Gold"];
+ColorMaps.blue_white_orange_soft = ColorMaps["Soft Blue ↔ White ↔ Soft Orange"];
+ColorMaps.gray_white_lavender_soft = ColorMaps["Cool Gray → White → Lavender"];
+ColorMaps.pastel_5_band_contour = ColorMaps["Pastel 5-band (soft contour)"];
+ColorMaps.gold_contour_bands = ColorMaps["Gold contour bands"];
+
+const ColorMapLookup = new Map();
+for (const [name, fn] of Object.entries(ColorMaps)) {
+  ColorMapLookup.set(normalizeColorMapName(name), fn);
+}
+
+export const ColorMapNames = Object.keys(ColorMaps).filter((name) => !name.includes("_"));
 
 export function sampleColorMap(name, t) {
-  const fn = ColorMaps[name] || ColorMaps[ColorMapNames[0]];
+  const fn =
+    ColorMaps[name]
+    || ColorMapLookup.get(normalizeColorMapName(name))
+    || ColorMaps[ColorMapNames[0]];
   return fn ? fn(t) : [255, 255, 255];
 }

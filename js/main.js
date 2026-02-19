@@ -1,4 +1,4 @@
-import { sampleColorMap } from "./colormaps.js";
+import { ColorMapNames, sampleColorMap } from "./colormaps.js";
 import { renderFrame, getParamsForFormula } from "./renderer.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
@@ -450,8 +450,13 @@ async function loadData() {
     throw new Error("Data file has no formulas. Expected at least one formula option.");
   }
 
-  if (!Array.isArray(data.colormaps) || data.colormaps.length === 0) {
-    throw new Error("Data file has no colormaps. Expected at least one colormap option.");
+  const configuredColormaps = Array.isArray(data.colormaps) ? data.colormaps : [];
+  const validConfigured = configuredColormaps.filter((name) => ColorMapNames.includes(name));
+  const missingFromConfig = ColorMapNames.filter((name) => !validConfigured.includes(name));
+  data.colormaps = [...validConfigured, ...missingFromConfig];
+
+  if (data.colormaps.length === 0) {
+    throw new Error("No valid colormaps found. Expected at least one colormap option.");
   }
 
   return data;
