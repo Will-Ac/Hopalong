@@ -48,3 +48,10 @@ Use this as a tight punch-list while Codex iterates.
 ## Snapshot
 - Save PNG creates a file (or share sheet) on iOS Safari.
 - Saved image contains the canvas only (no overlays).
+
+## Debug overlay
+- Top-right panel has Debug `Off/On` radio buttons.
+- With Debug On: X and Y axes are visible and correspond to world x=0/y=0, clamped to nearest edge when zero is off-screen.
+- With Debug On: each axis shows 10 tick markers with labels to 3 decimal places.
+- With Debug On: info readout shows formula, a/b/c/d to 6 decimals, iterations, seeds/orbits, x/y ranges, center coordinates, and fps.
+- With Debug Off: overlay details are hidden and panel shows `Debug off`.

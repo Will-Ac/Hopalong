@@ -16,6 +16,8 @@
   },
   "notes": [
     "alpha/beta/gamma/delta defaults are slider positions (0\u2013100).",
-    "Actual a/b/c/d values must be derived from slider position using formula-specific ranges."
-  ]
+    "Actual a/b/c/d values must be derived from slider position using formula-specific ranges.",
+    "debug controls whether the debug axis/tick/info overlay is shown."
+  ],
+  "debug": false
 }

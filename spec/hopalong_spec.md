@@ -141,3 +141,19 @@ Split into modules (even if bundled later):
 - Tap left/right history works only when not dragging and menu closed.
 - 2-finger ALL-mode pan vs pinch threshold behaves as specified.
 - Snapshot works on iOS Safari (share-sheet or downloadable PNG).
+
+## 11) Debug overlay (new)
+
+- A top-right debug panel includes a `Debug` radio toggle (`Off` / `On`).
+- When debug is `On`, draw screen-space X and Y axes tied to world `x=0` and `y=0`.
+  - If `x=0` or `y=0` are outside the visible world range, clamp that axis to the nearest screen edge for that axis.
+- Render exactly 10 tick markers per axis with numeric labels formatted to 3 decimal places.
+- Show debug readout lines under the toggle for:
+  - selected formula
+  - `a`, `b`, `c`, `d` values to 6 decimal places
+  - iterations
+  - seeds/orbits
+  - visible x range and y range
+  - center point of the visible range
+  - FPS
+- When debug is `Off`, hide axes/ticks/readout details and show a short `Debug off` message.
