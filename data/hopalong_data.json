@@ -531,12 +531,8 @@
   "colormaps": [
     "Turbo",
     "Viridis",
-    "Plasma",
-    "Inferno",
     "Magma",
     "Gray",
-    "Rainbow",
-    "Heat",
     "Ocean",
     "H&E",
     "Giemsa",
@@ -547,7 +543,15 @@
     "Fluorescein",
     "Toluidine",
     "Safranin+FG",
-    "Sepia"
+    "Ice → Cyan → White",
+    "White → Indigo",
+    "Sand → Coral → Rose",
+    "Mint → Teal → Deep Cyan",
+    "White → Gold",
+    "Soft Blue ↔ White ↔ Soft Orange",
+    "Cool Gray → White → Lavender",
+    "Pastel 5-band (soft contour)",
+    "Gold contour bands"
   ],
   "parameter_keys": [
     "formula",
