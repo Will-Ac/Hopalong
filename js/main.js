@@ -37,8 +37,13 @@ let currentFormulaId = null;
 let activeSliderKey = null;
 let activePicker = null;
 let activePickerTrigger = null;
-let holdTimer = null;
 let holdInterval = null;
+
+const MICRO_STEP = 0.0001;
+const HOLD_REPEAT_MS = 70;
+const HOLD_ACCEL_START_MS = 2000;
+const HOLD_ACCEL_END_MS = 3000;
+const HOLD_MAX_MULTIPLIER = 10;
 
 function setStatus(message) {
   statusEl.textContent = message;
@@ -306,10 +311,6 @@ function openQuickSlider(sliderKey) {
 }
 
 function clearStepHold() {
-  if (holdTimer) {
-    window.clearTimeout(holdTimer);
-    holdTimer = null;
-  }
   if (holdInterval) {
     window.clearInterval(holdInterval);
     holdInterval = null;
@@ -320,7 +321,30 @@ function stepActiveSlider(direction) {
   if (!activeSliderKey) {
     return;
   }
-  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * 0.0001);
+
+  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * MICRO_STEP);
+}
+
+function getHoldStepSize(holdElapsedMs) {
+  if (holdElapsedMs < HOLD_ACCEL_START_MS) {
+    return MICRO_STEP;
+  }
+
+  if (holdElapsedMs >= HOLD_ACCEL_END_MS) {
+    return MICRO_STEP * HOLD_MAX_MULTIPLIER;
+  }
+
+  const accelProgress = (holdElapsedMs - HOLD_ACCEL_START_MS) / (HOLD_ACCEL_END_MS - HOLD_ACCEL_START_MS);
+  const growth = Math.pow(HOLD_MAX_MULTIPLIER, accelProgress);
+  return MICRO_STEP * growth;
+}
+
+function stepActiveSliderBy(direction, stepSize) {
+  if (!activeSliderKey) {
+    return;
+  }
+
+  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * stepSize);
 }
 
 function setupStepHold(button, direction) {
@@ -328,12 +352,15 @@ function setupStepHold(button, direction) {
     event.preventDefault();
     event.stopPropagation();
     clearStepHold();
+
+    const holdStartMs = performance.now();
     stepActiveSlider(direction);
-    holdTimer = window.setTimeout(() => {
-      holdInterval = window.setInterval(() => {
-        stepActiveSlider(direction);
-      }, 70);
-    }, 250);
+
+    holdInterval = window.setInterval(() => {
+      const holdElapsedMs = performance.now() - holdStartMs;
+      const holdStepSize = getHoldStepSize(holdElapsedMs);
+      stepActiveSliderBy(direction, holdStepSize);
+    }, HOLD_REPEAT_MS);
   };
 
   const stopHold = () => {
