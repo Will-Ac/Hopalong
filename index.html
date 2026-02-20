@@ -10,6 +10,7 @@
         --panel-bg: rgba(12, 14, 20, 0.26);
         --panel-border: rgba(255, 255, 255, 0.07);
         --text: #f5f8ff;
+        --name-box-width: 180px;
       }
       *, *::before, *::after {
         box-sizing: border-box;
@@ -232,6 +233,12 @@
         text-align: center;
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .poItem.poName {
+        flex: 0 0 var(--name-box-width);
+        width: var(--name-box-width);
       }
 
       #pickerOverlay {
@@ -361,12 +368,12 @@
 
       <div id="paramOverlay">
         <div id="paramRow">
-          <div class="poItem">
+          <div class="poItem poName">
             <span class="poLabel">Formula</span>
             <button id="formulaBtn" class="poBtn" type="button">--</button>
           </div>
 
-          <div class="poItem">
+          <div class="poItem poName">
             <span class="poLabel">Color map</span>
             <button id="cmapBtn" class="poBtn" type="button">--</button>
           </div>

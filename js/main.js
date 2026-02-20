@@ -57,6 +57,16 @@ const HOLD_REPEAT_MS = 70;
 const HOLD_ACCEL_START_MS = 2000;
 const HOLD_ACCEL_END_MS = 3000;
 const HOLD_MAX_MULTIPLIER = 10;
+const NAME_MAX_CHARS = 20;
+
+function clampLabel(text, maxChars = NAME_MAX_CHARS) {
+  const normalized = String(text ?? "").trim();
+  if (normalized.length <= maxChars) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
+}
 
 function requestDraw() {
   drawDirty = true;
@@ -201,8 +211,24 @@ function refreshParamButtons() {
   }
 
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
-  formulaBtn.textContent = formula?.name || currentFormulaId;
-  cmapBtn.textContent = appData.defaults.cmapName;
+  formulaBtn.textContent = clampLabel(formula?.name || currentFormulaId);
+  cmapBtn.textContent = clampLabel(appData.defaults.cmapName);
+}
+
+function updateCurrentPickerSelection() {
+  const options = Array.from(pickerList.querySelectorAll(".pickerOption"));
+  for (const option of options) {
+    const isSelected = option.dataset.value === (activePicker === "formula" ? currentFormulaId : appData.defaults.cmapName);
+    option.classList.toggle("is-selected", isSelected);
+  }
+}
+
+function configureNameBoxWidths() {
+  const formulaLengths = appData.formulas.map((formula) => clampLabel(formula.name).length);
+  const cmapLengths = appData.colormaps.map((name) => clampLabel(name).length);
+  const longest = Math.max(10, ...formulaLengths, ...cmapLengths);
+  const widthPx = Math.round(clamp(longest * 9.4 + 34, 140, 260));
+  document.documentElement.style.setProperty("--name-box-width", `${widthPx}px`);
 }
 
 function closeQuickSlider() {
@@ -258,13 +284,14 @@ function renderFormulaPicker() {
     if (formula.id === currentFormulaId) {
       button.classList.add("is-selected");
     }
+    button.dataset.value = formula.id;
 
     const row = document.createElement("div");
     row.className = "formulaRow";
 
     const name = document.createElement("span");
     name.className = "formulaName";
-    name.textContent = formula.name;
+    name.textContent = clampLabel(formula.name);
 
     const desc = document.createElement("span");
     desc.className = "formulaDesc";
@@ -275,7 +302,9 @@ function renderFormulaPicker() {
 
     button.addEventListener("click", () => {
       currentFormulaId = formula.id;
+      updateCurrentPickerSelection();
       requestDraw();
+      window.setTimeout(closePicker, 80);
     });
 
     pickerList.append(button);
@@ -293,12 +322,13 @@ function renderColorMapPicker() {
     if (cmapName === appData.defaults.cmapName) {
       button.classList.add("is-selected");
     }
+    button.dataset.value = cmapName;
 
     const row = document.createElement("div");
     row.className = "cmapRow";
 
     const name = document.createElement("span");
-    name.textContent = cmapName;
+    name.textContent = clampLabel(cmapName);
 
     const bar = document.createElement("div");
     bar.className = "cmapBar";
@@ -309,7 +339,9 @@ function renderColorMapPicker() {
 
     button.addEventListener("click", () => {
       appData.defaults.cmapName = cmapName;
+      updateCurrentPickerSelection();
       requestDraw();
+      window.setTimeout(closePicker, 80);
     });
 
     pickerList.append(button);
@@ -516,6 +548,7 @@ function drawDebugOverlay(meta) {
   const yAxisX = axisScreenPosition(world.minX, world.maxX, view.width);
   const xTicks = buildTickValues(world.minX, world.maxX, view.width);
   const yTicks = buildTickValues(world.minY, world.maxY, view.height);
+  const originVisible = world.minX <= 0 && world.maxX >= 0 && world.minY <= 0 && world.maxY >= 0;
   const minorXStep = xTicks.step / 2;
   const minorYStep = yTicks.step / 2;
   const showMinorX = ((world.maxX - world.minX) / minorXStep) <= 40;
@@ -560,6 +593,9 @@ function drawDebugOverlay(meta) {
     ctx.lineTo(xTick, view.height);
   }
   for (const yValue of yTicks.values) {
+    if (originVisible && Math.abs(yValue) <= yTicks.step * 0.5) {
+      continue;
+    }
     const yTick = ((yValue - world.minY) / (world.maxY - world.minY)) * view.height;
     ctx.moveTo(0, yTick);
     ctx.lineTo(view.width, yTick);
@@ -587,6 +623,9 @@ function drawDebugOverlay(meta) {
   }
 
   for (const yValue of yTicks.values) {
+    if (originVisible && Math.abs(yValue) <= yTicks.step * 0.5) {
+      continue;
+    }
     const yTick = ((yValue - world.minY) / (world.maxY - world.minY)) * view.height;
     ctx.beginPath();
     ctx.moveTo(yAxisX - 5, yTick);
@@ -766,6 +805,7 @@ async function bootstrap() {
 
     currentFormulaId = resolveInitialFormulaId();
     appData.defaults.cmapName = resolveInitialColorMap();
+    configureNameBoxWidths();
     debugOnEl.checked = Boolean(appData.defaults.debug);
     debugOffEl.checked = !debugOnEl.checked;
 
