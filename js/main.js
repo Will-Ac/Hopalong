@@ -5,14 +5,16 @@ const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
 
 const canvas = document.getElementById("c");
-const statusEl = document.getElementById("status");
+const toastEl = document.getElementById("toast");
 const formulaBtn = document.getElementById("formulaBtn");
 const cmapBtn = document.getElementById("cmapBtn");
 const debugOnEl = document.getElementById("debugOn");
 const debugOffEl = document.getElementById("debugOff");
 const debugInfoEl = document.getElementById("debugInfo");
+const debugPanelEl = document.getElementById("debugPanel");
 
-const quickSlider = document.getElementById("quickSlider");
+const quickSliderOverlay = document.getElementById("quickSliderOverlay");
+const quickSliderBackdrop = document.getElementById("quickSliderBackdrop");
 const qsLabel = document.getElementById("qsLabel");
 const qsValue = document.getElementById("qsValue");
 const qsRange = document.getElementById("qsRange");
@@ -46,6 +48,7 @@ let lastDrawTimestamp = 0;
 let fpsEstimate = 0;
 let drawScheduled = false;
 let drawDirty = false;
+let toastTimer = null;
 
 const MICRO_STEP = 0.0001;
 const HOLD_REPEAT_MS = 70;
@@ -71,8 +74,18 @@ function requestDraw() {
   });
 }
 
-function setStatus(message) {
-  statusEl.textContent = message;
+function showToast(message) {
+  if (!toastEl) {
+    return;
+  }
+
+  window.clearTimeout(toastTimer);
+  toastEl.textContent = message;
+  toastEl.classList.add("is-visible");
+
+  toastTimer = window.setTimeout(() => {
+    toastEl.classList.remove("is-visible");
+  }, 5000);
 }
 
 function installGlobalZoomBlockers() {
@@ -176,8 +189,8 @@ function refreshParamButtons() {
 
 function closeQuickSlider() {
   activeSliderKey = null;
-  quickSlider.classList.remove("is-open");
-  quickSlider.setAttribute("aria-hidden", "true");
+  quickSliderOverlay.classList.remove("is-open");
+  quickSliderOverlay.setAttribute("aria-hidden", "true");
 }
 
 function closePicker() {
@@ -185,18 +198,6 @@ function closePicker() {
   activePickerTrigger = null;
   pickerOverlay.classList.remove("is-open");
   pickerOverlay.setAttribute("aria-hidden", "true");
-}
-
-function alignQuickSlider() {
-  const firstTile = document.querySelector("#paramRow .poItem");
-  if (!firstTile) {
-    return;
-  }
-
-  const appRect = canvas.parentElement.getBoundingClientRect();
-  const tileRect = firstTile.getBoundingClientRect();
-  const bottomOffset = Math.max(0, appRect.bottom - tileRect.top);
-  quickSlider.style.bottom = `${bottomOffset}px`;
 }
 
 function layoutPickerPanel() {
@@ -328,9 +329,8 @@ function applySliderValue(nextValue) {
 
 function openQuickSlider(sliderKey) {
   activeSliderKey = sliderKey;
-  quickSlider.classList.add("is-open");
-  quickSlider.setAttribute("aria-hidden", "false");
-  alignQuickSlider();
+  quickSliderOverlay.classList.add("is-open");
+  quickSliderOverlay.setAttribute("aria-hidden", "false");
 
   qsRange.value = appData.defaults.sliders[sliderKey];
   updateQuickSliderReadout();
@@ -421,8 +421,11 @@ function axisScreenPosition(worldMin, worldMax, spanPx) {
 function drawDebugOverlay(meta) {
   if (!appData.defaults.debug || !meta) {
     debugInfoEl.textContent = "Debug off";
+    debugPanelEl.classList.add("is-hidden");
     return;
   }
+
+  debugPanelEl.classList.remove("is-hidden");
 
   const { view, world } = meta;
   const xAxisY = axisScreenPosition(world.minY, world.maxY, view.height);
@@ -519,8 +522,6 @@ function draw() {
   refreshParamButtons();
   updateQuickSliderReadout();
 
-  const formula = appData.formulas.find((item) => item.id === currentFormulaId);
-  setStatus(`Loaded ${formula?.name || currentFormulaId}. Slice 2.1 controls ready.`);
 }
 
 function registerHandlers() {
@@ -549,6 +550,9 @@ function registerHandlers() {
   qsClose.addEventListener("click", closeSliderFromUi);
   qsClose.addEventListener("pointerup", closeSliderFromUi);
   qsClose.addEventListener("touchend", closeSliderFromUi, { passive: false });
+  quickSliderBackdrop.addEventListener("click", () => {
+    closeQuickSlider();
+  });
 
   qsRange.addEventListener("input", () => {
     applySliderValue(Number.parseFloat(qsRange.value));
@@ -560,9 +564,6 @@ function registerHandlers() {
   window.addEventListener(
     "resize",
     () => {
-      if (quickSlider.classList.contains("is-open")) {
-        alignQuickSlider();
-      }
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }
@@ -573,9 +574,6 @@ function registerHandlers() {
   window.addEventListener(
     "orientationchange",
     () => {
-      if (quickSlider.classList.contains("is-open")) {
-        alignQuickSlider();
-      }
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }
@@ -629,9 +627,11 @@ async function bootstrap() {
 
     registerHandlers();
     requestDraw();
+    const formula = appData.formulas.find((item) => item.id === currentFormulaId);
+    showToast(`Loaded ${formula?.name || currentFormulaId}. Slice 2.1 controls ready.`);
   } catch (error) {
     console.error(error);
-    setStatus(`Startup failed: ${error.message}`);
+    showToast(`Startup failed: ${error.message}`);
   }
 }
 
