@@ -247,7 +247,6 @@ function renderFormulaPicker() {
 
     button.addEventListener("click", () => {
       currentFormulaId = formula.id;
-      closePicker();
       requestDraw();
     });
 
@@ -282,7 +281,6 @@ function renderColorMapPicker() {
 
     button.addEventListener("click", () => {
       appData.defaults.cmapName = cmapName;
-      closePicker();
       requestDraw();
     });
 
@@ -528,7 +526,6 @@ function registerHandlers() {
   formulaBtn.addEventListener("click", () => openPicker("formula", formulaBtn));
   cmapBtn.addEventListener("click", () => openPicker("cmap", cmapBtn));
   pickerClose.addEventListener("click", closePicker);
-  pickerBackdrop.addEventListener("click", closePicker);
   debugOnEl.addEventListener("change", () => {
     appData.defaults.debug = debugOnEl.checked;
     requestDraw();
