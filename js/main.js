@@ -499,7 +499,16 @@ function formatTickValue(value, step) {
   }
 
   const clamped = Number.parseFloat(value.toFixed(decimals));
-  return clamped.toFixed(decimals);
+  const cleaned = Object.is(clamped, -0) ? 0 : clamped;
+  return cleaned.toFixed(decimals);
+}
+
+function worldToScreenX(worldX, world) {
+  return ((worldX - world.minX) / (world.maxX - world.minX)) * canvas.width;
+}
+
+function worldToScreenY(worldY, world) {
+  return ((worldY - world.minY) / (world.maxY - world.minY)) * canvas.height;
 }
 
 function drawDebugOverlay(meta) {
@@ -515,7 +524,9 @@ function drawDebugOverlay(meta) {
   const xAxisY = axisScreenPosition(world.minY, world.maxY, view.height);
   const yAxisX = axisScreenPosition(world.minX, world.maxX, view.width);
   const xTicks = buildTickValues(world.minX, world.maxX, view.width);
-  const yTicks = buildTickValues(world.minY, world.maxY, view.height);
+  const displayMinY = -world.maxY;
+  const displayMaxY = -world.minY;
+  const yTicks = buildTickValues(displayMinY, displayMaxY, view.height);
   const minorXStep = xTicks.step / 2;
   const minorYStep = yTicks.step / 2;
   const showMinorX = ((world.maxX - world.minX) / minorXStep) <= 40;
@@ -542,7 +553,7 @@ function drawDebugOverlay(meta) {
     if (showMinorY) {
       const start = Math.ceil(world.minY / minorYStep) * minorYStep;
       for (let value = start; value <= world.maxY + minorYStep * 0.5; value += minorYStep) {
-        const py = ((value - world.minY) / (world.maxY - world.minY)) * view.height;
+        const py = worldToScreenY(value, world);
         ctx.moveTo(0, py);
         ctx.lineTo(view.width, py);
       }
@@ -555,12 +566,12 @@ function drawDebugOverlay(meta) {
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (const xValue of xTicks.values) {
-    const xTick = ((xValue - world.minX) / (world.maxX - world.minX)) * view.width;
+    const xTick = worldToScreenX(xValue, world);
     ctx.moveTo(xTick, 0);
     ctx.lineTo(xTick, view.height);
   }
   for (const yValue of yTicks.values) {
-    const yTick = ((yValue - world.minY) / (world.maxY - world.minY)) * view.height;
+    const yTick = worldToScreenY(-yValue, world);
     ctx.moveTo(0, yTick);
     ctx.lineTo(view.width, yTick);
   }
@@ -578,7 +589,7 @@ function drawDebugOverlay(meta) {
   ctx.strokeStyle = "rgba(255,255,255,0.9)";
   ctx.lineWidth = 1;
   for (const xValue of xTicks.values) {
-    const xTick = ((xValue - world.minX) / (world.maxX - world.minX)) * view.width;
+    const xTick = worldToScreenX(xValue, world);
     ctx.beginPath();
     ctx.moveTo(xTick, xAxisY - 5);
     ctx.lineTo(xTick, xAxisY + 5);
@@ -587,7 +598,7 @@ function drawDebugOverlay(meta) {
   }
 
   for (const yValue of yTicks.values) {
-    const yTick = ((yValue - world.minY) / (world.maxY - world.minY)) * view.height;
+    const yTick = worldToScreenY(-yValue, world);
     ctx.beginPath();
     ctx.moveTo(yAxisX - 5, yTick);
     ctx.lineTo(yAxisX + 5, yTick);
@@ -600,7 +611,7 @@ function drawDebugOverlay(meta) {
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   const params = getDerivedParams();
   const centerX = (world.minX + world.maxX) / 2;
-  const centerY = (world.minY + world.maxY) / 2;
+  const centerY = (displayMinY + displayMaxY) / 2;
 
   debugInfoEl.textContent = [
     `formula: ${formula?.name || currentFormulaId}`,
@@ -611,7 +622,7 @@ function drawDebugOverlay(meta) {
     `iterations: ${meta.iterations}`,
     "seeds/orbits: 1",
     `x range: ${world.minX.toFixed(3)} to ${world.maxX.toFixed(3)}`,
-    `y range: ${world.minY.toFixed(3)} to ${world.maxY.toFixed(3)}`,
+    `y range: ${displayMinY.toFixed(3)} to ${displayMaxY.toFixed(3)}`,
     `range centre: (${centerX.toFixed(3)}, ${centerY.toFixed(3)})`,
     `fps: ${fpsEstimate.toFixed(1)}`,
   ].join("\n");
