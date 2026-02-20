@@ -101,7 +101,8 @@
         top: calc(42px + env(safe-area-inset-top));
         right: max(0px, env(safe-area-inset-right));
         z-index: 38;
-        width: min(300px, calc(100vw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+        width: fit-content;
+        max-width: min(300px, calc(100vw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
         max-height: calc(48vh - env(safe-area-inset-top));
         overflow: auto;
         background: rgba(12, 14, 20, 0.22);
@@ -203,8 +204,8 @@
         pointer-events: auto;
       }
       .poItem {
-        flex: 0 0 auto;
-        min-width: 98px;
+        flex: 0 0 108px;
+        width: 108px;
         background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 10px;
@@ -229,6 +230,8 @@
         padding: 5px 7px;
         font-size: 12px;
         text-align: center;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
       }
 
       #pickerOverlay {
@@ -386,6 +389,10 @@
           <div class="poItem">
             <span class="poLabel">d</span>
             <button id="btnGamma" class="poBtn" type="button">--</button>
+          </div>
+          <div class="poItem">
+            <span class="poLabel">iter</span>
+            <button id="btnIters" class="poBtn" type="button">--</button>
           </div>
         </div>
       </div>
