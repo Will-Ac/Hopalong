@@ -10,6 +10,8 @@ function mapNormalized(normalizedValue, min, max) {
   return min + (max - min) * t;
 }
 
+const LUT_SIZE = 2048;
+
 export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   const fallbackRanges = {
     a: [-80, 80],
@@ -56,6 +58,16 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   const scale = minDim / 220;
   const centerX = width * 0.5;
   const centerY = height * 0.5;
+  const colorLut = new Uint8Array(LUT_SIZE * 3);
+
+  for (let lutIndex = 0; lutIndex < LUT_SIZE; lutIndex += 1) {
+    const t = lutIndex / (LUT_SIZE - 1);
+    const [r, g, b] = sampleColorMap(cmapName, t);
+    const colorOffset = lutIndex * 3;
+    colorLut[colorOffset] = r;
+    colorLut[colorOffset + 1] = g;
+    colorLut[colorOffset + 2] = b;
+  }
 
   for (let i = 0; i < iterations; i += 1) {
     [x, y] = variant.step(x, y, params.a, params.b, params.d, params.c);
@@ -67,10 +79,11 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     }
 
     const idx = (py * width + px) * 4;
-    const [r, g, b] = sampleColorMap(cmapName, i / iterations);
-    pixels[idx] = r;
-    pixels[idx + 1] = g;
-    pixels[idx + 2] = b;
+    const lutIndex = Math.floor((i * (LUT_SIZE - 1)) / iterations);
+    const colorOffset = lutIndex * 3;
+    pixels[idx] = colorLut[colorOffset];
+    pixels[idx + 1] = colorLut[colorOffset + 1];
+    pixels[idx + 2] = colorLut[colorOffset + 2];
     pixels[idx + 3] = 255;
   }
 
