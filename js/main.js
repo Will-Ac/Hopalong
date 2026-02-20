@@ -44,12 +44,32 @@ let holdInterval = null;
 let lastRenderMeta = null;
 let lastDrawTimestamp = 0;
 let fpsEstimate = 0;
+let drawScheduled = false;
+let drawDirty = false;
 
 const MICRO_STEP = 0.0001;
 const HOLD_REPEAT_MS = 70;
 const HOLD_ACCEL_START_MS = 2000;
 const HOLD_ACCEL_END_MS = 3000;
 const HOLD_MAX_MULTIPLIER = 10;
+
+function requestDraw() {
+  drawDirty = true;
+  if (drawScheduled) {
+    return;
+  }
+
+  drawScheduled = true;
+  window.requestAnimationFrame(() => {
+    drawScheduled = false;
+    if (!drawDirty) {
+      return;
+    }
+
+    drawDirty = false;
+    draw();
+  });
+}
 
 function setStatus(message) {
   statusEl.textContent = message;
@@ -227,7 +247,7 @@ function renderFormulaPicker() {
     button.addEventListener("click", () => {
       currentFormulaId = formula.id;
       closePicker();
-      draw();
+      requestDraw();
     });
 
     pickerList.append(button);
@@ -262,7 +282,7 @@ function renderColorMapPicker() {
     button.addEventListener("click", () => {
       appData.defaults.cmapName = cmapName;
       closePicker();
-      draw();
+      requestDraw();
     });
 
     pickerList.append(button);
@@ -303,7 +323,7 @@ function applySliderValue(nextValue) {
   appData.defaults.sliders[activeSliderKey] = value;
   qsRange.value = value;
   updateQuickSliderReadout();
-  draw();
+  requestDraw();
 }
 
 function openQuickSlider(sliderKey) {
@@ -510,11 +530,11 @@ function registerHandlers() {
   pickerBackdrop.addEventListener("click", closePicker);
   debugOnEl.addEventListener("change", () => {
     appData.defaults.debug = debugOnEl.checked;
-    draw();
+    requestDraw();
   });
   debugOffEl.addEventListener("change", () => {
     appData.defaults.debug = debugOnEl.checked;
-    draw();
+    requestDraw();
   });
 
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
@@ -546,7 +566,7 @@ function registerHandlers() {
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }
-      draw();
+      requestDraw();
     },
     { passive: true },
   );
@@ -559,7 +579,7 @@ function registerHandlers() {
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }
-      draw();
+      requestDraw();
     },
     { passive: true },
   );
@@ -608,7 +628,7 @@ async function bootstrap() {
     debugOffEl.checked = !debugOnEl.checked;
 
     registerHandlers();
-    draw();
+    requestDraw();
   } catch (error) {
     console.error(error);
     setStatus(`Startup failed: ${error.message}`);
