@@ -30,7 +30,6 @@ const pickerClose = document.getElementById("pickerClose");
 const pickerList = document.getElementById("pickerList");
 const pickerPanel = document.getElementById("pickerPanel");
 const paramOverlayEl = document.getElementById("paramOverlay");
-const cameraBtn = document.getElementById("cameraBtn");
 
 const sliderControls = {
   alpha: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
@@ -53,142 +52,11 @@ let fpsEstimate = 0;
 let drawScheduled = false;
 let drawDirty = false;
 let toastTimer = null;
-let cameraPressTimer = null;
-let longPressConsumed = false;
 
 const HOLD_REPEAT_MS = 70;
 const HOLD_ACCEL_START_MS = 2000;
 const HOLD_ACCEL_END_MS = 3000;
 const HOLD_MAX_MULTIPLIER = 10;
-const CAMERA_LONG_PRESS_MS = 550;
-
-function getScreenshotFileName(withOverlay) {
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  return `hopalong-${withOverlay ? "overlay" : "clean"}-${stamp}.png`;
-}
-
-function buildOverlaySummary() {
-  const formula = appData.formulas.find((item) => item.id === currentFormulaId);
-  const params = getDerivedParams();
-  return [
-    `formula: ${formula?.name || currentFormulaId}`,
-    `cmap: ${appData.defaults.cmapName}`,
-    `a=${params.a.toFixed(4)}`,
-    `b=${params.b.toFixed(4)}`,
-    `c=${params.c.toFixed(4)}`,
-    `d=${params.d.toFixed(4)}`,
-    `iter=${Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max))}`,
-  ];
-}
-
-function blobFromCanvas(sourceCanvas) {
-  return new Promise((resolve, reject) => {
-    sourceCanvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error("Could not encode screenshot."));
-        return;
-      }
-
-      resolve(blob);
-    }, "image/png");
-  });
-}
-
-async function saveImageBlob(blob, fileName) {
-  const shareSupported = typeof navigator !== "undefined" && typeof navigator.share === "function" && typeof File !== "undefined";
-  if (shareSupported) {
-    const file = new File([blob], fileName, { type: "image/png" });
-    const canShareFile = typeof navigator.canShare === "function" ? navigator.canShare({ files: [file] }) : true;
-    if (canShareFile) {
-      await navigator.share({
-        files: [file],
-        title: "Hopalong screenshot",
-        text: "Screenshot from Hopalong",
-      });
-      return;
-    }
-  }
-
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
-}
-
-function createOverlayScreenshotCanvas() {
-  const shotCanvas = createCleanScreenshotCanvas();
-  const shotCtx = shotCanvas.getContext("2d", { alpha: false });
-
-  const lines = buildOverlaySummary();
-  const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-  const padX = Math.round(16 * dpr);
-  const padY = Math.round(12 * dpr);
-  const lineHeight = Math.round(18 * dpr);
-  const blockHeight = padY * 2 + lines.length * lineHeight;
-  const panelY = shotCanvas.height - blockHeight;
-
-  shotCtx.fillStyle = "rgba(6, 8, 12, 0.72)";
-  shotCtx.fillRect(0, panelY, shotCanvas.width, blockHeight);
-  shotCtx.font = `${Math.round(14 * dpr)}px system-ui, -apple-system, sans-serif`;
-  shotCtx.fillStyle = "rgba(245, 248, 255, 0.96)";
-  shotCtx.textBaseline = "top";
-
-  for (const [lineIndex, lineText] of lines.entries()) {
-    shotCtx.fillText(lineText, padX, panelY + padY + lineIndex * lineHeight);
-  }
-
-  return shotCanvas;
-}
-
-function createCleanScreenshotCanvas() {
-  const shotCanvas = document.createElement("canvas");
-  shotCanvas.width = canvas.width;
-  shotCanvas.height = canvas.height;
-  const shotCtx = shotCanvas.getContext("2d", { alpha: false });
-  const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-
-  renderFrame({
-    ctx: shotCtx,
-    canvas: shotCanvas,
-    formulaId: currentFormulaId,
-    cmapName: appData.defaults.cmapName,
-    params: getDerivedParams(),
-    iterations: iterationSetting,
-  });
-
-  return shotCanvas;
-}
-
-async function captureScreenshot({ withOverlay }) {
-  if (!appData) {
-    return;
-  }
-
-  try {
-    const outputCanvas = withOverlay ? createOverlayScreenshotCanvas() : createCleanScreenshotCanvas();
-    const blob = await blobFromCanvas(outputCanvas);
-    await saveImageBlob(blob, getScreenshotFileName(withOverlay));
-    showToast(withOverlay ? "Screenshot with parameter overlay saved." : "Clean screenshot saved.");
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      showToast("Screenshot share cancelled.");
-      return;
-    }
-    console.error(error);
-    showToast(`Screenshot failed: ${error?.message || "unknown error"}`);
-  }
-}
-
-function clearCameraPressTimer() {
-  if (cameraPressTimer) {
-    window.clearTimeout(cameraPressTimer);
-    cameraPressTimer = null;
-  }
-}
 
 function requestDraw() {
   drawDirty = true;
@@ -823,54 +691,6 @@ function registerHandlers() {
 
   setupStepHold(qsMinus, -1);
   setupStepHold(qsPlus, 1);
-
-  const onCameraPressStart = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    clearCameraPressTimer();
-    longPressConsumed = false;
-    cameraBtn.classList.add("is-pressed");
-
-    cameraPressTimer = window.setTimeout(() => {
-      longPressConsumed = true;
-      cameraBtn.classList.remove("is-pressed");
-      captureScreenshot({ withOverlay: true });
-    }, CAMERA_LONG_PRESS_MS);
-  };
-
-  const onCameraPressEnd = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    clearCameraPressTimer();
-    cameraBtn.classList.remove("is-pressed");
-
-    if (!longPressConsumed) {
-      captureScreenshot({ withOverlay: false });
-    }
-  };
-
-  const onCameraPressCancel = (event) => {
-    event.preventDefault();
-    clearCameraPressTimer();
-    cameraBtn.classList.remove("is-pressed");
-    longPressConsumed = false;
-  };
-
-  if (window.PointerEvent) {
-    cameraBtn.addEventListener("pointerdown", onCameraPressStart);
-    cameraBtn.addEventListener("pointerup", onCameraPressEnd);
-    cameraBtn.addEventListener("pointercancel", onCameraPressCancel);
-    cameraBtn.addEventListener("pointerleave", onCameraPressCancel);
-  } else {
-    cameraBtn.addEventListener("touchstart", onCameraPressStart, { passive: false });
-    cameraBtn.addEventListener("touchend", onCameraPressEnd, { passive: false });
-    cameraBtn.addEventListener("touchcancel", onCameraPressCancel, { passive: false });
-    cameraBtn.addEventListener("mousedown", onCameraPressStart);
-    cameraBtn.addEventListener("mouseup", onCameraPressEnd);
-    cameraBtn.addEventListener("mouseleave", onCameraPressCancel);
-  }
-
-  cameraBtn.addEventListener("contextmenu", (event) => event.preventDefault());
 
   window.addEventListener(
     "resize",
