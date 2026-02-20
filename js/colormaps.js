@@ -101,11 +101,11 @@ export const ColorMaps = {
   "Ice → Cyan → White": (t) => fromStops([[0.0, hexToRgb("#DFF6FF")], [0.45, hexToRgb("#6FD3FF")], [0.75, hexToRgb("#00AAFF")], [1.0, hexToRgb("#FFFFFF")]], t),
   "White → Indigo": (t) => fromStops([[0.0, hexToRgb("#FFFFFF")], [0.35, hexToRgb("#C8D0FF")], [0.7, hexToRgb("#6B82FF")], [1.0, hexToRgb("#2F3FAE")]], t),
   "Sand → Coral → Rose": (t) => fromStops([[0.0, hexToRgb("#FFF6E5")], [0.45, hexToRgb("#FFC4A3")], [0.75, hexToRgb("#FF7B89")], [1.0, hexToRgb("#C9184A")]], t),
-  "Mint → Teal → Deep Cyan": (t) => fromStops([[0.0, hexToRgb("#F0FFF7")], [0.4, hexToRgb("#8EF6D0")], [0.72, hexToRgb("#1BC5BD")], [1.0, hexToRgb("#087F8C")]], t),
+  "Mint→Teal→Cyan": (t) => fromStops([[0.0, hexToRgb("#F0FFF7")], [0.4, hexToRgb("#8EF6D0")], [0.72, hexToRgb("#1BC5BD")], [1.0, hexToRgb("#087F8C")]], t),
   "White → Gold": (t) => fromStops([[0.0, hexToRgb("#FFFFFF")], [0.35, hexToRgb("#FFF1B0")], [0.7, hexToRgb("#FFC300")], [1.0, hexToRgb("#B8860B")]], t),
-  "Soft Blue ↔ White ↔ Soft Orange": (t) => fromStops([[0.0, hexToRgb("#6FA8FF")], [0.5, hexToRgb("#FFFFFF")], [1.0, hexToRgb("#FFB366")]], t),
-  "Cool Gray → White → Lavender": (t) => fromStops([[0.0, hexToRgb("#CFD8DC")], [0.5, hexToRgb("#FFFFFF")], [1.0, hexToRgb("#D8B4F8")]], t),
-  "Pastel 5-band (soft contour)": makeBandedSoftMap({
+  "Blue↔White↔Orange": (t) => fromStops([[0.0, hexToRgb("#6FA8FF")], [0.5, hexToRgb("#FFFFFF")], [1.0, hexToRgb("#FFB366")]], t),
+  "Gray→White→Laven": (t) => fromStops([[0.0, hexToRgb("#CFD8DC")], [0.5, hexToRgb("#FFFFFF")], [1.0, hexToRgb("#D8B4F8")]], t),
+  "Pastel 5-band soft": makeBandedSoftMap({
     bands: [
       { hex: "#FFFFFF", w: 1 },
       { hex: "#FFE1EA", w: 1 },
@@ -135,11 +135,11 @@ export const ColorMaps = {
 ColorMaps.ice_cyan_white = ColorMaps["Ice → Cyan → White"];
 ColorMaps.white_indigo = ColorMaps["White → Indigo"];
 ColorMaps.sand_coral_rose = ColorMaps["Sand → Coral → Rose"];
-ColorMaps.mint_teal_cyan = ColorMaps["Mint → Teal → Deep Cyan"];
+ColorMaps.mint_teal_cyan = ColorMaps["Mint→Teal→Cyan"];
 ColorMaps.white_gold = ColorMaps["White → Gold"];
-ColorMaps.blue_white_orange_soft = ColorMaps["Soft Blue ↔ White ↔ Soft Orange"];
-ColorMaps.gray_white_lavender_soft = ColorMaps["Cool Gray → White → Lavender"];
-ColorMaps.pastel_5_band_contour = ColorMaps["Pastel 5-band (soft contour)"];
+ColorMaps.blue_white_orange_soft = ColorMaps["Blue↔White↔Orange"];
+ColorMaps.gray_white_lavender_soft = ColorMaps["Gray→White→Laven"];
+ColorMaps.pastel_5_band_contour = ColorMaps["Pastel 5-band soft"];
 ColorMaps.gold_contour_bands = ColorMaps["Gold contour bands"];
 
 const ColorMapLookup = new Map();
