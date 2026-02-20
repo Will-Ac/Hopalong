@@ -49,7 +49,7 @@ A larger settings menu exists (`#menu`) with sliders, outputs, and per-parameter
 
 ### 3.1 Parameter keys
 Numeric parameters:
-- `a`, `b`, `c`, `d` (rendered as α/β/δ/γ in some UI areas; note v124 maps: alpha→a, beta→b, delta→c, gamma→d).
+- `a`, `b`, `c`, `d` (rendered as a/b/c/d in some UI areas; note v124 maps: alpha→a, beta→b, delta→c, gamma→d).
 - `orbits` (N), `iters`
 - `burn` (burn-in)
 - `rangeR` (range r)

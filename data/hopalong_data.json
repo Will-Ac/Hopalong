@@ -4,27 +4,27 @@
     {
       "id": "classic_sqrt",
       "name": "Classic (sqrt)",
-      "desc": "Wolfram/Martin: x' = y − sgn(x)·sqrt(|βx − δ|), y' = α − x"
+      "desc": "Wolfram/Martin: x' = y − sgn(x)·sqrt(|bx − c|), y' = a − x"
     },
     {
       "id": "sqrt_plus_gamma_y",
-      "name": "Classic + γy",
-      "desc": "x' = y − sgn(x)·sqrt(|βx − δ|) + γy, y' = α − x"
+      "name": "Classic + dy",
+      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + dy, y' = a − x"
     },
     {
       "id": "sqrt_plus_gamma_x",
-      "name": "Classic + γx",
-      "desc": "x' = y − sgn(x)·sqrt(|βx − δ|) + γx, y' = α − x"
+      "name": "Classic + dx",
+      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + dx, y' = a − x"
     },
     {
       "id": "mix_inside",
-      "name": "sqrt(|β(x+γy)−δ|)",
-      "desc": "Mix x,y inside sqrt: x' = y − sgn(x)·sqrt(|β(x+γy) − δ|), y' = α − x"
+      "name": "sqrt(|b(x+dy)−c|)",
+      "desc": "Mix x,y inside sqrt: x' = y − sgn(x)·sqrt(|b(x+dy) − c|), y' = a − x"
     },
     {
       "id": "trig_kick_x",
       "name": "Trig kick (sin x)",
-      "desc": "x' = y − sgn(x)·sqrt(|βx − δ|) + γ·sin(x), y' = α − x"
+      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + d·sin(x), y' = a − x"
     },
     {
       "id": "damped",
@@ -49,67 +49,67 @@
     {
       "id": "cos_xy_kick",
       "name": "Trig kick (cos(x+y))",
-      "desc": "x' = y − sgn(x)·sqrt(|βx − δ|) + γ·cos(x+y), y' = α − x"
+      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + d·cos(x+y), y' = a − x"
     },
     {
       "id": "inside_sin_y",
-      "name": "Inside sqrt: x+γ·sin(y)",
-      "desc": "x' = y − sgn(x)·sqrt(|β(x+γ·sin(y)) − δ|), y' = α − x"
+      "name": "Inside sqrt: x+d·sin(y)",
+      "desc": "x' = y − sgn(x)·sqrt(|b(x+d·sin(y)) − c|), y' = a − x"
     },
     {
       "id": "inside_cos_x",
-      "name": "Inside sqrt: x+γ·cos(x)",
-      "desc": "x' = y − sgn(x)·sqrt(|β(x+γ·cos(x)) − δ|), y' = α − x"
+      "name": "Inside sqrt: x+d·cos(x)",
+      "desc": "x' = y − sgn(x)·sqrt(|b(x+d·cos(x)) − c|), y' = a − x"
     },
     {
       "id": "softsign_kick",
       "name": "Softsign kick",
-      "desc": "x' = y − sgn(x)·sqrt(|βx − δ|) + γ·(x/(1+|x|)), y' = α − x"
+      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + d·(x/(1+|x|)), y' = a − x"
     },
     {
       "id": "tanh_kick",
       "name": "Tanh kick",
-      "desc": "x' = y − sgn(x)·sqrt(|βx − δ|) + γ·tanh(x), y' = α − x"
+      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + d·tanh(x), y' = a − x"
     },
     {
       "id": "sign_xy",
       "name": "Sign of (x·y)",
-      "desc": "Use sign(x·y): x' = y − sgn(xy)·sqrt(|βx − δ|), y' = α − x"
+      "desc": "Use sign(x·y): x' = y − sgn(xy)·sqrt(|bx − c|), y' = a − x"
     },
     {
       "id": "double_root",
       "name": "Double-root kick",
-      "desc": "x' = y − sgn(x)·(sqrt(|βx−δ|)+γ·sqrt(|βy−δ|)), y' = α − x"
+      "desc": "x' = y − sgn(x)·(sqrt(|bx−c|)+d·sqrt(|by−c|)), y' = a − x"
     },
     {
       "id": "xy_coupling",
       "name": "XY coupling",
-      "desc": "x' = y − sgn(x)·sqrt(|βx − δ|) + γ·(x·y/50), y' = α − x"
+      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + d·(x·y/50), y' = a − x"
     },
     {
       "id": "positive_hopalong",
       "name": "Positive Hopalong (+sqrt)",
-      "desc": "x' = y + sgn(x)·sqrt(|βx − δ|), y' = α − x"
+      "desc": "x' = y + sgn(x)·sqrt(|bx − c|), y' = a − x"
     },
     {
       "id": "sinusoidal_hopalong",
       "name": "Sinusoidal Hopalong (sin)",
-      "desc": "x' = y + sin(βx − δ), y' = α − x"
+      "desc": "x' = y + sin(bx − c), y' = a − x"
     },
     {
       "id": "threeply",
       "name": "Threeply (Peters)",
-      "desc": "x' = y − sgn(x)·|sin(x)cos(β) + γ − x·sin(α+β+γ)|, y' = α − x"
+      "desc": "x' = y − sgn(x)·|sin(x)cos(b) + d − x·sin(a+b+d)|, y' = a − x"
     },
     {
       "id": "quadrup2",
       "name": "Quadrup-2 (Peters)",
-      "desc": "x' = y − sgn(x)·sin(ln|βx−δ|)·atan((ln|δx−β|)^2), y' = α − x"
+      "desc": "x' = y − sgn(x)·sin(ln|bx−c|)·atan((ln|cx−b|)^2), y' = a − x"
     },
     {
       "id": "chip",
       "name": "Chip (Peters)",
-      "desc": "x' = y − sgn(x)·cos((ln|βx−δ|)^2)·atan((ln|βx−δ|)^2), y' = α − x"
+      "desc": "x' = y − sgn(x)·cos((ln|bx−c|)^2)·atan((ln|bx−c|)^2), y' = a − x"
     }
   ],
   "formula_ranges_raw": {

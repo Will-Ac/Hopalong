@@ -251,13 +251,6 @@ function renderFormulaPicker() {
   pickerTitle.textContent = "Select formula";
   pickerList.innerHTML = "";
 
-  const normalizeParamLetters = (text) =>
-    text
-      .replace(/α/gi, "a")
-      .replace(/β/gi, "b")
-      .replace(/γ/gi, "d")
-      .replace(/δ/gi, "c");
-
   for (const formula of appData.formulas) {
     const button = document.createElement("button");
     button.type = "button";
@@ -275,7 +268,7 @@ function renderFormulaPicker() {
 
     const desc = document.createElement("span");
     desc.className = "formulaDesc";
-    desc.textContent = normalizeParamLetters(formula.desc);
+    desc.textContent = formula.desc;
 
     row.append(name, desc);
     button.append(row);
@@ -463,6 +456,52 @@ function axisScreenPosition(worldMin, worldMax, spanPx) {
   return Math.abs(worldMin) <= Math.abs(worldMax) ? 0 : spanPx;
 }
 
+function getNiceTickStep(span, targetTicks) {
+  const roughStep = span / Math.max(1, targetTicks);
+  const magnitude = 10 ** Math.floor(Math.log10(Math.max(roughStep, Number.EPSILON)));
+  const residual = roughStep / magnitude;
+
+  if (residual <= 1) {
+    return magnitude;
+  }
+  if (residual <= 2) {
+    return 2 * magnitude;
+  }
+  if (residual <= 2.5) {
+    return 2.5 * magnitude;
+  }
+  if (residual <= 5) {
+    return 5 * magnitude;
+  }
+
+  return 10 * magnitude;
+}
+
+function buildTickValues(min, max, spanPx) {
+  const span = Math.max(max - min, Number.EPSILON);
+  const targetTicks = clamp(Math.round(spanPx / 65), 10, 20);
+  const step = getNiceTickStep(span, targetTicks);
+  const start = Math.ceil(min / step) * step;
+  const values = [];
+
+  for (let value = start; value <= max + step * 0.5; value += step) {
+    const rounded = Number.parseFloat(value.toFixed(12));
+    values.push(rounded);
+  }
+
+  return { step, values };
+}
+
+function formatTickValue(value, step) {
+  let decimals = 0;
+  while (decimals < 6 && Math.abs(Math.round(step * 10 ** decimals) - step * 10 ** decimals) > 1e-8) {
+    decimals += 1;
+  }
+
+  const clamped = Number.parseFloat(value.toFixed(decimals));
+  return clamped.toFixed(decimals);
+}
+
 function drawDebugOverlay(meta) {
   if (!appData.defaults.debug || !meta) {
     debugInfoEl.textContent = "Debug off";
@@ -475,13 +514,60 @@ function drawDebugOverlay(meta) {
   const { view, world } = meta;
   const xAxisY = axisScreenPosition(world.minY, world.maxY, view.height);
   const yAxisX = axisScreenPosition(world.minX, world.maxX, view.width);
+  const xTicks = buildTickValues(world.minX, world.maxX, view.width);
+  const yTicks = buildTickValues(world.minY, world.maxY, view.height);
+  const minorXStep = xTicks.step / 2;
+  const minorYStep = yTicks.step / 2;
+  const showMinorX = ((world.maxX - world.minX) / minorXStep) <= 40;
+  const showMinorY = ((world.maxY - world.minY) / minorYStep) <= 40;
 
   ctx.save();
-  ctx.strokeStyle = "rgba(255,255,255,0.65)";
   ctx.fillStyle = "rgba(255,255,255,0.9)";
-  ctx.lineWidth = 1;
   ctx.font = "12px system-ui, sans-serif";
 
+  if (showMinorX || showMinorY) {
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+
+    if (showMinorX) {
+      const start = Math.ceil(world.minX / minorXStep) * minorXStep;
+      for (let value = start; value <= world.maxX + minorXStep * 0.5; value += minorXStep) {
+        const px = ((value - world.minX) / (world.maxX - world.minX)) * view.width;
+        ctx.moveTo(px, 0);
+        ctx.lineTo(px, view.height);
+      }
+    }
+
+    if (showMinorY) {
+      const start = Math.ceil(world.minY / minorYStep) * minorYStep;
+      for (let value = start; value <= world.maxY + minorYStep * 0.5; value += minorYStep) {
+        const py = ((value - world.minY) / (world.maxY - world.minY)) * view.height;
+        ctx.moveTo(0, py);
+        ctx.lineTo(view.width, py);
+      }
+    }
+
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "rgba(255,255,255,0.16)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (const xValue of xTicks.values) {
+    const xTick = ((xValue - world.minX) / (world.maxX - world.minX)) * view.width;
+    ctx.moveTo(xTick, 0);
+    ctx.lineTo(xTick, view.height);
+  }
+  for (const yValue of yTicks.values) {
+    const yTick = ((yValue - world.minY) / (world.maxY - world.minY)) * view.height;
+    ctx.moveTo(0, yTick);
+    ctx.lineTo(view.width, yTick);
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(255,255,255,0.78)";
+  ctx.lineWidth = 1.8;
   ctx.beginPath();
   ctx.moveTo(0, xAxisY);
   ctx.lineTo(view.width, xAxisY);
@@ -489,25 +575,24 @@ function drawDebugOverlay(meta) {
   ctx.lineTo(yAxisX, view.height);
   ctx.stroke();
 
-  const tickCount = 10;
-  for (let index = 0; index < tickCount; index += 1) {
-    const t = index / (tickCount - 1);
-
-    const xTick = t * view.width;
-    const xValue = world.minX + t * (world.maxX - world.minX);
+  ctx.strokeStyle = "rgba(255,255,255,0.9)";
+  ctx.lineWidth = 1;
+  for (const xValue of xTicks.values) {
+    const xTick = ((xValue - world.minX) / (world.maxX - world.minX)) * view.width;
     ctx.beginPath();
     ctx.moveTo(xTick, xAxisY - 5);
     ctx.lineTo(xTick, xAxisY + 5);
     ctx.stroke();
-    ctx.fillText(xValue.toFixed(3), xTick + 3, xAxisY - 8);
+    ctx.fillText(formatTickValue(xValue, xTicks.step), xTick + 3, xAxisY - 8);
+  }
 
-    const yTick = t * view.height;
-    const yValue = world.minY + t * (world.maxY - world.minY);
+  for (const yValue of yTicks.values) {
+    const yTick = ((yValue - world.minY) / (world.maxY - world.minY)) * view.height;
     ctx.beginPath();
     ctx.moveTo(yAxisX - 5, yTick);
     ctx.lineTo(yAxisX + 5, yTick);
     ctx.stroke();
-    ctx.fillText(yValue.toFixed(3), yAxisX + 7, yTick - 3);
+    ctx.fillText(formatTickValue(yValue, yTicks.step), yAxisX + 7, yTick - 3);
   }
 
   ctx.restore();
