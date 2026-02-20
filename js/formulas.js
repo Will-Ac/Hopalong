@@ -34,10 +34,10 @@ export const VARIANTS = [
 { id:"cos_xy_kick", name:"Trig kick (cos(x+y))", desc:"x' = y − sgn(x)·sqrt(|bx − c|) + d·cos(x+y), y' = a − x",
       step:(x,y,a,b,g,d)=>{ const s=x>0?1:(x<0?-1:0); return [ y - s*Math.sqrt(Math.abs(b*x-d)) + g*Math.cos(x+y), a - x ]; } },
 
-    { id:"inside_sin_y", name:"Inside sqrt sin(y)", desc:"x' = y − sgn(x)·sqrt(|b(x+d·sin(y)) − c|), y' = a − x",
+    { id:"inside_sin_y", name:"Inside sqrt: x+d·sin(y)", desc:"x' = y − sgn(x)·sqrt(|b(x+d·sin(y)) − c|), y' = a − x",
       step:(x,y,a,b,g,d)=>{ const s=x>0?1:(x<0?-1:0); const t=x + g*Math.sin(y); return [ y - s*Math.sqrt(Math.abs(b*t-d)), a - x ]; } },
 
-    { id:"inside_cos_x", name:"Inside sqrt cos(x)", desc:"x' = y − sgn(x)·sqrt(|b(x+d·cos(x)) − c|), y' = a − x",
+    { id:"inside_cos_x", name:"Inside sqrt: x+d·cos(x)", desc:"x' = y − sgn(x)·sqrt(|b(x+d·cos(x)) − c|), y' = a − x",
       step:(x,y,a,b,g,d)=>{ const s=x>0?1:(x<0?-1:0); const t=x + g*Math.cos(x); return [ y - s*Math.sqrt(Math.abs(b*t-d)), a - x ]; } },
 
     { id:"softsign_kick", name:"Softsign kick", desc:"x' = y − sgn(x)·sqrt(|bx − c|) + d·(x/(1+|x|)), y' = a − x",
@@ -57,10 +57,10 @@ export const VARIANTS = [
   ,
 
     // -------- additional variants (public domain / fractal literature) --------
-    { id:"positive_hopalong", name:"Positive Hopalong", desc:"x' = y + sgn(x)·sqrt(|bx − c|), y' = a − x",
+    { id:"positive_hopalong", name:"Positive Hopalong (+sqrt)", desc:"x' = y + sgn(x)·sqrt(|bx − c|), y' = a − x",
       step:(x,y,a,b,g,d)=>{ const s=x>0?1:(x<0?-1:0); return [ y + s*Math.sqrt(Math.abs(b*x-d)), a - x ]; } },
 
-    { id:"sinusoidal_hopalong", name:"Sinusoidal Hopalong", desc:"x' = y + sin(bx − c), y' = a − x",
+    { id:"sinusoidal_hopalong", name:"Sinusoidal Hopalong (sin)", desc:"x' = y + sin(bx − c), y' = a − x",
       step:(x,y,a,b,g,d)=>{ return [ y + Math.sin(b*x - d), a - x ]; } },
 
     { id:"threeply", name:"Threeply (Peters)", desc:"x' = y − sgn(x)·|sin(x)cos(b) + d − x·sin(a+b+d)|, y' = a − x",
@@ -72,7 +72,7 @@ export const VARIANTS = [
     { id:"chip", name:"Chip (Peters)", desc:"x' = y − sgn(x)·cos((ln|bx−c|)^2)·atan((ln|bx−c|)^2), y' = a − x",
       step:(x,y,a,b,g,d)=>{ const s=x>0?1:(x<0?-1:0); const ln=Math.log(Math.abs(b*x-d)+1e-12); const t=ln*ln; const k=Math.cos(t)*Math.atan(t); return [ y - s*k, a - x ]; } },
 
-    { id:"pickover_clifford", disabled:false, name:"Pickover/Clifford", desc:"x' = sin(by) + d·sin(bx), y' = sin(ax) + c·sin(ay) (scaled)",
+    { id:"pickover_clifford", disabled:false, name:"Pickover/Clifford (sin)", desc:"x' = sin(by) + d·sin(bx), y' = sin(ax) + c·sin(ay) (scaled)",
       step:(x,y,a,b,g,d)=>{ const S=20; return [ S*(Math.sin(b*y) + g*Math.sin(b*x)), S*(Math.sin(a*x) + d*Math.sin(a*y)) ]; } }
 ];
 

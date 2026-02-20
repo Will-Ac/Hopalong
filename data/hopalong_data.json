@@ -53,12 +53,12 @@
     },
     {
       "id": "inside_sin_y",
-      "name": "Inside sqrt sin(y)",
+      "name": "Inside sqrt: x+d·sin(y)",
       "desc": "x' = y − sgn(x)·sqrt(|b(x+d·sin(y)) − c|), y' = a − x"
     },
     {
       "id": "inside_cos_x",
-      "name": "Inside sqrt cos(x)",
+      "name": "Inside sqrt: x+d·cos(x)",
       "desc": "x' = y − sgn(x)·sqrt(|b(x+d·cos(x)) − c|), y' = a − x"
     },
     {
@@ -88,12 +88,12 @@
     },
     {
       "id": "positive_hopalong",
-      "name": "Positive Hopalong",
+      "name": "Positive Hopalong (+sqrt)",
       "desc": "x' = y + sgn(x)·sqrt(|bx − c|), y' = a − x"
     },
     {
       "id": "sinusoidal_hopalong",
-      "name": "Sinusoidal Hopalong",
+      "name": "Sinusoidal Hopalong (sin)",
       "desc": "x' = y + sin(bx − c), y' = a − x"
     },
     {
@@ -546,11 +546,11 @@
     "Ice → Cyan → White",
     "White → Indigo",
     "Sand → Coral → Rose",
-    "Mint→Teal→Cyan",
+    "Mint → Teal → Deep Cyan",
     "White → Gold",
-    "Blue↔White↔Orange",
-    "Gray→White→Laven",
-    "Pastel 5-band soft",
+    "Soft Blue ↔ White ↔ Soft Orange",
+    "Cool Gray → White → Lavender",
+    "Pastel 5-band (soft contour)",
     "Gold contour bands"
   ],
   "parameter_keys": [
