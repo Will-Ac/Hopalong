@@ -32,10 +32,11 @@ const pickerPanel = document.getElementById("pickerPanel");
 const paramOverlayEl = document.getElementById("paramOverlay");
 
 const sliderControls = {
-  alpha: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a" },
-  beta: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b" },
-  delta: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c" },
-  gamma: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d" },
+  alpha: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
+  beta: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
+  delta: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
+  gamma: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
+  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 240000, sliderStep: 100, stepSize: 100, displayDp: 0 },
 };
 
 const ctx = canvas.getContext("2d", { alpha: false });
@@ -52,7 +53,6 @@ let drawScheduled = false;
 let drawDirty = false;
 let toastTimer = null;
 
-const MICRO_STEP = 0.0001;
 const HOLD_REPEAT_MS = 70;
 const HOLD_ACCEL_START_MS = 2000;
 const HOLD_ACCEL_END_MS = 3000;
@@ -173,15 +173,31 @@ function getActiveActualValue() {
   if (!activeSliderKey) {
     return null;
   }
+
+  return getControlValue(activeSliderKey);
+}
+
+function getControlValue(sliderKey) {
+  const control = sliderControls[sliderKey];
+  if (control.paramKey === "iters") {
+    return appData.defaults.sliders.iters;
+  }
+
   const params = getDerivedParams();
-  const control = sliderControls[activeSliderKey];
   return params[control.paramKey];
 }
 
+function formatControlValue(control, value) {
+  if (value === null || Number.isNaN(value)) {
+    return "--";
+  }
+
+  return value.toFixed(control.displayDp ?? 4);
+}
+
 function refreshParamButtons() {
-  const params = getDerivedParams();
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
-    control.button.textContent = params[control.paramKey].toFixed(4);
+    control.button.textContent = formatControlValue(control, getControlValue(sliderKey));
   }
 
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
@@ -329,7 +345,7 @@ function updateQuickSliderReadout() {
   const control = sliderControls[activeSliderKey];
   const actualValue = getActiveActualValue();
   qsLabel.textContent = control.label;
-  qsValue.textContent = actualValue === null ? "--" : actualValue.toFixed(4);
+  qsValue.textContent = formatControlValue(control, actualValue);
 }
 
 function applySliderValue(nextValue) {
@@ -337,7 +353,8 @@ function applySliderValue(nextValue) {
     return;
   }
 
-  const value = clamp(nextValue, 0, 100);
+  const control = sliderControls[activeSliderKey];
+  const value = clamp(nextValue, control.min, control.max);
   appData.defaults.sliders[activeSliderKey] = value;
   qsRange.value = value;
   updateQuickSliderReadout();
@@ -350,6 +367,10 @@ function openQuickSlider(sliderKey) {
   quickSliderOverlay.setAttribute("aria-hidden", "false");
   alignQuickSliderAboveBottomBar();
 
+  const control = sliderControls[sliderKey];
+  qsRange.min = String(control.min);
+  qsRange.max = String(control.max);
+  qsRange.step = String(control.sliderStep);
   qsRange.value = appData.defaults.sliders[sliderKey];
   updateQuickSliderReadout();
 }
@@ -366,21 +387,27 @@ function stepActiveSlider(direction) {
     return;
   }
 
-  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * MICRO_STEP);
+  const control = sliderControls[activeSliderKey];
+  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * control.stepSize);
 }
 
 function getHoldStepSize(holdElapsedMs) {
+  if (!activeSliderKey) {
+    return 0;
+  }
+
+  const baseStep = sliderControls[activeSliderKey].stepSize;
   if (holdElapsedMs < HOLD_ACCEL_START_MS) {
-    return MICRO_STEP;
+    return baseStep;
   }
 
   if (holdElapsedMs >= HOLD_ACCEL_END_MS) {
-    return MICRO_STEP * HOLD_MAX_MULTIPLIER;
+    return baseStep * HOLD_MAX_MULTIPLIER;
   }
 
   const accelProgress = (holdElapsedMs - HOLD_ACCEL_START_MS) / (HOLD_ACCEL_END_MS - HOLD_ACCEL_START_MS);
   const growth = Math.pow(HOLD_MAX_MULTIPLIER, accelProgress);
-  return MICRO_STEP * growth;
+  return baseStep * growth;
 }
 
 function stepActiveSliderBy(direction, stepSize) {
@@ -512,7 +539,8 @@ function draw() {
 
   const startedAt = performance.now();
   const didResize = resizeCanvas();
-  const iterations = didResize ? 100000 : 120000;
+  const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const iterations = didResize ? Math.min(iterationSetting, 100000) : iterationSetting;
   const frameMeta = renderFrame({
     ctx,
     canvas,
@@ -621,6 +649,13 @@ async function loadData() {
   data.defaults = defaults;
   if (typeof data.defaults.debug !== "boolean") {
     data.defaults.debug = false;
+  }
+
+  if (typeof data.defaults.sliders?.iters !== "number") {
+    data.defaults.sliders = {
+      ...(data.defaults.sliders || {}),
+      iters: 8000,
+    };
   }
 
   if (!Array.isArray(data.formulas) || data.formulas.length === 0) {
