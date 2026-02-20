@@ -312,6 +312,96 @@
         border: 1px solid rgba(255,255,255,0.25);
       }
 
+      #tiltOverlay {
+        position: absolute;
+        inset: 0;
+        z-index: 42;
+        display: none;
+      }
+      #tiltOverlay.is-open { display: block; }
+      #tiltBackdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.1);
+      }
+      #tiltPanel {
+        position: absolute;
+        left: 50%;
+        top: calc(52px + env(safe-area-inset-top));
+        transform: translateX(-50%);
+        width: min(460px, calc(100vw - 12px));
+        max-height: calc(100vh - 110px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        overflow-y: auto;
+        background: rgba(0, 0, 0, 0.32);
+        border: 1px solid var(--panel-border);
+        border-radius: 10px;
+        padding: 10px;
+      }
+      .tiltTitleRow {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      #tiltClose {
+        min-height: 30px;
+        min-width: 30px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.25);
+        background: rgba(255,255,255,0.1);
+        color: var(--text);
+      }
+      .tiltBody { display: grid; gap: 8px; }
+      .tiltHelp {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.5;
+        opacity: 0.9;
+      }
+      .tiltField {
+        display: grid;
+        grid-template-columns: 82px 1fr;
+        gap: 6px;
+        align-items: center;
+      }
+      .tiltSelect {
+        min-height: 30px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.2);
+        background: rgba(255,255,255,0.08);
+        color: var(--text);
+      }
+      .tiltActions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .tiltActionBtn {
+        min-height: 30px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.2);
+        background: rgba(255,255,255,0.08);
+        color: var(--text);
+      }
+      #tiltStatus {
+        margin: 0;
+        font-size: 12px;
+        color: #b8d8ff;
+      }
+      #tiltStatus.is-error {
+        color: #ffb1b1;
+      }
+      .tiltReadout {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.5;
+        font-variant-numeric: tabular-nums;
+        white-space: pre-line;
+      }
+      #tiltBtn.is-active {
+        border-color: rgba(130, 228, 255, 0.8);
+      }
+
     </style>
   </head>
   <body>
@@ -359,6 +449,34 @@
         </div>
       </div>
 
+      <div id="tiltOverlay" aria-hidden="true">
+        <div id="tiltBackdrop"></div>
+        <div id="tiltPanel" role="dialog" aria-modal="true" aria-label="Tilt modulation">
+          <div class="tiltTitleRow">
+            <strong>Tilt Modulation (Experimental)</strong>
+            <button id="tiltClose" type="button" aria-label="Close tilt dialog">✕</button>
+          </div>
+          <div class="tiltBody">
+            <p id="tiltHelp" class="tiltHelp"></p>
+            <div class="tiltField">
+              <label for="tiltParamX">Param X</label>
+              <select id="tiltParamX" class="tiltSelect"></select>
+            </div>
+            <div class="tiltField">
+              <label for="tiltParamY">Param Y</label>
+              <select id="tiltParamY" class="tiltSelect"></select>
+            </div>
+            <div class="tiltActions">
+              <button id="tiltEnable" class="tiltActionBtn" type="button">Calibrate &amp; Enable</button>
+              <button id="tiltRecalibrate" class="tiltActionBtn" type="button">Recalibrate</button>
+              <button id="tiltDisable" class="tiltActionBtn" type="button">Disable</button>
+            </div>
+            <p id="tiltStatus"></p>
+            <p id="tiltReadout" class="tiltReadout">Sensor readout: --</p>
+          </div>
+        </div>
+      </div>
+
       <div id="paramOverlay">
         <div id="paramRow">
           <div class="poItem">
@@ -393,6 +511,11 @@
           <div class="poItem">
             <span class="poLabel">iter</span>
             <button id="btnIters" class="poBtn" type="button">--</button>
+          </div>
+
+          <div class="poItem">
+            <span class="poLabel">sensor</span>
+            <button id="tiltBtn" class="poBtn" type="button">Tilt</button>
           </div>
         </div>
       </div>
