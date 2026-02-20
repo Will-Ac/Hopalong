@@ -312,28 +312,6 @@
         border: 1px solid rgba(255,255,255,0.25);
       }
 
-      #cameraBtn {
-        position: absolute;
-        right: max(10px, calc(env(safe-area-inset-right) + 10px));
-        bottom: calc(12px + env(safe-area-inset-bottom));
-        z-index: 55;
-        width: 54px;
-        height: 54px;
-        border: 2px solid rgba(255, 255, 255, 0.7);
-        border-radius: 999px;
-        background: rgba(8, 10, 16, 0.5);
-        color: var(--text);
-        font-size: 22px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-      }
-      #cameraBtn.is-pressed {
-        transform: scale(0.96);
-        background: rgba(255, 255, 255, 0.18);
-      }
-
     </style>
   </head>
   <body>
@@ -418,8 +396,6 @@
           </div>
         </div>
       </div>
-
-      <button id="cameraBtn" type="button" aria-label="Take screenshot">📷</button>
     </div>
 
     <script type="module" src="./js/main.js"></script>
