@@ -15,6 +15,7 @@ const debugPanelEl = document.getElementById("debugPanel");
 
 const quickSliderOverlay = document.getElementById("quickSliderOverlay");
 const quickSliderBackdrop = document.getElementById("quickSliderBackdrop");
+const quickSliderEl = document.getElementById("quickSlider");
 const qsLabel = document.getElementById("qsLabel");
 const qsValue = document.getElementById("qsValue");
 const qsRange = document.getElementById("qsRange");
@@ -28,6 +29,7 @@ const pickerTitle = document.getElementById("pickerTitle");
 const pickerClose = document.getElementById("pickerClose");
 const pickerList = document.getElementById("pickerList");
 const pickerPanel = document.getElementById("pickerPanel");
+const paramOverlayEl = document.getElementById("paramOverlay");
 
 const sliderControls = {
   alpha: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a" },
@@ -193,6 +195,16 @@ function closeQuickSlider() {
   quickSliderOverlay.setAttribute("aria-hidden", "true");
 }
 
+function alignQuickSliderAboveBottomBar() {
+  if (!paramOverlayEl || !quickSliderEl) {
+    return;
+  }
+
+  const overlayRect = paramOverlayEl.getBoundingClientRect();
+  const overlayHeight = Math.max(0, window.innerHeight - overlayRect.top);
+  quickSliderEl.style.bottom = `${overlayHeight + 6}px`;
+}
+
 function closePicker() {
   activePicker = null;
   activePickerTrigger = null;
@@ -207,9 +219,9 @@ function layoutPickerPanel() {
 
   const triggerRect = activePickerTrigger.getBoundingClientRect();
   const viewportWidth = window.innerWidth;
-  const margin = 12;
-  const targetWidth = clamp(triggerRect.width * 3, 270, 480);
-  const maxWidth = Math.max(270, viewportWidth - margin * 2);
+  const margin = 6;
+  const targetWidth = clamp(triggerRect.width * 3.6, 300, 620);
+  const maxWidth = Math.max(300, viewportWidth - margin * 2);
   const width = Math.min(targetWidth, maxWidth);
   const triggerCenter = triggerRect.left + triggerRect.width / 2;
   const left = clamp(triggerCenter - width / 2, margin, viewportWidth - margin - width);
@@ -222,6 +234,13 @@ function layoutPickerPanel() {
 function renderFormulaPicker() {
   pickerTitle.textContent = "Select formula";
   pickerList.innerHTML = "";
+
+  const normalizeParamLetters = (text) =>
+    text
+      .replace(/α/gi, "a")
+      .replace(/β/gi, "b")
+      .replace(/γ/gi, "d")
+      .replace(/δ/gi, "c");
 
   for (const formula of appData.formulas) {
     const button = document.createElement("button");
@@ -240,7 +259,7 @@ function renderFormulaPicker() {
 
     const desc = document.createElement("span");
     desc.className = "formulaDesc";
-    desc.textContent = formula.desc;
+    desc.textContent = normalizeParamLetters(formula.desc);
 
     row.append(name, desc);
     button.append(row);
@@ -329,6 +348,7 @@ function openQuickSlider(sliderKey) {
   activeSliderKey = sliderKey;
   quickSliderOverlay.classList.add("is-open");
   quickSliderOverlay.setAttribute("aria-hidden", "false");
+  alignQuickSliderAboveBottomBar();
 
   qsRange.value = appData.defaults.sliders[sliderKey];
   updateQuickSliderReadout();
@@ -526,6 +546,7 @@ function registerHandlers() {
   formulaBtn.addEventListener("click", () => openPicker("formula", formulaBtn));
   cmapBtn.addEventListener("click", () => openPicker("cmap", cmapBtn));
   pickerClose.addEventListener("click", closePicker);
+  pickerBackdrop.addEventListener("click", closePicker);
   debugOnEl.addEventListener("change", () => {
     appData.defaults.debug = debugOnEl.checked;
     requestDraw();
@@ -561,6 +582,9 @@ function registerHandlers() {
   window.addEventListener(
     "resize",
     () => {
+      if (quickSliderOverlay.classList.contains("is-open")) {
+        alignQuickSliderAboveBottomBar();
+      }
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }
@@ -571,6 +595,9 @@ function registerHandlers() {
   window.addEventListener(
     "orientationchange",
     () => {
+      if (quickSliderOverlay.classList.contains("is-open")) {
+        alignQuickSliderAboveBottomBar();
+      }
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }

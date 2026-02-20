@@ -7,8 +7,8 @@
     <style>
       :root {
         color-scheme: dark;
-        --panel-bg: rgba(12, 14, 20, 0.34);
-        --panel-border: rgba(255, 255, 255, 0.08);
+        --panel-bg: rgba(12, 14, 20, 0.26);
+        --panel-border: rgba(255, 255, 255, 0.07);
         --text: #f5f8ff;
       }
       *, *::before, *::after {
@@ -50,7 +50,7 @@
         margin: 0 auto;
         width: fit-content;
         max-width: min(700px, calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
-        background: rgba(12, 14, 20, 0.4);
+        background: rgba(12, 14, 20, 0.3);
         border: 1px solid var(--panel-border);
         border-radius: 8px;
         padding: 6px 10px;
@@ -70,9 +70,9 @@
       #debugToggleDock {
         position: absolute;
         top: calc(10px + env(safe-area-inset-top));
-        right: max(10px, env(safe-area-inset-right));
+        right: max(0px, env(safe-area-inset-right));
         z-index: 39;
-        background: rgba(12, 14, 20, 0.28);
+        background: rgba(12, 14, 20, 0.22);
         border: 1px solid rgba(255, 255, 255, 0.11);
         border-radius: 9px;
         padding: 4px 6px;
@@ -99,12 +99,12 @@
       #debugPanel {
         position: absolute;
         top: calc(42px + env(safe-area-inset-top));
-        right: max(10px, env(safe-area-inset-right));
+        right: max(0px, env(safe-area-inset-right));
         z-index: 38;
         width: min(300px, calc(100vw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
         max-height: calc(48vh - env(safe-area-inset-top));
         overflow: auto;
-        background: rgba(12, 14, 20, 0.28);
+        background: rgba(12, 14, 20, 0.22);
         border: 1px solid var(--panel-border);
         border-radius: 9px;
         padding: 6px 8px;
@@ -123,22 +123,25 @@
         inset: 0;
         z-index: 30;
         display: none;
+        pointer-events: none;
       }
       #quickSliderOverlay.is-open { display: block; }
       #quickSliderBackdrop {
         position: absolute;
         inset: 0;
         background: transparent;
+        pointer-events: none;
       }
       #quickSlider {
         position: absolute;
         left: max(6px, env(safe-area-inset-left));
         right: max(6px, env(safe-area-inset-right));
-        bottom: calc(64px + env(safe-area-inset-bottom));
-        background: rgba(0, 0, 0, 0.34);
+        bottom: calc(56px + env(safe-area-inset-bottom));
+        background: rgba(0, 0, 0, 0.26);
         border: 1px solid var(--panel-border);
         border-radius: 10px;
         padding: 7px;
+        pointer-events: auto;
       }
       .qsTop {
         position: relative;
@@ -188,15 +191,15 @@
         left: 0;
         right: 0;
         bottom: 0;
-        padding: 6px max(6px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
-        background: linear-gradient(180deg, rgba(6, 8, 12, 0), rgba(6, 8, 12, 0.16) 40%, rgba(6, 8, 12, 0.34));
+        padding: 5px max(5px, env(safe-area-inset-right)) calc(2px + env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left));
+        background: linear-gradient(180deg, rgba(6, 8, 12, 0), rgba(6, 8, 12, 0.12) 40%, rgba(6, 8, 12, 0.26));
         pointer-events: none;
       }
       #paramRow {
         display: flex;
         gap: 6px;
         overflow-x: auto;
-        padding-bottom: max(1px, env(safe-area-inset-bottom));
+        padding-bottom: 1px;
         pointer-events: auto;
       }
       .poItem {
@@ -214,13 +217,14 @@
         letter-spacing: 0.03em;
         margin-bottom: 4px;
         opacity: 0.85;
+        text-align: center;
       }
       .poBtn {
         width: 100%;
         min-height: 30px;
         border-radius: 7px;
         border: 1px solid rgba(255, 255, 255, 0.16);
-        background: rgba(0, 0, 0, 0.16);
+        background: rgba(0, 0, 0, 0.12);
         color: var(--text);
         padding: 5px 7px;
         font-size: 12px;
@@ -243,10 +247,10 @@
         position: absolute;
         left: 50%;
         transform: translateX(-50%);
-        width: min(540px, calc(100vw - 16px));
+        width: min(648px, calc(100vw - 12px));
         top: calc(58px + env(safe-area-inset-top));
         bottom: calc(98px + env(safe-area-inset-bottom));
-        background: rgba(0, 0, 0, 0.32);
+        background: rgba(0, 0, 0, 0.24);
         border: 1px solid var(--panel-border);
         border-radius: 10px;
         display: flex;
@@ -270,6 +274,7 @@
       }
       #pickerList {
         overflow-y: auto;
+        overflow-x: hidden;
         padding: 6px;
       }
       .pickerOption {
@@ -289,7 +294,7 @@
         align-items: start;
       }
       .formulaName { font-weight: 600; }
-      .formulaDesc { opacity: 0.85; font-size: 12px; width: 176px; max-width: 100%; overflow-wrap: anywhere; }
+      .formulaDesc { opacity: 0.85; font-size: 12px; max-width: 100%; overflow-wrap: anywhere; }
       .cmapRow {
         display: grid;
         grid-template-columns: 108px 1fr;
