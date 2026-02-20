@@ -1,5 +1,6 @@
 import { ColorMapNames, sampleColorMap } from "./colormaps.js";
 import { renderFrame, getParamsForFormula } from "./renderer.js";
+import { createTiltControl } from "./tiltControl.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
@@ -30,6 +31,18 @@ const pickerClose = document.getElementById("pickerClose");
 const pickerList = document.getElementById("pickerList");
 const pickerPanel = document.getElementById("pickerPanel");
 const paramOverlayEl = document.getElementById("paramOverlay");
+const tiltBtn = document.getElementById("tiltBtn");
+const tiltOverlay = document.getElementById("tiltOverlay");
+const tiltBackdrop = document.getElementById("tiltBackdrop");
+const tiltClose = document.getElementById("tiltClose");
+const tiltParamX = document.getElementById("tiltParamX");
+const tiltParamY = document.getElementById("tiltParamY");
+const tiltEnable = document.getElementById("tiltEnable");
+const tiltDisable = document.getElementById("tiltDisable");
+const tiltRecalibrate = document.getElementById("tiltRecalibrate");
+const tiltStatus = document.getElementById("tiltStatus");
+const tiltReadout = document.getElementById("tiltReadout");
+const tiltHelp = document.getElementById("tiltHelp");
 const cameraBtn = document.getElementById("cameraBtn");
 
 const sliderControls = {
@@ -53,6 +66,7 @@ let fpsEstimate = 0;
 let drawScheduled = false;
 let drawDirty = false;
 let toastTimer = null;
+let tiltControl = null;
 let cameraPressTimer = null;
 let longPressConsumed = false;
 
@@ -478,12 +492,7 @@ function applySliderValue(nextValue) {
     return;
   }
 
-  const control = sliderControls[activeSliderKey];
-  const value = clamp(nextValue, control.min, control.max);
-  appData.defaults.sliders[activeSliderKey] = value;
-  qsRange.value = value;
-  updateQuickSliderReadout();
-  requestDraw();
+  setSliderValue(activeSliderKey, nextValue);
 }
 
 function openQuickSlider(sliderKey) {
@@ -787,6 +796,38 @@ function draw() {
 
 }
 
+function setSliderValue(sliderKey, nextValue) {
+  const control = sliderControls[sliderKey];
+  const value = clamp(nextValue, control.min, control.max);
+  appData.defaults.sliders[sliderKey] = value;
+  if (activeSliderKey === sliderKey) {
+    qsRange.value = value;
+  }
+  updateQuickSliderReadout();
+  requestDraw();
+  return value;
+}
+
+function getTiltParamOptions() {
+  return Object.entries(sliderControls).map(([key, control]) => ({
+    key,
+    label: control.label,
+    min: control.min,
+    max: control.max,
+    stepSize: control.stepSize,
+  }));
+}
+
+function setTiltControlledValue(sliderKey, centerValue, normalized) {
+  const control = sliderControls[sliderKey];
+  const rangeSpan = control.max - control.min;
+  // If another modulation source is introduced (for example drag modulation),
+  // tilt should remain the active source while enabled.
+  const nextValue = centerValue + normalized * (rangeSpan / 2);
+  const clampedValue = setSliderValue(sliderKey, nextValue);
+  return { value: clampedValue };
+}
+
 function registerHandlers() {
   formulaBtn.addEventListener("click", () => openPicker("formula", formulaBtn));
   cmapBtn.addEventListener("click", () => openPicker("cmap", cmapBtn));
@@ -948,6 +989,25 @@ async function bootstrap() {
     appData.defaults.cmapName = resolveInitialColorMap();
     debugOnEl.checked = Boolean(appData.defaults.debug);
     debugOffEl.checked = !debugOnEl.checked;
+
+    tiltControl = createTiltControl({
+      button: tiltBtn,
+      overlay: tiltOverlay,
+      closeButton: tiltClose,
+      backdrop: tiltBackdrop,
+      xSelect: tiltParamX,
+      ySelect: tiltParamY,
+      statusEl: tiltStatus,
+      calibrateEnableButton: tiltEnable,
+      disableButton: tiltDisable,
+      recalibrateButton: tiltRecalibrate,
+      readoutEl: tiltReadout,
+      helpEl: tiltHelp,
+      getParamOptions: getTiltParamOptions,
+      getParamValue: (key) => appData.defaults.sliders[key],
+      setParamValue: setTiltControlledValue,
+      isDebugEnabled: () => Boolean(appData?.defaults?.debug),
+    });
 
     registerHandlers();
     requestDraw();
