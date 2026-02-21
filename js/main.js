@@ -91,7 +91,6 @@ let longPressTriggered = false;
 let isApplyingHistoryState = false;
 let historyStates = [];
 let historyIndex = -1;
-let lastRandomToggleAt = 0;
 let activeModeParamKey = null;
 let paramModes = {};
 const paramPressState = {
@@ -340,6 +339,7 @@ function applyAllParamModes(nextMode) {
   syncParamModeVisuals();
   saveParamModesToStorage();
   syncRandomModeButton();
+  requestDraw();
   commitCurrentStateToHistory();
 }
 
@@ -551,6 +551,7 @@ function applyState(state) {
     normalizeParamModes();
     syncParamModeVisuals();
     saveParamModesToStorage();
+    syncRandomModeButton();
   }
   syncScaleModeButton();
   requestDraw();
@@ -1454,19 +1455,12 @@ function registerHandlers() {
     if (event) {
       event.preventDefault();
       event.stopPropagation();
-      if (event.type === "click" && Date.now() - lastRandomToggleAt < 350) {
-        return;
-      }
-      if (event.type === "pointerup") {
-        lastRandomToggleAt = Date.now();
-      }
     }
     const nextMode = getGlobalRandomFixMixState() === "ran" ? "fix" : "rand";
     applyAllParamModes(nextMode);
     showToast(nextMode === "rand" ? "RAN mode enabled. Tap right to go forward/randomise, left to go back." : "FIX mode enabled. History tap controls are inactive.");
   };
 
-  randomModeBtn.addEventListener("pointerup", toggleRandomMode);
   randomModeBtn.addEventListener("click", toggleRandomMode);
 
   window.addEventListener("pointerup", handleScreenHistoryNavigation);
