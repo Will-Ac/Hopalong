@@ -1019,6 +1019,102 @@ function axisScreenPosition(worldMin, worldMax, spanPx) {
   return Math.abs(worldMin) <= Math.abs(worldMax) ? 0 : spanPx;
 }
 
+function valueScreenPosition(value, min, max, spanPx) {
+  const safeSpan = Math.max(max - min, Number.EPSILON);
+  return ((value - min) / safeSpan) * spanPx;
+}
+
+function getSliderControlForParamKey(paramKey) {
+  return Object.values(sliderControls).find((control) => control.paramKey === paramKey) || null;
+}
+
+function getParamRangeForDebugAxis(paramKey, rangesForFormula) {
+  if (paramKey === "iters") {
+    const itersControl = sliderControls.iters;
+    return [itersControl.min, itersControl.max];
+  }
+
+  if (!rangesForFormula) {
+    return null;
+  }
+
+  return Array.isArray(rangesForFormula[paramKey]) ? rangesForFormula[paramKey] : null;
+}
+
+function getParamValueForDebugAxis(paramKey, derivedParams) {
+  if (paramKey === "iters") {
+    return appData.defaults.sliders.iters;
+  }
+
+  return typeof derivedParams[paramKey] === "number" ? derivedParams[paramKey] : null;
+}
+
+function drawParameterDebugAxes(meta) {
+  const manXKey = Object.entries(paramModes).find(([, mode]) => mode === "manx")?.[0] || null;
+  const manYKey = Object.entries(paramModes).find(([, mode]) => mode === "many")?.[0] || null;
+
+  if (!manXKey && !manYKey) {
+    return;
+  }
+
+  const rangesForFormula = getCurrentFormulaRange();
+  const derivedParams = getDerivedParams();
+  const xControl = manXKey ? getSliderControlForParamKey(manXKey) : null;
+  const yControl = manYKey ? getSliderControlForParamKey(manYKey) : null;
+  const xRange = manXKey ? getParamRangeForDebugAxis(manXKey, rangesForFormula) : null;
+  const yRange = manYKey ? getParamRangeForDebugAxis(manYKey, rangesForFormula) : null;
+  const xValue = manXKey ? getParamValueForDebugAxis(manXKey, derivedParams) : null;
+  const yValue = manYKey ? getParamValueForDebugAxis(manYKey, derivedParams) : null;
+  const xAxisPos = manXKey
+    ? (manYKey && yRange ? axisScreenPosition(yRange[0], yRange[1], meta.view.height) : meta.view.height * 0.5)
+    : null;
+  const yAxisPos = manYKey
+    ? (manXKey && xRange ? axisScreenPosition(xRange[0], xRange[1], meta.view.width) : meta.view.width * 0.5)
+    : null;
+  const crossX = manXKey && xRange && xValue !== null
+    ? valueScreenPosition(xValue, xRange[0], xRange[1], meta.view.width)
+    : (yAxisPos ?? meta.view.width * 0.5);
+  const crossY = manYKey && yRange && yValue !== null
+    ? valueScreenPosition(yValue, yRange[0], yRange[1], meta.view.height)
+    : (xAxisPos ?? meta.view.height * 0.5);
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 72, 72, 0.95)";
+  ctx.fillStyle = "rgba(255, 90, 90, 0.96)";
+  ctx.lineWidth = 1;
+  ctx.font = `${Math.max(13, Math.round(Math.min(meta.view.width, meta.view.height) * 0.016))}px system-ui, sans-serif`;
+
+  if (manXKey && xAxisPos !== null) {
+    ctx.beginPath();
+    ctx.moveTo(0, xAxisPos);
+    ctx.lineTo(meta.view.width, xAxisPos);
+    ctx.stroke();
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(xControl?.label || manXKey, meta.view.width - 8, Math.max(14, xAxisPos - 4));
+  }
+
+  if (manYKey && yAxisPos !== null) {
+    ctx.beginPath();
+    ctx.moveTo(yAxisPos, 0);
+    ctx.lineTo(yAxisPos, meta.view.height);
+    ctx.stroke();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(yControl?.label || manYKey, Math.min(meta.view.width - 40, yAxisPos + 6), 6);
+  }
+
+  const crossSize = 7;
+  ctx.beginPath();
+  ctx.moveTo(crossX - crossSize, crossY);
+  ctx.lineTo(crossX + crossSize, crossY);
+  ctx.moveTo(crossX, crossY - crossSize);
+  ctx.lineTo(crossX, crossY + crossSize);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
 function getNiceTickStep(span, targetTicks) {
   const roughStep = span / Math.max(1, targetTicks);
   const magnitude = 10 ** Math.floor(Math.log10(Math.max(roughStep, Number.EPSILON)));
@@ -1167,6 +1263,8 @@ function drawDebugOverlay(meta) {
   }
 
   ctx.restore();
+
+  drawParameterDebugAxes(meta);
 
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   const params = getDerivedParams();
