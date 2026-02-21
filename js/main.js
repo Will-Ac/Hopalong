@@ -103,6 +103,39 @@ const paramPressState = {
 };
 
 const HISTORY_LIMIT = 50;
+const INTERACTION_STATE = {
+  IDLE: "IDLE",
+  MODULATE_1P: "MODULATE_1P",
+  PAN_2P: "PAN_2P",
+  PINCH_ZOOM: "PINCH_ZOOM",
+  PAN_MOUSE_RMB: "PAN_MOUSE_RMB",
+};
+const PINCH_SWITCH_THRESHOLD_PX = 8;
+const PINCH_PAN_EPSILON_PX = 2;
+const HISTORY_TAP_MAX_MOVE_PX = 10;
+const MODULATION_SENSITIVITY = 0.08;
+
+const sliderKeyByParamKey = {
+  a: "alpha",
+  b: "beta",
+  c: "delta",
+  d: "gamma",
+  iters: "iters",
+};
+
+let interactionState = INTERACTION_STATE.IDLE;
+let activePointers = new Map();
+let primaryPointerId = null;
+let lastPointerPosition = null;
+let gestureStartDistance = 0;
+let gestureLastMidpoint = null;
+let historyTapTracker = null;
+let suppressHistoryTap = false;
+let fixedView = {
+  offsetX: 0,
+  offsetY: 0,
+  zoom: 1,
+};
 
 function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   const normalized = String(text ?? "").trim();
@@ -289,6 +322,21 @@ function layoutFloatingActions() {
 
 function getScaleMode() {
   return appData?.defaults?.scaleMode === "fixed" ? "fixed" : "auto";
+}
+
+function isAutoScale() {
+  return getScaleMode() === "auto";
+}
+
+function setScaleModeFixed(reason = "manual pan/zoom") {
+  if (!appData || !isAutoScale()) {
+    return;
+  }
+
+  appData.defaults.scaleMode = "fixed";
+  syncScaleModeButton();
+  commitCurrentStateToHistory();
+  showToast(`Scale: Fixed (${reason})`);
 }
 
 function syncScaleModeButton() {
@@ -501,6 +549,7 @@ function captureCurrentState() {
     sliders: { ...appData.defaults.sliders },
     paramModes: { ...paramModes },
     scaleMode: getScaleMode(),
+    fixedView: { ...fixedView },
     viewport: {
       canvasWidth: canvas.width,
       canvasHeight: canvas.height,
@@ -550,6 +599,13 @@ function applyState(state) {
   appData.defaults.cmapName = state.cmapName;
   appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
   appData.defaults.scaleMode = state.scaleMode === "fixed" ? "fixed" : "auto";
+  if (state.fixedView && typeof state.fixedView === "object") {
+    fixedView = {
+      offsetX: Number.isFinite(state.fixedView.offsetX) ? state.fixedView.offsetX : 0,
+      offsetY: Number.isFinite(state.fixedView.offsetY) ? state.fixedView.offsetY : 0,
+      zoom: Number.isFinite(state.fixedView.zoom) ? clamp(state.fixedView.zoom, 0.15, 25) : 1,
+    };
+  }
   if (state.paramModes && typeof state.paramModes === "object") {
     paramModes = { ...paramModes, ...state.paramModes };
     normalizeParamModes();
@@ -604,7 +660,11 @@ function isEventInsideInteractiveUi(eventTarget) {
 }
 
 function handleScreenHistoryNavigation(event) {
-  if (!hasAnyRandomizedModes() || !appData || !currentFormulaId) {
+  if (!hasAnyRandomizedModes() || !appData || !currentFormulaId || suppressHistoryTap) {
+    return;
+  }
+
+  if (!historyTapTracker || event.pointerId !== historyTapTracker.pointerId || !historyTapTracker.validTap) {
     return;
   }
 
@@ -639,6 +699,275 @@ function handleScreenHistoryNavigation(event) {
   } else {
     showToast("Already at oldest saved state.");
   }
+}
+
+function getCanvasPointerPosition(event) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / Math.max(rect.width, 1);
+  const scaleY = canvas.height / Math.max(rect.height, 1);
+  return {
+    x: (event.clientX - rect.left) * scaleX,
+    y: (event.clientY - rect.top) * scaleY,
+    scaleX,
+    scaleY,
+  };
+}
+
+function getManualAxisTargets() {
+  let manX = null;
+  let manY = null;
+
+  for (const [paramKey, mode] of Object.entries(paramModes)) {
+    if (mode === "manx") {
+      manX = sliderKeyByParamKey[paramKey] || null;
+    }
+    if (mode === "many") {
+      manY = sliderKeyByParamKey[paramKey] || null;
+    }
+  }
+
+  return { manX, manY };
+}
+
+function applyManualModulation(deltaX, deltaY) {
+  const { manX, manY } = getManualAxisTargets();
+  if (!manX && !manY) {
+    return;
+  }
+
+  if (manX) {
+    const control = sliderControls[manX];
+    appData.defaults.sliders[manX] = clamp(
+      appData.defaults.sliders[manX] + deltaX * MODULATION_SENSITIVITY * control.stepSize,
+      control.min,
+      control.max,
+    );
+  }
+
+  if (manY) {
+    const control = sliderControls[manY];
+    appData.defaults.sliders[manY] = clamp(
+      appData.defaults.sliders[manY] + deltaY * MODULATION_SENSITIVITY * control.stepSize,
+      control.min,
+      control.max,
+    );
+  }
+
+  requestDraw();
+}
+
+function applyPanDelta(deltaX, deltaY) {
+  fixedView.offsetX += deltaX;
+  fixedView.offsetY += deltaY;
+  requestDraw();
+}
+
+function applyZoomAtPoint(zoomFactor, anchorX, anchorY) {
+  if (!Number.isFinite(zoomFactor) || zoomFactor <= 0) {
+    return;
+  }
+
+  const prevZoom = fixedView.zoom;
+  const nextZoom = clamp(prevZoom * zoomFactor, 0.15, 25);
+  const ratio = nextZoom / prevZoom;
+  if (!Number.isFinite(ratio) || ratio === 1) {
+    return;
+  }
+
+  const viewCenterX = canvas.width * 0.5;
+  const viewCenterY = canvas.height * 0.5;
+  const centerX = viewCenterX + fixedView.offsetX;
+  const centerY = viewCenterY + fixedView.offsetY;
+  const nextCenterX = anchorX - (anchorX - centerX) * ratio;
+  const nextCenterY = anchorY - (anchorY - centerY) * ratio;
+
+  fixedView.zoom = nextZoom;
+  fixedView.offsetX = nextCenterX - viewCenterX;
+  fixedView.offsetY = nextCenterY - viewCenterY;
+  requestDraw();
+}
+
+function updateHistoryTapTrackerFromMove(event) {
+  if (!historyTapTracker || event.pointerId !== historyTapTracker.pointerId || !historyTapTracker.validTap) {
+    return;
+  }
+
+  const moved = Math.hypot(event.clientX - historyTapTracker.startX, event.clientY - historyTapTracker.startY);
+  if (moved > HISTORY_TAP_MAX_MOVE_PX) {
+    historyTapTracker.validTap = false;
+  }
+}
+
+function onCanvasPointerDown(event) {
+  if (!appData) {
+    return;
+  }
+
+  if (event.pointerType === "mouse" && event.button === 2) {
+    event.preventDefault();
+  }
+
+  canvas.setPointerCapture(event.pointerId);
+  activePointers.set(event.pointerId, {
+    pointerId: event.pointerId,
+    clientX: event.clientX,
+    clientY: event.clientY,
+  });
+
+  historyTapTracker = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    validTap: true,
+  };
+
+  if (event.pointerType === "mouse" && event.button === 2) {
+    setScaleModeFixed("manual pan/zoom");
+    interactionState = INTERACTION_STATE.PAN_MOUSE_RMB;
+    primaryPointerId = event.pointerId;
+    const pos = getCanvasPointerPosition(event);
+    lastPointerPosition = { x: pos.x, y: pos.y };
+    suppressHistoryTap = true;
+    return;
+  }
+
+  if (activePointers.size === 1) {
+    interactionState = INTERACTION_STATE.MODULATE_1P;
+    primaryPointerId = event.pointerId;
+    const pos = getCanvasPointerPosition(event);
+    lastPointerPosition = { x: pos.x, y: pos.y };
+    return;
+  }
+
+  if (activePointers.size === 2) {
+    const pointers = Array.from(activePointers.values());
+    const first = pointers[0];
+    const second = pointers[1];
+    const posA = getCanvasPointerPosition(first);
+    const posB = getCanvasPointerPosition(second);
+    gestureStartDistance = Math.hypot(posB.x - posA.x, posB.y - posA.y);
+    gestureLastMidpoint = {
+      x: (posA.x + posB.x) * 0.5,
+      y: (posA.y + posB.y) * 0.5,
+    };
+    interactionState = INTERACTION_STATE.PAN_2P;
+    setScaleModeFixed("manual pan/zoom");
+    suppressHistoryTap = true;
+  }
+}
+
+function onCanvasPointerMove(event) {
+  if (!activePointers.has(event.pointerId)) {
+    return;
+  }
+
+  updateHistoryTapTrackerFromMove(event);
+  const pointerRecord = activePointers.get(event.pointerId);
+  pointerRecord.clientX = event.clientX;
+  pointerRecord.clientY = event.clientY;
+
+  if (interactionState === INTERACTION_STATE.MODULATE_1P && event.pointerId === primaryPointerId) {
+    const pos = getCanvasPointerPosition(event);
+    if (!lastPointerPosition) {
+      lastPointerPosition = { x: pos.x, y: pos.y };
+      return;
+    }
+    applyManualModulation(pos.x - lastPointerPosition.x, pos.y - lastPointerPosition.y);
+    lastPointerPosition = { x: pos.x, y: pos.y };
+    return;
+  }
+
+  if (interactionState === INTERACTION_STATE.PAN_MOUSE_RMB && event.pointerId === primaryPointerId) {
+    const pos = getCanvasPointerPosition(event);
+    if (!lastPointerPosition) {
+      lastPointerPosition = { x: pos.x, y: pos.y };
+      return;
+    }
+    applyPanDelta(pos.x - lastPointerPosition.x, pos.y - lastPointerPosition.y);
+    lastPointerPosition = { x: pos.x, y: pos.y };
+    return;
+  }
+
+  if (activePointers.size !== 2) {
+    return;
+  }
+
+  const pointers = Array.from(activePointers.values());
+  const posA = getCanvasPointerPosition(pointers[0]);
+  const posB = getCanvasPointerPosition(pointers[1]);
+  const midpoint = {
+    x: (posA.x + posB.x) * 0.5,
+    y: (posA.y + posB.y) * 0.5,
+  };
+  const distance = Math.hypot(posB.x - posA.x, posB.y - posA.y);
+  const distanceDelta = distance - gestureStartDistance;
+  const midpointDx = midpoint.x - (gestureLastMidpoint?.x ?? midpoint.x);
+  const midpointDy = midpoint.y - (gestureLastMidpoint?.y ?? midpoint.y);
+
+  if (Math.abs(distanceDelta) > PINCH_SWITCH_THRESHOLD_PX) {
+    interactionState = INTERACTION_STATE.PINCH_ZOOM;
+  }
+
+  if (interactionState === INTERACTION_STATE.PINCH_ZOOM && gestureStartDistance > 0) {
+    const zoomFactor = distance / gestureStartDistance;
+    applyZoomAtPoint(zoomFactor, midpoint.x, midpoint.y);
+  } else if (Math.abs(midpointDx) > PINCH_PAN_EPSILON_PX || Math.abs(midpointDy) > PINCH_PAN_EPSILON_PX) {
+    interactionState = INTERACTION_STATE.PAN_2P;
+    applyPanDelta(midpointDx, midpointDy);
+  }
+
+  gestureStartDistance = distance;
+  gestureLastMidpoint = midpoint;
+}
+
+function clearPointerState(pointerId) {
+  if (!activePointers.has(pointerId)) {
+    return;
+  }
+
+  activePointers.delete(pointerId);
+
+  if (activePointers.size === 0) {
+    interactionState = INTERACTION_STATE.IDLE;
+    primaryPointerId = null;
+    lastPointerPosition = null;
+    gestureLastMidpoint = null;
+    gestureStartDistance = 0;
+    return;
+  }
+
+  if (activePointers.size === 1) {
+    const remaining = Array.from(activePointers.values())[0];
+    primaryPointerId = remaining.pointerId;
+    interactionState = INTERACTION_STATE.MODULATE_1P;
+    const pos = getCanvasPointerPosition(remaining);
+    lastPointerPosition = { x: pos.x, y: pos.y };
+    gestureLastMidpoint = null;
+    gestureStartDistance = 0;
+  }
+}
+
+function onCanvasPointerUp(event) {
+  historyTapTracker = historyTapTracker?.pointerId === event.pointerId ? historyTapTracker : null;
+  if (canvas.hasPointerCapture(event.pointerId)) {
+    canvas.releasePointerCapture(event.pointerId);
+  }
+  clearPointerState(event.pointerId);
+  window.setTimeout(() => {
+    suppressHistoryTap = false;
+  }, 0);
+}
+
+function onCanvasWheel(event) {
+  event.preventDefault();
+  setScaleModeFixed("manual pan/zoom");
+  const pos = getCanvasPointerPosition(event);
+  const zoomFactor = Math.exp(-event.deltaY * 0.0025);
+  applyZoomAtPoint(zoomFactor, pos.x, pos.y);
+  suppressHistoryTap = true;
+  window.setTimeout(() => {
+    suppressHistoryTap = false;
+  }, 0);
 }
 
 function closeQuickSlider() {
@@ -1205,6 +1534,7 @@ function draw() {
     params: getDerivedParams(),
     iterations: didResize ? Math.max(10000, Math.round(iterations * 0.6)) : iterations,
     scaleMode: getScaleMode(),
+    fixedView,
   });
 
   const now = performance.now();
@@ -1467,7 +1797,44 @@ function registerHandlers() {
 
   randomModeBtn.addEventListener("click", toggleRandomMode);
 
-  window.addEventListener("pointerup", handleScreenHistoryNavigation);
+  canvas.addEventListener("pointerdown", onCanvasPointerDown);
+  canvas.addEventListener("pointermove", onCanvasPointerMove);
+  canvas.addEventListener("pointerup", onCanvasPointerUp);
+  canvas.addEventListener("pointercancel", onCanvasPointerUp);
+  canvas.addEventListener("wheel", onCanvasWheel, { passive: false });
+  canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+
+  window.addEventListener("pointerdown", (event) => {
+    if (isEventInsideInteractiveUi(event.target)) {
+      historyTapTracker = null;
+      return;
+    }
+
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      historyTapTracker = null;
+      return;
+    }
+
+    historyTapTracker = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      validTap: true,
+    };
+  });
+
+  window.addEventListener("pointermove", updateHistoryTapTrackerFromMove, { passive: true });
+  window.addEventListener("pointerup", (event) => {
+    handleScreenHistoryNavigation(event);
+    if (historyTapTracker?.pointerId === event.pointerId) {
+      historyTapTracker = null;
+    }
+  });
+  window.addEventListener("pointercancel", (event) => {
+    if (historyTapTracker?.pointerId === event.pointerId) {
+      historyTapTracker = null;
+    }
+  });
 
   window.addEventListener(
     "resize",
