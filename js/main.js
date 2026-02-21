@@ -1065,6 +1065,140 @@ function formatTickValue(value, step) {
   return clamped.toFixed(decimals);
 }
 
+function getManualAxisSelections() {
+  const manXParam = Object.entries(paramModes).find(([, mode]) => mode === "manx")?.[0] || null;
+  const manYParam = Object.entries(paramModes).find(([, mode]) => mode === "many")?.[0] || null;
+  return { manXParam, manYParam };
+}
+
+function getParamBounds(paramKey) {
+  if (paramKey === "iters") {
+    return [sliderControls.iters.min, sliderControls.iters.max];
+  }
+
+  const currentRange = getCurrentFormulaRange();
+  const bounds = currentRange?.[paramKey];
+  if (Array.isArray(bounds) && bounds.length === 2) {
+    return bounds;
+  }
+
+  const fallbackRanges = {
+    a: [-80, 80],
+    b: [-20, 20],
+    c: [-20, 20],
+    d: [-20, 20],
+  };
+  return fallbackRanges[paramKey] || [0, 100];
+}
+
+function worldValueForParam(paramKey, params) {
+  if (paramKey === "iters") {
+    return appData.defaults.sliders.iters;
+  }
+
+  return params[paramKey];
+}
+
+function drawManualParamAxes(view, params) {
+  const { manXParam, manYParam } = getManualAxisSelections();
+  if (!manXParam && !manYParam) {
+    return null;
+  }
+
+  const hasX = Boolean(manXParam);
+  const hasY = Boolean(manYParam);
+  const minInset = Math.round(Math.min(view.width, view.height) * 0.07);
+  const axisLeft = hasX && hasY ? minInset : hasY ? Math.round(view.width * 0.5) : Math.round(view.width * 0.2);
+  const axisRight = hasX && hasY ? view.width - minInset : hasX ? Math.round(view.width * 0.8) : Math.round(view.width * 0.5);
+  const axisTop = hasX && hasY ? minInset : hasY ? Math.round(view.height * 0.2) : Math.round(view.height * 0.5);
+  const axisBottom = hasX && hasY ? view.height - minInset : hasX ? Math.round(view.height * 0.5) : Math.round(view.height * 0.8);
+  const axisWidth = Math.max(1, axisRight - axisLeft);
+  const axisHeight = Math.max(1, axisBottom - axisTop);
+
+  const xBounds = hasX ? getParamBounds(manXParam) : [0, 1];
+  const yBounds = hasY ? getParamBounds(manYParam) : [0, 1];
+  const xSpan = Math.max(1e-9, xBounds[1] - xBounds[0]);
+  const ySpan = Math.max(1e-9, yBounds[1] - yBounds[0]);
+  const xTicks = hasX ? buildTickValues(xBounds[0], xBounds[1], axisWidth) : null;
+  const yTicks = hasY ? buildTickValues(yBounds[0], yBounds[1], axisHeight) : null;
+
+  const crossX = hasX ? axisLeft + ((worldValueForParam(manXParam, params) - xBounds[0]) / xSpan) * axisWidth : (axisLeft + axisRight) * 0.5;
+  const crossY = hasY ? axisBottom - ((worldValueForParam(manYParam, params) - yBounds[0]) / ySpan) * axisHeight : (axisTop + axisBottom) * 0.5;
+
+  ctx.save();
+  const tickFontPx = Math.max(14, Math.round(Math.min(view.width, view.height) * 0.013));
+  ctx.fillStyle = "rgba(255,110,110,0.95)";
+  ctx.font = `${tickFontPx}px system-ui, sans-serif`;
+  ctx.strokeStyle = "rgba(255,80,80,0.9)";
+  ctx.lineWidth = 2;
+
+  if (hasX) {
+    ctx.beginPath();
+    ctx.moveTo(axisLeft, axisBottom);
+    ctx.lineTo(axisRight, axisBottom);
+    ctx.stroke();
+
+    for (const tick of xTicks.values) {
+      const xPos = axisLeft + ((tick - xBounds[0]) / xSpan) * axisWidth;
+      ctx.beginPath();
+      ctx.moveTo(xPos, axisBottom - 6);
+      ctx.lineTo(xPos, axisBottom + 6);
+      ctx.stroke();
+      ctx.fillText(formatTickValue(tick, xTicks.step), xPos + 4, axisBottom - 10);
+    }
+
+    ctx.fillText(manXParam, axisRight - tickFontPx, axisBottom - tickFontPx - 6);
+  }
+
+  if (hasY) {
+    ctx.beginPath();
+    ctx.moveTo(axisLeft, axisBottom);
+    ctx.lineTo(axisLeft, axisTop);
+    ctx.stroke();
+
+    for (const tick of yTicks.values) {
+      const yPos = axisBottom - ((tick - yBounds[0]) / ySpan) * axisHeight;
+      ctx.beginPath();
+      ctx.moveTo(axisLeft - 6, yPos);
+      ctx.lineTo(axisLeft + 6, yPos);
+      ctx.stroke();
+      ctx.fillText(formatTickValue(tick, yTicks.step), axisLeft + 10, yPos - 4);
+    }
+
+    ctx.fillText(manYParam, axisLeft + 10, axisTop + tickFontPx + 2);
+  }
+
+  ctx.strokeStyle = "rgba(255,70,70,0.95)";
+  ctx.lineWidth = 1.5;
+  if (hasX) {
+    ctx.beginPath();
+    ctx.moveTo(crossX, axisTop);
+    ctx.lineTo(crossX, axisBottom);
+    ctx.stroke();
+  }
+  if (hasY) {
+    ctx.beginPath();
+    ctx.moveTo(axisLeft, crossY);
+    ctx.lineTo(axisRight, crossY);
+    ctx.stroke();
+  }
+
+  if (hasX && hasY) {
+    ctx.fillStyle = "rgba(255,60,60,0.95)";
+    ctx.beginPath();
+    ctx.arc(crossX, crossY, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  return {
+    x: manXParam,
+    y: manYParam,
+    xValue: hasX ? worldValueForParam(manXParam, params) : null,
+    yValue: hasY ? worldValueForParam(manYParam, params) : null,
+  };
+}
+
 function drawDebugOverlay(meta) {
   if (!appData.defaults.debug || !meta) {
     debugInfoEl.textContent = "Debug off";
@@ -1170,6 +1304,7 @@ function drawDebugOverlay(meta) {
 
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   const params = getDerivedParams();
+  const manualAxes = drawManualParamAxes(view, params);
   const centerX = (world.minX + world.maxX) / 2;
   const centerY = (world.minY + world.maxY) / 2;
 
@@ -1184,6 +1319,8 @@ function drawDebugOverlay(meta) {
     `x range: ${world.minX.toFixed(3)} to ${world.maxX.toFixed(3)}`,
     `y range: ${world.minY.toFixed(3)} to ${world.maxY.toFixed(3)}`,
     `range centre: (${centerX.toFixed(3)}, ${centerY.toFixed(3)})`,
+    `manual x: ${manualAxes?.x ? `${manualAxes.x}=${manualAxes.xValue.toFixed(4)}` : "none"}`,
+    `manual y: ${manualAxes?.y ? `${manualAxes.y}=${manualAxes.yValue.toFixed(4)}` : "none"}`,
     `fps: ${fpsEstimate.toFixed(1)}`,
   ].join("\n");
 }
