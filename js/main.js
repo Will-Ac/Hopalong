@@ -70,6 +70,21 @@ const PARAM_LONG_MS = 450;
 const PARAM_MOVE_CANCEL_PX = 10;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
 const PARAM_MODE_VALUES = new Set(["fix", "manx", "many", "rand"]);
+const PARAM_FULL_MODE_OPTIONS = ["rand", "fix", "manx", "many"];
+const PARAM_MODE_OPTIONS_BY_KEY = {
+  formula: ["rand", "fix"],
+  cmap: ["rand", "fix"],
+};
+const PARAM_MODE_KEYS = ["formula", "cmap", ...Object.values(sliderControls).map((control) => control.paramKey)];
+const paramTileTargets = {
+  formula: { button: formulaBtn, modeKey: "formula", shortTap: () => openPicker("formula", formulaBtn) },
+  cmap: { button: cmapBtn, modeKey: "cmap", shortTap: () => openPicker("cmap", cmapBtn) },
+  alpha: { button: sliderControls.alpha.button, modeKey: sliderControls.alpha.paramKey, shortTap: () => openQuickSlider("alpha") },
+  beta: { button: sliderControls.beta.button, modeKey: sliderControls.beta.paramKey, shortTap: () => openQuickSlider("beta") },
+  delta: { button: sliderControls.delta.button, modeKey: sliderControls.delta.paramKey, shortTap: () => openQuickSlider("delta") },
+  gamma: { button: sliderControls.gamma.button, modeKey: sliderControls.gamma.paramKey, shortTap: () => openQuickSlider("gamma") },
+  iters: { button: sliderControls.iters.button, modeKey: sliderControls.iters.paramKey, shortTap: () => openQuickSlider("iters") },
+};
 
 let cameraPressTimer = null;
 let longPressTriggered = false;
@@ -82,7 +97,7 @@ let activeModeParamKey = null;
 let paramModes = {};
 const paramPressState = {
   pointerId: null,
-  sliderKey: null,
+  targetKey: null,
   startX: 0,
   startY: 0,
   timer: null,
@@ -298,6 +313,10 @@ function getParamMode(paramKey) {
   return PARAM_MODE_VALUES.has(paramModes[paramKey]) ? paramModes[paramKey] : "rand";
 }
 
+function getAllowedModesForParam(paramKey) {
+  return PARAM_MODE_OPTIONS_BY_KEY[paramKey] || PARAM_FULL_MODE_OPTIONS;
+}
+
 function isRandomizedParam(paramKey) {
   return getParamMode(paramKey) === "rand";
 }
@@ -311,9 +330,9 @@ function saveParamModesToStorage() {
 }
 
 function syncParamModeVisuals() {
-  for (const [sliderKey, control] of Object.entries(sliderControls)) {
-    const mode = getParamMode(control.paramKey);
-    const item = control.button.closest(".poItem");
+  for (const target of Object.values(paramTileTargets)) {
+    const mode = getParamMode(target.modeKey);
+    const item = target.button.closest(".poItem");
     if (!item) {
       continue;
     }
@@ -329,9 +348,13 @@ function normalizeParamModes() {
   let manxParam = null;
   let manyParam = null;
 
-  for (const control of Object.values(sliderControls)) {
-    const key = control.paramKey;
-    const mode = PARAM_MODE_VALUES.has(paramModes[key]) ? paramModes[key] : "rand";
+  for (const key of PARAM_MODE_KEYS) {
+    let mode = PARAM_MODE_VALUES.has(paramModes[key]) ? paramModes[key] : "rand";
+    const allowedModes = getAllowedModesForParam(key);
+    if (!allowedModes.includes(mode)) {
+      mode = mode === "rand" ? "rand" : "fix";
+    }
+
     if (mode === "manx") {
       if (!manxParam) {
         manxParam = key;
@@ -359,7 +382,7 @@ function normalizeParamModes() {
 }
 
 function applyParamMode(paramKey, nextMode) {
-  if (!PARAM_MODE_VALUES.has(nextMode)) {
+  if (!PARAM_MODE_VALUES.has(nextMode) || !getAllowedModesForParam(paramKey).includes(nextMode)) {
     return;
   }
 
@@ -406,8 +429,8 @@ function applyParamMode(paramKey, nextMode) {
 
 function loadParamModesFromStorage() {
   const fallback = {};
-  for (const control of Object.values(sliderControls)) {
-    fallback[control.paramKey] = "rand";
+  for (const key of PARAM_MODE_KEYS) {
+    fallback[key] = "rand";
   }
 
   try {
@@ -508,8 +531,13 @@ function randomChoice(items) {
 }
 
 function randomizeAllParameters() {
-  currentFormulaId = randomChoice(appData.formulas).id;
-  appData.defaults.cmapName = randomChoice(appData.colormaps);
+  if (isRandomizedParam("formula")) {
+    currentFormulaId = randomChoice(appData.formulas).id;
+  }
+
+  if (isRandomizedParam("cmap")) {
+    appData.defaults.cmapName = randomChoice(appData.colormaps);
+  }
 
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
     if (!isRandomizedParam(control.paramKey)) {
@@ -745,6 +773,18 @@ function openQuickSlider(sliderKey) {
   updateQuickSliderReadout();
 }
 
+function syncModePickerChoices(paramKey) {
+  const allowedModes = getAllowedModesForParam(paramKey);
+  for (const radio of modePickerRadios) {
+    const optionLabel = radio.closest("label");
+    const visible = allowedModes.includes(radio.value);
+    radio.disabled = !visible;
+    if (optionLabel) {
+      optionLabel.style.display = visible ? "" : "none";
+    }
+  }
+}
+
 function closeModePicker() {
   activeModeParamKey = null;
   if (!modePickerEl) {
@@ -754,12 +794,19 @@ function closeModePicker() {
   modePickerEl.setAttribute("aria-hidden", "true");
 }
 
-function openModePicker(sliderKey, anchorRect) {
+function openModePicker(targetKey, anchorRect) {
   if (!modePickerEl) {
     return;
   }
 
-  activeModeParamKey = sliderControls[sliderKey].paramKey;
+  const target = paramTileTargets[targetKey];
+  if (!target) {
+    return;
+  }
+
+  activeModeParamKey = target.modeKey;
+  syncModePickerChoices(activeModeParamKey);
+
   const mode = getParamMode(activeModeParamKey);
   for (const radio of modePickerRadios) {
     radio.checked = radio.value === mode;
@@ -788,26 +835,26 @@ function clearParamLongPressTimer() {
   }
 }
 
-function onParamPointerDown(event, sliderKey) {
+function onParamPointerDown(event, targetKey) {
   if (event.pointerType === "mouse" && event.button !== 0) {
     return;
   }
 
   closeModePicker();
   paramPressState.pointerId = event.pointerId;
-  paramPressState.sliderKey = sliderKey;
+  paramPressState.targetKey = targetKey;
   paramPressState.startX = event.clientX;
   paramPressState.startY = event.clientY;
   paramPressState.longTriggered = false;
 
   clearParamLongPressTimer();
   paramPressState.timer = window.setTimeout(() => {
-    const tile = sliderControls[sliderKey].button.closest(".poItem");
+    const tile = paramTileTargets[targetKey]?.button.closest(".poItem");
     if (!tile) {
       return;
     }
     paramPressState.longTriggered = true;
-    openModePicker(sliderKey, tile.getBoundingClientRect());
+    openModePicker(targetKey, tile.getBoundingClientRect());
   }, PARAM_LONG_MS);
 }
 
@@ -828,11 +875,11 @@ function onParamPointerEnd(event) {
     return;
   }
 
-  const sliderKey = paramPressState.sliderKey;
+  const targetKey = paramPressState.targetKey;
   const wasLongPress = paramPressState.longTriggered;
   clearParamLongPressTimer();
   paramPressState.pointerId = null;
-  paramPressState.sliderKey = null;
+  paramPressState.targetKey = null;
   paramPressState.longTriggered = false;
 
   if (wasLongPress) {
@@ -841,7 +888,7 @@ function onParamPointerEnd(event) {
     return;
   }
 
-  openQuickSlider(sliderKey);
+  paramTileTargets[targetKey]?.shortTap();
 }
 
 function clearStepHold() {
@@ -1272,8 +1319,6 @@ async function endCameraPress(event) {
 }
 
 function registerHandlers() {
-  formulaBtn.addEventListener("click", () => openPicker("formula", formulaBtn));
-  cmapBtn.addEventListener("click", () => openPicker("cmap", cmapBtn));
   pickerClose.addEventListener("click", closePicker);
   pickerBackdrop.addEventListener("click", closePicker);
   debugOnEl.addEventListener("change", () => {
@@ -1285,13 +1330,13 @@ function registerHandlers() {
     requestDraw();
   });
 
-  for (const [sliderKey, control] of Object.entries(sliderControls)) {
-    const tile = control.button.closest(".poItem");
+  for (const [targetKey, target] of Object.entries(paramTileTargets)) {
+    const tile = target.button.closest(".poItem");
     if (!tile) {
       continue;
     }
 
-    tile.addEventListener("pointerdown", (event) => onParamPointerDown(event, sliderKey));
+    tile.addEventListener("pointerdown", (event) => onParamPointerDown(event, targetKey));
     tile.addEventListener("pointermove", onParamPointerMove);
     tile.addEventListener("pointerup", onParamPointerEnd);
     tile.addEventListener("pointercancel", onParamPointerEnd);

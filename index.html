@@ -9,6 +9,7 @@
         color-scheme: dark;
         --panel-bg: rgba(12, 14, 20, 0.26);
         --panel-border: rgba(255, 255, 255, 0.07);
+        --param-outline: rgba(255, 255, 255, 0.34);
         --text: #f5f8ff;
         --name-box-width: 154px;
       }
@@ -209,14 +210,16 @@
         flex: 0 0 108px;
         width: 108px;
         background: var(--panel-bg);
-        border: 1px solid var(--panel-border);
+        border: 2px solid var(--param-outline);
         border-radius: 10px;
         padding: 6px;
       }
       .poItem.po-mode-fix {
+        border-width: 2px;
         border-style: solid;
       }
       .poItem.po-mode-rand {
+        border-width: 2px;
         border-style: dashed;
       }
       .poItem.po-mode-manx,
@@ -229,14 +232,14 @@
       .poItem.po-mode-many::after {
         content: "";
         position: absolute;
-        background: var(--panel-border);
+        background: var(--param-outline);
         pointer-events: none;
       }
       .poItem.po-mode-manx::before,
       .poItem.po-mode-manx::after {
         left: 8px;
         right: 8px;
-        height: 1px;
+        height: 2px;
       }
       .poItem.po-mode-manx::before { top: 0; }
       .poItem.po-mode-manx::after { bottom: 0; }
@@ -244,7 +247,7 @@
       .poItem.po-mode-many::after {
         top: 8px;
         bottom: 8px;
-        width: 1px;
+        width: 2px;
       }
       .poItem.po-mode-many::before { left: 0; }
       .poItem.po-mode-many::after { right: 0; }
