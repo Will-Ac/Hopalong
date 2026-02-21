@@ -29,7 +29,7 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000 }) {
+export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, scaleMode = "auto" }) {
   const variant = getVariantById(formulaId);
   if (!variant) {
     throw new Error(`Unknown formula id: ${formulaId}`);
@@ -71,17 +71,37 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     if (y > maxY) maxY = y;
   }
 
-  const safeSpanX = Math.max(maxX - minX, 1e-6);
-  const safeSpanY = Math.max(maxY - minY, 1e-6);
-  const paddingRatio = 0.08;
-  const padX = safeSpanX * paddingRatio;
-  const padY = safeSpanY * paddingRatio;
-  const worldMinX = minX - padX;
-  const worldMaxX = maxX + padX;
-  const worldMinY = minY - padY;
-  const worldMaxY = maxY + padY;
-  const worldSpanX = Math.max(worldMaxX - worldMinX, 1e-6);
-  const worldSpanY = Math.max(worldMaxY - worldMinY, 1e-6);
+  let worldMinX;
+  let worldMaxX;
+  let worldMinY;
+  let worldMaxY;
+  let worldSpanX;
+  let worldSpanY;
+
+  if (scaleMode === "fixed") {
+    const minDim = Math.min(width, height);
+    const scale = minDim / 220;
+    const centerX = width * 0.5;
+    const centerY = height * 0.5;
+    worldMinX = (0 - centerX) / scale;
+    worldMaxX = (width - centerX) / scale;
+    worldMinY = (0 - centerY) / scale;
+    worldMaxY = (height - centerY) / scale;
+    worldSpanX = Math.max(worldMaxX - worldMinX, 1e-6);
+    worldSpanY = Math.max(worldMaxY - worldMinY, 1e-6);
+  } else {
+    const safeSpanX = Math.max(maxX - minX, 1e-6);
+    const safeSpanY = Math.max(maxY - minY, 1e-6);
+    const paddingRatio = 0.08;
+    const padX = safeSpanX * paddingRatio;
+    const padY = safeSpanY * paddingRatio;
+    worldMinX = minX - padX;
+    worldMaxX = maxX + padX;
+    worldMinY = minY - padY;
+    worldMaxY = maxY + padY;
+    worldSpanX = Math.max(worldMaxX - worldMinX, 1e-6);
+    worldSpanY = Math.max(worldMaxY - worldMinY, 1e-6);
+  }
 
   const colorLut = new Uint8Array(LUT_SIZE * 3);
 

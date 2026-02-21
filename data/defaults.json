@@ -1,6 +1,7 @@
 {
   "formulaId": "classic_sqrt",
   "cmapName": "Turbo",
+  "scaleMode": "auto",
   "sliders": {
     "qsRange": 50.0,
     "previewScale": 0.33,
@@ -9,7 +10,7 @@
     "gamma": 50.0,
     "delta": 50.0,
     "orbits": 25.0,
-    "iters": 10000.0,
+    "iters": 200000.0,
     "burn": 50.0,
     "rangeR": 300.0,
     "initR": 100.0
