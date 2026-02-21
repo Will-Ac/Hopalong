@@ -35,6 +35,8 @@ const cameraBtn = document.getElementById("cameraBtn");
 const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
 const floatingActionsEl = document.getElementById("floatingActions");
+const modePickerEl = document.getElementById("modePicker");
+const modePickerRadios = Array.from(modePickerEl?.querySelectorAll('input[name="paramMode"]') || []);
 
 const sliderControls = {
   alpha: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
@@ -64,6 +66,10 @@ const HOLD_ACCEL_END_MS = 3000;
 const HOLD_MAX_MULTIPLIER = 10;
 const NAME_MAX_CHARS = 20;
 const CAMERA_LONG_PRESS_MS = 550;
+const PARAM_LONG_MS = 450;
+const PARAM_MOVE_CANCEL_PX = 10;
+const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
+const PARAM_MODE_VALUES = new Set(["fix", "manx", "many", "rand"]);
 
 let cameraPressTimer = null;
 let longPressTriggered = false;
@@ -72,6 +78,16 @@ let isApplyingHistoryState = false;
 let historyStates = [];
 let historyIndex = -1;
 let lastRandomToggleAt = 0;
+let activeModeParamKey = null;
+let paramModes = {};
+const paramPressState = {
+  pointerId: null,
+  sliderKey: null,
+  startX: 0,
+  startY: 0,
+  timer: null,
+  longTriggered: false,
+};
 
 const HISTORY_LIMIT = 50;
 
@@ -278,11 +294,150 @@ function syncRandomModeButton() {
   randomModeBtn.title = randomModeEnabled ? "Random mode on" : "Random mode off";
 }
 
+function getParamMode(paramKey) {
+  return PARAM_MODE_VALUES.has(paramModes[paramKey]) ? paramModes[paramKey] : "rand";
+}
+
+function isRandomizedParam(paramKey) {
+  return getParamMode(paramKey) === "rand";
+}
+
+function saveParamModesToStorage() {
+  try {
+    window.localStorage.setItem(PARAM_MODES_STORAGE_KEY, JSON.stringify(paramModes));
+  } catch (error) {
+    console.warn("Could not save parameter modes.", error);
+  }
+}
+
+function syncParamModeVisuals() {
+  for (const [sliderKey, control] of Object.entries(sliderControls)) {
+    const mode = getParamMode(control.paramKey);
+    const item = control.button.closest(".poItem");
+    if (!item) {
+      continue;
+    }
+
+    item.classList.remove("po-mode-fix", "po-mode-rand", "po-mode-manx", "po-mode-many");
+    item.classList.add(`po-mode-${mode}`);
+    item.dataset.paramMode = mode;
+  }
+}
+
+function normalizeParamModes() {
+  const normalized = {};
+  let manxParam = null;
+  let manyParam = null;
+
+  for (const control of Object.values(sliderControls)) {
+    const key = control.paramKey;
+    const mode = PARAM_MODE_VALUES.has(paramModes[key]) ? paramModes[key] : "rand";
+    if (mode === "manx") {
+      if (!manxParam) {
+        manxParam = key;
+        normalized[key] = "manx";
+      } else {
+        normalized[key] = "fix";
+      }
+      continue;
+    }
+
+    if (mode === "many") {
+      if (!manyParam) {
+        manyParam = key;
+        normalized[key] = "many";
+      } else {
+        normalized[key] = "fix";
+      }
+      continue;
+    }
+
+    normalized[key] = mode;
+  }
+
+  paramModes = normalized;
+}
+
+function applyParamMode(paramKey, nextMode) {
+  if (!PARAM_MODE_VALUES.has(nextMode)) {
+    return;
+  }
+
+  const currentMode = getParamMode(paramKey);
+  if (currentMode === nextMode) {
+    return;
+  }
+
+  if (nextMode === "manx") {
+    const previousManX = Object.entries(paramModes).find(([key, mode]) => mode === "manx" && key !== paramKey)?.[0];
+    const previousManY = Object.entries(paramModes).find(([key, mode]) => mode === "many" && key !== paramKey)?.[0];
+
+    if (previousManX) {
+      if (previousManY) {
+        paramModes[previousManX] = "fix";
+      } else {
+        paramModes[previousManX] = "many";
+      }
+    }
+
+    paramModes[paramKey] = "manx";
+  } else if (nextMode === "many") {
+    const previousManY = Object.entries(paramModes).find(([key, mode]) => mode === "many" && key !== paramKey)?.[0];
+    const previousManX = Object.entries(paramModes).find(([key, mode]) => mode === "manx" && key !== paramKey)?.[0];
+
+    if (previousManY) {
+      if (previousManX) {
+        paramModes[previousManY] = "fix";
+      } else {
+        paramModes[previousManY] = "manx";
+      }
+    }
+
+    paramModes[paramKey] = "many";
+  } else {
+    paramModes[paramKey] = nextMode;
+  }
+
+  normalizeParamModes();
+  syncParamModeVisuals();
+  saveParamModesToStorage();
+  commitCurrentStateToHistory();
+}
+
+function loadParamModesFromStorage() {
+  const fallback = {};
+  for (const control of Object.values(sliderControls)) {
+    fallback[control.paramKey] = "rand";
+  }
+
+  try {
+    const raw = window.localStorage.getItem(PARAM_MODES_STORAGE_KEY);
+    if (!raw) {
+      paramModes = fallback;
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+    paramModes = { ...fallback };
+    for (const key of Object.keys(fallback)) {
+      if (PARAM_MODE_VALUES.has(parsed?.[key])) {
+        paramModes[key] = parsed[key];
+      }
+    }
+  } catch (error) {
+    console.warn("Could not load parameter modes.", error);
+    paramModes = fallback;
+  }
+
+  normalizeParamModes();
+}
+
 function captureCurrentState() {
   return {
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     sliders: { ...appData.defaults.sliders },
+    paramModes: { ...paramModes },
     scaleMode: getScaleMode(),
     viewport: {
       canvasWidth: canvas.width,
@@ -333,6 +488,12 @@ function applyState(state) {
   appData.defaults.cmapName = state.cmapName;
   appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
   appData.defaults.scaleMode = state.scaleMode === "fixed" ? "fixed" : "auto";
+  if (state.paramModes && typeof state.paramModes === "object") {
+    paramModes = { ...paramModes, ...state.paramModes };
+    normalizeParamModes();
+    syncParamModeVisuals();
+    saveParamModesToStorage();
+  }
   syncScaleModeButton();
   requestDraw();
   isApplyingHistoryState = false;
@@ -351,6 +512,10 @@ function randomizeAllParameters() {
   appData.defaults.cmapName = randomChoice(appData.colormaps);
 
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
+    if (!isRandomizedParam(control.paramKey)) {
+      continue;
+    }
+
     if (sliderKey === "iters") {
       appData.defaults.sliders[sliderKey] = randomInt(control.min, control.max);
       continue;
@@ -367,7 +532,7 @@ function isEventInsideInteractiveUi(eventTarget) {
     return false;
   }
 
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #debugToggleDock, #floatingActions"));
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #modePicker, #debugToggleDock, #floatingActions"));
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -578,6 +743,105 @@ function openQuickSlider(sliderKey) {
   qsRange.step = String(control.sliderStep);
   qsRange.value = appData.defaults.sliders[sliderKey];
   updateQuickSliderReadout();
+}
+
+function closeModePicker() {
+  activeModeParamKey = null;
+  if (!modePickerEl) {
+    return;
+  }
+  modePickerEl.classList.remove("is-open");
+  modePickerEl.setAttribute("aria-hidden", "true");
+}
+
+function openModePicker(sliderKey, anchorRect) {
+  if (!modePickerEl) {
+    return;
+  }
+
+  activeModeParamKey = sliderControls[sliderKey].paramKey;
+  const mode = getParamMode(activeModeParamKey);
+  for (const radio of modePickerRadios) {
+    radio.checked = radio.value === mode;
+  }
+
+  const margin = 6;
+  const pickerWidth = Math.round(clamp(anchorRect.width + 10, 150, 200));
+  modePickerEl.style.width = `${pickerWidth}px`;
+
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const left = clamp(anchorRect.left + anchorRect.width / 2 - pickerWidth / 2, margin, viewportWidth - pickerWidth - margin);
+
+  modePickerEl.classList.add("is-open");
+  modePickerEl.setAttribute("aria-hidden", "false");
+  const pickerHeight = modePickerEl.getBoundingClientRect().height || 170;
+  const top = clamp(anchorRect.top - pickerHeight - 8, margin, viewportHeight - pickerHeight - margin);
+  modePickerEl.style.left = `${left}px`;
+  modePickerEl.style.top = `${top}px`;
+}
+
+function clearParamLongPressTimer() {
+  if (paramPressState.timer) {
+    window.clearTimeout(paramPressState.timer);
+    paramPressState.timer = null;
+  }
+}
+
+function onParamPointerDown(event, sliderKey) {
+  if (event.pointerType === "mouse" && event.button !== 0) {
+    return;
+  }
+
+  closeModePicker();
+  paramPressState.pointerId = event.pointerId;
+  paramPressState.sliderKey = sliderKey;
+  paramPressState.startX = event.clientX;
+  paramPressState.startY = event.clientY;
+  paramPressState.longTriggered = false;
+
+  clearParamLongPressTimer();
+  paramPressState.timer = window.setTimeout(() => {
+    const tile = sliderControls[sliderKey].button.closest(".poItem");
+    if (!tile) {
+      return;
+    }
+    paramPressState.longTriggered = true;
+    openModePicker(sliderKey, tile.getBoundingClientRect());
+  }, PARAM_LONG_MS);
+}
+
+function onParamPointerMove(event) {
+  if (paramPressState.pointerId !== event.pointerId || paramPressState.longTriggered) {
+    return;
+  }
+
+  const deltaX = event.clientX - paramPressState.startX;
+  const deltaY = event.clientY - paramPressState.startY;
+  if (Math.hypot(deltaX, deltaY) > PARAM_MOVE_CANCEL_PX) {
+    clearParamLongPressTimer();
+  }
+}
+
+function onParamPointerEnd(event) {
+  if (paramPressState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const sliderKey = paramPressState.sliderKey;
+  const wasLongPress = paramPressState.longTriggered;
+  clearParamLongPressTimer();
+  paramPressState.pointerId = null;
+  paramPressState.sliderKey = null;
+  paramPressState.longTriggered = false;
+
+  if (wasLongPress) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
+  openQuickSlider(sliderKey);
 }
 
 function clearStepHold() {
@@ -1022,7 +1286,45 @@ function registerHandlers() {
   });
 
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
-    control.button.addEventListener("click", () => openQuickSlider(sliderKey));
+    const tile = control.button.closest(".poItem");
+    if (!tile) {
+      continue;
+    }
+
+    tile.addEventListener("pointerdown", (event) => onParamPointerDown(event, sliderKey));
+    tile.addEventListener("pointermove", onParamPointerMove);
+    tile.addEventListener("pointerup", onParamPointerEnd);
+    tile.addEventListener("pointercancel", onParamPointerEnd);
+    tile.addEventListener("contextmenu", (event) => event.preventDefault());
+  }
+
+  if (modePickerEl) {
+    modePickerEl.addEventListener("pointerdown", (event) => event.stopPropagation());
+    modePickerEl.addEventListener("touchmove", (event) => event.preventDefault(), { passive: false });
+    modePickerEl.addEventListener("contextmenu", (event) => event.preventDefault());
+  }
+
+  window.addEventListener("pointerdown", (event) => {
+    if (!modePickerEl?.classList.contains("is-open")) {
+      return;
+    }
+
+    if (event.target instanceof Element && event.target.closest("#modePicker")) {
+      return;
+    }
+
+    closeModePicker();
+  });
+
+  for (const radio of modePickerRadios) {
+    radio.addEventListener("change", () => {
+      if (!radio.checked || !activeModeParamKey) {
+        return;
+      }
+      applyParamMode(activeModeParamKey, radio.value);
+      requestDraw();
+      closeModePicker();
+    });
   }
 
   const closeSliderFromUi = (event) => {
@@ -1098,6 +1400,9 @@ function registerHandlers() {
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }
+      if (modePickerEl?.classList.contains("is-open")) {
+        closeModePicker();
+      }
       layoutFloatingActions();
       requestDraw();
     },
@@ -1111,6 +1416,9 @@ function registerHandlers() {
       }
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
+      }
+      if (modePickerEl?.classList.contains("is-open")) {
+        closeModePicker();
       }
       layoutFloatingActions();
       requestDraw();
@@ -1168,6 +1476,7 @@ async function bootstrap() {
   try {
     installGlobalZoomBlockers();
     appData = await loadData();
+    loadParamModesFromStorage();
 
     currentFormulaId = resolveInitialFormulaId();
     appData.defaults.cmapName = resolveInitialColorMap();
@@ -1176,6 +1485,8 @@ async function bootstrap() {
     debugOffEl.checked = !debugOnEl.checked;
     syncScaleModeButton();
     syncRandomModeButton();
+    syncParamModeVisuals();
+    saveParamModesToStorage();
 
     registerHandlers();
     commitCurrentStateToHistory();
