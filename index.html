@@ -10,7 +10,7 @@
         --panel-bg: rgba(12, 14, 20, 0.26);
         --panel-border: rgba(255, 255, 255, 0.07);
         --text: #f5f8ff;
-        --name-box-width: 180px;
+        --name-box-width: 154px;
       }
       *, *::before, *::after {
         box-sizing: border-box;
@@ -304,7 +304,18 @@
         align-items: start;
       }
       .formulaName { font-weight: 600; }
-      .formulaDesc { opacity: 0.85; font-size: 12px; max-width: 100%; overflow-wrap: anywhere; }
+      .formulaDesc {
+        opacity: 0.85;
+        font-size: 12px;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        white-space: normal;
+        line-height: 1.25;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
       .cmapRow {
         display: grid;
         grid-template-columns: 108px 1fr;
@@ -317,6 +328,69 @@
         height: 12px;
         border-radius: 999px;
         border: 1px solid rgba(255,255,255,0.25);
+      }
+
+      #cameraBtn {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(12, 14, 20, 0.26);
+        color: rgba(255, 255, 255, 0.95);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 33;
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
+      }
+      #scaleModeBtn {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(12, 14, 20, 0.26);
+        color: rgba(255, 255, 255, 0.95);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 33;
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+      }
+      #scaleModeBtn.is-fixed {
+        background: rgba(255, 255, 255, 0.1);
+      }
+      #cameraBtn::before {
+        content: "";
+        width: 24px;
+        height: 24px;
+        border: 1.5px solid currentColor;
+        border-radius: 7px;
+      }
+      #cameraBtn::after {
+        content: "";
+        position: absolute;
+        width: 9px;
+        height: 9px;
+        border: 1.5px solid currentColor;
+        border-radius: 999px;
+      }
+      #cameraBtn.is-armed {
+        background: rgba(255, 255, 255, 0.1);
+      }
+      #floatingActions {
+        position: absolute;
+        right: max(10px, env(safe-area-inset-right));
+        top: 0;
+        display: flex;
+        gap: 7px;
+        z-index: 33;
       }
 
     </style>
@@ -402,6 +476,11 @@
             <button id="btnIters" class="poBtn" type="button">--</button>
           </div>
         </div>
+      </div>
+
+      <div id="floatingActions">
+        <button id="scaleModeBtn" type="button" aria-label="Toggle scaling mode">A</button>
+        <button id="cameraBtn" type="button" aria-label="Take screenshot"></button>
       </div>
     </div>
 

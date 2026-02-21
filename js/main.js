@@ -30,13 +30,17 @@ const pickerClose = document.getElementById("pickerClose");
 const pickerList = document.getElementById("pickerList");
 const pickerPanel = document.getElementById("pickerPanel");
 const paramOverlayEl = document.getElementById("paramOverlay");
+const paramRowEl = document.getElementById("paramRow");
+const cameraBtn = document.getElementById("cameraBtn");
+const scaleModeBtn = document.getElementById("scaleModeBtn");
+const floatingActionsEl = document.getElementById("floatingActions");
 
 const sliderControls = {
   alpha: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   beta: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   delta: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   gamma: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
-  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 240000, sliderStep: 100, stepSize: 100, displayDp: 0 },
+  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 1000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
 };
 
 const ctx = canvas.getContext("2d", { alpha: false });
@@ -58,6 +62,10 @@ const HOLD_ACCEL_START_MS = 2000;
 const HOLD_ACCEL_END_MS = 3000;
 const HOLD_MAX_MULTIPLIER = 10;
 const NAME_MAX_CHARS = 20;
+const CAMERA_LONG_PRESS_MS = 550;
+
+let cameraPressTimer = null;
+let longPressTriggered = false;
 
 function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   const normalized = String(text ?? "").trim();
@@ -227,8 +235,31 @@ function configureNameBoxWidths() {
   const formulaLengths = appData.formulas.map((formula) => clampLabel(formula.name).length);
   const cmapLengths = appData.colormaps.map((name) => clampLabel(name).length);
   const longest = Math.max(10, ...formulaLengths, ...cmapLengths);
-  const widthPx = Math.round(clamp(longest * 9.4 + 34, 140, 260));
+  const widthPx = Math.round(clamp(longest * 8.1 + 16, 124, 210));
   document.documentElement.style.setProperty("--name-box-width", `${widthPx}px`);
+}
+
+function layoutFloatingActions() {
+  if (!floatingActionsEl || !paramRowEl) {
+    return;
+  }
+
+  const appRect = canvas.parentElement.getBoundingClientRect();
+  const paramRowRect = paramRowEl.getBoundingClientRect();
+  const top = clamp(paramRowRect.top - appRect.top, 0, Math.max(0, appRect.height - 48));
+  floatingActionsEl.style.top = `${top}px`;
+}
+
+function getScaleMode() {
+  return appData?.defaults?.scaleMode === "fixed" ? "fixed" : "auto";
+}
+
+function syncScaleModeButton() {
+  const isFixed = getScaleMode() === "fixed";
+  scaleModeBtn.textContent = isFixed ? "F" : "A";
+  scaleModeBtn.classList.toggle("is-fixed", isFixed);
+  scaleModeBtn.setAttribute("aria-label", isFixed ? "Switch to auto scaling" : "Switch to fixed scaling");
+  scaleModeBtn.title = isFixed ? "Fixed scale" : "Auto scale";
 }
 
 function closeQuickSlider() {
@@ -262,8 +293,8 @@ function layoutPickerPanel() {
   const triggerRect = activePickerTrigger.getBoundingClientRect();
   const viewportWidth = window.innerWidth;
   const margin = 6;
-  const targetWidth = clamp(triggerRect.width * 3.6, 300, 620);
-  const maxWidth = Math.max(300, viewportWidth - margin * 2);
+  const targetWidth = clamp(triggerRect.width * 1.8, 180, 310);
+  const maxWidth = Math.max(180, viewportWidth - margin * 2);
   const width = Math.min(targetWidth, maxWidth);
   const triggerCenter = triggerRect.left + triggerRect.width / 2;
   const left = clamp(triggerCenter - width / 2, margin, viewportWidth - margin - width);
@@ -304,7 +335,7 @@ function renderFormulaPicker() {
       currentFormulaId = formula.id;
       updateCurrentPickerSelection();
       requestDraw();
-      window.setTimeout(closePicker, 80);
+      // Keep picker open so users can live-preview multiple options before closing.
     });
 
     pickerList.append(button);
@@ -341,7 +372,7 @@ function renderColorMapPicker() {
       appData.defaults.cmapName = cmapName;
       updateCurrentPickerSelection();
       requestDraw();
-      window.setTimeout(closePicker, 80);
+      // Keep picker open so users can live-preview multiple options before closing.
     });
 
     pickerList.append(button);
@@ -555,8 +586,9 @@ function drawDebugOverlay(meta) {
   const showMinorY = ((world.maxY - world.minY) / minorYStep) <= 40;
 
   ctx.save();
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
-  ctx.font = "12px system-ui, sans-serif";
+  const tickFontPx = Math.max(15, Math.round(Math.min(view.width, view.height) * 0.014));
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.font = `${tickFontPx}px system-ui, sans-serif`;
 
   if (showMinorX || showMinorY) {
     ctx.strokeStyle = "rgba(255,255,255,0.08)";
@@ -616,10 +648,10 @@ function drawDebugOverlay(meta) {
   for (const xValue of xTicks.values) {
     const xTick = ((xValue - world.minX) / (world.maxX - world.minX)) * view.width;
     ctx.beginPath();
-    ctx.moveTo(xTick, xAxisY - 5);
-    ctx.lineTo(xTick, xAxisY + 5);
+    ctx.moveTo(xTick, xAxisY - 6);
+    ctx.lineTo(xTick, xAxisY + 6);
     ctx.stroke();
-    ctx.fillText(formatTickValue(xValue, xTicks.step), xTick + 3, xAxisY - 8);
+    ctx.fillText(formatTickValue(xValue, xTicks.step), xTick + 4, xAxisY - 10);
   }
 
   for (const yValue of yTicks.values) {
@@ -628,10 +660,10 @@ function drawDebugOverlay(meta) {
     }
     const yTick = ((yValue - world.minY) / (world.maxY - world.minY)) * view.height;
     ctx.beginPath();
-    ctx.moveTo(yAxisX - 5, yTick);
-    ctx.lineTo(yAxisX + 5, yTick);
+    ctx.moveTo(yAxisX - 6, yTick);
+    ctx.lineTo(yAxisX + 6, yTick);
     ctx.stroke();
-    ctx.fillText(formatTickValue(yValue, yTicks.step), yAxisX + 7, yTick - 3);
+    ctx.fillText(formatTickValue(yValue, yTicks.step), yAxisX + 9, yTick - 4);
   }
 
   ctx.restore();
@@ -664,14 +696,15 @@ function draw() {
   const startedAt = performance.now();
   const didResize = resizeCanvas();
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  const iterations = didResize ? Math.min(iterationSetting, 100000) : iterationSetting;
+  const iterations = iterationSetting;
   const frameMeta = renderFrame({
     ctx,
     canvas,
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
-    iterations,
+    iterations: didResize ? Math.max(10000, Math.round(iterations * 0.6)) : iterations,
+    scaleMode: getScaleMode(),
   });
 
   const now = performance.now();
@@ -691,7 +724,138 @@ function draw() {
   drawDebugOverlay(lastRenderMeta);
   refreshParamButtons();
   updateQuickSliderReadout();
+  layoutFloatingActions();
 
+}
+
+function formatScreenshotTimestamp(date) {
+  const parts = [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+    "-",
+    String(date.getHours()).padStart(2, "0"),
+    String(date.getMinutes()).padStart(2, "0"),
+    String(date.getSeconds()).padStart(2, "0"),
+  ];
+  return parts.join("");
+}
+
+function buildScreenshotOverlayLines() {
+  const formula = appData.formulas.find((item) => item.id === currentFormulaId);
+  const params = getDerivedParams();
+  const iterValue = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  return [
+    `${formula?.name || currentFormulaId} · ${appData.defaults.cmapName}`,
+    `a ${params.a.toFixed(4)}   b ${params.b.toFixed(4)}   c ${params.c.toFixed(4)}   d ${params.d.toFixed(4)}   iter ${iterValue}`,
+  ];
+}
+
+function drawScreenshotOverlay(targetCtx, width, height) {
+  const lines = buildScreenshotOverlayLines();
+  const margin = Math.max(18, Math.round(width * 0.02));
+  const lineHeight = Math.max(20, Math.round(height * 0.032));
+  const panelHeight = lineHeight * lines.length + margin;
+
+  targetCtx.save();
+  targetCtx.fillStyle = "rgba(255, 255, 255, 0.08)";
+  targetCtx.fillRect(0, height - panelHeight, width, panelHeight);
+  targetCtx.fillStyle = "rgba(255, 255, 255, 0.56)";
+  targetCtx.font = `${Math.max(14, Math.round(height * 0.022))}px system-ui, -apple-system, Segoe UI, sans-serif`;
+  targetCtx.textBaseline = "bottom";
+
+  lines.forEach((line, index) => {
+    const y = height - margin / 2 - lineHeight * (lines.length - 1 - index);
+    targetCtx.fillText(line, margin, y);
+  });
+
+  targetCtx.restore();
+}
+
+async function saveBlobToDevice(blob, filename) {
+  const file = new File([blob], filename, { type: "image/png" });
+  if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
+    await navigator.share({ files: [file], title: filename });
+    return;
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  const downloadAnchor = document.createElement("a");
+  downloadAnchor.href = objectUrl;
+  downloadAnchor.download = filename;
+  document.body.append(downloadAnchor);
+  downloadAnchor.click();
+  downloadAnchor.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+}
+
+async function captureScreenshot(includeOverlay) {
+  if (!canvas) {
+    return;
+  }
+
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = canvas.width;
+  exportCanvas.height = canvas.height;
+  const exportCtx = exportCanvas.getContext("2d", { alpha: false });
+  exportCtx.drawImage(canvas, 0, 0);
+
+  if (includeOverlay) {
+    drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height);
+  }
+
+  const blob = await new Promise((resolve) => exportCanvas.toBlob(resolve, "image/png"));
+  if (!blob) {
+    throw new Error("Screenshot export failed.");
+  }
+
+  const filename = `hopalong-${includeOverlay ? "overlay" : "clean"}-${formatScreenshotTimestamp(new Date())}.png`;
+  await saveBlobToDevice(blob, filename);
+  showToast(includeOverlay ? "Saved screenshot with parameter overlay." : "Saved clean screenshot.");
+}
+
+function clearCameraPressState() {
+  if (cameraPressTimer) {
+    window.clearTimeout(cameraPressTimer);
+    cameraPressTimer = null;
+  }
+}
+
+function beginCameraPress(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  clearCameraPressState();
+  longPressTriggered = false;
+  cameraBtn.classList.add("is-armed");
+
+  cameraPressTimer = window.setTimeout(async () => {
+    longPressTriggered = true;
+    try {
+      await captureScreenshot(true);
+    } catch (error) {
+      console.error(error);
+      showToast(`Overlay screenshot failed: ${error.message}`);
+    }
+  }, CAMERA_LONG_PRESS_MS);
+}
+
+async function endCameraPress(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  clearCameraPressState();
+  cameraBtn.classList.remove("is-armed");
+
+  if (longPressTriggered) {
+    longPressTriggered = false;
+    return;
+  }
+
+  try {
+    await captureScreenshot(false);
+  } catch (error) {
+    console.error(error);
+    showToast(`Screenshot failed: ${error.message}`);
+  }
 }
 
 function registerHandlers() {
@@ -731,6 +895,29 @@ function registerHandlers() {
   setupStepHold(qsMinus, -1);
   setupStepHold(qsPlus, 1);
 
+  if (window.PointerEvent) {
+    cameraBtn.addEventListener("pointerdown", beginCameraPress);
+    cameraBtn.addEventListener("pointerup", endCameraPress);
+    cameraBtn.addEventListener("pointercancel", () => {
+      clearCameraPressState();
+      cameraBtn.classList.remove("is-armed");
+      longPressTriggered = false;
+    });
+  } else {
+    cameraBtn.addEventListener("touchstart", beginCameraPress, { passive: false });
+    cameraBtn.addEventListener("touchend", endCameraPress, { passive: false });
+    cameraBtn.addEventListener("mousedown", beginCameraPress);
+    cameraBtn.addEventListener("mouseup", endCameraPress);
+  }
+  cameraBtn.addEventListener("contextmenu", (event) => event.preventDefault());
+
+  scaleModeBtn.addEventListener("click", () => {
+    appData.defaults.scaleMode = getScaleMode() === "fixed" ? "auto" : "fixed";
+    syncScaleModeButton();
+    requestDraw();
+    showToast(getScaleMode() === "fixed" ? "Fixed scale mode enabled." : "Auto scale mode enabled.");
+  });
+
   window.addEventListener(
     "resize",
     () => {
@@ -740,6 +927,7 @@ function registerHandlers() {
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }
+      layoutFloatingActions();
       requestDraw();
     },
     { passive: true },
@@ -753,6 +941,7 @@ function registerHandlers() {
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }
+      layoutFloatingActions();
       requestDraw();
     },
     { passive: true },
@@ -778,8 +967,14 @@ async function loadData() {
   if (typeof data.defaults.sliders?.iters !== "number") {
     data.defaults.sliders = {
       ...(data.defaults.sliders || {}),
-      iters: 8000,
+      iters: 200000,
     };
+  }
+
+  data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
+
+  if (data.defaults.scaleMode !== "fixed") {
+    data.defaults.scaleMode = "auto";
   }
 
   if (!Array.isArray(data.formulas) || data.formulas.length === 0) {
@@ -808,6 +1003,7 @@ async function bootstrap() {
     configureNameBoxWidths();
     debugOnEl.checked = Boolean(appData.defaults.debug);
     debugOffEl.checked = !debugOnEl.checked;
+    syncScaleModeButton();
 
     registerHandlers();
     requestDraw();

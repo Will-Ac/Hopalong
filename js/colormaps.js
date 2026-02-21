@@ -107,15 +107,15 @@ export const ColorMaps = {
   "Gray→White→Laven": (t) => fromStops([[0.0, hexToRgb("#CFD8DC")], [0.5, hexToRgb("#FFFFFF")], [1.0, hexToRgb("#D8B4F8")]], t),
   "Pastel 5-band soft": makeBandedSoftMap({
     bands: [
-      { hex: "#FFFFFF", w: 1 },
-      { hex: "#FFE1EA", w: 1 },
-      { hex: "#FFE9CC", w: 1 },
-      { hex: "#DDEBFF", w: 1 },
-      { hex: "#E6FFF2", w: 1 },
-      { hex: "#FFFFFF", w: 1 },
+      { hex: "#FFF7FB", w: 0.85 },
+      { hex: "#FFB7CD", w: 1 },
+      { hex: "#FFD39C", w: 1 },
+      { hex: "#BFD8FF", w: 1 },
+      { hex: "#BDF7DE", w: 1 },
+      { hex: "#FFF7FB", w: 0.85 },
     ],
     count: 6,
-    smoothness: 0.15,
+    smoothness: 0.18,
   }),
   "Gold contour bands": makeBandedSoftMap({
     bands: [
