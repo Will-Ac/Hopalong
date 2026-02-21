@@ -1394,6 +1394,26 @@ function formatTickValue(value, step) {
   return clamped.toFixed(decimals);
 }
 
+function getControlForSlider(sliderKey) {
+  return sliderKey ? sliderControls[sliderKey] || null : null;
+}
+
+function getAxisPixelForZero(control, spanPx, fallbackPx) {
+  if (!control) {
+    return fallbackPx;
+  }
+
+  return axisScreenPosition(control.min, control.max, spanPx);
+}
+
+function getParamPixel(value, control, spanPx, fallbackPx) {
+  if (!control || control.max === control.min) {
+    return fallbackPx;
+  }
+
+  return ((value - control.min) / (control.max - control.min)) * spanPx;
+}
+
 function drawDebugOverlay(meta) {
   if (!appData.defaults.debug || !meta) {
     debugInfoEl.textContent = "Debug off";
@@ -1493,6 +1513,58 @@ function drawDebugOverlay(meta) {
     ctx.lineTo(yAxisX + 6, yTick);
     ctx.stroke();
     ctx.fillText(formatTickValue(yValue, yTicks.step), yAxisX + 9, yTick - 4);
+  }
+
+  const { manX, manY } = getManualAxisTargets();
+  const manXControl = getControlForSlider(manX);
+  const manYControl = getControlForSlider(manY);
+  const hasManualAxis = Boolean(manXControl || manYControl);
+
+  if (hasManualAxis) {
+    const centerX = view.width * 0.5;
+    const centerY = view.height * 0.5;
+    const paramAxisX = manXControl ? getAxisPixelForZero(manXControl, view.width, centerX) : centerX;
+    const paramAxisY = manYControl ? getAxisPixelForZero(manYControl, view.height, centerY) : centerY;
+    const paramXValue = manXControl ? appData.defaults.sliders[manX] : null;
+    const paramYValue = manYControl ? appData.defaults.sliders[manY] : null;
+    const paramX = manXControl ? getParamPixel(paramXValue, manXControl, view.width, centerX) : centerX;
+    const paramY = manYControl ? getParamPixel(paramYValue, manYControl, view.height, centerY) : centerY;
+    const crosshairSize = 7;
+    const labelGap = 12;
+    const axisNameFontPx = Math.max(12, Math.round(Math.min(view.width, view.height) * 0.017));
+
+    ctx.strokeStyle = "rgba(255,64,64,0.95)";
+    ctx.fillStyle = "rgba(255,92,92,0.96)";
+    ctx.lineWidth = 1;
+
+    if (manYControl) {
+      ctx.beginPath();
+      ctx.moveTo(0, paramAxisY);
+      ctx.lineTo(view.width, paramAxisY);
+      ctx.stroke();
+    }
+
+    if (manXControl) {
+      ctx.beginPath();
+      ctx.moveTo(paramAxisX, 0);
+      ctx.lineTo(paramAxisX, view.height);
+      ctx.stroke();
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(paramX - crosshairSize, paramY);
+    ctx.lineTo(paramX + crosshairSize, paramY);
+    ctx.moveTo(paramX, paramY - crosshairSize);
+    ctx.lineTo(paramX, paramY + crosshairSize);
+    ctx.stroke();
+
+    ctx.font = `${axisNameFontPx}px system-ui, sans-serif`;
+    if (manYControl) {
+      ctx.fillText(manYControl.label, view.width - axisNameFontPx * 1.2, Math.max(axisNameFontPx + 4, paramAxisY - labelGap));
+    }
+    if (manXControl) {
+      ctx.fillText(manXControl.label, Math.min(view.width - axisNameFontPx * 1.5, paramAxisX + labelGap), axisNameFontPx + 4);
+    }
   }
 
   ctx.restore();
