@@ -46,6 +46,13 @@ const sliderControls = {
   iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 1000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
 };
 
+const DEFAULT_PARAM_RANGES = {
+  a: [-80, 80],
+  b: [-20, 20],
+  c: [-20, 20],
+  d: [-20, 20],
+};
+
 const ctx = canvas.getContext("2d", { alpha: false });
 let appData = null;
 let currentFormulaId = null;
@@ -747,7 +754,7 @@ function applyManualModulation(deltaX, deltaY) {
   if (manY) {
     const control = sliderControls[manY];
     appData.defaults.sliders[manY] = clamp(
-      appData.defaults.sliders[manY] + deltaY * MODULATION_SENSITIVITY * control.stepSize,
+      appData.defaults.sliders[manY] - deltaY * MODULATION_SENSITIVITY * control.stepSize,
       control.min,
       control.max,
     );
@@ -1398,20 +1405,29 @@ function getControlForSlider(sliderKey) {
   return sliderKey ? sliderControls[sliderKey] || null : null;
 }
 
-function getAxisPixelForZero(control, spanPx, fallbackPx) {
-  if (!control) {
-    return fallbackPx;
+function getRangeForControl(control) {
+  if (!control || control.paramKey === "iters") {
+    return null;
   }
 
-  return axisScreenPosition(control.min, control.max, spanPx);
+  const formulaRanges = getCurrentFormulaRange() || DEFAULT_PARAM_RANGES;
+  return formulaRanges[control.paramKey] || DEFAULT_PARAM_RANGES[control.paramKey] || null;
 }
 
-function getParamPixel(value, control, spanPx, fallbackPx) {
-  if (!control || control.max === control.min) {
+function getAxisPixelForZero(range, spanPx, fallbackPx) {
+  if (!range || range.length < 2) {
     return fallbackPx;
   }
 
-  return ((value - control.min) / (control.max - control.min)) * spanPx;
+  return axisScreenPosition(range[0], range[1], spanPx);
+}
+
+function getParamPixel(value, range, spanPx, fallbackPx) {
+  if (!range || range.length < 2 || range[1] === range[0]) {
+    return fallbackPx;
+  }
+
+  return ((value - range[0]) / (range[1] - range[0])) * spanPx;
 }
 
 function drawDebugOverlay(meta) {
@@ -1518,18 +1534,21 @@ function drawDebugOverlay(meta) {
   const { manX, manY } = getManualAxisTargets();
   const manXControl = getControlForSlider(manX);
   const manYControl = getControlForSlider(manY);
+  const manXRange = getRangeForControl(manXControl);
+  const manYRange = getRangeForControl(manYControl);
+  const manualParams = getDerivedParams();
   const hasManualAxis = Boolean(manXControl || manYControl);
 
   if (hasManualAxis) {
     const centerX = view.width * 0.5;
     const centerY = view.height * 0.5;
-    const paramAxisX = manXControl ? getAxisPixelForZero(manXControl, view.width, centerX) : centerX;
-    const paramAxisY = manYControl ? getAxisPixelForZero(manYControl, view.height, centerY) : centerY;
-    const paramXValue = manXControl ? appData.defaults.sliders[manX] : null;
-    const paramYValue = manYControl ? appData.defaults.sliders[manY] : null;
-    const paramX = manXControl ? getParamPixel(paramXValue, manXControl, view.width, centerX) : centerX;
-    const paramY = manYControl ? getParamPixel(paramYValue, manYControl, view.height, centerY) : centerY;
-    const crosshairSize = 7;
+    const paramAxisX = manXRange ? getAxisPixelForZero(manXRange, view.width, centerX) : centerX;
+    const paramAxisY = manYRange ? getAxisPixelForZero(manYRange, view.height, centerY) : centerY;
+    const paramXValue = manXControl ? manualParams[manXControl.paramKey] : null;
+    const paramYValue = manYControl ? manualParams[manYControl.paramKey] : null;
+    const paramX = manXRange ? getParamPixel(paramXValue, manXRange, view.width, centerX) : centerX;
+    const paramY = manYRange ? getParamPixel(paramYValue, manYRange, view.height, centerY) : centerY;
+    const crosshairSize = 28;
     const labelGap = 12;
     const axisNameFontPx = Math.max(12, Math.round(Math.min(view.width, view.height) * 0.017));
 
