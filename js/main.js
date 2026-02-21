@@ -117,7 +117,7 @@ const INTERACTION_STATE = {
   PINCH_ZOOM: "PINCH_ZOOM",
   PAN_MOUSE_RMB: "PAN_MOUSE_RMB",
 };
-const PINCH_SWITCH_THRESHOLD_PX = 24;
+const PINCH_SWITCH_THRESHOLD_PX = 48;
 const PINCH_PAN_EPSILON_PX = 2;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
@@ -914,8 +914,14 @@ function onCanvasPointerMove(event) {
   const midpointDx = midpoint.x - (gestureLastMidpoint?.x ?? midpoint.x);
   const midpointDy = midpoint.y - (gestureLastMidpoint?.y ?? midpoint.y);
 
-  if (Math.abs(distanceDelta) > PINCH_SWITCH_THRESHOLD_PX) {
-    interactionState = INTERACTION_STATE.PINCH_ZOOM;
+  const translationMagnitude = Math.hypot(midpointDx, midpointDy);
+  const pinchLooksIntentional = Math.abs(distanceDelta) > PINCH_SWITCH_THRESHOLD_PX
+    && Math.abs(distanceDelta) > translationMagnitude * 1.35;
+
+  if (interactionState !== INTERACTION_STATE.PAN_2P || pinchLooksIntentional) {
+    if (Math.abs(distanceDelta) > PINCH_SWITCH_THRESHOLD_PX) {
+      interactionState = INTERACTION_STATE.PINCH_ZOOM;
+    }
   }
 
   if (interactionState === INTERACTION_STATE.PINCH_ZOOM && gestureStartDistance > 0) {
@@ -1126,7 +1132,7 @@ function updateQuickSliderReadout() {
   qsValue.textContent = formatControlValue(control, actualValue);
 }
 
-function applySliderValue(nextValue) {
+function applySliderValue(nextValue, { commitHistory = true } = {}) {
   if (!activeSliderKey) {
     return;
   }
@@ -1137,7 +1143,9 @@ function applySliderValue(nextValue) {
   qsRange.value = value;
   updateQuickSliderReadout();
   requestDraw();
-  commitCurrentStateToHistory();
+  if (commitHistory) {
+    commitCurrentStateToHistory();
+  }
 }
 
 function openQuickSlider(sliderKey) {
@@ -1889,7 +1897,10 @@ function registerHandlers() {
   });
 
   qsRange.addEventListener("input", () => {
-    applySliderValue(Number.parseFloat(qsRange.value));
+    applySliderValue(Number.parseFloat(qsRange.value), { commitHistory: false });
+  });
+  qsRange.addEventListener("change", () => {
+    commitCurrentStateToHistory();
   });
 
   setupStepHold(qsMinus, -1);
