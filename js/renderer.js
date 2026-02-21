@@ -93,12 +93,22 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     const safeSpanX = Math.max(maxX - minX, 1e-6);
     const safeSpanY = Math.max(maxY - minY, 1e-6);
     const paddingRatio = 0.08;
-    const padX = safeSpanX * paddingRatio;
-    const padY = safeSpanY * paddingRatio;
-    worldMinX = minX - padX;
-    worldMaxX = maxX + padX;
-    worldMinY = minY - padY;
-    worldMaxY = maxY + padY;
+    let paddedSpanX = safeSpanX * (1 + paddingRatio * 2);
+    let paddedSpanY = safeSpanY * (1 + paddingRatio * 2);
+
+    const targetAspect = Math.max(width, 1) / Math.max(height, 1);
+    if (paddedSpanX / paddedSpanY > targetAspect) {
+      paddedSpanY = paddedSpanX / targetAspect;
+    } else {
+      paddedSpanX = paddedSpanY * targetAspect;
+    }
+
+    const centerX = (minX + maxX) * 0.5;
+    const centerY = (minY + maxY) * 0.5;
+    worldMinX = centerX - paddedSpanX * 0.5;
+    worldMaxX = centerX + paddedSpanX * 0.5;
+    worldMinY = centerY - paddedSpanY * 0.5;
+    worldMaxY = centerY + paddedSpanY * 0.5;
     worldSpanX = Math.max(worldMaxX - worldMinX, 1e-6);
     worldSpanY = Math.max(worldMaxY - worldMinY, 1e-6);
   }

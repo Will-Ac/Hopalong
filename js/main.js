@@ -71,6 +71,7 @@ let randomModeEnabled = false;
 let isApplyingHistoryState = false;
 let historyStates = [];
 let historyIndex = -1;
+let lastRandomToggleAt = 0;
 
 const HISTORY_LIMIT = 50;
 
@@ -361,17 +362,29 @@ function randomizeAllParameters() {
   commitCurrentStateToHistory();
 }
 
-function handleCanvasHistoryNavigation(event) {
+function isEventInsideInteractiveUi(eventTarget) {
+  if (!(eventTarget instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #debugToggleDock, #floatingActions"));
+}
+
+function handleScreenHistoryNavigation(event) {
   if (!randomModeEnabled || !appData || !currentFormulaId) {
     return;
   }
 
-  if (event.target.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #debugToggleDock, #floatingActions")) {
+  if (isEventInsideInteractiveUi(event.target)) {
     return;
   }
 
-  const rect = canvas.getBoundingClientRect();
-  const isRightSide = event.clientX >= rect.left + rect.width / 2;
+  if (typeof event.clientX !== "number") {
+    return;
+  }
+
+  const viewportMidX = window.innerWidth * 0.5;
+  const isRightSide = event.clientX >= viewportMidX;
 
   if (isRightSide) {
     if (historyIndex < historyStates.length - 1) {
@@ -1055,13 +1068,26 @@ function registerHandlers() {
     showToast(getScaleMode() === "fixed" ? "Fixed scale mode enabled." : "Auto scale mode enabled.");
   });
 
-  randomModeBtn.addEventListener("click", () => {
+  const toggleRandomMode = (event) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.type === "click" && Date.now() - lastRandomToggleAt < 350) {
+        return;
+      }
+      if (event.type === "pointerup") {
+        lastRandomToggleAt = Date.now();
+      }
+    }
     randomModeEnabled = !randomModeEnabled;
     syncRandomModeButton();
     showToast(randomModeEnabled ? "RAN mode enabled. Tap right to go forward/randomise, left to go back." : "FIX mode enabled. History tap controls are inactive.");
-  });
+  };
 
-  canvas.addEventListener("pointerup", handleCanvasHistoryNavigation);
+  randomModeBtn.addEventListener("pointerup", toggleRandomMode);
+  randomModeBtn.addEventListener("click", toggleRandomMode);
+
+  window.addEventListener("pointerup", handleScreenHistoryNavigation);
 
   window.addEventListener(
     "resize",
