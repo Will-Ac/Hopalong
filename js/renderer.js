@@ -54,10 +54,35 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     [x, y] = variant.step(x, y, params.a, params.b, params.d, params.c);
   }
 
-  const minDim = Math.min(width, height);
-  const scale = minDim / 220;
-  const centerX = width * 0.5;
-  const centerY = height * 0.5;
+  const xs = new Float32Array(iterations);
+  const ys = new Float32Array(iterations);
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i < iterations; i += 1) {
+    [x, y] = variant.step(x, y, params.a, params.b, params.d, params.c);
+    xs[i] = x;
+    ys[i] = y;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+
+  const safeSpanX = Math.max(maxX - minX, 1e-6);
+  const safeSpanY = Math.max(maxY - minY, 1e-6);
+  const paddingRatio = 0.08;
+  const padX = safeSpanX * paddingRatio;
+  const padY = safeSpanY * paddingRatio;
+  const worldMinX = minX - padX;
+  const worldMaxX = maxX + padX;
+  const worldMinY = minY - padY;
+  const worldMaxY = maxY + padY;
+  const worldSpanX = Math.max(worldMaxX - worldMinX, 1e-6);
+  const worldSpanY = Math.max(worldMaxY - worldMinY, 1e-6);
+
   const colorLut = new Uint8Array(LUT_SIZE * 3);
 
   for (let lutIndex = 0; lutIndex < LUT_SIZE; lutIndex += 1) {
@@ -70,9 +95,8 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   }
 
   for (let i = 0; i < iterations; i += 1) {
-    [x, y] = variant.step(x, y, params.a, params.b, params.d, params.c);
-    const px = Math.round(centerX + x * scale);
-    const py = Math.round(centerY + y * scale);
+    const px = Math.round(((xs[i] - worldMinX) / worldSpanX) * (width - 1));
+    const py = Math.round(((ys[i] - worldMinY) / worldSpanY) * (height - 1));
 
     if (px < 0 || py < 0 || px >= width || py >= height) {
       continue;
@@ -91,19 +115,20 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
 
   return {
     world: {
-      minX: (0 - centerX) / scale,
-      maxX: (width - centerX) / scale,
-      minY: (0 - centerY) / scale,
-      maxY: (height - centerY) / scale,
-      centerX: 0,
-      centerY: 0,
+      minX: worldMinX,
+      maxX: worldMaxX,
+      minY: worldMinY,
+      maxY: worldMaxY,
+      centerX: (worldMinX + worldMaxX) * 0.5,
+      centerY: (worldMinY + worldMaxY) * 0.5,
     },
     view: {
       width,
       height,
-      centerX,
-      centerY,
-      scale,
+      centerX: width * 0.5,
+      centerY: height * 0.5,
+      scaleX: (width - 1) / worldSpanX,
+      scaleY: (height - 1) / worldSpanY,
     },
   };
 }
