@@ -88,7 +88,6 @@ const paramTileTargets = {
 
 let cameraPressTimer = null;
 let longPressTriggered = false;
-let randomModeEnabled = false;
 let isApplyingHistoryState = false;
 let historyStates = [];
 let historyIndex = -1;
@@ -302,11 +301,46 @@ function syncScaleModeButton() {
 }
 
 function syncRandomModeButton() {
-  randomModeBtn.textContent = randomModeEnabled ? "RAN" : "FIX";
-  randomModeBtn.classList.toggle("is-random", randomModeEnabled);
-  randomModeBtn.classList.toggle("is-fixed", !randomModeEnabled);
-  randomModeBtn.setAttribute("aria-label", randomModeEnabled ? "Randomise all parameters" : "Keep all parameters fixed");
-  randomModeBtn.title = randomModeEnabled ? "Random mode on" : "Random mode off";
+  const globalMode = getGlobalRandomFixMixState();
+  randomModeBtn.textContent = globalMode.toUpperCase();
+  randomModeBtn.classList.toggle("is-random", globalMode === "ran");
+  randomModeBtn.classList.toggle("is-fixed", globalMode === "fix");
+  randomModeBtn.classList.toggle("is-mixed", globalMode === "mix");
+  randomModeBtn.setAttribute("aria-label", globalMode === "ran" ? "All parameter modes set to random" : globalMode === "fix" ? "All parameter modes set to fixed" : "Mixed parameter modes");
+  randomModeBtn.title = globalMode === "ran" ? "All random" : globalMode === "fix" ? "All fixed" : "Mixed parameter modes";
+}
+
+function getGlobalRandomFixMixState() {
+  const modes = PARAM_MODE_KEYS.map((key) => getParamMode(key));
+  const allRandom = modes.every((mode) => mode === "rand");
+  if (allRandom) {
+    return "ran";
+  }
+
+  const allFixed = modes.every((mode) => mode === "fix");
+  if (allFixed) {
+    return "fix";
+  }
+
+  return "mix";
+}
+
+function applyAllParamModes(nextMode) {
+  if (!PARAM_MODE_VALUES.has(nextMode)) {
+    return;
+  }
+
+  for (const key of PARAM_MODE_KEYS) {
+    if (getAllowedModesForParam(key).includes(nextMode)) {
+      paramModes[key] = nextMode;
+    }
+  }
+
+  normalizeParamModes();
+  syncParamModeVisuals();
+  saveParamModesToStorage();
+  syncRandomModeButton();
+  commitCurrentStateToHistory();
 }
 
 function getParamMode(paramKey) {
@@ -424,6 +458,7 @@ function applyParamMode(paramKey, nextMode) {
   normalizeParamModes();
   syncParamModeVisuals();
   saveParamModesToStorage();
+  syncRandomModeButton();
   commitCurrentStateToHistory();
 }
 
@@ -564,7 +599,7 @@ function isEventInsideInteractiveUi(eventTarget) {
 }
 
 function handleScreenHistoryNavigation(event) {
-  if (!randomModeEnabled || !appData || !currentFormulaId) {
+  if (getGlobalRandomFixMixState() !== "ran" || !appData || !currentFormulaId) {
     return;
   }
 
@@ -1426,9 +1461,9 @@ function registerHandlers() {
         lastRandomToggleAt = Date.now();
       }
     }
-    randomModeEnabled = !randomModeEnabled;
-    syncRandomModeButton();
-    showToast(randomModeEnabled ? "RAN mode enabled. Tap right to go forward/randomise, left to go back." : "FIX mode enabled. History tap controls are inactive.");
+    const nextMode = getGlobalRandomFixMixState() === "ran" ? "fix" : "rand";
+    applyAllParamModes(nextMode);
+    showToast(nextMode === "rand" ? "RAN mode enabled. Tap right to go forward/randomise, left to go back." : "FIX mode enabled. History tap controls are inactive.");
   };
 
   randomModeBtn.addEventListener("pointerup", toggleRandomMode);
