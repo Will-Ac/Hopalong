@@ -9,6 +9,7 @@
         color-scheme: dark;
         --panel-bg: rgba(12, 14, 20, 0.26);
         --panel-border: rgba(255, 255, 255, 0.07);
+        --param-outline: rgba(255, 255, 255, 0.34);
         --text: #f5f8ff;
         --name-box-width: 154px;
       }
@@ -205,13 +206,51 @@
         pointer-events: auto;
       }
       .poItem {
+        position: relative;
         flex: 0 0 108px;
         width: 108px;
         background: var(--panel-bg);
-        border: 1px solid var(--panel-border);
+        border: 2px solid var(--param-outline);
         border-radius: 10px;
         padding: 6px;
       }
+      .poItem.po-mode-fix {
+        border-width: 2px;
+        border-style: solid;
+      }
+      .poItem.po-mode-rand {
+        border-width: 2px;
+        border-style: dashed;
+      }
+      .poItem.po-mode-manx,
+      .poItem.po-mode-many {
+        border-color: transparent;
+      }
+      .poItem.po-mode-manx::before,
+      .poItem.po-mode-manx::after,
+      .poItem.po-mode-many::before,
+      .poItem.po-mode-many::after {
+        content: "";
+        position: absolute;
+        background: var(--param-outline);
+        pointer-events: none;
+      }
+      .poItem.po-mode-manx::before,
+      .poItem.po-mode-manx::after {
+        left: 8px;
+        right: 8px;
+        height: 2px;
+      }
+      .poItem.po-mode-manx::before { top: 0; }
+      .poItem.po-mode-manx::after { bottom: 0; }
+      .poItem.po-mode-many::before,
+      .poItem.po-mode-many::after {
+        top: 8px;
+        bottom: 8px;
+        width: 2px;
+      }
+      .poItem.po-mode-many::before { left: 0; }
+      .poItem.po-mode-many::after { right: 0; }
       .poLabel {
         display: block;
         font-size: 10px;
@@ -385,6 +424,10 @@
       #randomModeBtn.is-random {
         background: rgba(255, 255, 255, 0.1);
       }
+      #randomModeBtn.is-mixed {
+        background: rgba(255, 255, 255, 0.06);
+        opacity: 0.95;
+      }
       #randomModeBtn.is-fixed {
         opacity: 0.82;
       }
@@ -413,6 +456,31 @@
         display: flex;
         gap: 7px;
         z-index: 33;
+      }
+
+      #modePicker {
+        position: absolute;
+        z-index: 46;
+        min-width: 150px;
+        border-radius: 10px;
+        border: 1px solid var(--panel-border);
+        background: rgba(12, 14, 20, 0.94);
+        padding: 8px;
+        display: none;
+        touch-action: none;
+      }
+      #modePicker.is-open { display: block; }
+      .modePickerTitle {
+        margin: 0 0 7px;
+        font-size: 11px;
+        opacity: 0.9;
+      }
+      .modeOption {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        padding: 3px 0;
       }
 
     </style>
@@ -504,6 +572,14 @@
         <button id="scaleModeBtn" type="button" aria-label="Toggle scaling mode">A</button>
         <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode">FIX</button>
         <button id="cameraBtn" type="button" aria-label="Take screenshot"></button>
+      </div>
+
+      <div id="modePicker" role="dialog" aria-label="Parameter mode picker" aria-hidden="true">
+        <p class="modePickerTitle">Mode</p>
+        <label class="modeOption"><input type="radio" name="paramMode" value="rand" />Random</label>
+        <label class="modeOption"><input type="radio" name="paramMode" value="fix" />Fixed</label>
+        <label class="modeOption"><input type="radio" name="paramMode" value="manx" />Man-X</label>
+        <label class="modeOption"><input type="radio" name="paramMode" value="many" />Man-Y</label>
       </div>
     </div>
 
