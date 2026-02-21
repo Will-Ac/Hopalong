@@ -363,8 +363,30 @@
         font-weight: 700;
         letter-spacing: 0.03em;
       }
-      #scaleModeBtn.is-fixed {
+      #randomModeBtn {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(12, 14, 20, 0.26);
+        color: rgba(255, 255, 255, 0.95);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 33;
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+      }
+      #scaleModeBtn.is-fixed,
+      #randomModeBtn.is-random {
         background: rgba(255, 255, 255, 0.1);
+      }
+      #randomModeBtn.is-fixed {
+        opacity: 0.82;
       }
       #cameraBtn::before {
         content: "";
@@ -480,6 +502,7 @@
 
       <div id="floatingActions">
         <button id="scaleModeBtn" type="button" aria-label="Toggle scaling mode">A</button>
+        <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode">FIX</button>
         <button id="cameraBtn" type="button" aria-label="Take screenshot"></button>
       </div>
     </div>
