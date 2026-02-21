@@ -33,6 +33,7 @@ const paramOverlayEl = document.getElementById("paramOverlay");
 const paramRowEl = document.getElementById("paramRow");
 const cameraBtn = document.getElementById("cameraBtn");
 const scaleModeBtn = document.getElementById("scaleModeBtn");
+const randomModeBtn = document.getElementById("randomModeBtn");
 const floatingActionsEl = document.getElementById("floatingActions");
 
 const sliderControls = {
@@ -66,6 +67,12 @@ const CAMERA_LONG_PRESS_MS = 550;
 
 let cameraPressTimer = null;
 let longPressTriggered = false;
+let randomModeEnabled = false;
+let isApplyingHistoryState = false;
+let historyStates = [];
+let historyIndex = -1;
+
+const HISTORY_LIMIT = 50;
 
 function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   const normalized = String(text ?? "").trim();
@@ -262,6 +269,132 @@ function syncScaleModeButton() {
   scaleModeBtn.title = isFixed ? "Fixed scale" : "Auto scale";
 }
 
+function syncRandomModeButton() {
+  randomModeBtn.textContent = randomModeEnabled ? "RAN" : "FIX";
+  randomModeBtn.classList.toggle("is-random", randomModeEnabled);
+  randomModeBtn.classList.toggle("is-fixed", !randomModeEnabled);
+  randomModeBtn.setAttribute("aria-label", randomModeEnabled ? "Randomise all parameters" : "Keep all parameters fixed");
+  randomModeBtn.title = randomModeEnabled ? "Random mode on" : "Random mode off";
+}
+
+function captureCurrentState() {
+  return {
+    formulaId: currentFormulaId,
+    cmapName: appData.defaults.cmapName,
+    sliders: { ...appData.defaults.sliders },
+    scaleMode: getScaleMode(),
+    viewport: {
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      cssWidth: Math.round(canvas.getBoundingClientRect().width),
+      cssHeight: Math.round(canvas.getBoundingClientRect().height),
+      devicePixelRatio: window.devicePixelRatio || 1,
+    },
+    seeds: { orbitSeed: 0 },
+  };
+}
+
+function statesEqual(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function commitCurrentStateToHistory() {
+  if (!appData || !currentFormulaId || isApplyingHistoryState) {
+    return;
+  }
+
+  const nextState = captureCurrentState();
+  const currentState = historyIndex >= 0 ? historyStates[historyIndex] : null;
+  if (currentState && statesEqual(currentState, nextState)) {
+    return;
+  }
+
+  if (historyIndex < historyStates.length - 1) {
+    historyStates = historyStates.slice(0, historyIndex + 1);
+  }
+
+  historyStates.push(nextState);
+  if (historyStates.length > HISTORY_LIMIT) {
+    const overflow = historyStates.length - HISTORY_LIMIT;
+    historyStates.splice(0, overflow);
+    historyIndex = Math.max(-1, historyIndex - overflow);
+  }
+  historyIndex = historyStates.length - 1;
+}
+
+function applyState(state) {
+  if (!state) {
+    return;
+  }
+
+  isApplyingHistoryState = true;
+  currentFormulaId = state.formulaId;
+  appData.defaults.cmapName = state.cmapName;
+  appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
+  appData.defaults.scaleMode = state.scaleMode === "fixed" ? "fixed" : "auto";
+  syncScaleModeButton();
+  requestDraw();
+  isApplyingHistoryState = false;
+}
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomChoice(items) {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function randomizeAllParameters() {
+  currentFormulaId = randomChoice(appData.formulas).id;
+  appData.defaults.cmapName = randomChoice(appData.colormaps);
+
+  for (const [sliderKey, control] of Object.entries(sliderControls)) {
+    if (sliderKey === "iters") {
+      appData.defaults.sliders[sliderKey] = randomInt(control.min, control.max);
+      continue;
+    }
+    appData.defaults.sliders[sliderKey] = Number((Math.random() * (control.max - control.min) + control.min).toFixed(4));
+  }
+
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function handleCanvasHistoryNavigation(event) {
+  if (!randomModeEnabled || !appData || !currentFormulaId) {
+    return;
+  }
+
+  if (event.target.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #debugToggleDock, #floatingActions")) {
+    return;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  const isRightSide = event.clientX >= rect.left + rect.width / 2;
+
+  if (isRightSide) {
+    if (historyIndex < historyStates.length - 1) {
+      historyIndex += 1;
+      applyState(historyStates[historyIndex]);
+      showToast(`History ${historyIndex + 1}/${historyStates.length}`);
+      return;
+    }
+
+    randomizeAllParameters();
+    showToast("Randomised all parameters.");
+    return;
+  }
+
+  if (historyIndex > 0) {
+    historyIndex -= 1;
+    applyState(historyStates[historyIndex]);
+    showToast(`History ${historyIndex + 1}/${historyStates.length}`);
+  } else {
+    showToast("Already at oldest saved state.");
+  }
+}
+
 function closeQuickSlider() {
   activeSliderKey = null;
   quickSliderOverlay.classList.remove("is-open");
@@ -335,6 +468,7 @@ function renderFormulaPicker() {
       currentFormulaId = formula.id;
       updateCurrentPickerSelection();
       requestDraw();
+      commitCurrentStateToHistory();
       // Keep picker open so users can live-preview multiple options before closing.
     });
 
@@ -372,6 +506,7 @@ function renderColorMapPicker() {
       appData.defaults.cmapName = cmapName;
       updateCurrentPickerSelection();
       requestDraw();
+      commitCurrentStateToHistory();
       // Keep picker open so users can live-preview multiple options before closing.
     });
 
@@ -415,6 +550,7 @@ function applySliderValue(nextValue) {
   qsRange.value = value;
   updateQuickSliderReadout();
   requestDraw();
+  commitCurrentStateToHistory();
 }
 
 function openQuickSlider(sliderKey) {
@@ -915,8 +1051,17 @@ function registerHandlers() {
     appData.defaults.scaleMode = getScaleMode() === "fixed" ? "auto" : "fixed";
     syncScaleModeButton();
     requestDraw();
+    commitCurrentStateToHistory();
     showToast(getScaleMode() === "fixed" ? "Fixed scale mode enabled." : "Auto scale mode enabled.");
   });
+
+  randomModeBtn.addEventListener("click", () => {
+    randomModeEnabled = !randomModeEnabled;
+    syncRandomModeButton();
+    showToast(randomModeEnabled ? "RAN mode enabled. Tap right to go forward/randomise, left to go back." : "FIX mode enabled. History tap controls are inactive.");
+  });
+
+  canvas.addEventListener("pointerup", handleCanvasHistoryNavigation);
 
   window.addEventListener(
     "resize",
@@ -1004,8 +1149,10 @@ async function bootstrap() {
     debugOnEl.checked = Boolean(appData.defaults.debug);
     debugOffEl.checked = !debugOnEl.checked;
     syncScaleModeButton();
+    syncRandomModeButton();
 
     registerHandlers();
+    commitCurrentStateToHistory();
     requestDraw();
     const formula = appData.formulas.find((item) => item.id === currentFormulaId);
     showToast(`Loaded ${formula?.name || currentFormulaId}. Slice 2.1 controls ready.`);
