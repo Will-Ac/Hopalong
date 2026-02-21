@@ -324,6 +324,10 @@ function getGlobalRandomFixMixState() {
   return "mix";
 }
 
+function hasAnyRandomizedModes() {
+  return PARAM_MODE_KEYS.some((key) => getParamMode(key) === "rand");
+}
+
 function applyAllParamModes(nextMode) {
   if (!PARAM_MODE_VALUES.has(nextMode)) {
     return;
@@ -600,7 +604,7 @@ function isEventInsideInteractiveUi(eventTarget) {
 }
 
 function handleScreenHistoryNavigation(event) {
-  if (getGlobalRandomFixMixState() !== "ran" || !appData || !currentFormulaId) {
+  if (!hasAnyRandomizedModes() || !appData || !currentFormulaId) {
     return;
   }
 
