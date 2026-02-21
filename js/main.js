@@ -113,7 +113,7 @@ const INTERACTION_STATE = {
 const PINCH_SWITCH_THRESHOLD_PX = 8;
 const PINCH_PAN_EPSILON_PX = 2;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
-const MODULATION_SENSITIVITY = 0.08;
+const MODULATION_SENSITIVITY = 80;
 
 const sliderKeyByParamKey = {
   a: "alpha",
