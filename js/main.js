@@ -292,6 +292,7 @@ class InteractionRouter {
     const owner = this.ownerByPointerId.get(event.pointerId);
     if (owner === "canvas") {
       if (this.swipeCandidate?.pointerId !== event.pointerId) {
+        handleScreenHistoryNavigation(event);
         onCanvasPointerUp(event);
       }
       if (historyTapTracker?.pointerId === event.pointerId) {
@@ -1699,7 +1700,11 @@ function getParamPixelVertical(value, range, spanPx, fallbackPx) {
 }
 
 function shouldShowManualOverlay() {
-  return interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0;
+  if (interactionState !== INTERACTION_STATE.MOD_1 || activePointers.size === 0) {
+    return false;
+  }
+
+  return !historyTapTracker?.validTap;
 }
 
 function drawManualParamOverlay(meta) {
@@ -2173,13 +2178,6 @@ function registerHandlers() {
 
   interactionRouter = new InteractionRouter(canvas);
   interactionRouter.install();
-
-  window.addEventListener("pointerup", (event) => {
-    if (interactionRouter?.activeOwner !== "canvas") {
-      return;
-    }
-    handleScreenHistoryNavigation(event);
-  });
 
   window.addEventListener(
     "resize",
