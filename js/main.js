@@ -1598,31 +1598,79 @@ function drawManualParamOverlay(meta) {
   const crosshairSize = 28;
   const labelGap = 12;
   const axisNameFontPx = Math.max(12, Math.round(Math.min(view.width, view.height) * 0.017));
+  const AXIS_WIDTH = 1;
+
+  const alignAxisPixel = (value, lineWidth) => {
+    if (Math.round(lineWidth) % 2 === 1) {
+      return Math.floor(value) + 0.5;
+    }
+    return Math.round(value);
+  };
+
+  const drawAxisLine = (x1, y1, x2, y2) => {
+    // 1) Dark outline pass
+    ctx.save();
+    ctx.lineWidth = AXIS_WIDTH + 2;
+    ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+
+    // 2) Subtle halo pass
+    ctx.save();
+    ctx.lineWidth = AXIS_WIDTH;
+    ctx.strokeStyle = "rgba(255,0,0,0.9)";
+    ctx.shadowColor = "rgba(0,0,0,0.9)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+
+    // 3) Final crisp red pass (no blur)
+    ctx.save();
+    ctx.lineWidth = AXIS_WIDTH;
+    ctx.strokeStyle = "rgba(255,40,40,1.0)";
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  const alignedAxisX = alignAxisPixel(paramAxisX, AXIS_WIDTH);
+  const alignedAxisY = alignAxisPixel(paramAxisY, AXIS_WIDTH);
+  const alignedParamX = alignAxisPixel(paramX, AXIS_WIDTH);
+  const alignedParamY = alignAxisPixel(paramY, AXIS_WIDTH);
 
   ctx.save();
-  ctx.strokeStyle = "rgba(255,64,64,0.95)";
+  ctx.strokeStyle = "rgba(255,40,40,1.0)";
   ctx.fillStyle = "rgba(255,92,92,0.96)";
-  ctx.lineWidth = 1;
+  ctx.lineWidth = AXIS_WIDTH;
+  ctx.shadowBlur = 0;
 
   if (manYControl) {
-    ctx.beginPath();
-    ctx.moveTo(0, paramAxisY);
-    ctx.lineTo(view.width, paramAxisY);
-    ctx.stroke();
+    drawAxisLine(0, alignedAxisY, view.width, alignedAxisY);
   }
 
   if (manXControl) {
-    ctx.beginPath();
-    ctx.moveTo(paramAxisX, 0);
-    ctx.lineTo(paramAxisX, view.height);
-    ctx.stroke();
+    drawAxisLine(alignedAxisX, 0, alignedAxisX, view.height);
   }
 
+  // Keep center crosshair crisp and thin (no blur)
   ctx.beginPath();
-  ctx.moveTo(paramX - crosshairSize, paramY);
-  ctx.lineTo(paramX + crosshairSize, paramY);
-  ctx.moveTo(paramX, paramY - crosshairSize);
-  ctx.lineTo(paramX, paramY + crosshairSize);
+  ctx.moveTo(alignedParamX - crosshairSize, alignedParamY);
+  ctx.lineTo(alignedParamX + crosshairSize, alignedParamY);
+  ctx.moveTo(alignedParamX, alignedParamY - crosshairSize);
+  ctx.lineTo(alignedParamX, alignedParamY + crosshairSize);
   ctx.stroke();
 
   ctx.font = `${axisNameFontPx}px system-ui, sans-serif`;
