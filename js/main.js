@@ -73,6 +73,7 @@ const HOLD_ACCEL_END_MS = 3000;
 const HOLD_MAX_MULTIPLIER = 10;
 const NAME_MAX_CHARS = 20;
 const CAMERA_LONG_PRESS_MS = 550;
+const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
 const PARAM_LONG_MS = 450;
 const PARAM_MOVE_CANCEL_PX = 10;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
@@ -322,11 +323,6 @@ function layoutFloatingActions() {
   if (!floatingActionsEl || !paramRowEl) {
     return;
   }
-
-  const appRect = canvas.parentElement.getBoundingClientRect();
-  const paramRowRect = paramRowEl.getBoundingClientRect();
-  const top = clamp(paramRowRect.top - appRect.top, 0, Math.max(0, appRect.height - 48));
-  floatingActionsEl.style.top = `${top}px`;
 }
 
 function getScaleMode() {
@@ -350,7 +346,7 @@ function setScaleModeFixed(reason = "manual pan/zoom") {
 
 function syncScaleModeButton() {
   const isFixed = getScaleMode() === "fixed";
-  scaleModeBtn.textContent = isFixed ? "F" : "A";
+  scaleModeBtn.textContent = "Auto Scale\nFixed Scale";
   scaleModeBtn.classList.toggle("is-fixed", isFixed);
   scaleModeBtn.setAttribute("aria-label", isFixed ? "Switch to auto scaling" : "Switch to fixed scaling");
   scaleModeBtn.title = isFixed ? "Fixed scale" : "Auto scale";
@@ -358,12 +354,37 @@ function syncScaleModeButton() {
 
 function syncRandomModeButton() {
   const globalMode = getGlobalRandomFixMixState();
-  randomModeBtn.textContent = globalMode.toUpperCase();
+  randomModeBtn.textContent = "Random";
   randomModeBtn.classList.toggle("is-random", globalMode === "ran");
   randomModeBtn.classList.toggle("is-fixed", globalMode === "fix");
   randomModeBtn.classList.toggle("is-mixed", globalMode === "mix");
   randomModeBtn.setAttribute("aria-label", globalMode === "ran" ? "All parameter modes set to random" : globalMode === "fix" ? "All parameter modes set to fixed" : "Mixed parameter modes");
   randomModeBtn.title = globalMode === "ran" ? "All random" : globalMode === "fix" ? "All fixed" : "Mixed parameter modes";
+}
+
+function maybeShowLandscapeHint() {
+  const isPhone = window.matchMedia("(max-width: 900px) and (pointer: coarse)").matches;
+  const isPortrait = window.matchMedia("(orientation: portrait)").matches;
+  if (!isPhone || !isPortrait) {
+    return;
+  }
+
+  try {
+    if (window.localStorage.getItem(LANDSCAPE_HINT_STORAGE_KEY) === "1") {
+      return;
+    }
+  } catch {
+    // ignore storage access errors
+  }
+
+  window.setTimeout(() => {
+    window.alert("For best results on phones, rotate your device to landscape mode.");
+    try {
+      window.localStorage.setItem(LANDSCAPE_HINT_STORAGE_KEY, "1");
+    } catch {
+      // ignore storage access errors
+    }
+  }, 350);
 }
 
 function getGlobalRandomFixMixState() {
@@ -2163,6 +2184,7 @@ async function bootstrap() {
     saveParamModesToStorage();
 
     registerHandlers();
+    maybeShowLandscapeHint();
     commitCurrentStateToHistory();
     requestDraw();
     const formula = appData.formulas.find((item) => item.id === currentFormulaId);
