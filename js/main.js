@@ -38,6 +38,32 @@ const floatingActionsEl = document.getElementById("floatingActions");
 const modePickerEl = document.getElementById("modePicker");
 const modePickerRadios = Array.from(modePickerEl?.querySelectorAll('input[name="paramMode"]') || []);
 
+const UI_ROOTS = [
+  "#paramOverlay",
+  "#floatingActions",
+  "#quickSliderOverlay",
+  "#pickerOverlay",
+  "#modePicker",
+  "#debugToggleDock",
+  "#debugPanel",
+];
+
+function isUiTarget(target) {
+  if (!(target instanceof Element) || !target.closest) {
+    return false;
+  }
+
+  return UI_ROOTS.some((selector) => target.closest(selector));
+}
+
+function isModalOpen() {
+  return Boolean(
+    quickSliderOverlay?.classList.contains("is-open")
+      || pickerOverlay?.classList.contains("is-open")
+      || modePickerEl?.classList.contains("is-open"),
+  );
+}
+
 const sliderControls = {
   alpha: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   beta: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
@@ -122,6 +148,10 @@ const ZOOM_DEADBAND_PX = 2.5 * DPR;
 const ZOOM_RATIO_MIN = 0.002;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
+const SWIPE_EDGE_PX = 44;
+const SWIPE_TRIGGER_PX = 60;
+const SWIPE_MAX_TIME_MS = 450;
+const SWIPE_MAX_X_DRIFT_PX = 50;
 
 const sliderKeyByParamKey = {
   a: "alpha",
@@ -139,11 +169,143 @@ let twoFingerGesture = null;
 let lastTwoDebug = null;
 let historyTapTracker = null;
 let suppressHistoryTap = false;
+let uiHidden = false;
+let interactionRouter = null;
 let fixedView = {
   offsetX: 0,
   offsetY: 0,
   zoom: 1,
 };
+
+function setUiHidden(hidden) {
+  uiHidden = Boolean(hidden);
+  document.body.classList.toggle("ui-hidden", uiHidden);
+}
+
+class InteractionRouter {
+  constructor(canvasElement) {
+    this.canvas = canvasElement;
+    this.ownerByPointerId = new Map();
+    this.activeOwner = null;
+    this.swipeCandidate = null;
+  }
+
+  install() {
+    document.addEventListener("pointerdown", (event) => this.onPointerDown(event), { capture: true, passive: false });
+    document.addEventListener("pointermove", (event) => this.onPointerMove(event), { capture: true, passive: false });
+    document.addEventListener("pointerup", (event) => this.onPointerUp(event), { capture: true, passive: false });
+    document.addEventListener("pointercancel", (event) => this.onPointerUp(event), { capture: true, passive: false });
+  }
+
+  setOwner(pointerId, owner) {
+    this.ownerByPointerId.set(pointerId, owner);
+    if (!this.activeOwner) {
+      this.activeOwner = owner;
+    }
+  }
+
+  resetOwnerIfIdle() {
+    if (this.ownerByPointerId.size === 0) {
+      this.activeOwner = null;
+      this.swipeCandidate = null;
+    }
+  }
+
+  shouldTrackSwipe(event) {
+    if (isModalOpen() || event.pointerType === "mouse" || this.ownerByPointerId.size > 0) {
+      return false;
+    }
+
+    return event.clientY >= window.innerHeight - SWIPE_EDGE_PX;
+  }
+
+  onPointerDown(event) {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+
+    if (isModalOpen()) {
+      this.setOwner(event.pointerId, "ui");
+      if (modePickerEl?.classList.contains("is-open") && !event.target.closest("#modePicker")) {
+        closeModePicker();
+      }
+      return;
+    }
+
+    if (isUiTarget(event.target)) {
+      this.setOwner(event.pointerId, "ui");
+      return;
+    }
+
+    this.setOwner(event.pointerId, "canvas");
+
+    if (this.shouldTrackSwipe(event)) {
+      this.swipeCandidate = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startedAt: performance.now(),
+      };
+      return;
+    }
+
+    onCanvasPointerDown(event);
+  }
+
+  onPointerMove(event) {
+    const owner = this.ownerByPointerId.get(event.pointerId);
+    if (owner !== "canvas") {
+      return;
+    }
+
+    if (this.swipeCandidate?.pointerId === event.pointerId) {
+      const elapsedMs = performance.now() - this.swipeCandidate.startedAt;
+      const deltaY = event.clientY - this.swipeCandidate.startY;
+      const driftX = Math.abs(event.clientX - this.swipeCandidate.startX);
+
+      if (elapsedMs > SWIPE_MAX_TIME_MS || driftX > SWIPE_MAX_X_DRIFT_PX) {
+        this.swipeCandidate = null;
+        onCanvasPointerDown(event);
+        onCanvasPointerMove(event);
+        return;
+      }
+
+      if (!uiHidden && deltaY <= -SWIPE_TRIGGER_PX) {
+        setUiHidden(true);
+        this.swipeCandidate = null;
+        return;
+      }
+
+      if (uiHidden && deltaY >= SWIPE_TRIGGER_PX) {
+        setUiHidden(false);
+        this.swipeCandidate = null;
+        return;
+      }
+
+      return;
+    }
+
+    onCanvasPointerMove(event);
+  }
+
+  onPointerUp(event) {
+    const owner = this.ownerByPointerId.get(event.pointerId);
+    if (owner === "canvas") {
+      if (this.swipeCandidate?.pointerId !== event.pointerId) {
+        onCanvasPointerUp(event);
+      }
+      if (historyTapTracker?.pointerId === event.pointerId) {
+        historyTapTracker = null;
+      }
+    }
+
+    this.ownerByPointerId.delete(event.pointerId);
+    if (this.swipeCandidate?.pointerId === event.pointerId) {
+      this.swipeCandidate = null;
+    }
+    this.resetOwnerIfIdle();
+  }
+}
 
 function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   const normalized = String(text ?? "").trim();
@@ -660,11 +822,7 @@ function randomizeAllParameters() {
 }
 
 function isEventInsideInteractiveUi(eventTarget) {
-  if (!(eventTarget instanceof Element)) {
-    return false;
-  }
-
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #modePicker, #debugToggleDock, #floatingActions"));
+  return isUiTarget(eventTarget);
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -870,7 +1028,9 @@ function onCanvasPointerDown(event) {
     event.preventDefault();
   }
 
-  canvas.setPointerCapture(event.pointerId);
+  if (event.target === canvas) {
+    canvas.setPointerCapture(event.pointerId);
+  }
   activePointers.set(event.pointerId, {
     pointerId: event.pointerId,
     clientX: event.clientX,
@@ -1938,18 +2098,6 @@ function registerHandlers() {
     modePickerEl.addEventListener("contextmenu", (event) => event.preventDefault());
   }
 
-  window.addEventListener("pointerdown", (event) => {
-    if (!modePickerEl?.classList.contains("is-open")) {
-      return;
-    }
-
-    if (event.target instanceof Element && event.target.closest("#modePicker")) {
-      return;
-    }
-
-    closeModePicker();
-  });
-
   for (const radio of modePickerRadios) {
     radio.addEventListener("change", () => {
       if (!radio.checked || !activeModeParamKey) {
@@ -2020,43 +2168,17 @@ function registerHandlers() {
   randomModeBtn.addEventListener("click", toggleRandomMode);
 
   canvas.style.touchAction = "none";
-  canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: false });
-  canvas.addEventListener("pointermove", onCanvasPointerMove, { passive: false });
-  canvas.addEventListener("pointerup", onCanvasPointerUp, { passive: false });
-  canvas.addEventListener("pointercancel", onCanvasPointerUp, { passive: false });
   canvas.addEventListener("wheel", onCanvasWheel, { passive: false });
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
 
-  window.addEventListener("pointerdown", (event) => {
-    if (isEventInsideInteractiveUi(event.target)) {
-      historyTapTracker = null;
-      return;
-    }
+  interactionRouter = new InteractionRouter(canvas);
+  interactionRouter.install();
 
-    if (event.pointerType === "mouse" && event.button !== 0) {
-      historyTapTracker = null;
-      return;
-    }
-
-    historyTapTracker = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      validTap: true,
-    };
-  });
-
-  window.addEventListener("pointermove", updateHistoryTapTrackerFromMove, { passive: true });
   window.addEventListener("pointerup", (event) => {
+    if (interactionRouter?.activeOwner !== "canvas") {
+      return;
+    }
     handleScreenHistoryNavigation(event);
-    if (historyTapTracker?.pointerId === event.pointerId) {
-      historyTapTracker = null;
-    }
-  });
-  window.addEventListener("pointercancel", (event) => {
-    if (historyTapTracker?.pointerId === event.pointerId) {
-      historyTapTracker = null;
-    }
   });
 
   window.addEventListener(
