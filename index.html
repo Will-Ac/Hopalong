@@ -408,6 +408,7 @@
         text-align: center;
         line-height: 1.1;
         white-space: pre-line;
+        overflow: hidden;
       }
       #randomModeBtn {
         position: relative;
@@ -429,6 +430,7 @@
         text-align: center;
         line-height: 1.1;
         white-space: pre-line;
+        overflow: hidden;
       }
       #scaleModeBtn.is-fixed,
       #randomModeBtn.is-random {
@@ -459,12 +461,27 @@
         height: 100%;
       }
 
-      @media (max-width: 900px) {
-        #scaleModeBtn {
-          font-size: 10px;
+      @media (max-width: 900px) and (orientation: landscape) {
+        .poItem {
+          padding: 4px;
         }
-        #randomModeBtn {
-          font-size: 11px;
+        .poLabel {
+          font-size: 9px;
+          margin-bottom: 2px;
+        }
+        .poBtn,
+        #scaleModeBtn,
+        #randomModeBtn,
+        #cameraBtn {
+          min-height: 32px;
+          font-size: 9px;
+          line-height: 1.05;
+          padding: 3px 4px;
+          overflow: hidden;
+        }
+        #cameraBtn .cameraIcon {
+          width: 18px;
+          height: 18px;
         }
       }
 
@@ -578,10 +595,10 @@
           </div>
         </div>
         <div id="floatingActions">
-          <button id="scaleModeBtn" type="button" aria-label="Toggle scaling mode">Auto Scale
-Fixed Scale</button>
-          <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode">Randomise All
-Fix All</button>
+          <button id="scaleModeBtn" type="button" aria-label="Toggle scaling mode">Fixed
+Scale</button>
+          <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode">Randomise
+All</button>
           <button id="cameraBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </div>
         </div>

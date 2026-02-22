@@ -346,7 +346,7 @@ function setScaleModeFixed(reason = "manual pan/zoom") {
 
 function syncScaleModeButton() {
   const isFixed = getScaleMode() === "fixed";
-  scaleModeBtn.textContent = isFixed ? "Auto Scale\nFixed Scale" : "Fixed Scale\nAuto Scale";
+  scaleModeBtn.textContent = isFixed ? "Auto\nScale" : "Fixed\nScale";
   scaleModeBtn.classList.toggle("is-fixed", isFixed);
   scaleModeBtn.setAttribute("aria-label", isFixed ? "Switch to auto scaling" : "Switch to fixed scaling");
   scaleModeBtn.title = isFixed ? "Fixed scale" : "Auto scale";
@@ -354,7 +354,7 @@ function syncScaleModeButton() {
 
 function syncRandomModeButton() {
   const globalMode = getGlobalRandomFixMixState();
-  randomModeBtn.textContent = globalMode === "ran" ? "Fix All\nRandomise All" : "Randomise All\nFix All";
+  randomModeBtn.textContent = globalMode === "ran" ? "Fix\nAll" : "Randomise\nAll";
   randomModeBtn.classList.toggle("is-random", globalMode === "ran");
   randomModeBtn.classList.toggle("is-fixed", globalMode === "fix");
   randomModeBtn.classList.toggle("is-mixed", globalMode === "mix");
