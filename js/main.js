@@ -1619,21 +1619,7 @@ function drawManualParamOverlay(meta) {
     ctx.stroke();
     ctx.restore();
 
-    // 2) Subtle halo pass
-    ctx.save();
-    ctx.lineWidth = AXIS_WIDTH;
-    ctx.strokeStyle = "rgba(255,0,0,0.9)";
-    ctx.shadowColor = "rgba(0,0,0,0.9)";
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    ctx.restore();
-
-    // 3) Final crisp red pass (no blur)
+    // 2) Final crisp red pass (no blur)
     ctx.save();
     ctx.lineWidth = AXIS_WIDTH;
     ctx.strokeStyle = "rgba(255,40,40,1.0)";
@@ -1642,6 +1628,35 @@ function drawManualParamOverlay(meta) {
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  const drawCrosshair = (x, y, size) => {
+    // 1) Dark outline pass
+    ctx.save();
+    ctx.lineWidth = AXIS_WIDTH + 2;
+    ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.moveTo(x - size, y);
+    ctx.lineTo(x + size, y);
+    ctx.moveTo(x, y - size);
+    ctx.lineTo(x, y + size);
+    ctx.stroke();
+    ctx.restore();
+
+    // 2) Final crisp red pass (no blur)
+    ctx.save();
+    ctx.lineWidth = AXIS_WIDTH;
+    ctx.strokeStyle = "rgba(255,40,40,1.0)";
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
+    ctx.beginPath();
+    ctx.moveTo(x - size, y);
+    ctx.lineTo(x + size, y);
+    ctx.moveTo(x, y - size);
+    ctx.lineTo(x, y + size);
     ctx.stroke();
     ctx.restore();
   };
@@ -1665,13 +1680,7 @@ function drawManualParamOverlay(meta) {
     drawAxisLine(alignedAxisX, 0, alignedAxisX, view.height);
   }
 
-  // Keep center crosshair crisp and thin (no blur)
-  ctx.beginPath();
-  ctx.moveTo(alignedParamX - crosshairSize, alignedParamY);
-  ctx.lineTo(alignedParamX + crosshairSize, alignedParamY);
-  ctx.moveTo(alignedParamX, alignedParamY - crosshairSize);
-  ctx.lineTo(alignedParamX, alignedParamY + crosshairSize);
-  ctx.stroke();
+  drawCrosshair(alignedParamX, alignedParamY, crosshairSize);
 
   ctx.font = `${axisNameFontPx}px system-ui, sans-serif`;
   if (manYControl) {
