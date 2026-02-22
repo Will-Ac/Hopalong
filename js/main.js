@@ -135,6 +135,7 @@ let interactionState = INTERACTION_STATE.NONE;
 let activePointers = new Map();
 let primaryPointerId = null;
 let lastPointerPosition = null;
+let isManualModulating = false;
 let twoFingerGesture = null;
 let lastTwoDebug = null;
 let historyTapTracker = null;
@@ -740,7 +741,7 @@ function getManualAxisTargets() {
 function applyManualModulation(deltaX, deltaY) {
   const { manX, manY } = getManualAxisTargets();
   if (!manX && !manY) {
-    return;
+    return false;
   }
 
   if (manX) {
@@ -762,6 +763,7 @@ function applyManualModulation(deltaX, deltaY) {
   }
 
   requestDraw();
+  return true;
 }
 
 function applyPanDelta(deltaX, deltaY) {
@@ -898,6 +900,7 @@ function onCanvasPointerDown(event) {
   if (activePointers.size === 1) {
     interactionState = INTERACTION_STATE.MOD_1;
     primaryPointerId = event.pointerId;
+    isManualModulating = false;
     const pos = getCanvasPointerPosition(event);
     lastPointerPosition = { x: pos.x, y: pos.y };
     requestDraw();
@@ -931,7 +934,8 @@ function onCanvasPointerMove(event) {
       lastPointerPosition = { x: pos.x, y: pos.y };
       return;
     }
-    applyManualModulation(pos.x - lastPointerPosition.x, pos.y - lastPointerPosition.y);
+    const didModulate = applyManualModulation(pos.x - lastPointerPosition.x, pos.y - lastPointerPosition.y);
+    isManualModulating = isManualModulating || didModulate;
     lastPointerPosition = { x: pos.x, y: pos.y };
     return;
   }
@@ -1013,6 +1017,7 @@ function clearPointerState(pointerId) {
     interactionState = INTERACTION_STATE.NONE;
     primaryPointerId = null;
     lastPointerPosition = null;
+    isManualModulating = false;
     clearTwoFingerGesture();
     requestDraw();
     return;
@@ -1023,6 +1028,7 @@ function clearPointerState(pointerId) {
     clearTwoFingerGesture();
     primaryPointerId = remaining.pointerId;
     interactionState = INTERACTION_STATE.MOD_1;
+    isManualModulating = false;
     const pos = getCanvasPointerPosition(remaining);
     lastPointerPosition = { x: pos.x, y: pos.y };
     requestDraw();
@@ -1539,7 +1545,7 @@ function getParamPixelVertical(value, range, spanPx, fallbackPx) {
 }
 
 function shouldShowManualOverlay() {
-  return interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0;
+  return interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0 && isManualModulating;
 }
 
 function drawManualParamOverlay(meta) {
