@@ -46,6 +46,13 @@ const sliderControls = {
   iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 1000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
 };
 
+const DEFAULT_PARAM_RANGES = {
+  a: [-80, 80],
+  b: [-20, 20],
+  c: [-20, 20],
+  d: [-20, 20],
+};
+
 const ctx = canvas.getContext("2d", { alpha: false });
 let appData = null;
 let currentFormulaId = null;
@@ -110,7 +117,7 @@ const INTERACTION_STATE = {
   PINCH_ZOOM: "PINCH_ZOOM",
   PAN_MOUSE_RMB: "PAN_MOUSE_RMB",
 };
-const PINCH_SWITCH_THRESHOLD_PX = 8;
+const PINCH_SWITCH_THRESHOLD_PX = 48;
 const PINCH_PAN_EPSILON_PX = 2;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
@@ -747,7 +754,7 @@ function applyManualModulation(deltaX, deltaY) {
   if (manY) {
     const control = sliderControls[manY];
     appData.defaults.sliders[manY] = clamp(
-      appData.defaults.sliders[manY] + deltaY * MODULATION_SENSITIVITY * control.stepSize,
+      appData.defaults.sliders[manY] - deltaY * MODULATION_SENSITIVITY * control.stepSize,
       control.min,
       control.max,
     );
@@ -828,6 +835,7 @@ function onCanvasPointerDown(event) {
     const pos = getCanvasPointerPosition(event);
     lastPointerPosition = { x: pos.x, y: pos.y };
     suppressHistoryTap = true;
+    requestDraw();
     return;
   }
 
@@ -836,6 +844,7 @@ function onCanvasPointerDown(event) {
     primaryPointerId = event.pointerId;
     const pos = getCanvasPointerPosition(event);
     lastPointerPosition = { x: pos.x, y: pos.y };
+    requestDraw();
     return;
   }
 
@@ -853,6 +862,7 @@ function onCanvasPointerDown(event) {
     interactionState = INTERACTION_STATE.PAN_2P;
     setScaleModeFixed("manual pan/zoom");
     suppressHistoryTap = true;
+    requestDraw();
   }
 }
 
@@ -904,8 +914,14 @@ function onCanvasPointerMove(event) {
   const midpointDx = midpoint.x - (gestureLastMidpoint?.x ?? midpoint.x);
   const midpointDy = midpoint.y - (gestureLastMidpoint?.y ?? midpoint.y);
 
-  if (Math.abs(distanceDelta) > PINCH_SWITCH_THRESHOLD_PX) {
-    interactionState = INTERACTION_STATE.PINCH_ZOOM;
+  const translationMagnitude = Math.hypot(midpointDx, midpointDy);
+  const pinchLooksIntentional = Math.abs(distanceDelta) > PINCH_SWITCH_THRESHOLD_PX
+    && Math.abs(distanceDelta) > translationMagnitude * 1.35;
+
+  if (interactionState !== INTERACTION_STATE.PAN_2P || pinchLooksIntentional) {
+    if (Math.abs(distanceDelta) > PINCH_SWITCH_THRESHOLD_PX) {
+      interactionState = INTERACTION_STATE.PINCH_ZOOM;
+    }
   }
 
   if (interactionState === INTERACTION_STATE.PINCH_ZOOM && gestureStartDistance > 0) {
@@ -933,6 +949,7 @@ function clearPointerState(pointerId) {
     lastPointerPosition = null;
     gestureLastMidpoint = null;
     gestureStartDistance = 0;
+    requestDraw();
     return;
   }
 
@@ -944,6 +961,7 @@ function clearPointerState(pointerId) {
     lastPointerPosition = { x: pos.x, y: pos.y };
     gestureLastMidpoint = null;
     gestureStartDistance = 0;
+    requestDraw();
   }
 }
 
@@ -1114,7 +1132,7 @@ function updateQuickSliderReadout() {
   qsValue.textContent = formatControlValue(control, actualValue);
 }
 
-function applySliderValue(nextValue) {
+function applySliderValue(nextValue, { commitHistory = true } = {}) {
   if (!activeSliderKey) {
     return;
   }
@@ -1125,7 +1143,9 @@ function applySliderValue(nextValue) {
   qsRange.value = value;
   updateQuickSliderReadout();
   requestDraw();
-  commitCurrentStateToHistory();
+  if (commitHistory) {
+    commitCurrentStateToHistory();
+  }
 }
 
 function openQuickSlider(sliderKey) {
@@ -1394,6 +1414,127 @@ function formatTickValue(value, step) {
   return clamped.toFixed(decimals);
 }
 
+function getControlForSlider(sliderKey) {
+  return sliderKey ? sliderControls[sliderKey] || null : null;
+}
+
+function getRangeForControl(control) {
+  if (!control || control.paramKey === "iters") {
+    return null;
+  }
+
+  const formulaRanges = getCurrentFormulaRange() || DEFAULT_PARAM_RANGES;
+  return formulaRanges[control.paramKey] || DEFAULT_PARAM_RANGES[control.paramKey] || null;
+}
+
+function getAxisPixelForZero(range, spanPx, fallbackPx) {
+  if (!range || range.length < 2) {
+    return fallbackPx;
+  }
+
+  return axisScreenPosition(range[0], range[1], spanPx);
+}
+
+function getParamPixel(value, range, spanPx, fallbackPx) {
+  if (!range || range.length < 2 || range[1] === range[0]) {
+    return fallbackPx;
+  }
+
+  return ((value - range[0]) / (range[1] - range[0])) * spanPx;
+}
+
+function getAxisPixelForZeroVertical(range, spanPx, fallbackPx) {
+  if (!range || range.length < 2) {
+    return fallbackPx;
+  }
+
+  const [minValue, maxValue] = range;
+  if (minValue <= 0 && maxValue >= 0) {
+    return ((maxValue - 0) / (maxValue - minValue)) * spanPx;
+  }
+
+  return Math.abs(minValue) <= Math.abs(maxValue) ? spanPx : 0;
+}
+
+function getParamPixelVertical(value, range, spanPx, fallbackPx) {
+  if (!range || range.length < 2 || range[1] === range[0]) {
+    return fallbackPx;
+  }
+
+  return ((range[1] - value) / (range[1] - range[0])) * spanPx;
+}
+
+function shouldShowManualOverlay() {
+  return interactionState === INTERACTION_STATE.MODULATE_1P && activePointers.size > 0;
+}
+
+function drawManualParamOverlay(meta) {
+  if (!meta || !shouldShowManualOverlay()) {
+    return;
+  }
+
+  const { manX, manY } = getManualAxisTargets();
+  const manXControl = getControlForSlider(manX);
+  const manYControl = getControlForSlider(manY);
+  const manXRange = getRangeForControl(manXControl);
+  const manYRange = getRangeForControl(manYControl);
+  const manualParams = getDerivedParams();
+  const hasManualAxis = Boolean(manXControl || manYControl);
+
+  if (!hasManualAxis) {
+    return;
+  }
+
+  const { view } = meta;
+  const centerX = view.width * 0.5;
+  const centerY = view.height * 0.5;
+  const paramAxisX = manXRange ? getAxisPixelForZero(manXRange, view.width, centerX) : centerX;
+  const paramAxisY = manYRange ? getAxisPixelForZeroVertical(manYRange, view.height, centerY) : centerY;
+  const paramXValue = manXControl ? manualParams[manXControl.paramKey] : null;
+  const paramYValue = manYControl ? manualParams[manYControl.paramKey] : null;
+  const paramX = manXRange ? getParamPixel(paramXValue, manXRange, view.width, centerX) : centerX;
+  const paramY = manYRange ? getParamPixelVertical(paramYValue, manYRange, view.height, centerY) : centerY;
+  const crosshairSize = 28;
+  const labelGap = 12;
+  const axisNameFontPx = Math.max(12, Math.round(Math.min(view.width, view.height) * 0.017));
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,64,64,0.95)";
+  ctx.fillStyle = "rgba(255,92,92,0.96)";
+  ctx.lineWidth = 1;
+
+  if (manYControl) {
+    ctx.beginPath();
+    ctx.moveTo(0, paramAxisY);
+    ctx.lineTo(view.width, paramAxisY);
+    ctx.stroke();
+  }
+
+  if (manXControl) {
+    ctx.beginPath();
+    ctx.moveTo(paramAxisX, 0);
+    ctx.lineTo(paramAxisX, view.height);
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(paramX - crosshairSize, paramY);
+  ctx.lineTo(paramX + crosshairSize, paramY);
+  ctx.moveTo(paramX, paramY - crosshairSize);
+  ctx.lineTo(paramX, paramY + crosshairSize);
+  ctx.stroke();
+
+  ctx.font = `${axisNameFontPx}px system-ui, sans-serif`;
+  if (manYControl) {
+    ctx.fillText(manYControl.label, view.width - axisNameFontPx * 1.2, Math.max(axisNameFontPx + 4, paramAxisY - labelGap));
+  }
+  if (manXControl) {
+    ctx.fillText(manXControl.label, Math.min(view.width - axisNameFontPx * 1.5, paramAxisX + labelGap), axisNameFontPx + 4);
+  }
+
+  ctx.restore();
+}
+
 function drawDebugOverlay(meta) {
   if (!appData.defaults.debug || !meta) {
     debugInfoEl.textContent = "Debug off";
@@ -1552,6 +1693,7 @@ function draw() {
   };
 
   drawDebugOverlay(lastRenderMeta);
+  drawManualParamOverlay(lastRenderMeta);
   refreshParamButtons();
   updateQuickSliderReadout();
   layoutFloatingActions();
@@ -1755,7 +1897,10 @@ function registerHandlers() {
   });
 
   qsRange.addEventListener("input", () => {
-    applySliderValue(Number.parseFloat(qsRange.value));
+    applySliderValue(Number.parseFloat(qsRange.value), { commitHistory: false });
+  });
+  qsRange.addEventListener("change", () => {
+    commitCurrentStateToHistory();
   });
 
   setupStepHold(qsMinus, -1);
