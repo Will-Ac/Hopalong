@@ -1,5 +1,6 @@
 import { ColorMapNames, sampleColorMap } from "./colormaps.js";
 import { renderFrame, getParamsForFormula } from "./renderer.js";
+import { createQrCode } from "./vendor/qrcode-generator.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
@@ -66,6 +67,7 @@ let fpsEstimate = 0;
 let drawScheduled = false;
 let drawDirty = false;
 let toastTimer = null;
+let sharedParamsOverride = null;
 
 const HOLD_REPEAT_MS = 70;
 const HOLD_ACCEL_START_MS = 2000;
@@ -239,10 +241,18 @@ function getCurrentFormulaRange() {
 }
 
 function getDerivedParams() {
+  if (sharedParamsOverride) {
+    return { ...sharedParamsOverride };
+  }
+
   return getParamsForFormula({
     rangesForFormula: getCurrentFormulaRange(),
     sliderDefaults: appData.defaults.sliders,
   });
+}
+
+function clearSharedParamsOverride() {
+  sharedParamsOverride = null;
 }
 
 function resolveInitialFormulaId() {
@@ -626,6 +636,7 @@ function applyState(state) {
 
   isApplyingHistoryState = true;
   currentFormulaId = state.formulaId;
+  clearSharedParamsOverride();
   appData.defaults.cmapName = state.cmapName;
   appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
   appData.defaults.scaleMode = state.scaleMode === "fixed" ? "fixed" : "auto";
@@ -657,6 +668,7 @@ function randomChoice(items) {
 }
 
 function randomizeAllParameters() {
+  clearSharedParamsOverride();
   if (isRandomizedParam("formula")) {
     currentFormulaId = randomChoice(appData.formulas).id;
   }
@@ -764,6 +776,8 @@ function applyManualModulation(deltaX, deltaY) {
   if (!manX && !manY) {
     return false;
   }
+
+  clearSharedParamsOverride();
 
   if (manX) {
     const control = sliderControls[manX];
@@ -1159,6 +1173,7 @@ function renderFormulaPicker() {
     button.append(row);
 
     button.addEventListener("click", () => {
+      clearSharedParamsOverride();
       currentFormulaId = formula.id;
       updateCurrentPickerSelection();
       requestDraw();
@@ -1197,6 +1212,7 @@ function renderColorMapPicker() {
     button.append(row);
 
     button.addEventListener("click", () => {
+      clearSharedParamsOverride();
       appData.defaults.cmapName = cmapName;
       updateCurrentPickerSelection();
       requestDraw();
@@ -1240,6 +1256,9 @@ function applySliderValue(nextValue, { commitHistory = true } = {}) {
 
   const control = sliderControls[activeSliderKey];
   const value = clamp(nextValue, control.min, control.max);
+  if (activeSliderKey !== "iters") {
+    clearSharedParamsOverride();
+  }
   appData.defaults.sliders[activeSliderKey] = value;
   qsRange.value = value;
   updateQuickSliderReadout();
@@ -1261,6 +1280,67 @@ function openQuickSlider(sliderKey) {
   qsRange.step = String(control.sliderStep);
   qsRange.value = appData.defaults.sliders[sliderKey];
   updateQuickSliderReadout();
+}
+
+function parseSharedStateHash() {
+  const hash = String(window.location.hash || "");
+  if (!hash.startsWith("#s=")) {
+    return null;
+  }
+
+  const payload = hash.slice(3);
+  const parts = new URLSearchParams(payload);
+  const formulaId = (parts.get("f") || "").trim();
+  const cmapName = (parts.get("c") || "").trim();
+  const paramParts = (parts.get("p") || "").split(",").map((value) => Number(value));
+  const iterations = Number(parts.get("i") || "");
+  const viewParts = (parts.get("v") || "").split(",").map((value) => Number(value));
+
+  if (!formulaId || !cmapName || paramParts.length !== 4 || viewParts.length !== 3) {
+    return null;
+  }
+
+  if (!paramParts.every(Number.isFinite) || !Number.isFinite(iterations) || !viewParts.every(Number.isFinite)) {
+    return null;
+  }
+
+  return {
+    formulaId,
+    cmapName,
+    params: {
+      a: paramParts[0],
+      b: paramParts[1],
+      c: paramParts[2],
+      d: paramParts[3],
+    },
+    iterations,
+    fixedView: {
+      offsetX: viewParts[0],
+      offsetY: viewParts[1],
+      zoom: clamp(viewParts[2], 0.15, 25),
+    },
+  };
+}
+
+function applySharedStateFromHash() {
+  const parsed = parseSharedStateHash();
+  if (!parsed) {
+    return false;
+  }
+
+  const formulaExists = appData.formulas.some((formula) => formula.id === parsed.formulaId);
+  const cmapExists = appData.colormaps.includes(parsed.cmapName);
+  if (!formulaExists || !cmapExists) {
+    return false;
+  }
+
+  currentFormulaId = parsed.formulaId;
+  appData.defaults.cmapName = parsed.cmapName;
+  appData.defaults.scaleMode = "fixed";
+  fixedView = parsed.fixedView;
+  appData.defaults.sliders.iters = Math.round(clamp(parsed.iterations, sliderControls.iters.min, sliderControls.iters.max));
+  sharedParamsOverride = parsed.params;
+  return true;
 }
 
 function syncModePickerChoices(paramKey) {
@@ -1869,29 +1949,82 @@ function buildScreenshotOverlayLines() {
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   const params = getDerivedParams();
   const iterValue = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  return [
-    `${formula?.name || currentFormulaId} · ${appData.defaults.cmapName}`,
-    `a ${params.a.toFixed(4)}   b ${params.b.toFixed(4)}   c ${params.c.toFixed(4)}   d ${params.d.toFixed(4)}   iter ${iterValue}`,
-  ];
+  return `${formula?.name || currentFormulaId} · ${appData.defaults.cmapName} · a ${params.a.toFixed(4)} · b ${params.b.toFixed(4)} · c ${params.c.toFixed(4)} · d ${params.d.toFixed(4)} · iter ${iterValue}`;
+}
+
+function buildShareUrl() {
+  const params = getDerivedParams();
+  const iterations = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const encodedFormula = encodeURIComponent(currentFormulaId);
+  const encodedCmap = encodeURIComponent(appData.defaults.cmapName);
+  const encodedParams = encodeURIComponent([params.a, params.b, params.c, params.d].map((value) => Number(value).toFixed(8)).join(","));
+  const encodedIterations = encodeURIComponent(String(iterations));
+  const encodedView = encodeURIComponent([
+    Number(fixedView.offsetX).toFixed(4),
+    Number(fixedView.offsetY).toFixed(4),
+    Number(fixedView.zoom).toFixed(6),
+  ].join(","));
+  const payload = `f=${encodedFormula}&c=${encodedCmap}&p=${encodedParams}&i=${encodedIterations}&v=${encodedView}`;
+  return `${location.origin}${location.pathname}#s=${payload}`;
+}
+
+function buildQrCanvas(url, sizePx) {
+  const qr = createQrCode(0, "M");
+  qr.addData(url);
+  qr.make();
+
+  const moduleCount = qr.getModuleCount();
+  const borderModules = 4;
+  const totalModules = moduleCount + borderModules * 2;
+  const canvasSize = Math.max(sizePx, totalModules);
+  const pixelsPerModule = Math.max(1, Math.floor(canvasSize / totalModules));
+  const drawSize = totalModules * pixelsPerModule;
+  const start = Math.floor((canvasSize - drawSize) / 2);
+
+  const qrCanvas = document.createElement("canvas");
+  qrCanvas.width = canvasSize;
+  qrCanvas.height = canvasSize;
+  const qrCtx = qrCanvas.getContext("2d", { alpha: false });
+  qrCtx.fillStyle = "#ffffff";
+  qrCtx.fillRect(0, 0, canvasSize, canvasSize);
+  qrCtx.fillStyle = "#000000";
+
+  for (let row = 0; row < moduleCount; row += 1) {
+    for (let col = 0; col < moduleCount; col += 1) {
+      if (!qr.isDark(row, col)) {
+        continue;
+      }
+
+      const x = start + (col + borderModules) * pixelsPerModule;
+      const y = start + (row + borderModules) * pixelsPerModule;
+      qrCtx.fillRect(x, y, pixelsPerModule, pixelsPerModule);
+    }
+  }
+
+  return qrCanvas;
 }
 
 function drawScreenshotOverlay(targetCtx, width, height) {
-  const lines = buildScreenshotOverlayLines();
+  const line = buildScreenshotOverlayLines();
   const margin = Math.max(18, Math.round(width * 0.02));
-  const lineHeight = Math.max(20, Math.round(height * 0.032));
-  const panelHeight = lineHeight * lines.length + margin;
+  const qrSize = clamp(Math.round(Math.min(width, height) * 0.14), 140, 320);
+  const qrCanvas = buildQrCanvas(buildShareUrl(), qrSize);
+  const qrX = width - margin - qrSize;
+  const qrY = height - margin - qrSize;
+  const fontSize = Math.max(14, Math.round(height * 0.022));
+  const maxTextWidth = Math.max(20, qrX - margin * 2);
 
   targetCtx.save();
-  targetCtx.fillStyle = "rgba(255, 255, 255, 0.08)";
-  targetCtx.fillRect(0, height - panelHeight, width, panelHeight);
-  targetCtx.fillStyle = "rgba(255, 255, 255, 0.56)";
-  targetCtx.font = `${Math.max(14, Math.round(height * 0.022))}px system-ui, -apple-system, Segoe UI, sans-serif`;
+  targetCtx.font = `${fontSize}px system-ui, -apple-system, Segoe UI, sans-serif`;
   targetCtx.textBaseline = "bottom";
+  targetCtx.lineWidth = Math.max(2, Math.round(fontSize * 0.18));
+  targetCtx.strokeStyle = "rgba(0, 0, 0, 0.78)";
+  targetCtx.fillStyle = "rgba(255, 255, 255, 0.94)";
 
-  lines.forEach((line, index) => {
-    const y = height - margin / 2 - lineHeight * (lines.length - 1 - index);
-    targetCtx.fillText(line, margin, y);
-  });
+  const y = height - margin;
+  targetCtx.strokeText(line, margin, y, maxTextWidth);
+  targetCtx.fillText(line, margin, y, maxTextWidth);
+  targetCtx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
 
   targetCtx.restore();
 }
@@ -2223,6 +2356,7 @@ async function bootstrap() {
 
     currentFormulaId = resolveInitialFormulaId();
     appData.defaults.cmapName = resolveInitialColorMap();
+    const loadedSharedState = applySharedStateFromHash();
     configureNameBoxWidths();
     debugOnEl.checked = Boolean(appData.defaults.debug);
     debugOffEl.checked = !debugOnEl.checked;
@@ -2235,8 +2369,12 @@ async function bootstrap() {
     maybeShowLandscapeHint();
     commitCurrentStateToHistory();
     requestDraw();
-    const formula = appData.formulas.find((item) => item.id === currentFormulaId);
-    showToast(`Loaded ${formula?.name || currentFormulaId}. Slice 2.1 controls ready.`);
+    if (loadedSharedState) {
+      showToast("Loaded shared state");
+    } else {
+      const formula = appData.formulas.find((item) => item.id === currentFormulaId);
+      showToast(`Loaded ${formula?.name || currentFormulaId}. Slice 2.1 controls ready.`);
+    }
   } catch (error) {
     console.error(error);
     showToast(`Startup failed: ${error.message}`);
