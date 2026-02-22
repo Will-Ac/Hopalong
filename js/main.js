@@ -73,6 +73,7 @@ const HOLD_ACCEL_END_MS = 3000;
 const HOLD_MAX_MULTIPLIER = 10;
 const NAME_MAX_CHARS = 20;
 const CAMERA_LONG_PRESS_MS = 550;
+const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
 const PARAM_LONG_MS = 450;
 const PARAM_MOVE_CANCEL_PX = 10;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
@@ -322,11 +323,6 @@ function layoutFloatingActions() {
   if (!floatingActionsEl || !paramRowEl) {
     return;
   }
-
-  const appRect = canvas.parentElement.getBoundingClientRect();
-  const paramRowRect = paramRowEl.getBoundingClientRect();
-  const top = clamp(paramRowRect.top - appRect.top, 0, Math.max(0, appRect.height - 48));
-  floatingActionsEl.style.top = `${top}px`;
 }
 
 function getScaleMode() {
@@ -350,7 +346,7 @@ function setScaleModeFixed(reason = "manual pan/zoom") {
 
 function syncScaleModeButton() {
   const isFixed = getScaleMode() === "fixed";
-  scaleModeBtn.textContent = isFixed ? "F" : "A";
+  scaleModeBtn.textContent = isFixed ? "Auto\nScale" : "Fixed\nScale";
   scaleModeBtn.classList.toggle("is-fixed", isFixed);
   scaleModeBtn.setAttribute("aria-label", isFixed ? "Switch to auto scaling" : "Switch to fixed scaling");
   scaleModeBtn.title = isFixed ? "Fixed scale" : "Auto scale";
@@ -358,12 +354,37 @@ function syncScaleModeButton() {
 
 function syncRandomModeButton() {
   const globalMode = getGlobalRandomFixMixState();
-  randomModeBtn.textContent = globalMode.toUpperCase();
+  randomModeBtn.textContent = globalMode === "ran" ? "Fix\nAll" : "Randomise\nAll";
   randomModeBtn.classList.toggle("is-random", globalMode === "ran");
   randomModeBtn.classList.toggle("is-fixed", globalMode === "fix");
   randomModeBtn.classList.toggle("is-mixed", globalMode === "mix");
   randomModeBtn.setAttribute("aria-label", globalMode === "ran" ? "All parameter modes set to random" : globalMode === "fix" ? "All parameter modes set to fixed" : "Mixed parameter modes");
   randomModeBtn.title = globalMode === "ran" ? "All random" : globalMode === "fix" ? "All fixed" : "Mixed parameter modes";
+}
+
+function maybeShowLandscapeHint() {
+  const isPhone = window.matchMedia("(max-width: 900px) and (pointer: coarse)").matches;
+  const isPortrait = window.matchMedia("(orientation: portrait)").matches;
+  if (!isPhone || !isPortrait) {
+    return;
+  }
+
+  try {
+    if (window.localStorage.getItem(LANDSCAPE_HINT_STORAGE_KEY) === "1") {
+      return;
+    }
+  } catch {
+    // ignore storage access errors
+  }
+
+  window.setTimeout(() => {
+    window.alert("For best results on phones, rotate your device to landscape mode.");
+    try {
+      window.localStorage.setItem(LANDSCAPE_HINT_STORAGE_KEY, "1");
+    } catch {
+      // ignore storage access errors
+    }
+  }, 350);
 }
 
 function getGlobalRandomFixMixState() {
@@ -1577,31 +1598,79 @@ function drawManualParamOverlay(meta) {
   const crosshairSize = 28;
   const labelGap = 12;
   const axisNameFontPx = Math.max(12, Math.round(Math.min(view.width, view.height) * 0.017));
+  const AXIS_WIDTH = 1;
+
+  const alignAxisPixel = (value, lineWidth) => {
+    if (Math.round(lineWidth) % 2 === 1) {
+      return Math.floor(value) + 0.5;
+    }
+    return Math.round(value);
+  };
+
+  const drawAxisLine = (x1, y1, x2, y2) => {
+    // 1) Dark outline pass
+    ctx.save();
+    ctx.lineWidth = AXIS_WIDTH + 2;
+    ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+
+    // 2) Subtle halo pass
+    ctx.save();
+    ctx.lineWidth = AXIS_WIDTH;
+    ctx.strokeStyle = "rgba(255,0,0,0.9)";
+    ctx.shadowColor = "rgba(0,0,0,0.9)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+
+    // 3) Final crisp red pass (no blur)
+    ctx.save();
+    ctx.lineWidth = AXIS_WIDTH;
+    ctx.strokeStyle = "rgba(255,40,40,1.0)";
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  const alignedAxisX = alignAxisPixel(paramAxisX, AXIS_WIDTH);
+  const alignedAxisY = alignAxisPixel(paramAxisY, AXIS_WIDTH);
+  const alignedParamX = alignAxisPixel(paramX, AXIS_WIDTH);
+  const alignedParamY = alignAxisPixel(paramY, AXIS_WIDTH);
 
   ctx.save();
-  ctx.strokeStyle = "rgba(255,64,64,0.95)";
+  ctx.strokeStyle = "rgba(255,40,40,1.0)";
   ctx.fillStyle = "rgba(255,92,92,0.96)";
-  ctx.lineWidth = 1;
+  ctx.lineWidth = AXIS_WIDTH;
+  ctx.shadowBlur = 0;
 
   if (manYControl) {
-    ctx.beginPath();
-    ctx.moveTo(0, paramAxisY);
-    ctx.lineTo(view.width, paramAxisY);
-    ctx.stroke();
+    drawAxisLine(0, alignedAxisY, view.width, alignedAxisY);
   }
 
   if (manXControl) {
-    ctx.beginPath();
-    ctx.moveTo(paramAxisX, 0);
-    ctx.lineTo(paramAxisX, view.height);
-    ctx.stroke();
+    drawAxisLine(alignedAxisX, 0, alignedAxisX, view.height);
   }
 
+  // Keep center crosshair crisp and thin (no blur)
   ctx.beginPath();
-  ctx.moveTo(paramX - crosshairSize, paramY);
-  ctx.lineTo(paramX + crosshairSize, paramY);
-  ctx.moveTo(paramX, paramY - crosshairSize);
-  ctx.lineTo(paramX, paramY + crosshairSize);
+  ctx.moveTo(alignedParamX - crosshairSize, alignedParamY);
+  ctx.lineTo(alignedParamX + crosshairSize, alignedParamY);
+  ctx.moveTo(alignedParamX, alignedParamY - crosshairSize);
+  ctx.lineTo(alignedParamX, alignedParamY + crosshairSize);
   ctx.stroke();
 
   ctx.font = `${axisNameFontPx}px system-ui, sans-serif`;
@@ -2163,6 +2232,7 @@ async function bootstrap() {
     saveParamModesToStorage();
 
     registerHandlers();
+    maybeShowLandscapeHint();
     commitCurrentStateToHistory();
     requestDraw();
     const formula = appData.formulas.find((item) => item.id === currentFormulaId);

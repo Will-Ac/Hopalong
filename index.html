@@ -198,17 +198,22 @@
         background: linear-gradient(180deg, rgba(6, 8, 12, 0), rgba(6, 8, 12, 0.12) 40%, rgba(6, 8, 12, 0.26));
         pointer-events: none;
       }
-      #paramRow {
-        display: flex;
+      .bottomBar {
+        display: grid;
+        grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
         gap: 6px;
-        overflow-x: auto;
-        padding-bottom: 1px;
+        align-items: stretch;
         pointer-events: auto;
+      }
+      #paramRow {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 6px;
+        overflow: hidden;
       }
       .poItem {
         position: relative;
-        flex: 0 0 108px;
-        width: 108px;
+        min-width: 0;
         background: var(--panel-bg);
         border: 2px solid var(--param-outline);
         border-radius: 10px;
@@ -276,8 +281,7 @@
         text-overflow: ellipsis;
       }
       .poItem.poName {
-        flex: 0 0 var(--name-box-width);
-        width: var(--name-box-width);
+        min-width: 0;
       }
 
       #pickerOverlay {
@@ -371,13 +375,13 @@
 
       #cameraBtn {
         position: relative;
-        width: 44px;
-        height: 44px;
-        border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        background: rgba(12, 14, 20, 0.26);
+        width: 100%;
+        min-height: 48px;
+        border-radius: 10px;
+        border: 2px solid var(--param-outline);
+        background: var(--panel-bg);
         color: rgba(255, 255, 255, 0.95);
-        display: inline-flex;
+        display: inline-grid;
         align-items: center;
         justify-content: center;
         z-index: 33;
@@ -386,11 +390,11 @@
       }
       #scaleModeBtn {
         position: relative;
-        width: 44px;
-        height: 44px;
-        border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        background: rgba(12, 14, 20, 0.26);
+        width: 100%;
+        min-height: 48px;
+        border-radius: 10px;
+        border: 2px solid var(--param-outline);
+        background: var(--panel-bg);
         color: rgba(255, 255, 255, 0.95);
         display: inline-flex;
         align-items: center;
@@ -398,17 +402,21 @@
         z-index: 33;
         backdrop-filter: blur(2px);
         -webkit-backdrop-filter: blur(2px);
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.03em;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-align: center;
+        line-height: 1.1;
+        white-space: pre-line;
+        overflow: hidden;
       }
       #randomModeBtn {
         position: relative;
-        width: 44px;
-        height: 44px;
-        border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        background: rgba(12, 14, 20, 0.26);
+        width: 100%;
+        min-height: 48px;
+        border-radius: 10px;
+        border: 2px solid var(--param-outline);
+        background: var(--panel-bg);
         color: rgba(255, 255, 255, 0.95);
         display: inline-flex;
         align-items: center;
@@ -418,7 +426,11 @@
         -webkit-backdrop-filter: blur(2px);
         font-size: 12px;
         font-weight: 700;
-        letter-spacing: 0.03em;
+        letter-spacing: 0.02em;
+        text-align: center;
+        line-height: 1.1;
+        white-space: pre-line;
+        overflow: hidden;
       }
       #scaleModeBtn.is-fixed,
       #randomModeBtn.is-random {
@@ -431,31 +443,47 @@
       #randomModeBtn.is-fixed {
         opacity: 0.82;
       }
-      #cameraBtn::before {
-        content: "";
+      #cameraBtn .cameraIcon {
         width: 24px;
         height: 24px;
-        border: 1.5px solid currentColor;
-        border-radius: 7px;
-      }
-      #cameraBtn::after {
-        content: "";
-        position: absolute;
-        width: 9px;
-        height: 9px;
-        border: 1.5px solid currentColor;
-        border-radius: 999px;
+        display: block;
       }
       #cameraBtn.is-armed {
         background: rgba(255, 255, 255, 0.1);
       }
       #floatingActions {
-        position: absolute;
-        right: max(10px, env(safe-area-inset-right));
-        top: 0;
-        display: flex;
-        gap: 7px;
-        z-index: 33;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+        align-content: stretch;
+      }
+      #floatingActions > button {
+        height: 100%;
+      }
+
+      @media (max-width: 900px) and (orientation: landscape) {
+        .poItem {
+          padding: 3px;
+        }
+        .poLabel {
+          font-size: 8px;
+          margin-bottom: 1px;
+          line-height: 1;
+        }
+        .poBtn,
+        #scaleModeBtn,
+        #randomModeBtn,
+        #cameraBtn {
+          min-height: 28px;
+          font-size: 8px;
+          line-height: 1;
+          padding: 2px 3px;
+          overflow: hidden;
+        }
+        #cameraBtn .cameraIcon {
+          width: 16px;
+          height: 16px;
+        }
       }
 
       #modePicker {
@@ -531,6 +559,7 @@
       </div>
 
       <div id="paramOverlay">
+        <div class="bottomBar">
         <div id="paramRow">
           <div class="poItem poName">
             <span class="poLabel">Formula</span>
@@ -566,12 +595,14 @@
             <button id="btnIters" class="poBtn" type="button">--</button>
           </div>
         </div>
-      </div>
-
-      <div id="floatingActions">
-        <button id="scaleModeBtn" type="button" aria-label="Toggle scaling mode">A</button>
-        <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode">FIX</button>
-        <button id="cameraBtn" type="button" aria-label="Take screenshot"></button>
+        <div id="floatingActions">
+          <button id="scaleModeBtn" type="button" aria-label="Toggle scaling mode">Fixed
+Scale</button>
+          <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode">Randomise
+All</button>
+          <button id="cameraBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        </div>
       </div>
 
       <div id="modePicker" role="dialog" aria-label="Parameter mode picker" aria-hidden="true">
