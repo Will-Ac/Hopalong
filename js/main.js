@@ -1985,9 +1985,9 @@ function buildQrCanvas(url, sizePx) {
   qrCanvas.width = canvasSize;
   qrCanvas.height = canvasSize;
   const qrCtx = qrCanvas.getContext("2d", { alpha: false });
-  qrCtx.fillStyle = "#ffffff";
-  qrCtx.fillRect(0, 0, canvasSize, canvasSize);
   qrCtx.fillStyle = "#000000";
+  qrCtx.fillRect(0, 0, canvasSize, canvasSize);
+  qrCtx.fillStyle = "#ffffff";
 
   for (let row = 0; row < moduleCount; row += 1) {
     for (let col = 0; col < moduleCount; col += 1) {
