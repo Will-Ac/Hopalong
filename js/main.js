@@ -73,6 +73,8 @@ const HOLD_ACCEL_END_MS = 3000;
 const HOLD_MAX_MULTIPLIER = 10;
 const NAME_MAX_CHARS = 20;
 const CAMERA_LONG_PRESS_MS = 550;
+const SCREENSHOT_TARGET_LONG_EDGE_PX = 7680;
+const SCREENSHOT_FONT_FRACTION = 0.022;
 const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
 const PARAM_LONG_MS = 450;
 const PARAM_MOVE_CANCEL_PX = 10;
@@ -1874,34 +1876,54 @@ function formatScreenshotTimestamp(date) {
   return parts.join("");
 }
 
-function buildScreenshotOverlayLines() {
+function buildScreenshotOverlayLine() {
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   const params = getDerivedParams();
   const iterValue = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  return [
-    `${formula?.name || currentFormulaId} · ${appData.defaults.cmapName}`,
-    `a ${params.a.toFixed(4)}   b ${params.b.toFixed(4)}   c ${params.c.toFixed(4)}   d ${params.d.toFixed(4)}   iter ${iterValue}`,
-  ];
+  return `${formula?.name || currentFormulaId} · ${appData.defaults.cmapName} · a ${params.a.toFixed(4)}   b ${params.b.toFixed(4)}   c ${params.c.toFixed(4)}   d ${params.d.toFixed(4)}   iter ${iterValue}`;
+}
+
+function getScreenshotExportSize() {
+  const aspect = canvas.width / canvas.height;
+  if (!Number.isFinite(aspect) || aspect <= 0) {
+    return { width: SCREENSHOT_TARGET_LONG_EDGE_PX, height: SCREENSHOT_TARGET_LONG_EDGE_PX };
+  }
+
+  let width = SCREENSHOT_TARGET_LONG_EDGE_PX;
+  let height = SCREENSHOT_TARGET_LONG_EDGE_PX;
+  if (canvas.width >= canvas.height) {
+    width = SCREENSHOT_TARGET_LONG_EDGE_PX;
+    height = Math.round(SCREENSHOT_TARGET_LONG_EDGE_PX / aspect);
+  } else {
+    height = SCREENSHOT_TARGET_LONG_EDGE_PX;
+    width = Math.round(SCREENSHOT_TARGET_LONG_EDGE_PX * aspect);
+  }
+
+  return {
+    width: Math.max(1, width),
+    height: Math.max(1, height),
+  };
 }
 
 function drawScreenshotOverlay(targetCtx, width, height) {
-  const lines = buildScreenshotOverlayLines();
+  const line = buildScreenshotOverlayLine();
   const margin = Math.max(18, Math.round(width * 0.02));
-  const lineHeight = Math.max(20, Math.round(height * 0.032));
-  const panelHeight = lineHeight * lines.length + margin;
+  const fontPx = Math.max(14, Math.round(height * SCREENSHOT_FONT_FRACTION));
 
   targetCtx.save();
-  targetCtx.fillStyle = "rgba(255, 255, 255, 0.08)";
-  targetCtx.fillRect(0, height - panelHeight, width, panelHeight);
-  targetCtx.fillStyle = "rgba(255, 255, 255, 0.56)";
-  targetCtx.font = `${Math.max(14, Math.round(height * 0.022))}px system-ui, -apple-system, Segoe UI, sans-serif`;
+  targetCtx.fillStyle = "rgba(255, 255, 255, 0.78)";
+  targetCtx.strokeStyle = "rgba(0, 0, 0, 0.78)";
+  targetCtx.lineWidth = Math.max(1, Math.round(fontPx * 0.12));
+  targetCtx.font = `${fontPx}px system-ui, -apple-system, Segoe UI, sans-serif`;
   targetCtx.textBaseline = "bottom";
+  targetCtx.shadowColor = "rgba(0, 0, 0, 0.45)";
+  targetCtx.shadowBlur = Math.max(2, Math.round(fontPx * 0.2));
+  targetCtx.shadowOffsetX = 0;
+  targetCtx.shadowOffsetY = 0;
 
-  lines.forEach((line, index) => {
-    const y = height - margin / 2 - lineHeight * (lines.length - 1 - index);
-    targetCtx.fillText(line, margin, y);
-  });
-
+  const y = height - margin;
+  targetCtx.strokeText(line, margin, y);
+  targetCtx.fillText(line, margin, y);
   targetCtx.restore();
 }
 
@@ -1928,10 +1950,28 @@ async function captureScreenshot(includeOverlay) {
   }
 
   const exportCanvas = document.createElement("canvas");
-  exportCanvas.width = canvas.width;
-  exportCanvas.height = canvas.height;
+  const exportSize = getScreenshotExportSize();
+  exportCanvas.width = exportSize.width;
+  exportCanvas.height = exportSize.height;
   const exportCtx = exportCanvas.getContext("2d", { alpha: false });
-  exportCtx.drawImage(canvas, 0, 0);
+  const scale = exportCanvas.width / canvas.width;
+  const exportFixedView = {
+    ...fixedView,
+    offsetX: fixedView.offsetX * scale,
+    offsetY: fixedView.offsetY * scale,
+    zoom: fixedView.zoom,
+  };
+
+  renderFrame({
+    ctx: exportCtx,
+    canvas: exportCanvas,
+    formulaId: currentFormulaId,
+    cmapName: appData.defaults.cmapName,
+    params: getDerivedParams(),
+    iterations: Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max)),
+    scaleMode: getScaleMode(),
+    fixedView: exportFixedView,
+  });
 
   if (includeOverlay) {
     drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height);
@@ -1942,7 +1982,7 @@ async function captureScreenshot(includeOverlay) {
     throw new Error("Screenshot export failed.");
   }
 
-  const filename = `hopalong-${includeOverlay ? "overlay" : "clean"}-${formatScreenshotTimestamp(new Date())}.png`;
+  const filename = `hopalong-${includeOverlay ? "overlay" : "clean"}-8k-${formatScreenshotTimestamp(new Date())}.png`;
   await saveBlobToDevice(blob, filename);
   showToast(includeOverlay ? "Saved screenshot with parameter overlay." : "Saved clean screenshot.");
 }
