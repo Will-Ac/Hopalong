@@ -31,6 +31,8 @@ const pickerList = document.getElementById("pickerList");
 const pickerPanel = document.getElementById("pickerPanel");
 const paramOverlayEl = document.getElementById("paramOverlay");
 const paramRowEl = document.getElementById("paramRow");
+const paramOverlayHandleEl = document.getElementById("paramOverlayHandle");
+const paramOverlayCollapseBtn = document.getElementById("paramOverlayCollapseBtn");
 const cameraBtn = document.getElementById("cameraBtn");
 const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
@@ -77,6 +79,7 @@ const PARAM_LONG_MS = 450;
 const PARAM_MOVE_CANCEL_PX = 10;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
 const PARAM_MODE_VALUES = new Set(["fix", "manx", "many", "rand"]);
+const PARAM_BAR_COLLAPSED_STORAGE_KEY = "hopalong:paramBarCollapsed";
 const PARAM_FULL_MODE_OPTIONS = ["rand", "fix", "manx", "many"];
 const PARAM_MODE_OPTIONS_BY_KEY = {
   formula: ["rand", "fix"],
@@ -108,6 +111,18 @@ const paramPressState = {
   timer: null,
   longTriggered: false,
 };
+const paramBarGestureState = {
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+};
+const paramHandleGestureState = {
+  pointerId: null,
+  startY: 0,
+  moved: false,
+};
+
+let isParamBarCollapsed = false;
 
 const HISTORY_LIMIT = 50;
 const INTERACTION_STATE = {
@@ -664,7 +679,145 @@ function isEventInsideInteractiveUi(eventTarget) {
     return false;
   }
 
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #modePicker, #debugToggleDock, #floatingActions"));
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #paramOverlayHandle, #quickSliderOverlay, #pickerOverlay, #modePicker, #debugToggleDock, #floatingActions"));
+}
+
+function isUiModalOpen() {
+  return Boolean(
+    quickSliderOverlay?.classList.contains("is-open")
+      || pickerOverlay?.classList.contains("is-open")
+      || modePickerEl?.classList.contains("is-open"),
+  );
+}
+
+function applyParamBarStateClasses() {
+  document.body.classList.toggle("param-collapsed", isParamBarCollapsed);
+  document.body.classList.toggle("param-expanded", !isParamBarCollapsed);
+}
+
+function setParamBarCollapsed(nextCollapsed, { reason } = {}) {
+  const normalized = Boolean(nextCollapsed);
+  if (normalized === isParamBarCollapsed) {
+    return;
+  }
+
+  isParamBarCollapsed = normalized;
+  applyParamBarStateClasses();
+  localStorage.setItem(PARAM_BAR_COLLAPSED_STORAGE_KEY, String(isParamBarCollapsed));
+
+  if (quickSliderOverlay.classList.contains("is-open")) {
+    alignQuickSliderAboveBottomBar();
+  }
+
+  if (reason === "keyboard") {
+    showToast(isParamBarCollapsed ? "Parameter bar hidden." : "Parameter bar shown.");
+  }
+}
+
+function toggleParamBarCollapsed() {
+  if (isUiModalOpen()) {
+    return;
+  }
+  setParamBarCollapsed(!isParamBarCollapsed, { reason: "keyboard" });
+}
+
+function loadParamBarCollapsedFromStorage() {
+  const stored = localStorage.getItem(PARAM_BAR_COLLAPSED_STORAGE_KEY);
+  isParamBarCollapsed = stored === "true";
+  applyParamBarStateClasses();
+}
+
+function resetParamBarGestureState() {
+  paramBarGestureState.pointerId = null;
+}
+
+function resetParamHandleGestureState() {
+  paramHandleGestureState.pointerId = null;
+  paramHandleGestureState.moved = false;
+}
+
+function onParamOverlayPointerDown(event) {
+  if (isParamBarCollapsed || isUiModalOpen()) {
+    return;
+  }
+
+  if (event.pointerType === "mouse" && event.button !== 0) {
+    return;
+  }
+
+  if (event.target instanceof Element && event.target.closest("button, input")) {
+    return;
+  }
+
+  paramBarGestureState.pointerId = event.pointerId;
+  paramBarGestureState.startX = event.clientX;
+  paramBarGestureState.startY = event.clientY;
+}
+
+function onParamOverlayPointerMove(event) {
+  if (paramBarGestureState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const deltaX = event.clientX - paramBarGestureState.startX;
+  const deltaY = event.clientY - paramBarGestureState.startY;
+  if (deltaY > 28 && Math.abs(deltaY) > Math.abs(deltaX) * 1.2) {
+    resetParamBarGestureState();
+    setParamBarCollapsed(true, { reason: "swipe" });
+  }
+}
+
+function onParamOverlayPointerEnd(event) {
+  if (paramBarGestureState.pointerId === event.pointerId) {
+    resetParamBarGestureState();
+  }
+}
+
+function onParamHandlePointerDown(event) {
+  if (isUiModalOpen()) {
+    return;
+  }
+
+  if (event.pointerType === "mouse" && event.button !== 0) {
+    return;
+  }
+
+  paramHandleGestureState.pointerId = event.pointerId;
+  paramHandleGestureState.startY = event.clientY;
+  paramHandleGestureState.moved = false;
+  paramOverlayHandleEl?.setPointerCapture(event.pointerId);
+}
+
+function onParamHandlePointerMove(event) {
+  if (paramHandleGestureState.pointerId !== event.pointerId || isUiModalOpen()) {
+    return;
+  }
+
+  const deltaY = event.clientY - paramHandleGestureState.startY;
+  if (Math.abs(deltaY) > 3) {
+    paramHandleGestureState.moved = true;
+  }
+
+  if (deltaY < -18 && isParamBarCollapsed) {
+    setParamBarCollapsed(false, { reason: "drag" });
+    resetParamHandleGestureState();
+  }
+}
+
+function onParamHandlePointerUp(event) {
+  if (paramHandleGestureState.pointerId !== event.pointerId || isUiModalOpen()) {
+    return;
+  }
+
+  if (paramOverlayHandleEl?.hasPointerCapture(event.pointerId)) {
+    paramOverlayHandleEl.releasePointerCapture(event.pointerId);
+  }
+
+  const deltaY = event.clientY - paramHandleGestureState.startY;
+  if ((paramHandleGestureState.moved && deltaY < -18) || !paramHandleGestureState.moved) {
+    setParamBarCollapsed(false, { reason: "handle" });
+  }
+  resetParamHandleGestureState();
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -2019,6 +2172,44 @@ function registerHandlers() {
 
   randomModeBtn.addEventListener("click", toggleRandomMode);
 
+  paramOverlayCollapseBtn?.addEventListener("click", () => {
+    if (isUiModalOpen()) {
+      return;
+    }
+    setParamBarCollapsed(true, { reason: "button" });
+  });
+
+  paramOverlayEl?.addEventListener("pointerdown", onParamOverlayPointerDown);
+  paramOverlayEl?.addEventListener("pointermove", onParamOverlayPointerMove);
+  paramOverlayEl?.addEventListener("pointerup", onParamOverlayPointerEnd);
+  paramOverlayEl?.addEventListener("pointercancel", onParamOverlayPointerEnd);
+
+  paramOverlayHandleEl?.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (isUiModalOpen()) {
+      return;
+    }
+    setParamBarCollapsed(false, { reason: "handle" });
+  });
+  paramOverlayHandleEl?.addEventListener("pointerdown", onParamHandlePointerDown);
+  paramOverlayHandleEl?.addEventListener("pointermove", onParamHandlePointerMove);
+  paramOverlayHandleEl?.addEventListener("pointerup", onParamHandlePointerUp);
+  paramOverlayHandleEl?.addEventListener("pointercancel", (event) => {
+    if (paramOverlayHandleEl?.hasPointerCapture(event.pointerId)) {
+      paramOverlayHandleEl.releasePointerCapture(event.pointerId);
+    }
+    resetParamHandleGestureState();
+  });
+  paramOverlayHandleEl?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (isUiModalOpen()) {
+        return;
+      }
+      setParamBarCollapsed(false, { reason: "keyboard" });
+    }
+  });
+
   canvas.style.touchAction = "none";
   canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: false });
   canvas.addEventListener("pointermove", onCanvasPointerMove, { passive: false });
@@ -2076,6 +2267,12 @@ function registerHandlers() {
     },
     { passive: true },
   );
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "b" || event.key === "B") {
+      toggleParamBarCollapsed();
+    }
+  });
+
   window.addEventListener(
     "orientationchange",
     () => {
@@ -2145,6 +2342,7 @@ async function bootstrap() {
     installGlobalZoomBlockers();
     appData = await loadData();
     loadParamModesFromStorage();
+    loadParamBarCollapsedFromStorage();
 
     currentFormulaId = resolveInitialFormulaId();
     appData.defaults.cmapName = resolveInitialColorMap();
