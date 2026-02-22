@@ -1633,10 +1633,10 @@ function drawManualParamOverlay(meta) {
   };
 
   const drawCrosshair = (x, y, size) => {
-    // 1) Dark outline pass
+    // 1) White outline pass for visibility
     ctx.save();
     ctx.lineWidth = AXIS_WIDTH + 2;
-    ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
     ctx.shadowBlur = 0;
     ctx.beginPath();
     ctx.moveTo(x - size, y);
