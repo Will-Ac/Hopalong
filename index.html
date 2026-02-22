@@ -441,29 +441,10 @@
       #randomModeBtn.is-fixed {
         opacity: 0.82;
       }
-      #cameraBtn::before {
-        content: "";
-        width: 26px;
-        height: 18px;
-        border: 1.5px solid currentColor;
-        border-radius: 4px;
-      }
-      #cameraBtn::after {
-        content: "";
-        position: absolute;
-        width: 8px;
-        height: 8px;
-        border: 1.5px solid currentColor;
-        border-radius: 999px;
-      }
-      #cameraBtn .cameraTop {
-        position: absolute;
-        width: 9px;
-        height: 5px;
-        border: 1.5px solid currentColor;
-        border-bottom: 0;
-        border-radius: 3px 3px 0 0;
-        transform: translate(-8px, -11px);
+      #cameraBtn .cameraIcon {
+        width: 24px;
+        height: 24px;
+        display: block;
       }
       #cameraBtn.is-armed {
         background: rgba(255, 255, 255, 0.1);
@@ -599,8 +580,9 @@
         <div id="floatingActions">
           <button id="scaleModeBtn" type="button" aria-label="Toggle scaling mode">Auto Scale
 Fixed Scale</button>
-          <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode">Random</button>
-          <button id="cameraBtn" type="button" aria-label="Take screenshot"><span class="cameraTop" aria-hidden="true"></span></button>
+          <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode">Randomise All
+Fix All</button>
+          <button id="cameraBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </div>
         </div>
       </div>
