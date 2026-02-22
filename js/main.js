@@ -111,14 +111,19 @@ const paramPressState = {
 
 const HISTORY_LIMIT = 50;
 const INTERACTION_STATE = {
-  IDLE: "IDLE",
-  MODULATE_1P: "MODULATE_1P",
-  PAN_2P: "PAN_2P",
-  PINCH_ZOOM: "PINCH_ZOOM",
-  PAN_MOUSE_RMB: "PAN_MOUSE_RMB",
+  NONE: "none",
+  MOD_1: "mod1",
+  TWO_UNDECIDED: "two_undecided",
+  TWO_PAN: "two_pan",
+  TWO_PINCH: "two_pinch",
+  PAN_MOUSE_RMB: "pan_mouse_rmb",
 };
-const PINCH_SWITCH_THRESHOLD_PX = 48;
-const PINCH_PAN_EPSILON_PX = 2;
+const DPR = window.devicePixelRatio || 1;
+const PINCH_DECIDE_PX = 10 * DPR;
+const PAN_DECIDE_PX = 6 * DPR;
+const PINCH_DECIDE_RATIO = 0.03;
+const PINCH_DEADBAND_PX = 2.5 * DPR;
+const PAN_DEADBAND_PX = 1.5 * DPR;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
 
@@ -130,12 +135,12 @@ const sliderKeyByParamKey = {
   iters: "iters",
 };
 
-let interactionState = INTERACTION_STATE.IDLE;
+let interactionState = INTERACTION_STATE.NONE;
 let activePointers = new Map();
 let primaryPointerId = null;
 let lastPointerPosition = null;
-let gestureStartDistance = 0;
-let gestureLastMidpoint = null;
+let twoFingerGesture = null;
+let lastTwoDebug = null;
 let historyTapTracker = null;
 let suppressHistoryTap = false;
 let fixedView = {
@@ -805,9 +810,69 @@ function updateHistoryTapTrackerFromMove(event) {
   }
 }
 
+function getLockedTwoPointers() {
+  if (!twoFingerGesture) {
+    return null;
+  }
+
+  const ptrA = activePointers.get(twoFingerGesture.idA);
+  const ptrB = activePointers.get(twoFingerGesture.idB);
+  if (ptrA && ptrB) {
+    return [ptrA, ptrB];
+  }
+
+  if (activePointers.size < 2) {
+    return null;
+  }
+
+  const [fallbackA, fallbackB] = Array.from(activePointers.values());
+  initializeTwoFingerGesture(fallbackA.pointerId, fallbackB.pointerId);
+  return [fallbackA, fallbackB];
+}
+
+function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
+  const ptrA = activePointers.get(pointerIdA);
+  const ptrB = activePointers.get(pointerIdB);
+  if (!ptrA || !ptrB) {
+    twoFingerGesture = null;
+    lastTwoDebug = null;
+    return;
+  }
+
+  const posA = getCanvasPointerPosition(ptrA);
+  const posB = getCanvasPointerPosition(ptrB);
+  const startD = Math.hypot(posB.x - posA.x, posB.y - posA.y);
+  const startMX = (posA.x + posB.x) * 0.5;
+  const startMY = (posA.y + posB.y) * 0.5;
+
+  twoFingerGesture = {
+    idA: pointerIdA,
+    idB: pointerIdB,
+    startD,
+    startMX,
+    startMY,
+    lastD: startD,
+    lastMX: startMX,
+    lastMY: startMY,
+    decided: "undecided",
+    zoom0: fixedView.zoom,
+  };
+  interactionState = INTERACTION_STATE.TWO_UNDECIDED;
+  suppressHistoryTap = true;
+}
+
+function clearTwoFingerGesture() {
+  twoFingerGesture = null;
+  lastTwoDebug = null;
+}
+
 function onCanvasPointerDown(event) {
   if (!appData) {
     return;
+  }
+
+  if (event.pointerType !== "mouse") {
+    event.preventDefault();
   }
 
   if (event.pointerType === "mouse" && event.button === 2) {
@@ -840,7 +905,7 @@ function onCanvasPointerDown(event) {
   }
 
   if (activePointers.size === 1) {
-    interactionState = INTERACTION_STATE.MODULATE_1P;
+    interactionState = INTERACTION_STATE.MOD_1;
     primaryPointerId = event.pointerId;
     const pos = getCanvasPointerPosition(event);
     lastPointerPosition = { x: pos.x, y: pos.y };
@@ -850,18 +915,8 @@ function onCanvasPointerDown(event) {
 
   if (activePointers.size === 2) {
     const pointers = Array.from(activePointers.values());
-    const first = pointers[0];
-    const second = pointers[1];
-    const posA = getCanvasPointerPosition(first);
-    const posB = getCanvasPointerPosition(second);
-    gestureStartDistance = Math.hypot(posB.x - posA.x, posB.y - posA.y);
-    gestureLastMidpoint = {
-      x: (posA.x + posB.x) * 0.5,
-      y: (posA.y + posB.y) * 0.5,
-    };
-    interactionState = INTERACTION_STATE.PAN_2P;
+    initializeTwoFingerGesture(pointers[0].pointerId, pointers[1].pointerId);
     setScaleModeFixed("manual pan/zoom");
-    suppressHistoryTap = true;
     requestDraw();
   }
 }
@@ -871,12 +926,16 @@ function onCanvasPointerMove(event) {
     return;
   }
 
+  if (event.pointerType !== "mouse") {
+    event.preventDefault();
+  }
+
   updateHistoryTapTrackerFromMove(event);
   const pointerRecord = activePointers.get(event.pointerId);
   pointerRecord.clientX = event.clientX;
   pointerRecord.clientY = event.clientY;
 
-  if (interactionState === INTERACTION_STATE.MODULATE_1P && event.pointerId === primaryPointerId) {
+  if (interactionState === INTERACTION_STATE.MOD_1 && event.pointerId === primaryPointerId) {
     const pos = getCanvasPointerPosition(event);
     if (!lastPointerPosition) {
       lastPointerPosition = { x: pos.x, y: pos.y };
@@ -898,11 +957,15 @@ function onCanvasPointerMove(event) {
     return;
   }
 
-  if (activePointers.size !== 2) {
+  if (activePointers.size < 2 || !interactionState.startsWith("two_")) {
     return;
   }
 
-  const pointers = Array.from(activePointers.values());
+  const pointers = getLockedTwoPointers();
+  if (!pointers || !twoFingerGesture) {
+    return;
+  }
+
   const posA = getCanvasPointerPosition(pointers[0]);
   const posB = getCanvasPointerPosition(pointers[1]);
   const midpoint = {
@@ -910,30 +973,53 @@ function onCanvasPointerMove(event) {
     y: (posA.y + posB.y) * 0.5,
   };
   const distance = Math.hypot(posB.x - posA.x, posB.y - posA.y);
-  const distanceDelta = distance - gestureStartDistance;
-  const midpointDx = midpoint.x - (gestureLastMidpoint?.x ?? midpoint.x);
-  const midpointDy = midpoint.y - (gestureLastMidpoint?.y ?? midpoint.y);
+  const ddPx = Math.abs(distance - twoFingerGesture.startD);
+  const ratio = twoFingerGesture.startD > 0 ? Math.abs(distance / twoFingerGesture.startD - 1) : 0;
+  const dmPx = Math.hypot(midpoint.x - twoFingerGesture.startMX, midpoint.y - twoFingerGesture.startMY);
+  lastTwoDebug = { state: interactionState, ddPx, dmPx, ratio };
 
-  const translationMagnitude = Math.hypot(midpointDx, midpointDy);
-  const pinchLooksIntentional = Math.abs(distanceDelta) > PINCH_SWITCH_THRESHOLD_PX
-    && Math.abs(distanceDelta) > translationMagnitude * 1.35;
-
-  if (interactionState !== INTERACTION_STATE.PAN_2P || pinchLooksIntentional) {
-    if (Math.abs(distanceDelta) > PINCH_SWITCH_THRESHOLD_PX) {
-      interactionState = INTERACTION_STATE.PINCH_ZOOM;
+  if (interactionState === INTERACTION_STATE.TWO_UNDECIDED) {
+    if (ddPx > PINCH_DECIDE_PX || ratio > PINCH_DECIDE_RATIO) {
+      interactionState = INTERACTION_STATE.TWO_PINCH;
+      twoFingerGesture.decided = "pinch";
+      twoFingerGesture.lastD = distance;
+      twoFingerGesture.lastMX = midpoint.x;
+      twoFingerGesture.lastMY = midpoint.y;
+      twoFingerGesture.zoom0 = fixedView.zoom;
+    } else if (dmPx > PAN_DECIDE_PX) {
+      interactionState = INTERACTION_STATE.TWO_PAN;
+      twoFingerGesture.decided = "pan";
+      twoFingerGesture.lastMX = midpoint.x;
+      twoFingerGesture.lastMY = midpoint.y;
+      twoFingerGesture.lastD = distance;
+    } else {
+      return;
     }
   }
 
-  if (interactionState === INTERACTION_STATE.PINCH_ZOOM && gestureStartDistance > 0) {
-    const zoomFactor = distance / gestureStartDistance;
-    applyZoomAtPoint(zoomFactor, midpoint.x, midpoint.y);
-  } else if (Math.abs(midpointDx) > PINCH_PAN_EPSILON_PX || Math.abs(midpointDy) > PINCH_PAN_EPSILON_PX) {
-    interactionState = INTERACTION_STATE.PAN_2P;
-    applyPanDelta(midpointDx, midpointDy);
+  if (interactionState === INTERACTION_STATE.TWO_PINCH && twoFingerGesture.lastD > 0) {
+    if (Math.abs(distance - twoFingerGesture.lastD) < PINCH_DEADBAND_PX) {
+      return;
+    }
+    const ratioStep = distance / twoFingerGesture.lastD;
+    applyZoomAtPoint(ratioStep, midpoint.x, midpoint.y);
+    twoFingerGesture.lastD = distance;
+    twoFingerGesture.lastMX = midpoint.x;
+    twoFingerGesture.lastMY = midpoint.y;
+    return;
   }
 
-  gestureStartDistance = distance;
-  gestureLastMidpoint = midpoint;
+  if (interactionState === INTERACTION_STATE.TWO_PAN) {
+    const dxm = midpoint.x - twoFingerGesture.lastMX;
+    const dym = midpoint.y - twoFingerGesture.lastMY;
+    if (Math.hypot(dxm, dym) < PAN_DEADBAND_PX) {
+      return;
+    }
+    applyPanDelta(dxm, dym);
+    twoFingerGesture.lastMX = midpoint.x;
+    twoFingerGesture.lastMY = midpoint.y;
+    twoFingerGesture.lastD = distance;
+  }
 }
 
 function clearPointerState(pointerId) {
@@ -944,28 +1030,36 @@ function clearPointerState(pointerId) {
   activePointers.delete(pointerId);
 
   if (activePointers.size === 0) {
-    interactionState = INTERACTION_STATE.IDLE;
+    interactionState = INTERACTION_STATE.NONE;
     primaryPointerId = null;
     lastPointerPosition = null;
-    gestureLastMidpoint = null;
-    gestureStartDistance = 0;
+    clearTwoFingerGesture();
     requestDraw();
     return;
   }
 
   if (activePointers.size === 1) {
     const remaining = Array.from(activePointers.values())[0];
+    clearTwoFingerGesture();
     primaryPointerId = remaining.pointerId;
-    interactionState = INTERACTION_STATE.MODULATE_1P;
+    interactionState = INTERACTION_STATE.MOD_1;
     const pos = getCanvasPointerPosition(remaining);
     lastPointerPosition = { x: pos.x, y: pos.y };
-    gestureLastMidpoint = null;
-    gestureStartDistance = 0;
+    requestDraw();
+    return;
+  }
+
+  if (activePointers.size >= 2) {
+    const pointers = Array.from(activePointers.values());
+    initializeTwoFingerGesture(pointers[0].pointerId, pointers[1].pointerId);
     requestDraw();
   }
 }
 
 function onCanvasPointerUp(event) {
+  if (event.pointerType !== "mouse") {
+    event.preventDefault();
+  }
   historyTapTracker = historyTapTracker?.pointerId === event.pointerId ? historyTapTracker : null;
   if (canvas.hasPointerCapture(event.pointerId)) {
     canvas.releasePointerCapture(event.pointerId);
@@ -1465,7 +1559,7 @@ function getParamPixelVertical(value, range, spanPx, fallbackPx) {
 }
 
 function shouldShowManualOverlay() {
-  return interactionState === INTERACTION_STATE.MODULATE_1P && activePointers.size > 0;
+  return interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0;
 }
 
 function drawManualParamOverlay(meta) {
@@ -1654,6 +1748,8 @@ function drawDebugOverlay(meta) {
     `x range: ${world.minX.toFixed(3)} to ${world.maxX.toFixed(3)}`,
     `y range: ${world.minY.toFixed(3)} to ${world.maxY.toFixed(3)}`,
     `range centre: (${centerX.toFixed(3)}, ${centerY.toFixed(3)})`,
+    `gesture state: ${interactionState}`,
+    `2f ddPx/dmPx/ratio: ${lastTwoDebug ? `${lastTwoDebug.ddPx.toFixed(2)} / ${lastTwoDebug.dmPx.toFixed(2)} / ${lastTwoDebug.ratio.toFixed(4)}` : "-"}`,
     `fps: ${fpsEstimate.toFixed(1)}`,
   ].join("\n");
 }
@@ -1942,10 +2038,11 @@ function registerHandlers() {
 
   randomModeBtn.addEventListener("click", toggleRandomMode);
 
-  canvas.addEventListener("pointerdown", onCanvasPointerDown);
-  canvas.addEventListener("pointermove", onCanvasPointerMove);
-  canvas.addEventListener("pointerup", onCanvasPointerUp);
-  canvas.addEventListener("pointercancel", onCanvasPointerUp);
+  canvas.style.touchAction = "none";
+  canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: false });
+  canvas.addEventListener("pointermove", onCanvasPointerMove, { passive: false });
+  canvas.addEventListener("pointerup", onCanvasPointerUp, { passive: false });
+  canvas.addEventListener("pointercancel", onCanvasPointerUp, { passive: false });
   canvas.addEventListener("wheel", onCanvasWheel, { passive: false });
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
 
