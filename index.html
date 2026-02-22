@@ -197,6 +197,13 @@
         padding: 5px max(5px, env(safe-area-inset-right)) calc(2px + env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left));
         background: linear-gradient(180deg, rgba(6, 8, 12, 0), rgba(6, 8, 12, 0.12) 40%, rgba(6, 8, 12, 0.26));
         pointer-events: none;
+        transition: transform 160ms ease, opacity 160ms ease;
+        will-change: transform;
+      }
+      body.param-collapsed #paramOverlay {
+        transform: translateY(100%);
+        opacity: 0;
+        pointer-events: none;
       }
       #paramRow {
         display: flex;
@@ -279,6 +286,47 @@
         flex: 0 0 var(--name-box-width);
         width: var(--name-box-width);
       }
+
+      #paramOverlayCollapseBtn {
+        pointer-events: auto;
+        position: absolute;
+        right: max(8px, env(safe-area-inset-right));
+        top: -12px;
+        width: 28px;
+        height: 22px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(12, 14, 20, 0.65);
+        color: var(--text);
+        font-size: 14px;
+        line-height: 1;
+        z-index: 2;
+      }
+
+      #paramOverlayHandle {
+        position: fixed;
+        left: 50%;
+        bottom: calc(6px + env(safe-area-inset-bottom));
+        transform: translateX(-50%);
+        z-index: 29;
+        width: 120px;
+        height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        touch-action: none;
+        pointer-events: auto;
+        transition: opacity 160ms ease;
+      }
+      #paramOverlayHandle .grab-pill {
+        width: 60px;
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.35);
+        backdrop-filter: blur(6px);
+      }
+      body.param-expanded #paramOverlayHandle { opacity: 0.25; }
+      body.param-collapsed #paramOverlayHandle { opacity: 1; }
 
       #pickerOverlay {
         position: absolute;
@@ -531,6 +579,7 @@
       </div>
 
       <div id="paramOverlay">
+        <button id="paramOverlayCollapseBtn" type="button" aria-label="Hide parameters">⌄</button>
         <div id="paramRow">
           <div class="poItem poName">
             <span class="poLabel">Formula</span>
@@ -566,6 +615,9 @@
             <button id="btnIters" class="poBtn" type="button">--</button>
           </div>
         </div>
+      </div>
+      <div id="paramOverlayHandle" aria-label="Show parameters" role="button" tabindex="0">
+        <div class="grab-pill"></div>
       </div>
 
       <div id="floatingActions">
