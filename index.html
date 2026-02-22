@@ -115,6 +115,8 @@
         line-height: 1.45;
       }
       #debugPanel.is-hidden { display: none; }
+      body.ui-hidden #debugToggleDock,
+      body.ui-hidden #debugPanel { display: none; }
       #debugInfo {
         margin: 0;
         font-variant-numeric: tabular-nums;
@@ -128,12 +130,15 @@
         display: none;
         pointer-events: none;
       }
-      #quickSliderOverlay.is-open { display: block; }
+      #quickSliderOverlay.is-open {
+        display: block;
+        pointer-events: auto;
+      }
       #quickSliderBackdrop {
         position: absolute;
         inset: 0;
         background: transparent;
-        pointer-events: none;
+        pointer-events: auto;
       }
       #quickSlider {
         position: absolute;
@@ -145,6 +150,7 @@
         border-radius: 10px;
         padding: 7px;
         pointer-events: auto;
+        touch-action: manipulation;
       }
       .qsTop {
         position: relative;
@@ -198,12 +204,14 @@
         background: linear-gradient(180deg, rgba(6, 8, 12, 0), rgba(6, 8, 12, 0.12) 40%, rgba(6, 8, 12, 0.26));
         pointer-events: none;
       }
+      body.ui-hidden #paramOverlay { display: none; }
       #paramRow {
         display: flex;
         gap: 6px;
         overflow-x: auto;
         padding-bottom: 1px;
         pointer-events: auto;
+        touch-action: manipulation;
       }
       .poItem {
         position: relative;
@@ -285,12 +293,17 @@
         inset: 0;
         z-index: 40;
         display: none;
+        pointer-events: none;
       }
-      #pickerOverlay.is-open { display: block; }
+      #pickerOverlay.is-open {
+        display: block;
+        pointer-events: auto;
+      }
       #pickerBackdrop {
         position: absolute;
         inset: 0;
         background: transparent;
+        pointer-events: auto;
       }
       #pickerPanel {
         position: absolute;
@@ -304,6 +317,7 @@
         border-radius: 10px;
         display: flex;
         flex-direction: column;
+        touch-action: manipulation;
       }
       .pickerHead {
         display: flex;
@@ -456,7 +470,9 @@
         display: flex;
         gap: 7px;
         z-index: 33;
+        touch-action: manipulation;
       }
+      body.ui-hidden #floatingActions { display: none; }
 
       #modePicker {
         position: absolute;
