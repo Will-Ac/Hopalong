@@ -629,6 +629,26 @@ function commitCurrentStateToHistory() {
   historyIndex = historyStates.length - 1;
 }
 
+function syncCurrentHistoryViewport() {
+  if (isApplyingHistoryState || historyIndex < 0 || !historyStates[historyIndex]) {
+    return;
+  }
+
+  historyStates[historyIndex] = {
+    ...historyStates[historyIndex],
+    scaleMode: getScaleMode(),
+    fixedView: { ...fixedView },
+    viewport: {
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      cssWidth: Math.round(canvas.getBoundingClientRect().width),
+      cssHeight: Math.round(canvas.getBoundingClientRect().height),
+      devicePixelRatio: window.devicePixelRatio || 1,
+    },
+  };
+}
+
+
 function applyState(state) {
   if (!state) {
     return;
@@ -804,6 +824,7 @@ function applyManualModulation(deltaX, deltaY) {
 function applyPanDelta(deltaX, deltaY) {
   fixedView.offsetX += deltaX;
   fixedView.offsetY += deltaY;
+  syncCurrentHistoryViewport();
   requestDraw();
 }
 
@@ -829,6 +850,7 @@ function applyZoomAtPoint(zoomFactor, anchorX, anchorY) {
   fixedView.zoom = nextZoom;
   fixedView.offsetX = nextCenterX - viewCenterX;
   fixedView.offsetY = nextCenterY - viewCenterY;
+  syncCurrentHistoryViewport();
   requestDraw();
 }
 
@@ -1952,17 +1974,20 @@ function buildScreenshotOverlayLines() {
   return `${formula?.name || currentFormulaId} · ${appData.defaults.cmapName} · a ${params.a.toFixed(4)} · b ${params.b.toFixed(4)} · c ${params.c.toFixed(4)} · d ${params.d.toFixed(4)} · iter ${iterValue}`;
 }
 
-function buildShareUrl() {
-  const params = getDerivedParams();
-  const iterations = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+function buildShareUrl({ params, iterations, view } = {}) {
+  const resolvedParams = params || getDerivedParams();
+  const resolvedIterations = Number.isFinite(iterations)
+    ? Math.round(clamp(iterations, sliderControls.iters.min, sliderControls.iters.max))
+    : Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const resolvedView = view || fixedView;
   const encodedFormula = encodeURIComponent(currentFormulaId);
   const encodedCmap = encodeURIComponent(appData.defaults.cmapName);
-  const encodedParams = encodeURIComponent([params.a, params.b, params.c, params.d].map((value) => Number(value).toFixed(8)).join(","));
-  const encodedIterations = encodeURIComponent(String(iterations));
+  const encodedParams = encodeURIComponent([resolvedParams.a, resolvedParams.b, resolvedParams.c, resolvedParams.d].map((value) => Number(value).toFixed(8)).join(","));
+  const encodedIterations = encodeURIComponent(String(resolvedIterations));
   const encodedView = encodeURIComponent([
-    Number(fixedView.offsetX).toFixed(4),
-    Number(fixedView.offsetY).toFixed(4),
-    Number(fixedView.zoom).toFixed(6),
+    Number(resolvedView.offsetX).toFixed(4),
+    Number(resolvedView.offsetY).toFixed(4),
+    Number(resolvedView.zoom).toFixed(6),
   ].join(","));
   const payload = `f=${encodedFormula}&c=${encodedCmap}&p=${encodedParams}&i=${encodedIterations}&v=${encodedView}`;
   return `${location.origin}${location.pathname}#s=${payload}`;
@@ -2004,11 +2029,11 @@ function buildQrCanvas(url, sizePx) {
   return qrCanvas;
 }
 
-function drawScreenshotOverlay(targetCtx, width, height) {
+function drawScreenshotOverlay(targetCtx, width, height, shareUrl) {
   const line = buildScreenshotOverlayLines();
   const margin = Math.max(18, Math.round(width * 0.02));
   const qrSize = clamp(Math.round(Math.min(width, height) * 0.14), 140, 320);
-  const qrCanvas = buildQrCanvas(buildShareUrl(), qrSize);
+  const qrCanvas = buildQrCanvas(shareUrl || buildShareUrl(), qrSize);
   const qrX = width - margin - qrSize;
   const qrY = height - margin - qrSize;
   const fontSize = Math.max(14, Math.round(height * 0.022));
@@ -2047,9 +2072,21 @@ async function saveBlobToDevice(blob, filename) {
 }
 
 async function captureScreenshot(includeOverlay) {
-  if (!canvas) {
+  if (!canvas || !appData || !currentFormulaId) {
     return;
   }
+
+  drawDirty = false;
+  draw();
+
+  const captureParams = getDerivedParams();
+  const captureIterations = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const captureView = { ...fixedView };
+  const shareUrl = buildShareUrl({
+    params: captureParams,
+    iterations: captureIterations,
+    view: captureView,
+  });
 
   const exportCanvas = document.createElement("canvas");
   exportCanvas.width = canvas.width;
@@ -2058,7 +2095,7 @@ async function captureScreenshot(includeOverlay) {
   exportCtx.drawImage(canvas, 0, 0);
 
   if (includeOverlay) {
-    drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height);
+    drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height, shareUrl);
   }
 
   const blob = await new Promise((resolve) => exportCanvas.toBlob(resolve, "image/png"));
