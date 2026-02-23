@@ -2029,11 +2029,19 @@ function buildQrCanvas(url, sizePx) {
   return qrCanvas;
 }
 
+function drawQrOnExport(targetCtx, shareUrl, x, y, qrSize) {
+  const qrCanvas = buildQrCanvas(shareUrl, qrSize);
+  targetCtx.save();
+  targetCtx.imageSmoothingEnabled = false;
+  targetCtx.drawImage(qrCanvas, x, y, qrSize, qrSize);
+  targetCtx.restore();
+}
+
 function drawScreenshotOverlay(targetCtx, width, height, shareUrl) {
   const line = buildScreenshotOverlayLines();
   const margin = Math.max(18, Math.round(width * 0.02));
   const qrSize = clamp(Math.round(Math.min(width, height) * 0.14), 140, 320);
-  const qrCanvas = buildQrCanvas(shareUrl || buildShareUrl(), qrSize);
+  const resolvedShareUrl = shareUrl || buildShareUrl();
   const qrX = width - margin - qrSize;
   const qrY = height - margin - qrSize;
   const fontSize = Math.max(14, Math.round(height * 0.022));
@@ -2049,7 +2057,7 @@ function drawScreenshotOverlay(targetCtx, width, height, shareUrl) {
   const y = height - margin;
   targetCtx.strokeText(line, margin, y, maxTextWidth);
   targetCtx.fillText(line, margin, y, maxTextWidth);
-  targetCtx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+  drawQrOnExport(targetCtx, resolvedShareUrl, qrX, qrY, qrSize);
 
   targetCtx.restore();
 }
