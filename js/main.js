@@ -74,7 +74,7 @@ const HOLD_ACCEL_START_MS = 2000;
 const HOLD_ACCEL_END_MS = 3000;
 const HOLD_MAX_MULTIPLIER = 10;
 const NAME_MAX_CHARS = 20;
-const CAMERA_LONG_PRESS_MS = 550;
+const CAMERA_DOUBLE_TAP_MS = 320;
 const QR_SCALE = 1.2;
 const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
 const PARAM_LONG_MS = 450;
@@ -97,8 +97,8 @@ const paramTileTargets = {
   iters: { button: sliderControls.iters.button, modeKey: sliderControls.iters.paramKey, shortTap: () => openQuickSlider("iters") },
 };
 
-let cameraPressTimer = null;
-let longPressTriggered = false;
+let cameraSingleTapTimer = null;
+let cameraTapCount = 0;
 let isApplyingHistoryState = false;
 let historyStates = [];
 let historyIndex = -1;
@@ -2118,47 +2118,47 @@ async function captureScreenshot(includeOverlay) {
   showToast(includeOverlay ? "Saved screenshot with parameter overlay." : "Saved clean screenshot.");
 }
 
-function clearCameraPressState() {
-  if (cameraPressTimer) {
-    window.clearTimeout(cameraPressTimer);
-    cameraPressTimer = null;
+function clearCameraTapState() {
+  if (cameraSingleTapTimer) {
+    window.clearTimeout(cameraSingleTapTimer);
+    cameraSingleTapTimer = null;
   }
 }
 
 function beginCameraPress(event) {
   event.preventDefault();
   event.stopPropagation();
-  clearCameraPressState();
-  longPressTriggered = false;
   cameraBtn.classList.add("is-armed");
-
-  cameraPressTimer = window.setTimeout(async () => {
-    longPressTriggered = true;
-    try {
-      await captureScreenshot(true);
-    } catch (error) {
-      console.error(error);
-      showToast(`Overlay screenshot failed: ${error.message}`);
-    }
-  }, CAMERA_LONG_PRESS_MS);
 }
 
-async function endCameraPress(event) {
+async function triggerCameraScreenshot(includeOverlay) {
+  try {
+    await captureScreenshot(includeOverlay);
+  } catch (error) {
+    console.error(error);
+    showToast(`${includeOverlay ? "Overlay screenshot" : "Screenshot"} failed: ${error.message}`);
+  }
+}
+
+function endCameraPress(event) {
   event.preventDefault();
   event.stopPropagation();
-  clearCameraPressState();
   cameraBtn.classList.remove("is-armed");
 
-  if (longPressTriggered) {
-    longPressTriggered = false;
+  cameraTapCount += 1;
+  if (cameraTapCount === 1) {
+    clearCameraTapState();
+    cameraSingleTapTimer = window.setTimeout(() => {
+      cameraTapCount = 0;
+      void triggerCameraScreenshot(false);
+    }, CAMERA_DOUBLE_TAP_MS);
     return;
   }
 
-  try {
-    await captureScreenshot(false);
-  } catch (error) {
-    console.error(error);
-    showToast(`Screenshot failed: ${error.message}`);
+  if (cameraTapCount >= 2) {
+    cameraTapCount = 0;
+    clearCameraTapState();
+    void triggerCameraScreenshot(true);
   }
 }
 
@@ -2242,9 +2242,9 @@ function registerHandlers() {
     cameraBtn.addEventListener("pointerdown", beginCameraPress);
     cameraBtn.addEventListener("pointerup", endCameraPress);
     cameraBtn.addEventListener("pointercancel", () => {
-      clearCameraPressState();
+      clearCameraTapState();
+      cameraTapCount = 0;
       cameraBtn.classList.remove("is-armed");
-      longPressTriggered = false;
     });
   } else {
     cameraBtn.addEventListener("touchstart", beginCameraPress, { passive: false });
