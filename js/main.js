@@ -2010,9 +2010,9 @@ function buildQrCanvas(url, sizePx) {
   qrCanvas.width = canvasSize;
   qrCanvas.height = canvasSize;
   const qrCtx = qrCanvas.getContext("2d", { alpha: false });
-  qrCtx.fillStyle = "#000000";
+  qrCtx.fillStyle = "#161616";
   qrCtx.fillRect(0, 0, canvasSize, canvasSize);
-  qrCtx.fillStyle = "#ffffff";
+  qrCtx.fillStyle = "#cfcfcf";
 
   for (let row = 0; row < moduleCount; row += 1) {
     for (let col = 0; col < moduleCount; col += 1) {
@@ -2040,9 +2040,11 @@ function drawQrOnExport(targetCtx, shareUrl, x, y, qrSize) {
 function drawScreenshotOverlay(targetCtx, width, height, shareUrl) {
   const line = buildScreenshotOverlayLines();
   const margin = Math.max(18, Math.round(width * 0.02));
-  const qrSize = clamp(Math.round(Math.min(width, height) * 0.14), 140, 320);
+  const qrSizeBase = clamp(Math.round(Math.min(width, height) * 0.14), 140, 320);
+  const qrSize = Math.round(qrSizeBase * 1.3);
   const resolvedShareUrl = shareUrl || buildShareUrl();
-  const qrX = width - margin - qrSize;
+  const qrInsetLeft = Math.round(qrSize * 0.2);
+  const qrX = width - margin - qrSize - qrInsetLeft;
   const qrY = height - margin - qrSize;
   const fontSize = Math.max(14, Math.round(height * 0.022));
   const maxTextWidth = Math.max(20, qrX - margin * 2);
@@ -2051,8 +2053,8 @@ function drawScreenshotOverlay(targetCtx, width, height, shareUrl) {
   targetCtx.font = `${fontSize}px system-ui, -apple-system, Segoe UI, sans-serif`;
   targetCtx.textBaseline = "bottom";
   targetCtx.lineWidth = Math.max(2, Math.round(fontSize * 0.18));
-  targetCtx.strokeStyle = "rgba(0, 0, 0, 0.78)";
-  targetCtx.fillStyle = "rgba(255, 255, 255, 0.94)";
+  targetCtx.strokeStyle = "rgba(0, 0, 0, 0.72)";
+  targetCtx.fillStyle = "rgba(214, 214, 214, 0.86)";
 
   const y = height - margin;
   targetCtx.strokeText(line, margin, y, maxTextWidth);
