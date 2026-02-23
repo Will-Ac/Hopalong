@@ -75,6 +75,7 @@ const HOLD_ACCEL_END_MS = 3000;
 const HOLD_MAX_MULTIPLIER = 10;
 const NAME_MAX_CHARS = 20;
 const CAMERA_LONG_PRESS_MS = 550;
+const QR_SCALE = 1.2;
 const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
 const PARAM_LONG_MS = 450;
 const PARAM_MOVE_CANCEL_PX = 10;
@@ -2001,18 +2002,17 @@ function buildQrCanvas(url, sizePx) {
   const moduleCount = qr.getModuleCount();
   const borderModules = 4;
   const totalModules = moduleCount + borderModules * 2;
-  const canvasSize = Math.max(sizePx, totalModules);
-  const pixelsPerModule = Math.max(1, Math.floor(canvasSize / totalModules));
-  const drawSize = totalModules * pixelsPerModule;
-  const start = Math.floor((canvasSize - drawSize) / 2);
+  const pixelsPerModule = Math.max(1, Math.ceil(sizePx / totalModules));
+  const canvasSize = totalModules * pixelsPerModule;
+  const start = 0;
 
   const qrCanvas = document.createElement("canvas");
   qrCanvas.width = canvasSize;
   qrCanvas.height = canvasSize;
   const qrCtx = qrCanvas.getContext("2d", { alpha: false });
-  qrCtx.fillStyle = "#161616";
+  qrCtx.fillStyle = "#000000";
   qrCtx.fillRect(0, 0, canvasSize, canvasSize);
-  qrCtx.fillStyle = "#cfcfcf";
+  qrCtx.fillStyle = "#bdbdbd";
 
   for (let row = 0; row < moduleCount; row += 1) {
     for (let col = 0; col < moduleCount; col += 1) {
@@ -2041,7 +2041,7 @@ function drawScreenshotOverlay(targetCtx, width, height, shareUrl) {
   const line = buildScreenshotOverlayLines();
   const margin = Math.max(18, Math.round(width * 0.02));
   const qrSizeBase = clamp(Math.round(Math.min(width, height) * 0.14), 140, 320);
-  const qrSize = Math.round(qrSizeBase * 1.3);
+  const qrSize = Math.round(qrSizeBase * QR_SCALE);
   const resolvedShareUrl = shareUrl || buildShareUrl();
   const qrInsetLeft = Math.round(qrSize * 0.2);
   const qrX = width - margin - qrSize - qrInsetLeft;
@@ -2054,7 +2054,7 @@ function drawScreenshotOverlay(targetCtx, width, height, shareUrl) {
   targetCtx.textBaseline = "bottom";
   targetCtx.lineWidth = Math.max(2, Math.round(fontSize * 0.18));
   targetCtx.strokeStyle = "rgba(0, 0, 0, 0.72)";
-  targetCtx.fillStyle = "rgba(214, 214, 214, 0.86)";
+  targetCtx.fillStyle = "rgba(190, 190, 190, 0.80)";
 
   const y = height - margin;
   targetCtx.strokeText(line, margin, y, maxTextWidth);
