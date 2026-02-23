@@ -1362,7 +1362,23 @@ function applySharedStateFromHash() {
   appData.defaults.scaleMode = "fixed";
   fixedView = parsed.fixedView;
   appData.defaults.sliders.iters = Math.round(clamp(parsed.iterations, sliderControls.iters.min, sliderControls.iters.max));
-  sharedParamsOverride = parsed.params;
+
+  for (const [paramKey, paramValue] of Object.entries(parsed.params)) {
+    const sliderKey = sliderKeyByParamKey[paramKey];
+    const control = sliderControls[sliderKey];
+    if (!sliderKey || !control) {
+      continue;
+    }
+
+    appData.defaults.sliders[sliderKey] = clamp(paramValue, control.min, control.max);
+    paramModes[paramKey] = "fix";
+  }
+
+  paramModes.formula = "fix";
+  paramModes.cmap = "fix";
+  normalizeParamModes();
+  clearSharedParamsOverride();
+
   return true;
 }
 
