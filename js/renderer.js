@@ -29,7 +29,7 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, scaleMode = "auto", fixedView = null }) {
+export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null }) {
   const variant = getVariantById(formulaId);
   if (!variant) {
     throw new Error(`Unknown formula id: ${formulaId}`);
@@ -49,8 +49,8 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
 
   let x = 0;
   let y = 0;
-  const burn = 120;
-  for (let i = 0; i < burn; i += 1) {
+  const burnSteps = clamp(burn ?? 120, 0, 5000);
+  for (let i = 0; i < burnSteps; i += 1) {
     [x, y] = variant.step(x, y, params.a, params.b, params.d, params.c);
   }
 

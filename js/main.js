@@ -12,6 +12,21 @@ const debugOnEl = document.getElementById("debugOn");
 const debugOffEl = document.getElementById("debugOff");
 const debugInfoEl = document.getElementById("debugInfo");
 const debugPanelEl = document.getElementById("debugPanel");
+const rangesEditorToggleEl = document.getElementById("rangesEditorToggle");
+const rangesEditorPanelEl = document.getElementById("rangesEditorPanel");
+const rangesEditorCloseEl = document.getElementById("rangesEditorClose");
+const rangesFormulaSelectEl = document.getElementById("rangesFormulaSelect");
+const rangesEditorWarningEl = document.getElementById("rangesEditorWarning");
+const rangesApplyBtnEl = document.getElementById("rangesApplyBtn");
+const rangesDefaultsBtnEl = document.getElementById("rangesDefaultsBtn");
+const rangesResetAllBtnEl = document.getElementById("rangesResetAllBtn");
+
+const rangeInputMap = {
+  a: { min: document.getElementById("rangeAmin"), max: document.getElementById("rangeAmax") },
+  b: { min: document.getElementById("rangeBmin"), max: document.getElementById("rangeBmax") },
+  c: { min: document.getElementById("rangeCmin"), max: document.getElementById("rangeCmax") },
+  d: { min: document.getElementById("rangeDmin"), max: document.getElementById("rangeDmax") },
+};
 
 const quickSliderOverlay = document.getElementById("quickSliderOverlay");
 const quickSliderBackdrop = document.getElementById("quickSliderBackdrop");
@@ -43,7 +58,8 @@ const sliderControls = {
   beta: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   delta: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   gamma: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
-  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 1000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
+  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 10000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
+  burn: { button: document.getElementById("btnBurn"), label: "Burn", paramKey: "burn", min: 0, max: 5000, sliderStep: 1, stepSize: 1, displayDp: 0 },
 };
 
 const DEFAULT_PARAM_RANGES = {
@@ -77,6 +93,7 @@ const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
 const PARAM_LONG_MS = 450;
 const PARAM_MOVE_CANCEL_PX = 10;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
+const APP_DEFAULTS_STORAGE_KEY = "hopalong.defaults.v2";
 const PARAM_MODE_VALUES = new Set(["fix", "manx", "many", "rand"]);
 const PARAM_FULL_MODE_OPTIONS = ["rand", "fix", "manx", "many"];
 const PARAM_MODE_OPTIONS_BY_KEY = {
@@ -92,6 +109,7 @@ const paramTileTargets = {
   delta: { button: sliderControls.delta.button, modeKey: sliderControls.delta.paramKey, shortTap: () => openQuickSlider("delta") },
   gamma: { button: sliderControls.gamma.button, modeKey: sliderControls.gamma.paramKey, shortTap: () => openQuickSlider("gamma") },
   iters: { button: sliderControls.iters.button, modeKey: sliderControls.iters.paramKey, shortTap: () => openQuickSlider("iters") },
+  burn: { button: sliderControls.burn.button, modeKey: sliderControls.burn.paramKey, shortTap: () => openQuickSlider("burn") },
 };
 
 let cameraPressTimer = null;
@@ -130,7 +148,13 @@ const sliderKeyByParamKey = {
   c: "delta",
   d: "gamma",
   iters: "iters",
+  burn: "burn",
 };
+
+const RANGE_KEYS = ["a", "b", "c", "d"];
+
+let builtInFormulaRanges = {};
+let rangesEditorFormulaId = null;
 
 let interactionState = INTERACTION_STATE.NONE;
 let activePointers = new Map();
@@ -234,8 +258,18 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function getRangeValuesForFormula(formulaId) {
+  if (!appData || !formulaId) {
+    return DEFAULT_PARAM_RANGES;
+  }
+
+  const override = appData.defaults.rangesOverridesByFormula?.[formulaId];
+  const builtIn = builtInFormulaRanges[formulaId];
+  return override || builtIn || DEFAULT_PARAM_RANGES;
+}
+
 function getCurrentFormulaRange() {
-  return appData.formula_ranges_raw[currentFormulaId] || null;
+  return getRangeValuesForFormula(currentFormulaId);
 }
 
 function getDerivedParams() {
@@ -275,10 +309,20 @@ function getActiveActualValue() {
   return getControlValue(activeSliderKey);
 }
 
+function normalizeSliderDefaults() {
+  for (const [sliderKey, control] of Object.entries(sliderControls)) {
+    const rawValue = Number(appData.defaults.sliders?.[sliderKey]);
+    const fallbackValue = sliderKey === "burn" ? 120 : (sliderKey === "iters" ? 200000 : 50);
+    const safeValue = Number.isFinite(rawValue) ? rawValue : fallbackValue;
+    const clampedValue = clamp(safeValue, control.min, control.max);
+    appData.defaults.sliders[sliderKey] = (sliderKey === "iters" || sliderKey === "burn") ? Math.round(clampedValue) : clampedValue;
+  }
+}
+
 function getControlValue(sliderKey) {
   const control = sliderControls[sliderKey];
-  if (control.paramKey === "iters") {
-    return appData.defaults.sliders.iters;
+  if (control.paramKey === "iters" || control.paramKey === "burn") {
+    return appData.defaults.sliders[sliderKey];
   }
 
   const params = getDerivedParams();
@@ -325,6 +369,141 @@ function layoutFloatingActions() {
   }
 }
 
+function setRangesEditorWarning(message = "") {
+  if (rangesEditorWarningEl) {
+    rangesEditorWarningEl.textContent = message;
+  }
+}
+
+function getSelectedRangesEditorFormulaId() {
+  return rangesFormulaSelectEl?.value || rangesEditorFormulaId || currentFormulaId;
+}
+
+function populateRangeEditorFormulaOptions() {
+  if (!rangesFormulaSelectEl || !appData) {
+    return;
+  }
+
+  rangesFormulaSelectEl.innerHTML = "";
+  for (const formula of appData.formulas) {
+    const option = document.createElement("option");
+    option.value = formula.id;
+    option.textContent = formula.name || formula.id;
+    rangesFormulaSelectEl.append(option);
+  }
+}
+
+function loadFormulaRangesIntoEditor(formulaId) {
+  const ranges = getRangeValuesForFormula(formulaId);
+  for (const key of RANGE_KEYS) {
+    const field = rangeInputMap[key];
+    if (!field) {
+      continue;
+    }
+    field.min.value = String(ranges[key][0]);
+    field.max.value = String(ranges[key][1]);
+  }
+  rangesEditorFormulaId = formulaId;
+  if (rangesFormulaSelectEl) {
+    rangesFormulaSelectEl.value = formulaId;
+  }
+  setRangesEditorWarning("");
+}
+
+function remapSliderToPreserveParams(formulaId, nextRange) {
+  if (!formulaId || formulaId !== currentFormulaId) {
+    return;
+  }
+
+  const previousRange = getRangeValuesForFormula(formulaId);
+  const keysToSliders = { a: "alpha", b: "beta", c: "delta", d: "gamma" };
+
+  for (const key of RANGE_KEYS) {
+    const sliderKey = keysToSliders[key];
+    const sliderValue = Number(appData.defaults.sliders[sliderKey]);
+    const oldMin = previousRange[key][0];
+    const oldMax = previousRange[key][1];
+    const newMin = nextRange[key][0];
+    const newMax = nextRange[key][1];
+    const t = clamp(sliderValue / 100, 0, 1);
+    const actual = oldMin + (oldMax - oldMin) * t;
+    const denom = Math.max(newMax - newMin, 1e-9);
+    const normalized = ((actual - newMin) / denom) * 100;
+    appData.defaults.sliders[sliderKey] = clamp(normalized, 0, 100);
+  }
+}
+
+function readRangeEditorDraft() {
+  const nextRanges = {};
+  for (const key of RANGE_KEYS) {
+    const field = rangeInputMap[key];
+    const minValue = Number(field?.min?.value);
+    const maxValue = Number(field?.max?.value);
+    if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+      return { error: `Please enter valid numeric values for ${key}.` };
+    }
+    if (minValue >= maxValue) {
+      return { error: `Invalid range for ${key}: min must be less than max.` };
+    }
+    nextRanges[key] = [minValue, maxValue];
+  }
+  return { ranges: nextRanges };
+}
+
+function applyRangesOverrideFromEditor() {
+  const formulaId = getSelectedRangesEditorFormulaId();
+  const parsed = readRangeEditorDraft();
+  if (parsed.error) {
+    setRangesEditorWarning(parsed.error);
+    return;
+  }
+
+  remapSliderToPreserveParams(formulaId, parsed.ranges);
+  appData.defaults.rangesOverridesByFormula[formulaId] = parsed.ranges;
+  saveDefaultsToStorage();
+  setRangesEditorWarning("Applied.");
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function resetFormulaRangeOverride(formulaId) {
+  if (!formulaId) {
+    return;
+  }
+  const builtInRange = builtInFormulaRanges[formulaId] || DEFAULT_PARAM_RANGES;
+  remapSliderToPreserveParams(formulaId, builtInRange);
+  delete appData.defaults.rangesOverridesByFormula[formulaId];
+  saveDefaultsToStorage();
+  loadFormulaRangesIntoEditor(formulaId);
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function resetAllRangeOverrides() {
+  const currentBuiltIn = builtInFormulaRanges[currentFormulaId] || DEFAULT_PARAM_RANGES;
+  remapSliderToPreserveParams(currentFormulaId, currentBuiltIn);
+  appData.defaults.rangesOverridesByFormula = {};
+  saveDefaultsToStorage();
+  loadFormulaRangesIntoEditor(getSelectedRangesEditorFormulaId());
+  setRangesEditorWarning("All overrides cleared.");
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function openRangesEditor() {
+  if (!rangesEditorPanelEl) {
+    return;
+  }
+
+  rangesEditorPanelEl.classList.remove("is-hidden");
+  const formulaId = getSelectedRangesEditorFormulaId();
+  loadFormulaRangesIntoEditor(formulaId);
+}
+
+function closeRangesEditor() {
+  rangesEditorPanelEl?.classList.add("is-hidden");
+}
+
 function getScaleMode() {
   return appData?.defaults?.scaleMode === "fixed" ? "fixed" : "auto";
 }
@@ -340,6 +519,7 @@ function setScaleModeFixed(reason = "manual pan/zoom") {
 
   appData.defaults.scaleMode = "fixed";
   syncScaleModeButton();
+  saveDefaultsToStorage();
   commitCurrentStateToHistory();
   showToast(`Scale: Fixed (${reason})`);
 }
@@ -421,6 +601,7 @@ function applyAllParamModes(nextMode) {
   syncParamModeVisuals();
   saveParamModesToStorage();
   syncRandomModeButton();
+  saveDefaultsToStorage();
   requestDraw();
   commitCurrentStateToHistory();
 }
@@ -572,11 +753,75 @@ function loadParamModesFromStorage() {
   normalizeParamModes();
 }
 
+function normalizeRangePair(pair, fallbackPair) {
+  if (!Array.isArray(pair) || pair.length < 2) {
+    return [...fallbackPair];
+  }
+
+  const min = Number(pair[0]);
+  const max = Number(pair[1]);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min >= max) {
+    return [...fallbackPair];
+  }
+
+  return [min, max];
+}
+
+function normalizeRangeObject(rangeCandidate, fallbackRange = DEFAULT_PARAM_RANGES) {
+  const normalized = {};
+  for (const key of RANGE_KEYS) {
+    normalized[key] = normalizeRangePair(rangeCandidate?.[key], fallbackRange[key]);
+  }
+  return normalized;
+}
+
+function saveDefaultsToStorage() {
+  if (!appData?.defaults) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(APP_DEFAULTS_STORAGE_KEY, JSON.stringify(appData.defaults));
+  } catch (error) {
+    console.warn("Could not save defaults.", error);
+  }
+}
+
+function loadDefaultsFromStorage() {
+  try {
+    const raw = window.localStorage.getItem(APP_DEFAULTS_STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return;
+    }
+
+    appData.defaults = {
+      ...appData.defaults,
+      ...parsed,
+      sliders: {
+        ...(appData.defaults.sliders || {}),
+        ...(parsed.sliders || {}),
+      },
+      rangesOverridesByFormula: {
+        ...(appData.defaults.rangesOverridesByFormula || {}),
+        ...(parsed.rangesOverridesByFormula || {}),
+      },
+    };
+  } catch (error) {
+    console.warn("Could not load defaults.", error);
+  }
+}
+
 function captureCurrentState() {
   return {
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     sliders: { ...appData.defaults.sliders },
+    rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
     paramModes: { ...paramModes },
     scaleMode: getScaleMode(),
     fixedView: { ...fixedView },
@@ -628,6 +873,10 @@ function applyState(state) {
   currentFormulaId = state.formulaId;
   appData.defaults.cmapName = state.cmapName;
   appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
+  normalizeSliderDefaults();
+  if (state.rangesOverridesByFormula && typeof state.rangesOverridesByFormula === "object") {
+    appData.defaults.rangesOverridesByFormula = JSON.parse(JSON.stringify(state.rangesOverridesByFormula));
+  }
   appData.defaults.scaleMode = state.scaleMode === "fixed" ? "fixed" : "auto";
   if (state.fixedView && typeof state.fixedView === "object") {
     fixedView = {
@@ -641,9 +890,11 @@ function applyState(state) {
     normalizeParamModes();
     syncParamModeVisuals();
     saveParamModesToStorage();
+    saveDefaultsToStorage();
     syncRandomModeButton();
   }
   syncScaleModeButton();
+  saveDefaultsToStorage();
   requestDraw();
   isApplyingHistoryState = false;
 }
@@ -670,13 +921,14 @@ function randomizeAllParameters() {
       continue;
     }
 
-    if (sliderKey === "iters") {
+    if (sliderKey === "iters" || sliderKey === "burn") {
       appData.defaults.sliders[sliderKey] = randomInt(control.min, control.max);
       continue;
     }
     appData.defaults.sliders[sliderKey] = Number((Math.random() * (control.max - control.min) + control.min).toFixed(4));
   }
 
+  saveDefaultsToStorage();
   requestDraw();
   commitCurrentStateToHistory();
 }
@@ -686,7 +938,7 @@ function isEventInsideInteractiveUi(eventTarget) {
     return false;
   }
 
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #modePicker, #debugToggleDock, #floatingActions"));
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #modePicker, #debugToggleDock, #floatingActions, #rangesEditorPanel, #rangesEditorToggle"));
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -1161,6 +1413,7 @@ function renderFormulaPicker() {
     button.addEventListener("click", () => {
       currentFormulaId = formula.id;
       updateCurrentPickerSelection();
+      saveDefaultsToStorage();
       requestDraw();
       commitCurrentStateToHistory();
       // Keep picker open so users can live-preview multiple options before closing.
@@ -1199,6 +1452,7 @@ function renderColorMapPicker() {
     button.addEventListener("click", () => {
       appData.defaults.cmapName = cmapName;
       updateCurrentPickerSelection();
+      saveDefaultsToStorage();
       requestDraw();
       commitCurrentStateToHistory();
       // Keep picker open so users can live-preview multiple options before closing.
@@ -1241,6 +1495,7 @@ function applySliderValue(nextValue, { commitHistory = true } = {}) {
   const control = sliderControls[activeSliderKey];
   const value = clamp(nextValue, control.min, control.max);
   appData.defaults.sliders[activeSliderKey] = value;
+  saveDefaultsToStorage();
   qsRange.value = value;
   updateQuickSliderReadout();
   requestDraw();
@@ -1818,6 +2073,7 @@ function draw() {
   const startedAt = performance.now();
   const didResize = resizeCanvas();
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const iterations = iterationSetting;
   const frameMeta = renderFrame({
     ctx,
@@ -1826,6 +2082,7 @@ function draw() {
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
     iterations: didResize ? Math.max(10000, Math.round(iterations * 0.6)) : iterations,
+    burn: burnSetting,
     scaleMode: getScaleMode(),
     fixedView,
   });
@@ -1987,10 +2244,12 @@ function registerHandlers() {
   pickerBackdrop.addEventListener("click", closePicker);
   debugOnEl.addEventListener("change", () => {
     appData.defaults.debug = debugOnEl.checked;
+    saveDefaultsToStorage();
     requestDraw();
   });
   debugOffEl.addEventListener("change", () => {
     appData.defaults.debug = debugOnEl.checked;
+    saveDefaultsToStorage();
     requestDraw();
   });
 
@@ -2077,6 +2336,7 @@ function registerHandlers() {
   scaleModeBtn.addEventListener("click", () => {
     appData.defaults.scaleMode = getScaleMode() === "fixed" ? "auto" : "fixed";
     syncScaleModeButton();
+    saveDefaultsToStorage();
     requestDraw();
     commitCurrentStateToHistory();
     showToast(getScaleMode() === "fixed" ? "Fixed scale mode enabled." : "Auto scale mode enabled.");
@@ -2093,6 +2353,24 @@ function registerHandlers() {
   };
 
   randomModeBtn.addEventListener("click", toggleRandomMode);
+
+  rangesEditorToggleEl?.addEventListener("click", () => {
+    if (rangesEditorPanelEl?.classList.contains("is-hidden")) {
+      openRangesEditor();
+    } else {
+      closeRangesEditor();
+    }
+  });
+  rangesEditorCloseEl?.addEventListener("click", closeRangesEditor);
+  rangesFormulaSelectEl?.addEventListener("change", () => {
+    loadFormulaRangesIntoEditor(rangesFormulaSelectEl.value);
+  });
+  rangesApplyBtnEl?.addEventListener("click", applyRangesOverrideFromEditor);
+  rangesDefaultsBtnEl?.addEventListener("click", () => {
+    resetFormulaRangeOverride(getSelectedRangesEditorFormulaId());
+    setRangesEditorWarning("Restored built-in defaults for this formula.");
+  });
+  rangesResetAllBtnEl?.addEventListener("click", resetAllRangeOverrides);
 
   canvas.style.touchAction = "none";
   canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: false });
@@ -2186,17 +2464,26 @@ async function loadData() {
     data.defaults.debug = false;
   }
 
-  if (typeof data.defaults.sliders?.iters !== "number") {
-    data.defaults.sliders = {
-      ...(data.defaults.sliders || {}),
-      iters: 200000,
-    };
+  data.defaults.sliders = {
+    ...(data.defaults.sliders || {}),
+  };
+
+  if (typeof data.defaults.sliders.iters !== "number") {
+    data.defaults.sliders.iters = 200000;
+  }
+  if (typeof data.defaults.sliders.burn !== "number") {
+    data.defaults.sliders.burn = 120;
   }
 
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
+  data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
 
   if (data.defaults.scaleMode !== "fixed") {
     data.defaults.scaleMode = "auto";
+  }
+
+  if (!data.defaults.rangesOverridesByFormula || typeof data.defaults.rangesOverridesByFormula !== "object") {
+    data.defaults.rangesOverridesByFormula = {};
   }
 
   if (!Array.isArray(data.formulas) || data.formulas.length === 0) {
@@ -2219,17 +2506,31 @@ async function bootstrap() {
   try {
     installGlobalZoomBlockers();
     appData = await loadData();
+    builtInFormulaRanges = JSON.parse(JSON.stringify(appData.formula_ranges_raw || {}));
+    loadDefaultsFromStorage();
+    normalizeSliderDefaults();
+
+    appData.defaults.rangesOverridesByFormula = Object.fromEntries(
+      Object.entries(appData.defaults.rangesOverridesByFormula || {}).map(([formulaId, range]) => {
+        const fallback = builtInFormulaRanges[formulaId] || DEFAULT_PARAM_RANGES;
+        return [formulaId, normalizeRangeObject(range, fallback)];
+      }),
+    );
+
     loadParamModesFromStorage();
 
     currentFormulaId = resolveInitialFormulaId();
     appData.defaults.cmapName = resolveInitialColorMap();
     configureNameBoxWidths();
+    populateRangeEditorFormulaOptions();
+    rangesEditorFormulaId = currentFormulaId;
     debugOnEl.checked = Boolean(appData.defaults.debug);
     debugOffEl.checked = !debugOnEl.checked;
     syncScaleModeButton();
     syncRandomModeButton();
     syncParamModeVisuals();
     saveParamModesToStorage();
+    saveDefaultsToStorage();
 
     registerHandlers();
     maybeShowLandscapeHint();

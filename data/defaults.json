@@ -11,7 +11,7 @@
     "delta": 50.0,
     "orbits": 25.0,
     "iters": 200000.0,
-    "burn": 50.0,
+    "burn": 120.0,
     "rangeR": 300.0,
     "initR": 100.0
   },
