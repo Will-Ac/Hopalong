@@ -1344,6 +1344,7 @@ function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
     lastD,
     lastMX,
     lastMY,
+    justStarted: true,
   };
   interactionState = INTERACTION_STATE.TWO_ACTIVE;
   suppressHistoryTap = true;
@@ -1466,6 +1467,15 @@ function onCanvasPointerMove(event) {
   const dym = midpoint.y - twoFingerGesture.lastMY;
   const dd = distance - twoFingerGesture.lastD;
   const ratioStep = twoFingerGesture.lastD > 0 ? distance / twoFingerGesture.lastD : 1;
+
+  if (twoFingerGesture.justStarted) {
+    twoFingerGesture.lastD = distance;
+    twoFingerGesture.lastMX = midpoint.x;
+    twoFingerGesture.lastMY = midpoint.y;
+    twoFingerGesture.justStarted = false;
+    return;
+  }
+
   const panMagnitude = Math.hypot(dxm, dym);
   const zoomRatioDelta = Math.abs(ratioStep - 1);
   const shouldPan = panMagnitude > PAN_DEADBAND_PX;
