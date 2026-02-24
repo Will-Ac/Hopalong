@@ -24,11 +24,14 @@ const settingsTabRangesEl = document.getElementById("settingsTabRanges");
 const settingsTabDetailedEl = document.getElementById("settingsTabDetailed");
 const rangesTabPanelEl = document.getElementById("rangesTabPanel");
 const detailedTabPanelEl = document.getElementById("detailedTabPanel");
+const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomItersRange");
+const detailMaxRandomItersFormattedEl = document.getElementById("detailMaxRandomItersFormatted");
 const detailBurnRangeEl = document.getElementById("detailBurnRange");
 const detailBurnFormattedEl = document.getElementById("detailBurnFormatted");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const settingsInfoTextEl = document.getElementById("settingsInfoText");
 const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
+const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
 const infoBurnEl = document.getElementById("infoBurn");
 const infoDebugEl = document.getElementById("infoDebug");
 
@@ -540,7 +543,10 @@ function setSettingsTab(tabKey) {
 }
 
 function syncDetailedSettingsControls() {
+  const maxRandomIters = Math.round(clamp(appData.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
   const burnValue = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
+  if (detailMaxRandomItersRangeEl) detailMaxRandomItersRangeEl.value = String(maxRandomIters);
+  if (detailMaxRandomItersFormattedEl) detailMaxRandomItersFormattedEl.textContent = formatNumberForUi(maxRandomIters, 0);
   if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
   if (detailBurnFormattedEl) detailBurnFormattedEl.textContent = formatNumberForUi(burnValue, 0);
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
@@ -554,6 +560,14 @@ function applyDetailedSliderValue(sliderKey, nextValue) {
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyMaxRandomIterations(nextValue) {
+  const clamped = Math.round(clamp(Number(nextValue), sliderControls.iters.min, sliderControls.iters.max));
+  appData.defaults.maxRandomIters = clamped;
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
   commitCurrentStateToHistory();
 }
 
@@ -2458,6 +2472,7 @@ function registerHandlers() {
   settingsTabRangesEl?.addEventListener("click", () => setSettingsTab("ranges"));
   settingsTabDetailedEl?.addEventListener("click", () => setSettingsTab("detailed"));
 
+  detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
   detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
 
   detailDebugToggleEl?.addEventListener("change", () => {
@@ -2468,6 +2483,9 @@ function registerHandlers() {
     requestDraw();
   });
 
+  infoMaxRandomItersEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Max random iterations limits the upper bound for randomization of iteration count.", event.currentTarget);
+  });
   infoBurnEl?.addEventListener("click", (event) => {
     showSettingsInfo("Burn-in steps discard the first orbit points. Higher burn removes initial transients before plotting.", event.currentTarget);
   });

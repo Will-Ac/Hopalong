@@ -754,6 +754,13 @@
         </div>
         <div id="detailedTabPanel" class="rangesEditorBody settingsTabPanel is-hidden">
           <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Max random iterations</span><button id="infoMaxRandomIters" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfControlRow">
+              <input id="detailMaxRandomItersRange" class="perfRangeInput" type="range" min="1000" max="10000000" step="100" />
+              <div id="detailMaxRandomItersFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Burn-in steps</span><button id="infoBurn" class="perfInfoBtn" type="button">i</button></div>
             <div class="perfControlRow">
               <input id="detailBurnRange" class="perfRangeInput" type="range" min="0" max="5000" step="1" />
