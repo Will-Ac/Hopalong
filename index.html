@@ -281,6 +281,10 @@
         color: var(--text);
         font-size: 12px;
       }
+            #allDefaultsSettings {
+        display: grid;
+        gap: 8px;
+      }
       #settingsInfoPopup {
         position: absolute;
         inset: auto 10px 10px 10px;
@@ -747,10 +751,10 @@
         </div>
         <div id="detailedTabPanel" class="rangesEditorBody settingsTabPanel is-hidden">
           <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Iterations</span><button id="infoIterations" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfSettingHead"><span class="perfSettingLabel">Max random iterations</span><button id="infoMaxRandomIters" class="perfInfoBtn" type="button">i</button></div>
             <div class="perfControlRow">
-              <input id="detailItersRange" class="perfRangeInput" type="range" min="1000" max="10000000" step="100" />
-              <input id="detailItersNumber" class="perfNumberInput" type="number" min="1000" max="10000000" step="100" />
+              <input id="detailMaxRandomItersRange" class="perfRangeInput" type="range" min="1000" max="10000000" step="100" />
+              <input id="detailMaxRandomItersNumber" class="perfNumberInput" type="number" min="1000" max="10000000" step="100" />
             </div>
           </div>
           <div class="perfSettingCard">
@@ -764,6 +768,7 @@
             <div class="perfSettingHead"><span class="perfSettingLabel">Debug overlay</span><button id="infoDebug" class="perfInfoBtn" type="button">i</button></div>
             <label class="modeOption"><input id="detailDebugToggle" type="checkbox" /> Show debug overlays and diagnostics</label>
           </div>
+          <div id="allDefaultsSettings"></div>
           <div id="settingsInfoPopup" class="is-hidden" role="dialog" aria-live="polite">
             <div id="settingsInfoText"></div>
           </div>

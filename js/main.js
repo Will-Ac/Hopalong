@@ -24,14 +24,15 @@ const settingsTabRangesEl = document.getElementById("settingsTabRanges");
 const settingsTabDetailedEl = document.getElementById("settingsTabDetailed");
 const rangesTabPanelEl = document.getElementById("rangesTabPanel");
 const detailedTabPanelEl = document.getElementById("detailedTabPanel");
-const detailItersRangeEl = document.getElementById("detailItersRange");
-const detailItersNumberEl = document.getElementById("detailItersNumber");
+const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomItersRange");
+const detailMaxRandomItersNumberEl = document.getElementById("detailMaxRandomItersNumber");
 const detailBurnRangeEl = document.getElementById("detailBurnRange");
 const detailBurnNumberEl = document.getElementById("detailBurnNumber");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const settingsInfoTextEl = document.getElementById("settingsInfoText");
 const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
-const infoIterationsEl = document.getElementById("infoIterations");
+const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
+const allDefaultsSettingsEl = document.getElementById("allDefaultsSettings");
 const infoBurnEl = document.getElementById("infoBurn");
 const infoDebugEl = document.getElementById("infoDebug");
 
@@ -165,6 +166,19 @@ const sliderKeyByParamKey = {
 };
 
 const RANGE_KEYS = ["a", "b", "c", "d"];
+
+const DETAILED_DEFAULT_FIELDS = [
+  { key: "previewScale", min: 0.05, max: 1, step: 0.01, label: "Preview scale", help: "Scaling used by preview workflows. Lower values can improve responsiveness at the cost of preview sharpness." },
+  { key: "qsRange", min: 0, max: 100, step: 0.1, label: "Quick slider seed", help: "Stored default for quick slider range position used by legacy controls." },
+  { key: "alpha", min: 0, max: 100, step: 0.1, label: "Default alpha slider", help: "Saved default position for alpha (a) slider before range mapping." },
+  { key: "beta", min: 0, max: 100, step: 0.1, label: "Default beta slider", help: "Saved default position for beta (b) slider before range mapping." },
+  { key: "gamma", min: 0, max: 100, step: 0.1, label: "Default gamma slider", help: "Saved default position for gamma (d) slider before range mapping." },
+  { key: "delta", min: 0, max: 100, step: 0.1, label: "Default delta slider", help: "Saved default position for delta (c) slider before range mapping." },
+  { key: "orbits", min: 1, max: 100, step: 1, label: "Orbits", help: "Legacy orbit count setting retained in defaults for compatibility." },
+  { key: "rangeR", min: 1, max: 1000, step: 1, label: "Range radius", help: "Legacy range radius default kept for compatibility and future range tooling." },
+  { key: "initR", min: 1, max: 1000, step: 1, label: "Initial radius", help: "Legacy initial radius default kept for compatibility and future init-point tooling." },
+  { key: "iters", min: 1000, max: 10000000, step: 100, label: "Render iterations", help: "Actual iterations used when rendering frames now. This is separate from max random iterations." },
+];
 
 let builtInFormulaRanges = {};
 let rangesEditorFormulaId = null;
@@ -532,13 +546,20 @@ function setSettingsTab(tabKey) {
 }
 
 function syncDetailedSettingsControls() {
-  const iterValue = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const maxRandomIters = Math.round(clamp(appData.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
   const burnValue = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
-  if (detailItersRangeEl) detailItersRangeEl.value = String(iterValue);
-  if (detailItersNumberEl) detailItersNumberEl.value = String(iterValue);
+  if (detailMaxRandomItersRangeEl) detailMaxRandomItersRangeEl.value = String(maxRandomIters);
+  if (detailMaxRandomItersNumberEl) detailMaxRandomItersNumberEl.value = String(maxRandomIters);
   if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
   if (detailBurnNumberEl) detailBurnNumberEl.value = String(burnValue);
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
+
+  for (const field of DETAILED_DEFAULT_FIELDS) {
+    const input = document.getElementById(`detailDefault_${field.key}`);
+    if (input) {
+      input.value = String(appData.defaults.sliders?.[field.key] ?? "");
+    }
+  }
 }
 
 function applyDetailedSliderValue(sliderKey, nextValue) {
@@ -550,6 +571,63 @@ function applyDetailedSliderValue(sliderKey, nextValue) {
   saveDefaultsToStorage();
   requestDraw();
   commitCurrentStateToHistory();
+}
+
+function applyMaxRandomIterations(nextValue) {
+  const clamped = Math.round(clamp(Number(nextValue), sliderControls.iters.min, sliderControls.iters.max));
+  appData.defaults.maxRandomIters = clamped;
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  commitCurrentStateToHistory();
+}
+
+function applyDetailedDefaultField(fieldKey, rawValue) {
+  const field = DETAILED_DEFAULT_FIELDS.find((item) => item.key === fieldKey);
+  if (!field) return;
+  const numeric = Number(rawValue);
+  if (!Number.isFinite(numeric)) return;
+  const clamped = clamp(numeric, field.min, field.max);
+  appData.defaults.sliders[fieldKey] = clamped;
+  saveDefaultsToStorage();
+  if (fieldKey === "iters") {
+    requestDraw();
+    commitCurrentStateToHistory();
+  }
+  syncDetailedSettingsControls();
+}
+
+function renderAllDefaultSettingsControls() {
+  if (!allDefaultsSettingsEl) return;
+  allDefaultsSettingsEl.innerHTML = "";
+
+  for (const field of DETAILED_DEFAULT_FIELDS) {
+    const card = document.createElement("div");
+    card.className = "perfSettingCard";
+
+    const head = document.createElement("div");
+    head.className = "perfSettingHead";
+    const label = document.createElement("span");
+    label.className = "perfSettingLabel";
+    label.textContent = field.label;
+    const info = document.createElement("button");
+    info.type = "button";
+    info.className = "perfInfoBtn";
+    info.textContent = "i";
+    info.addEventListener("click", () => showSettingsInfo(field.help));
+    head.append(label, info);
+
+    const input = document.createElement("input");
+    input.id = `detailDefault_${field.key}`;
+    input.className = "perfNumberInput";
+    input.type = "number";
+    input.min = String(field.min);
+    input.max = String(field.max);
+    input.step = String(field.step);
+    input.addEventListener("change", () => applyDetailedDefaultField(field.key, input.value));
+
+    card.append(head, input);
+    allDefaultsSettingsEl.append(card);
+  }
 }
 
 function showSettingsInfo(message) {
@@ -879,6 +957,7 @@ function captureCurrentState() {
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     sliders: { ...appData.defaults.sliders },
+    maxRandomIters: appData.defaults.maxRandomIters,
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
     paramModes: { ...paramModes },
     scaleMode: getScaleMode(),
@@ -931,6 +1010,7 @@ function applyState(state) {
   currentFormulaId = state.formulaId;
   appData.defaults.cmapName = state.cmapName;
   appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
+  appData.defaults.maxRandomIters = Math.round(clamp(state.maxRandomIters ?? appData.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
   normalizeSliderDefaults();
   if (state.rangesOverridesByFormula && typeof state.rangesOverridesByFormula === "object") {
     appData.defaults.rangesOverridesByFormula = JSON.parse(JSON.stringify(state.rangesOverridesByFormula));
@@ -984,7 +1064,7 @@ function randomizeAllParameters() {
     }
 
     if (sliderKey === "iters") {
-      appData.defaults.sliders[sliderKey] = randomInt(control.min, control.max);
+      appData.defaults.sliders[sliderKey] = randomInt(control.min, appData.defaults.maxRandomIters || control.max);
       continue;
     }
     appData.defaults.sliders[sliderKey] = Number((Math.random() * (control.max - control.min) + control.min).toFixed(4));
@@ -2443,7 +2523,8 @@ function registerHandlers() {
     rangeEl?.addEventListener("input", () => applyDetailedSliderValue(sliderKey, rangeEl.value));
     numberEl?.addEventListener("change", () => applyDetailedSliderValue(sliderKey, numberEl.value));
   };
-  bindDetailedPair(detailItersRangeEl, detailItersNumberEl, "iters");
+  detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
+  detailMaxRandomItersNumberEl?.addEventListener("change", () => applyMaxRandomIterations(detailMaxRandomItersNumberEl.value));
   bindDetailedPair(detailBurnRangeEl, detailBurnNumberEl, "burn");
 
   detailDebugToggleEl?.addEventListener("change", () => {
@@ -2454,8 +2535,8 @@ function registerHandlers() {
     requestDraw();
   });
 
-  infoIterationsEl?.addEventListener("click", () => {
-    showSettingsInfo("Iterations controls how many points are plotted each frame. Higher values improve detail but increase render time.");
+  infoMaxRandomItersEl?.addEventListener("click", () => {
+    showSettingsInfo("Max random iterations limits the upper bound when randomisation picks a new iteration count. It does not change the current render iterations directly.");
   });
   infoBurnEl?.addEventListener("click", () => {
     showSettingsInfo("Burn-in steps discard the first orbit points. Higher burn removes initial transients before plotting.");
@@ -2567,8 +2648,12 @@ async function loadData() {
   if (typeof data.defaults.sliders.burn !== "number") {
     data.defaults.sliders.burn = 120;
   }
+  if (typeof data.defaults.maxRandomIters !== "number") {
+    data.defaults.maxRandomIters = sliderControls.iters.max;
+  }
 
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
+  data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
   data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
 
   if (data.defaults.scaleMode !== "fixed") {
@@ -2616,6 +2701,7 @@ async function bootstrap() {
     appData.defaults.cmapName = resolveInitialColorMap();
     configureNameBoxWidths();
     populateRangeEditorFormulaOptions();
+    renderAllDefaultSettingsControls();
     rangesEditorFormulaId = currentFormulaId;
     debugOnEl.checked = Boolean(appData.defaults.debug);
     debugOffEl.checked = !debugOnEl.checked;
