@@ -62,6 +62,7 @@ const paramRowEl = document.getElementById("paramRow");
 const cameraBtn = document.getElementById("cameraBtn");
 const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
+const randomModeTile = document.getElementById("randomModeTile");
 
 const sliderControls = {
   alpha: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
@@ -130,6 +131,7 @@ let historyIndex = -1;
 let paramModes = {};
 let lastParamTap = { targetKey: null, timestamp: 0 };
 let pendingTileTapTimer = null;
+let randomAllNextMode = "rand";
 const paramPressState = {
   pointerId: null,
   targetKey: null,
@@ -617,12 +619,19 @@ function syncScaleModeButton() {
 
 function syncRandomModeButton() {
   const globalMode = getGlobalRandomFixMixState();
-  randomModeBtn.textContent = globalMode === "ran" ? "Fix\nAll" : "Random\nAll";
-  randomModeBtn.classList.toggle("is-random", globalMode === "ran");
-  randomModeBtn.classList.toggle("is-fixed", globalMode === "fix");
-  randomModeBtn.classList.toggle("is-mixed", globalMode === "mix");
-  randomModeBtn.setAttribute("aria-label", globalMode === "ran" ? "All parameter modes set to random" : globalMode === "fix" ? "All parameter modes set to fixed" : "Mixed parameter modes");
-  randomModeBtn.title = globalMode === "ran" ? "All random" : globalMode === "fix" ? "All fixed" : "Mixed parameter modes";
+
+  if (globalMode === "ran") {
+    randomAllNextMode = "fix";
+  } else if (globalMode === "fix") {
+    randomAllNextMode = "rand";
+  }
+
+  randomModeBtn.textContent = randomAllNextMode === "fix" ? "Fix\nAll" : "Random\nAll";
+  randomModeTile?.classList.toggle("is-random", globalMode === "ran");
+  randomModeTile?.classList.toggle("is-fixed", globalMode === "fix");
+  randomModeTile?.classList.toggle("is-mixed", globalMode === "mix");
+  randomModeBtn.setAttribute("aria-label", randomAllNextMode === "fix" ? "Set all parameter modes to fixed" : "Set all parameter modes to random");
+  randomModeBtn.title = randomAllNextMode === "fix" ? "Fix all" : "Random all";
 }
 
 
@@ -1464,13 +1473,23 @@ function closePicker() {
 }
 
 function layoutPickerPanel() {
+  const formulaTile = formulaBtn?.closest(".poItem");
+  const cmapTile = cmapBtn?.closest(".poItem");
   const viewportWidth = window.innerWidth;
   const margin = 6;
-  const gap = 6;
-  const tileWidth = Math.max(26, (viewportWidth - margin * 2 - gap * 7) / 8);
-  const width = clamp(tileWidth * 3 + gap * 2, 180, viewportWidth - margin * 2);
 
-  pickerPanel.style.width = `${width}px`;
+  if (formulaTile && cmapTile) {
+    const firstRect = formulaTile.getBoundingClientRect();
+    const secondRect = cmapTile.getBoundingClientRect();
+    const left = clamp(firstRect.left, margin, viewportWidth - margin - 180);
+    const width = clamp(secondRect.right - firstRect.left, 180, viewportWidth - margin * 2);
+    pickerPanel.style.width = `${width}px`;
+    pickerPanel.style.left = `${left}px`;
+    pickerPanel.style.transform = "none";
+    return;
+  }
+
+  pickerPanel.style.width = `${Math.min(320, viewportWidth - margin * 2)}px`;
   pickerPanel.style.left = `${margin}px`;
   pickerPanel.style.transform = "none";
 }
@@ -2393,8 +2412,10 @@ function registerHandlers() {
       event.preventDefault();
       event.stopPropagation();
     }
-    const nextMode = getGlobalRandomFixMixState() === "ran" ? "fix" : "rand";
+    const nextMode = randomAllNextMode;
     applyAllParamModes(nextMode);
+    randomAllNextMode = nextMode === "rand" ? "fix" : "rand";
+    syncRandomModeButton();
     showToast(nextMode === "rand" ? "RAN mode enabled. Tap right to go forward/randomise, left to go back." : "FIX mode enabled. History tap controls are inactive.");
   };
 

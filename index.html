@@ -12,6 +12,7 @@
         --param-outline: rgba(255, 255, 255, 0.34);
         --text: #f5f8ff;
         --name-box-width: 154px;
+        --tile-size: 42px;
       }
       *, *::before, *::after {
         box-sizing: border-box;
@@ -76,13 +77,21 @@
         z-index: 39;
       }
       #debugBugBtn {
-        width: 48px;
-        min-height: 48px;
+        width: var(--tile-size);
+        min-height: var(--tile-size);
         border-radius: 10px;
         border: 2px solid var(--param-outline);
         background: var(--panel-bg);
         color: rgba(255, 255, 255, 0.95);
-        font-size: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+      }
+      #debugBugBtn .bugIcon {
+        width: 22px;
+        height: 22px;
+        display: block;
       }
       #debugBugBtn.is-active {
         background: rgba(255, 255, 255, 0.1);
@@ -124,8 +133,8 @@
       }
 
       .topActionBtn {
-        width: 48px;
-        min-height: 48px;
+        width: var(--tile-size);
+        min-height: var(--tile-size);
         border-radius: 10px;
         border: 2px solid var(--param-outline);
         background: var(--panel-bg);
@@ -394,7 +403,7 @@
         background: var(--panel-bg);
         border: 2px solid var(--param-outline);
         border-radius: 10px;
-        padding: 6px;
+        padding: 4px 5px;
       }
       .poItem.po-mode-fix {
         border-width: 2px;
@@ -435,21 +444,21 @@
       .poItem.po-mode-many::after { right: 0; }
       .poLabel {
         display: block;
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 600;
         letter-spacing: 0.03em;
-        margin-bottom: 4px;
+        margin-bottom: 2px;
         opacity: 0.85;
         text-align: center;
       }
       .poBtn {
         width: 100%;
-        min-height: 36px;
-        border-radius: 7px;
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        background: rgba(0, 0, 0, 0.12);
+        min-height: 26px;
+        border-radius: 0;
+        border: 0;
+        background: transparent;
         color: var(--text);
-        padding: 5px 7px;
+        padding: 2px 4px;
         font-size: 12px;
         text-align: center;
         font-variant-numeric: tabular-nums;
@@ -551,8 +560,8 @@
 
       #cameraBtn {
         position: relative;
-        width: 48px;
-        min-height: 48px;
+        width: var(--tile-size);
+        min-height: var(--tile-size);
         border-radius: 10px;
         border: 2px solid var(--param-outline);
         background: var(--panel-bg);
@@ -566,8 +575,8 @@
       }
       #scaleModeBtn {
         position: relative;
-        width: 48px;
-        min-height: 48px;
+        width: var(--tile-size);
+        min-height: var(--tile-size);
         border-radius: 10px;
         border: 2px solid var(--param-outline);
         background: var(--panel-bg);
@@ -589,10 +598,9 @@
       #randomModeBtn {
         position: relative;
         width: 100%;
-        min-height: 48px;
-        border-radius: 10px;
-        border: 2px solid var(--param-outline);
-        background: var(--panel-bg);
+        min-height: 26px;
+        border: 0;
+        background: transparent;
         color: rgba(255, 255, 255, 0.95);
         display: inline-flex;
         align-items: center;
@@ -608,20 +616,16 @@
         white-space: pre-line;
         overflow: hidden;
       }
-      #scaleModeBtn.is-fixed,
-      #randomModeBtn.is-random {
+      #scaleModeBtn.is-fixed {
         background: rgba(255, 255, 255, 0.1);
       }
-      #randomModeBtn.is-random {
+      #randomModeTile.is-random {
         border-style: dashed;
       }
-      #randomModeBtn.is-mixed {
-        background: rgba(255, 255, 255, 0.06);
-        opacity: 0.95;
+      #randomModeTile.is-mixed {
         border-style: dashed solid dashed solid;
       }
-      #randomModeBtn.is-fixed {
-        opacity: 0.82;
+      #randomModeTile.is-fixed {
         border-style: solid;
       }
       #cameraBtn .cameraIcon {
@@ -643,7 +647,7 @@
         }
         .poBtn,
         #randomModeBtn {
-          min-height: 28px;
+          min-height: 18px;
           font-size: 8px;
           line-height: 1;
           padding: 2px 3px;
@@ -656,8 +660,8 @@
         #cameraBtn,
         #scaleModeBtn,
         #debugBugBtn {
-          width: 28px;
-          min-height: 28px;
+          width: 30px;
+          min-height: 30px;
           border-radius: 8px;
         }
       }
@@ -680,7 +684,7 @@
       <canvas id="c"></canvas>
       <p id="toast" aria-live="polite" aria-atomic="true"></p>
       <div id="debugToggleDock">
-        <button id="debugBugBtn" type="button" aria-label="Toggle debug overlay" title="Debug">🐞</button>
+        <button id="debugBugBtn" type="button" aria-label="Toggle debug overlay" title="Debug"><svg class="bugIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 7.5h8M7.5 11.5h9M8 15.5h8M6.5 9 4 7.5M17.5 9 20 7.5M6.5 13 4 14.5M17.5 13 20 14.5M9.3 7a3.1 3.1 0 0 1 5.4 0M8.7 19.5h6.6a1.2 1.2 0 0 0 1.2-1.2V9.7a1.2 1.2 0 0 0-1.2-1.2H8.7a1.2 1.2 0 0 0-1.2 1.2v8.6a1.2 1.2 0 0 0 1.2 1.2Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
       <div id="debugPanel" class="is-hidden">
         <p id="debugInfo">Debug off</p>
@@ -814,8 +818,7 @@ Scale</button>
             <button id="btnIters" class="poBtn" type="button">--</button>
           </div>
         </div>
-        <div class="poItem">
-          <span class="poLabel">Mode</span>
+        <div id="randomModeTile" class="poItem">
           <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode">Random
 All</button>
         </div>
