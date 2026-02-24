@@ -1714,22 +1714,20 @@ function onParamPointerEnd(event) {
       window.clearTimeout(pendingTileTapTimer);
       pendingTileTapTimer = null;
     }
-    toggleFixRandMode(paramTileTargets[targetKey]?.modeKey);
-    return;
-  }
-
-  if (targetKey === "formula" || targetKey === "cmap") {
-    if (pendingTileTapTimer) {
-      window.clearTimeout(pendingTileTapTimer);
+    const modeKey = paramTileTargets[targetKey]?.modeKey;
+    if (modeKey) {
+      toggleFixRandMode(modeKey);
     }
-    pendingTileTapTimer = window.setTimeout(() => {
-      pendingTileTapTimer = null;
-      paramTileTargets[targetKey]?.shortTap();
-    }, DOUBLE_TAP_MS + 10);
     return;
   }
 
-  paramTileTargets[targetKey]?.shortTap();
+  if (pendingTileTapTimer) {
+    window.clearTimeout(pendingTileTapTimer);
+  }
+  pendingTileTapTimer = window.setTimeout(() => {
+    pendingTileTapTimer = null;
+    paramTileTargets[targetKey]?.shortTap();
+  }, DOUBLE_TAP_MS + 10);
 }
 
 function clearStepHold() {
