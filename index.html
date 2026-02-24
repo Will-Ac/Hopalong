@@ -72,7 +72,7 @@
       #debugToggleDock {
         position: absolute;
         top: calc(10px + env(safe-area-inset-top));
-        right: max(0px, env(safe-area-inset-right));
+        left: max(0px, env(safe-area-inset-left));
         z-index: 39;
         background: rgba(12, 14, 20, 0.22);
         border: 1px solid rgba(255, 255, 255, 0.11);
@@ -101,7 +101,7 @@
       #debugPanel {
         position: absolute;
         top: calc(42px + env(safe-area-inset-top));
-        right: max(0px, env(safe-area-inset-right));
+        left: max(0px, env(safe-area-inset-left));
         z-index: 38;
         width: fit-content;
         max-width: min(300px, calc(100vw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
@@ -121,17 +121,26 @@
         white-space: pre-line;
       }
       #rangesEditorToggle {
+        font-size: 15px;
+      }
+
+      #topRightActions {
         position: absolute;
-        top: calc(52px + env(safe-area-inset-top));
+        top: calc(10px + env(safe-area-inset-top));
         right: max(2px, env(safe-area-inset-right));
         z-index: 39;
-        min-height: 28px;
-        min-width: 28px;
+        display: flex;
+        gap: 6px;
+        align-items: stretch;
+      }
+
+      .topActionBtn {
+        min-height: 32px;
+        min-width: 32px;
         border-radius: 8px;
         border: 1px solid rgba(255, 255, 255, 0.2);
         background: rgba(12, 14, 20, 0.28);
         color: var(--text);
-        font-size: 15px;
       }
 
       #rangesEditorPanel {
@@ -557,11 +566,11 @@
 
       #cameraBtn {
         position: relative;
-        width: 100%;
-        min-height: 48px;
-        border-radius: 10px;
-        border: 2px solid var(--param-outline);
-        background: var(--panel-bg);
+        width: 40px;
+        min-height: 32px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(12, 14, 20, 0.28);
         color: rgba(255, 255, 255, 0.95);
         display: inline-grid;
         align-items: center;
@@ -572,11 +581,11 @@
       }
       #scaleModeBtn {
         position: relative;
-        width: 100%;
-        min-height: 48px;
-        border-radius: 10px;
-        border: 2px solid var(--param-outline);
-        background: var(--panel-bg);
+        width: 68px;
+        min-height: 32px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(12, 14, 20, 0.28);
         color: rgba(255, 255, 255, 0.95);
         display: inline-flex;
         align-items: center;
@@ -584,7 +593,7 @@
         z-index: 33;
         backdrop-filter: blur(2px);
         -webkit-backdrop-filter: blur(2px);
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 600;
         letter-spacing: 0.02em;
         text-align: center;
@@ -635,12 +644,6 @@
       }
       #floatingActions {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 6px;
-        align-content: stretch;
-      }
-      #floatingActions > button {
-        height: 100%;
       }
 
       @media (max-width: 900px) and (orientation: landscape) {
@@ -653,9 +656,7 @@
           line-height: 1;
         }
         .poBtn,
-        #scaleModeBtn,
-        #randomModeBtn,
-        #cameraBtn {
+        #randomModeBtn {
           min-height: 28px;
           font-size: 8px;
           line-height: 1;
@@ -679,31 +680,6 @@
         }
       }
 
-      #modePicker {
-        position: absolute;
-        z-index: 46;
-        min-width: 150px;
-        border-radius: 10px;
-        border: 1px solid var(--panel-border);
-        background: rgba(12, 14, 20, 0.94);
-        padding: 8px;
-        display: none;
-        touch-action: none;
-      }
-      #modePicker.is-open { display: block; }
-      .modePickerTitle {
-        margin: 0 0 7px;
-        font-size: 11px;
-        opacity: 0.9;
-      }
-      .modeOption {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 12px;
-        padding: 3px 0;
-      }
-
     </style>
   </head>
   <body>
@@ -720,7 +696,12 @@
       <div id="debugPanel" class="is-hidden">
         <p id="debugInfo">Debug off</p>
       </div>
-      <button id="rangesEditorToggle" type="button" aria-label="Open ranges editor">⚙</button>
+      <div id="topRightActions">
+        <button id="rangesEditorToggle" class="topActionBtn" type="button" aria-label="Open ranges editor">⚙</button>
+        <button id="scaleModeBtn" class="topActionBtn" type="button" aria-label="Toggle scaling mode">Fixed
+Scale</button>
+        <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
       <aside id="rangesEditorPanel" class="is-hidden" aria-label="Formula ranges editor">
         <div class="rangesEditorHead">
           <strong>Ranges editor</strong>
@@ -845,21 +826,10 @@
           </div>
         </div>
         <div id="floatingActions">
-          <button id="scaleModeBtn" type="button" aria-label="Toggle scaling mode">Fixed
-Scale</button>
-          <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode">Randomise
+          <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode">Random
 All</button>
-          <button id="cameraBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </div>
         </div>
-      </div>
-
-      <div id="modePicker" role="dialog" aria-label="Parameter mode picker" aria-hidden="true">
-        <p class="modePickerTitle">Mode</p>
-        <label class="modeOption"><input type="radio" name="paramMode" value="rand" />Random</label>
-        <label class="modeOption"><input type="radio" name="paramMode" value="fix" />Fixed</label>
-        <label class="modeOption"><input type="radio" name="paramMode" value="manx" />Man-X</label>
-        <label class="modeOption"><input type="radio" name="paramMode" value="many" />Man-Y</label>
       </div>
     </div>
 
