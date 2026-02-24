@@ -20,6 +20,20 @@ const rangesEditorWarningEl = document.getElementById("rangesEditorWarning");
 const rangesApplyBtnEl = document.getElementById("rangesApplyBtn");
 const rangesDefaultsBtnEl = document.getElementById("rangesDefaultsBtn");
 const rangesResetAllBtnEl = document.getElementById("rangesResetAllBtn");
+const settingsTabRangesEl = document.getElementById("settingsTabRanges");
+const settingsTabDetailedEl = document.getElementById("settingsTabDetailed");
+const rangesTabPanelEl = document.getElementById("rangesTabPanel");
+const detailedTabPanelEl = document.getElementById("detailedTabPanel");
+const detailItersRangeEl = document.getElementById("detailItersRange");
+const detailItersNumberEl = document.getElementById("detailItersNumber");
+const detailBurnRangeEl = document.getElementById("detailBurnRange");
+const detailBurnNumberEl = document.getElementById("detailBurnNumber");
+const detailDebugToggleEl = document.getElementById("detailDebugToggle");
+const settingsInfoTextEl = document.getElementById("settingsInfoText");
+const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
+const infoIterationsEl = document.getElementById("infoIterations");
+const infoBurnEl = document.getElementById("infoBurn");
+const infoDebugEl = document.getElementById("infoDebug");
 
 const rangeInputMap = {
   a: { min: document.getElementById("rangeAmin"), max: document.getElementById("rangeAmax") },
@@ -59,7 +73,7 @@ const sliderControls = {
   delta: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   gamma: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 10000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
-  burn: { button: document.getElementById("btnBurn"), label: "Burn", paramKey: "burn", min: 0, max: 5000, sliderStep: 1, stepSize: 1, displayDp: 0 },
+  burn: { button: null, label: "Burn", paramKey: "burn", min: 0, max: 5000, sliderStep: 1, stepSize: 1, displayDp: 0 },
 };
 
 const DEFAULT_PARAM_RANGES = {
@@ -100,7 +114,7 @@ const PARAM_MODE_OPTIONS_BY_KEY = {
   formula: ["rand", "fix"],
   cmap: ["rand", "fix"],
 };
-const PARAM_MODE_KEYS = ["formula", "cmap", ...Object.values(sliderControls).map((control) => control.paramKey)];
+const PARAM_MODE_KEYS = ["formula", "cmap", "a", "b", "c", "d", "iters"];
 const paramTileTargets = {
   formula: { button: formulaBtn, modeKey: "formula", shortTap: () => openPicker("formula", formulaBtn) },
   cmap: { button: cmapBtn, modeKey: "cmap", shortTap: () => openPicker("cmap", cmapBtn) },
@@ -109,7 +123,6 @@ const paramTileTargets = {
   delta: { button: sliderControls.delta.button, modeKey: sliderControls.delta.paramKey, shortTap: () => openQuickSlider("delta") },
   gamma: { button: sliderControls.gamma.button, modeKey: sliderControls.gamma.paramKey, shortTap: () => openQuickSlider("gamma") },
   iters: { button: sliderControls.iters.button, modeKey: sliderControls.iters.paramKey, shortTap: () => openQuickSlider("iters") },
-  burn: { button: sliderControls.burn.button, modeKey: sliderControls.burn.paramKey, shortTap: () => openQuickSlider("burn") },
 };
 
 let cameraPressTimer = null;
@@ -339,7 +352,9 @@ function formatControlValue(control, value) {
 
 function refreshParamButtons() {
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
-    control.button.textContent = formatControlValue(control, getControlValue(sliderKey));
+    if (control.button) {
+      control.button.textContent = formatControlValue(control, getControlValue(sliderKey));
+    }
   }
 
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
@@ -496,12 +511,55 @@ function openRangesEditor() {
   }
 
   rangesEditorPanelEl.classList.remove("is-hidden");
+  setSettingsTab("ranges");
+  syncDetailedSettingsControls();
+  hideSettingsInfo();
   const formulaId = getSelectedRangesEditorFormulaId();
   loadFormulaRangesIntoEditor(formulaId);
 }
 
 function closeRangesEditor() {
   rangesEditorPanelEl?.classList.add("is-hidden");
+  hideSettingsInfo();
+}
+
+function setSettingsTab(tabKey) {
+  const showRanges = tabKey !== "detailed";
+  settingsTabRangesEl?.classList.toggle("is-active", showRanges);
+  settingsTabDetailedEl?.classList.toggle("is-active", !showRanges);
+  rangesTabPanelEl?.classList.toggle("is-hidden", !showRanges);
+  detailedTabPanelEl?.classList.toggle("is-hidden", showRanges);
+}
+
+function syncDetailedSettingsControls() {
+  const iterValue = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const burnValue = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
+  if (detailItersRangeEl) detailItersRangeEl.value = String(iterValue);
+  if (detailItersNumberEl) detailItersNumberEl.value = String(iterValue);
+  if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
+  if (detailBurnNumberEl) detailBurnNumberEl.value = String(burnValue);
+  if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
+}
+
+function applyDetailedSliderValue(sliderKey, nextValue) {
+  const control = sliderControls[sliderKey];
+  if (!control) return;
+  const clamped = clamp(Number(nextValue), control.min, control.max);
+  appData.defaults.sliders[sliderKey] = Math.round(clamped);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function showSettingsInfo(message) {
+  if (!settingsInfoPopupEl || !settingsInfoTextEl) return;
+  settingsInfoTextEl.textContent = message;
+  settingsInfoPopupEl.classList.remove("is-hidden");
+}
+
+function hideSettingsInfo() {
+  settingsInfoPopupEl?.classList.add("is-hidden");
 }
 
 function getScaleMode() {
@@ -917,11 +975,15 @@ function randomizeAllParameters() {
   }
 
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
+    if (sliderKey === "burn") {
+      continue;
+    }
+
     if (!isRandomizedParam(control.paramKey)) {
       continue;
     }
 
-    if (sliderKey === "iters" || sliderKey === "burn") {
+    if (sliderKey === "iters") {
       appData.defaults.sliders[sliderKey] = randomInt(control.min, control.max);
       continue;
     }
@@ -2105,6 +2167,7 @@ function draw() {
   drawManualParamOverlay(lastRenderMeta);
   refreshParamButtons();
   updateQuickSliderReadout();
+  syncDetailedSettingsControls();
   layoutFloatingActions();
 
 }
@@ -2244,11 +2307,13 @@ function registerHandlers() {
   pickerBackdrop.addEventListener("click", closePicker);
   debugOnEl.addEventListener("change", () => {
     appData.defaults.debug = debugOnEl.checked;
+    if (detailDebugToggleEl) detailDebugToggleEl.checked = appData.defaults.debug;
     saveDefaultsToStorage();
     requestDraw();
   });
   debugOffEl.addEventListener("change", () => {
     appData.defaults.debug = debugOnEl.checked;
+    if (detailDebugToggleEl) detailDebugToggleEl.checked = appData.defaults.debug;
     saveDefaultsToStorage();
     requestDraw();
   });
@@ -2371,6 +2436,34 @@ function registerHandlers() {
     setRangesEditorWarning("Restored built-in defaults for this formula.");
   });
   rangesResetAllBtnEl?.addEventListener("click", resetAllRangeOverrides);
+  settingsTabRangesEl?.addEventListener("click", () => setSettingsTab("ranges"));
+  settingsTabDetailedEl?.addEventListener("click", () => setSettingsTab("detailed"));
+
+  const bindDetailedPair = (rangeEl, numberEl, sliderKey) => {
+    rangeEl?.addEventListener("input", () => applyDetailedSliderValue(sliderKey, rangeEl.value));
+    numberEl?.addEventListener("change", () => applyDetailedSliderValue(sliderKey, numberEl.value));
+  };
+  bindDetailedPair(detailItersRangeEl, detailItersNumberEl, "iters");
+  bindDetailedPair(detailBurnRangeEl, detailBurnNumberEl, "burn");
+
+  detailDebugToggleEl?.addEventListener("change", () => {
+    appData.defaults.debug = Boolean(detailDebugToggleEl.checked);
+    debugOnEl.checked = appData.defaults.debug;
+    debugOffEl.checked = !appData.defaults.debug;
+    saveDefaultsToStorage();
+    requestDraw();
+  });
+
+  infoIterationsEl?.addEventListener("click", () => {
+    showSettingsInfo("Iterations controls how many points are plotted each frame. Higher values improve detail but increase render time.");
+  });
+  infoBurnEl?.addEventListener("click", () => {
+    showSettingsInfo("Burn-in steps discard the first orbit points. Higher burn removes initial transients before plotting.");
+  });
+  infoDebugEl?.addEventListener("click", () => {
+    showSettingsInfo("Debug overlay draws extra guides and diagnostics. Turning it off reduces UI drawing overhead.");
+  });
+  settingsInfoPopupEl?.addEventListener("click", hideSettingsInfo);
 
   canvas.style.touchAction = "none";
   canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: false });
@@ -2526,6 +2619,7 @@ async function bootstrap() {
     rangesEditorFormulaId = currentFormulaId;
     debugOnEl.checked = Boolean(appData.defaults.debug);
     debugOffEl.checked = !debugOnEl.checked;
+    if (detailDebugToggleEl) detailDebugToggleEl.checked = debugOnEl.checked;
     syncScaleModeButton();
     syncRandomModeButton();
     syncParamModeVisuals();
