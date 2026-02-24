@@ -3,12 +3,10 @@
     "LS_STATE": "hopalong_param_state_v1"
   },
   "direct_keys": [
-    "hopalong_help_never",
-    "hopalong_previewScale"
+    "hopalong_help_never"
   ],
   "notes": [
     "LS_STATE is used to persist per-parameter mode selections for the bottom bar state selectors.",
-    "hopalong_previewScale stores preview rendering scale.",
     "hopalong_help_never stores install/help hint dismissal preference."
   ]
 }

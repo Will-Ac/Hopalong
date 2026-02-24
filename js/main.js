@@ -168,15 +168,10 @@ const sliderKeyByParamKey = {
 const RANGE_KEYS = ["a", "b", "c", "d"];
 
 const DETAILED_DEFAULT_FIELDS = [
-  { key: "previewScale", min: 0.05, max: 1, step: 0.01, label: "Preview scale", help: "Scaling used by preview workflows. Lower values can improve responsiveness at the cost of preview sharpness." },
-  { key: "qsRange", min: 0, max: 100, step: 0.1, label: "Quick slider seed", help: "Stored default for quick slider range position used by legacy controls." },
   { key: "alpha", min: 0, max: 100, step: 0.1, label: "Default alpha slider", help: "Saved default position for alpha (a) slider before range mapping." },
   { key: "beta", min: 0, max: 100, step: 0.1, label: "Default beta slider", help: "Saved default position for beta (b) slider before range mapping." },
   { key: "gamma", min: 0, max: 100, step: 0.1, label: "Default gamma slider", help: "Saved default position for gamma (d) slider before range mapping." },
   { key: "delta", min: 0, max: 100, step: 0.1, label: "Default delta slider", help: "Saved default position for delta (c) slider before range mapping." },
-  { key: "orbits", min: 1, max: 100, step: 1, label: "Orbits", help: "Legacy orbit count setting retained in defaults for compatibility." },
-  { key: "rangeR", min: 1, max: 1000, step: 1, label: "Range radius", help: "Legacy range radius default kept for compatibility and future range tooling." },
-  { key: "initR", min: 1, max: 1000, step: 1, label: "Initial radius", help: "Legacy initial radius default kept for compatibility and future init-point tooling." },
   { key: "iters", min: 1000, max: 10000000, step: 100, label: "Render iterations", help: "Actual iterations used when rendering frames now. This is separate from max random iterations." },
 ];
 
@@ -2220,7 +2215,7 @@ function drawDebugOverlay(meta) {
     `c: ${formatNumberForUi(params.c, 6)}`,
     `d: ${formatNumberForUi(params.d, 6)}`,
     `iterations: ${formatNumberForUi(meta.iterations, 0)}`,
-    "seeds/orbits: 1",
+    "seeds: 1",
     `x range: ${formatNumberForUi(world.minX, 3)} to ${formatNumberForUi(world.maxX, 3)}`,
     `y range: ${formatNumberForUi(world.minY, 3)} to ${formatNumberForUi(world.maxY, 3)}`,
     `range centre: (${formatNumberForUi(centerX, 3)}, ${formatNumberForUi(centerY, 3)})`,
