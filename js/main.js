@@ -285,6 +285,28 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function formatNumberForUi(value, fractionDigits = 0) {
+  if (!Number.isFinite(value)) {
+    return "--";
+  }
+
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  });
+}
+
+function formatNumberAutoForUi(value, maxFractionDigits = 6) {
+  if (!Number.isFinite(value)) {
+    return "--";
+  }
+
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxFractionDigits,
+  });
+}
+
 function getRangeValuesForFormula(formulaId) {
   if (!appData || !formulaId) {
     return DEFAULT_PARAM_RANGES;
@@ -361,7 +383,7 @@ function formatControlValue(control, value) {
     return "--";
   }
 
-  return value.toFixed(control.displayDp ?? 4);
+  return formatNumberForUi(value, control.displayDp ?? 4);
 }
 
 function refreshParamButtons() {
@@ -557,7 +579,9 @@ function syncDetailedSettingsControls() {
   for (const field of DETAILED_DEFAULT_FIELDS) {
     const input = document.getElementById(`detailDefault_${field.key}`);
     if (input) {
-      input.value = String(appData.defaults.sliders?.[field.key] ?? "");
+      const raw = appData.defaults.sliders?.[field.key] ?? "";
+      input.value = String(raw);
+      input.title = Number.isFinite(Number(raw)) ? formatNumberAutoForUi(Number(raw), 6) : "";
     }
   }
 }
@@ -1909,7 +1933,7 @@ function formatTickValue(value, step) {
   }
 
   const clamped = Number.parseFloat(value.toFixed(decimals));
-  return clamped.toFixed(decimals);
+  return formatNumberForUi(clamped, decimals);
 }
 
 function getControlForSlider(sliderKey) {
@@ -2191,19 +2215,19 @@ function drawDebugOverlay(meta) {
 
   debugInfoEl.textContent = [
     `formula: ${formula?.name || currentFormulaId}`,
-    `a: ${params.a.toFixed(6)}`,
-    `b: ${params.b.toFixed(6)}`,
-    `c: ${params.c.toFixed(6)}`,
-    `d: ${params.d.toFixed(6)}`,
-    `iterations: ${meta.iterations}`,
+    `a: ${formatNumberForUi(params.a, 6)}`,
+    `b: ${formatNumberForUi(params.b, 6)}`,
+    `c: ${formatNumberForUi(params.c, 6)}`,
+    `d: ${formatNumberForUi(params.d, 6)}`,
+    `iterations: ${formatNumberForUi(meta.iterations, 0)}`,
     "seeds/orbits: 1",
-    `x range: ${world.minX.toFixed(3)} to ${world.maxX.toFixed(3)}`,
-    `y range: ${world.minY.toFixed(3)} to ${world.maxY.toFixed(3)}`,
-    `range centre: (${centerX.toFixed(3)}, ${centerY.toFixed(3)})`,
+    `x range: ${formatNumberForUi(world.minX, 3)} to ${formatNumberForUi(world.maxX, 3)}`,
+    `y range: ${formatNumberForUi(world.minY, 3)} to ${formatNumberForUi(world.maxY, 3)}`,
+    `range centre: (${formatNumberForUi(centerX, 3)}, ${formatNumberForUi(centerY, 3)})`,
     `gesture state: ${interactionState}`,
-    `2f dxm/dym/dd: ${lastTwoDebug ? `${lastTwoDebug.dxm.toFixed(2)} / ${lastTwoDebug.dym.toFixed(2)} / ${lastTwoDebug.dd.toFixed(2)}` : "-"}`,
-    `2f ratioStep/zoom: ${lastTwoDebug ? `${lastTwoDebug.ratioStep.toFixed(4)} / ${lastTwoDebug.viewZoom.toFixed(4)}` : "-"}`,
-    `fps: ${fpsEstimate.toFixed(1)}`,
+    `2f dxm/dym/dd: ${lastTwoDebug ? `${formatNumberForUi(lastTwoDebug.dxm, 2)} / ${formatNumberForUi(lastTwoDebug.dym, 2)} / ${formatNumberForUi(lastTwoDebug.dd, 2)}` : "-"}`,
+    `2f ratioStep/zoom: ${lastTwoDebug ? `${formatNumberForUi(lastTwoDebug.ratioStep, 4)} / ${formatNumberForUi(lastTwoDebug.viewZoom, 4)}` : "-"}`,
+    `fps: ${formatNumberForUi(fpsEstimate, 1)}`,
   ].join("\n");
 }
 
@@ -2271,7 +2295,7 @@ function buildScreenshotOverlayLines() {
   const iterValue = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   return [
     `${formula?.name || currentFormulaId} · ${appData.defaults.cmapName}`,
-    `a ${params.a.toFixed(4)}   b ${params.b.toFixed(4)}   c ${params.c.toFixed(4)}   d ${params.d.toFixed(4)}   iter ${iterValue}`,
+    `a ${formatNumberForUi(params.a, 4)}   b ${formatNumberForUi(params.b, 4)}   c ${formatNumberForUi(params.c, 4)}   d ${formatNumberForUi(params.d, 4)}   iter ${formatNumberForUi(iterValue, 0)}`,
   ];
 }
 
