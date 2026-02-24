@@ -96,6 +96,7 @@ let drawScheduled = false;
 let drawDirty = false;
 let toastTimer = null;
 let lastComputedUiMetrics = { fontSize: null, tileSize: null };
+let lastSizingViewport = { width: 0, height: 0 };
 
 const HOLD_REPEAT_MS = 70;
 const HOLD_ACCEL_START_MS = 2000;
@@ -376,7 +377,6 @@ function refreshParamButtons() {
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   formulaBtn.textContent = clampLabel(formula?.name || currentFormulaId);
   cmapBtn.textContent = clampLabel(appData.defaults.cmapName);
-  applyResponsiveUiSizing();
 }
 
 function updateCurrentPickerSelection() {
@@ -397,6 +397,23 @@ function configureNameBoxWidths() {
 
 function layoutFloatingActions() {
   applyResponsiveUiSizing();
+
+  if (!debugBugBtn || !debugPanelEl || !paramOverlayEl) {
+    return;
+  }
+
+  const appRect = paramOverlayEl.parentElement?.getBoundingClientRect();
+  const bugRect = debugBugBtn.getBoundingClientRect();
+  if (!appRect) {
+    return;
+  }
+
+  const margin = 6;
+  const maxLeft = Math.max(0, appRect.width - debugPanelEl.offsetWidth - margin);
+  const nextLeft = clamp(bugRect.left - appRect.left, 0, maxLeft);
+  const nextTop = bugRect.bottom - appRect.top + margin;
+  debugPanelEl.style.left = `${Math.round(nextLeft)}px`;
+  debugPanelEl.style.top = `${Math.round(nextTop)}px`;
 }
 
 function collectUiTextLines() {
@@ -432,10 +449,18 @@ function measureLineWidth(text, fontSizePx) {
   return width;
 }
 
-function applyResponsiveUiSizing() {
+function applyResponsiveUiSizing({ force = false } = {}) {
   if (!bottomBarEl) {
     return;
   }
+
+  const viewportWidth = Math.round(window.innerWidth || 0);
+  const viewportHeight = Math.round(window.innerHeight || 0);
+  const viewportUnchanged = viewportWidth === lastSizingViewport.width && viewportHeight === lastSizingViewport.height;
+  if (!force && viewportUnchanged) {
+    return;
+  }
+  lastSizingViewport = { width: viewportWidth, height: viewportHeight };
 
   const root = document.documentElement;
   const styles = window.getComputedStyle(bottomBarEl);
@@ -703,7 +728,6 @@ function syncScaleModeButton() {
   scaleModeBtn.classList.toggle("is-fixed", isFixed);
   scaleModeBtn.setAttribute("aria-label", isFixed ? "Switch to auto scaling" : "Switch to fixed scaling");
   scaleModeBtn.title = isFixed ? "Fixed scale" : "Auto scale";
-  applyResponsiveUiSizing();
 }
 
 function syncRandomModeButton() {
@@ -721,7 +745,6 @@ function syncRandomModeButton() {
   randomModeTile?.classList.toggle("is-mixed", globalMode === "mix");
   randomModeBtn.setAttribute("aria-label", randomAllNextMode === "fix" ? "Set all parameter modes to fixed" : "Set all parameter modes to random");
   randomModeBtn.title = randomAllNextMode === "fix" ? "Fix all" : "Random all";
-  applyResponsiveUiSizing();
 }
 
 
@@ -732,6 +755,7 @@ function syncDebugToggleUi() {
   if (detailDebugToggleEl) {
     detailDebugToggleEl.checked = isDebug;
   }
+  layoutFloatingActions();
 }
 
 function maybeShowLandscapeHint() {
@@ -2324,7 +2348,7 @@ function drawScreenshotOverlay(targetCtx, width, height) {
   let fontSize = Math.max(11, Math.round(height * 0.02));
   targetCtx.save();
   targetCtx.textBaseline = "middle";
-  targetCtx.textAlign = "center";
+  targetCtx.textAlign = "left";
   while (fontSize > 9) {
     targetCtx.font = `${fontSize}px Inter, system-ui, -apple-system, Segoe UI, sans-serif`;
     if (targetCtx.measureText(line).width <= maxTextWidth) {
@@ -2336,7 +2360,7 @@ function drawScreenshotOverlay(targetCtx, width, height) {
   targetCtx.fillStyle = "#000000";
   targetCtx.fillRect(marginX, yTop, width - marginX * 2, panelHeight);
   targetCtx.fillStyle = "#7f7f7f";
-  targetCtx.fillText(line, width * 0.5, yTop + panelHeight * 0.5);
+  targetCtx.fillText(line, marginX + 10, yTop + panelHeight * 0.5);
 
   targetCtx.restore();
 }
