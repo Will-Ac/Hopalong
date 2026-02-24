@@ -59,6 +59,8 @@ const pickerList = document.getElementById("pickerList");
 const pickerPanel = document.getElementById("pickerPanel");
 const paramOverlayEl = document.getElementById("paramOverlay");
 const paramRowEl = document.getElementById("paramRow");
+const bottomBarEl = document.querySelector(".bottomBar");
+const topRightActionsEl = document.getElementById("topRightActions");
 const cameraBtn = document.getElementById("cameraBtn");
 const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
@@ -93,6 +95,7 @@ let fpsEstimate = 0;
 let drawScheduled = false;
 let drawDirty = false;
 let toastTimer = null;
+let lastComputedUiMetrics = { fontSize: null, tileSize: null };
 
 const HOLD_REPEAT_MS = 70;
 const HOLD_ACCEL_START_MS = 2000;
@@ -371,6 +374,7 @@ function refreshParamButtons() {
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   formulaBtn.textContent = clampLabel(formula?.name || currentFormulaId);
   cmapBtn.textContent = clampLabel(appData.defaults.cmapName);
+  applyResponsiveUiSizing();
 }
 
 function updateCurrentPickerSelection() {
@@ -389,7 +393,89 @@ function configureNameBoxWidths() {
   document.documentElement.style.setProperty("--name-box-width", `${widthPx}px`);
 }
 
-function layoutFloatingActions() {}
+function layoutFloatingActions() {
+  applyResponsiveUiSizing();
+}
+
+function collectUiTextLines() {
+  const lines = [];
+  const trackedNodes = [
+    ...document.querySelectorAll(".poLabel, .poBtn, #randomModeBtn, #scaleModeBtn"),
+  ];
+
+  for (const node of trackedNodes) {
+    const text = String(node.textContent || "").trim();
+    if (!text) {
+      continue;
+    }
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (trimmed) {
+        lines.push(trimmed);
+      }
+    }
+  }
+
+  return lines;
+}
+
+function measureLineWidth(text, fontSizePx) {
+  if (!ctx) {
+    return text.length * fontSizePx * 0.6;
+  }
+  ctx.save();
+  ctx.font = `${fontSizePx}px Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`;
+  const width = ctx.measureText(text).width;
+  ctx.restore();
+  return width;
+}
+
+function applyResponsiveUiSizing() {
+  if (!bottomBarEl) {
+    return;
+  }
+
+  const root = document.documentElement;
+  const styles = window.getComputedStyle(bottomBarEl);
+  const gap = Number.parseFloat(styles.columnGap || styles.gap || "6") || 6;
+  const barWidth = bottomBarEl.clientWidth;
+  if (!barWidth) {
+    return;
+  }
+
+  const tileWidth = Math.max(60, (barWidth - gap * 7) / 8);
+  const horizontalPadding = 14;
+  const availableTextWidth = Math.max(24, tileWidth - horizontalPadding);
+  const textLines = collectUiTextLines();
+
+  let fontSize = 18;
+  while (fontSize > 10) {
+    const widestLine = textLines.reduce((max, line) => Math.max(max, measureLineWidth(line, fontSize)), 0);
+    if (widestLine <= availableTextWidth) {
+      break;
+    }
+    fontSize -= 0.5;
+  }
+
+  const roundedFontSize = Math.max(10, Math.floor(fontSize * 2) / 2);
+  if (lastComputedUiMetrics.fontSize !== roundedFontSize) {
+    root.style.setProperty("--ui-font-size", `${roundedFontSize}px`);
+    lastComputedUiMetrics.fontSize = roundedFontSize;
+  }
+
+  const firstTile = bottomBarEl.querySelector(".poItem");
+  const measuredTileHeight = firstTile ? Math.round(firstTile.getBoundingClientRect().height) : 42;
+  const actionSize = Math.max(34, measuredTileHeight);
+
+  if (lastComputedUiMetrics.tileSize !== actionSize) {
+    root.style.setProperty("--tile-size", `${actionSize}px`);
+    lastComputedUiMetrics.tileSize = actionSize;
+  }
+
+  if (topRightActionsEl) {
+    topRightActionsEl.style.alignItems = "stretch";
+  }
+}
 
 function setRangesEditorWarning(message = "") {
   if (rangesEditorWarningEl) {
@@ -615,6 +701,7 @@ function syncScaleModeButton() {
   scaleModeBtn.classList.toggle("is-fixed", isFixed);
   scaleModeBtn.setAttribute("aria-label", isFixed ? "Switch to auto scaling" : "Switch to fixed scaling");
   scaleModeBtn.title = isFixed ? "Fixed scale" : "Auto scale";
+  applyResponsiveUiSizing();
 }
 
 function syncRandomModeButton() {
@@ -632,6 +719,7 @@ function syncRandomModeButton() {
   randomModeTile?.classList.toggle("is-mixed", globalMode === "mix");
   randomModeBtn.setAttribute("aria-label", randomAllNextMode === "fix" ? "Set all parameter modes to fixed" : "Set all parameter modes to random");
   randomModeBtn.title = randomAllNextMode === "fix" ? "Fix all" : "Random all";
+  applyResponsiveUiSizing();
 }
 
 

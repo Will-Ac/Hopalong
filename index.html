@@ -139,11 +139,16 @@
 
       .topActionBtn {
         width: var(--tile-size);
+        height: var(--tile-size);
         min-height: var(--tile-size);
         border-radius: 10px;
         border: 2px solid var(--param-outline);
         background: var(--panel-bg);
         color: var(--text);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
       }
 
       #rangesEditorPanel {
@@ -406,7 +411,7 @@
         background: var(--panel-bg);
         border: 2px solid var(--param-outline);
         border-radius: 10px;
-        padding: 4px 5px;
+        padding: 4px 6px;
       }
       .poItem.po-mode-fix {
         border-width: 2px;
@@ -456,7 +461,7 @@
       }
       .poBtn {
         width: 100%;
-        min-height: 26px;
+        min-height: calc(var(--ui-font-size) * 1.7);
         border-radius: 0;
         border: 0;
         background: transparent;
@@ -466,8 +471,8 @@
         text-align: center;
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        overflow: visible;
+        text-overflow: clip;
       }
       .poItem.poName {
         min-width: 0;
@@ -564,6 +569,7 @@
       #cameraBtn {
         position: relative;
         width: var(--tile-size);
+        height: var(--tile-size);
         min-height: var(--tile-size);
         border-radius: 10px;
         border: 2px solid var(--param-outline);
@@ -579,6 +585,7 @@
       #scaleModeBtn {
         position: relative;
         width: var(--tile-size);
+        height: var(--tile-size);
         min-height: var(--tile-size);
         border-radius: 10px;
         border: 2px solid var(--param-outline);
@@ -601,7 +608,7 @@
       #randomModeBtn {
         position: relative;
         width: 100%;
-        min-height: 26px;
+        min-height: calc(var(--ui-font-size) * 2.1);
         border: 0;
         background: transparent;
         color: rgba(255, 255, 255, 0.95);
@@ -640,9 +647,6 @@
         background: rgba(255, 255, 255, 0.1);
       }
       @media (max-width: 900px) and (orientation: landscape) {
-        :root {
-          --ui-font-size: 12px;
-        }
         .poItem {
           padding: 3px;
         }
@@ -664,8 +668,6 @@
         #cameraBtn,
         #scaleModeBtn,
         #debugBugBtn {
-          width: 30px;
-          min-height: 30px;
           border-radius: 8px;
         }
       }
