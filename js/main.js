@@ -128,6 +128,8 @@ const paramTileTargets = {
 
 let cameraPressTimer = null;
 let longPressTriggered = false;
+let cameraLastTapTs = 0;
+let pendingCameraTapTimer = null;
 let isApplyingHistoryState = false;
 let historyStates = [];
 let historyIndex = -1;
@@ -2309,29 +2311,32 @@ function buildScreenshotOverlayLines() {
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   const params = getDerivedParams();
   const iterValue = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  return [
-    `${formula?.name || currentFormulaId} · ${appData.defaults.cmapName}`,
-    `a ${formatNumberForUi(params.a, 4)}   b ${formatNumberForUi(params.b, 4)}   c ${formatNumberForUi(params.c, 4)}   d ${formatNumberForUi(params.d, 4)}   iter ${formatNumberForUi(iterValue, 0)}`,
-  ];
+  return `${formula?.name || currentFormulaId} | ${appData.defaults.cmapName} | a ${formatNumberForUi(params.a, 4)} | b ${formatNumberForUi(params.b, 4)} | c ${formatNumberForUi(params.c, 4)} | d ${formatNumberForUi(params.d, 4)} | iter ${formatNumberForUi(iterValue, 0)}`;
 }
 
 function drawScreenshotOverlay(targetCtx, width, height) {
-  const lines = buildScreenshotOverlayLines();
-  const margin = Math.max(18, Math.round(width * 0.02));
-  const lineHeight = Math.max(20, Math.round(height * 0.032));
-  const panelHeight = lineHeight * lines.length + margin;
+  const line = buildScreenshotOverlayLines();
+  const marginX = Math.max(16, Math.round(width * 0.02));
+  const panelHeight = Math.max(28, Math.round(height * 0.05));
+  const yTop = height - panelHeight;
+  const maxTextWidth = width * 0.75;
 
+  let fontSize = Math.max(11, Math.round(height * 0.02));
   targetCtx.save();
-  targetCtx.fillStyle = "rgba(255, 255, 255, 0.08)";
-  targetCtx.fillRect(0, height - panelHeight, width, panelHeight);
-  targetCtx.fillStyle = "rgba(255, 255, 255, 0.56)";
-  targetCtx.font = `${Math.max(14, Math.round(height * 0.022))}px system-ui, -apple-system, Segoe UI, sans-serif`;
-  targetCtx.textBaseline = "bottom";
+  targetCtx.textBaseline = "middle";
+  targetCtx.textAlign = "center";
+  while (fontSize > 9) {
+    targetCtx.font = `${fontSize}px Inter, system-ui, -apple-system, Segoe UI, sans-serif`;
+    if (targetCtx.measureText(line).width <= maxTextWidth) {
+      break;
+    }
+    fontSize -= 1;
+  }
 
-  lines.forEach((line, index) => {
-    const y = height - margin / 2 - lineHeight * (lines.length - 1 - index);
-    targetCtx.fillText(line, margin, y);
-  });
+  targetCtx.fillStyle = "#000000";
+  targetCtx.fillRect(marginX, yTop, width - marginX * 2, panelHeight);
+  targetCtx.fillStyle = "#7f7f7f";
+  targetCtx.fillText(line, width * 0.5, yTop + panelHeight * 0.5);
 
   targetCtx.restore();
 }
@@ -2385,6 +2390,22 @@ function clearCameraPressState() {
   }
 }
 
+function clearPendingCameraTap() {
+  if (pendingCameraTapTimer) {
+    window.clearTimeout(pendingCameraTapTimer);
+    pendingCameraTapTimer = null;
+  }
+}
+
+async function captureScreenshotSafe(includeOverlay) {
+  try {
+    await captureScreenshot(includeOverlay);
+  } catch (error) {
+    console.error(error);
+    showToast(`${includeOverlay ? "Overlay screenshot" : "Screenshot"} failed: ${error.message}`);
+  }
+}
+
 function beginCameraPress(event) {
   event.preventDefault();
   event.stopPropagation();
@@ -2394,12 +2415,8 @@ function beginCameraPress(event) {
 
   cameraPressTimer = window.setTimeout(async () => {
     longPressTriggered = true;
-    try {
-      await captureScreenshot(true);
-    } catch (error) {
-      console.error(error);
-      showToast(`Overlay screenshot failed: ${error.message}`);
-    }
+    clearPendingCameraTap();
+    await captureScreenshotSafe(true);
   }, CAMERA_LONG_PRESS_MS);
 }
 
@@ -2414,12 +2431,20 @@ async function endCameraPress(event) {
     return;
   }
 
-  try {
-    await captureScreenshot(false);
-  } catch (error) {
-    console.error(error);
-    showToast(`Screenshot failed: ${error.message}`);
+  const now = performance.now();
+  if (now - cameraLastTapTs <= DOUBLE_TAP_MS) {
+    cameraLastTapTs = 0;
+    clearPendingCameraTap();
+    await captureScreenshotSafe(true);
+    return;
   }
+
+  cameraLastTapTs = now;
+  clearPendingCameraTap();
+  pendingCameraTapTimer = window.setTimeout(() => {
+    pendingCameraTapTimer = null;
+    captureScreenshotSafe(false);
+  }, DOUBLE_TAP_MS + 10);
 }
 
 function registerHandlers() {
