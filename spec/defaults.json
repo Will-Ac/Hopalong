@@ -2,17 +2,12 @@
   "formulaId": "classic_sqrt",
   "cmapName": "Turbo",
   "sliders": {
-    "qsRange": 50.0,
-    "previewScale": 0.33,
     "alpha": 50.0,
     "beta": 50.0,
     "gamma": 50.0,
     "delta": 50.0,
-    "orbits": 25.0,
     "iters": 8000.0,
-    "burn": 50.0,
-    "rangeR": 300.0,
-    "initR": 100.0
+    "burn": 50.0
   },
   "notes": [
     "alpha/beta/gamma/delta defaults are slider positions (0\u2013100).",

@@ -50,10 +50,8 @@ A larger settings menu exists (`#menu`) with sliders, outputs, and per-parameter
 ### 3.1 Parameter keys
 Numeric parameters:
 - `a`, `b`, `c`, `d` (rendered as a/b/c/d in some UI areas; note v124 maps: alpha→a, beta→b, delta→c, gamma→d).
-- `orbits` (N), `iters`
+- `iters`
 - `burn` (burn-in)
-- `rangeR` (range r)
-- `initR` (initial range)
 
 Discrete parameters:
 - `formula` (select)
@@ -97,7 +95,6 @@ Key behaviors:
 - Uses seeded RNG per frame for deterministic history re-renders (mulberry32 + newSeed).
 - Maintains a history stack for stepping back/forward (tap left/right).
 - During gesture modulation, it can render a lower-quality preview and then commit a final full-quality render on release.
-- A user-facing preview quality (`previewScale`) is exposed in help panel and persisted in localStorage.
 
 ## 6) Snapshot export (PNG)
 
@@ -110,7 +107,6 @@ Requirements:
 ## 7) Persistence
 
 Persist (localStorage):
-- previewScale: `hopalong_previewScale`
 - per-parameter states / values (v124 has `persistAllStates()` called on state change).
 - install hint dismissal preference (see `#installHint`).
 
@@ -152,7 +148,7 @@ Split into modules (even if bundled later):
   - selected formula
   - `a`, `b`, `c`, `d` values to 6 decimal places
   - iterations
-  - seeds/orbits
+  - seeds
   - visible x range and y range
   - center point of the visible range
   - FPS

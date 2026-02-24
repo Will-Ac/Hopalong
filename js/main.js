@@ -12,6 +12,35 @@ const debugOnEl = document.getElementById("debugOn");
 const debugOffEl = document.getElementById("debugOff");
 const debugInfoEl = document.getElementById("debugInfo");
 const debugPanelEl = document.getElementById("debugPanel");
+const rangesEditorToggleEl = document.getElementById("rangesEditorToggle");
+const rangesEditorPanelEl = document.getElementById("rangesEditorPanel");
+const rangesEditorCloseEl = document.getElementById("rangesEditorClose");
+const rangesFormulaSelectEl = document.getElementById("rangesFormulaSelect");
+const rangesEditorWarningEl = document.getElementById("rangesEditorWarning");
+const rangesApplyBtnEl = document.getElementById("rangesApplyBtn");
+const rangesDefaultsBtnEl = document.getElementById("rangesDefaultsBtn");
+const rangesResetAllBtnEl = document.getElementById("rangesResetAllBtn");
+const settingsTabRangesEl = document.getElementById("settingsTabRanges");
+const settingsTabDetailedEl = document.getElementById("settingsTabDetailed");
+const rangesTabPanelEl = document.getElementById("rangesTabPanel");
+const detailedTabPanelEl = document.getElementById("detailedTabPanel");
+const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomItersRange");
+const detailMaxRandomItersFormattedEl = document.getElementById("detailMaxRandomItersFormatted");
+const detailBurnRangeEl = document.getElementById("detailBurnRange");
+const detailBurnFormattedEl = document.getElementById("detailBurnFormatted");
+const detailDebugToggleEl = document.getElementById("detailDebugToggle");
+const settingsInfoTextEl = document.getElementById("settingsInfoText");
+const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
+const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
+const infoBurnEl = document.getElementById("infoBurn");
+const infoDebugEl = document.getElementById("infoDebug");
+
+const rangeInputMap = {
+  a: { min: document.getElementById("rangeAmin"), max: document.getElementById("rangeAmax") },
+  b: { min: document.getElementById("rangeBmin"), max: document.getElementById("rangeBmax") },
+  c: { min: document.getElementById("rangeCmin"), max: document.getElementById("rangeCmax") },
+  d: { min: document.getElementById("rangeDmin"), max: document.getElementById("rangeDmax") },
+};
 
 const quickSliderOverlay = document.getElementById("quickSliderOverlay");
 const quickSliderBackdrop = document.getElementById("quickSliderBackdrop");
@@ -43,7 +72,8 @@ const sliderControls = {
   beta: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   delta: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   gamma: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
-  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 1000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
+  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 10000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
+  burn: { button: null, label: "Burn", paramKey: "burn", min: 0, max: 5000, sliderStep: 1, stepSize: 1, displayDp: 0 },
 };
 
 const DEFAULT_PARAM_RANGES = {
@@ -77,13 +107,14 @@ const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
 const PARAM_LONG_MS = 450;
 const PARAM_MOVE_CANCEL_PX = 10;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
+const APP_DEFAULTS_STORAGE_KEY = "hopalong.defaults.v2";
 const PARAM_MODE_VALUES = new Set(["fix", "manx", "many", "rand"]);
 const PARAM_FULL_MODE_OPTIONS = ["rand", "fix", "manx", "many"];
 const PARAM_MODE_OPTIONS_BY_KEY = {
   formula: ["rand", "fix"],
   cmap: ["rand", "fix"],
 };
-const PARAM_MODE_KEYS = ["formula", "cmap", ...Object.values(sliderControls).map((control) => control.paramKey)];
+const PARAM_MODE_KEYS = ["formula", "cmap", "a", "b", "c", "d", "iters"];
 const paramTileTargets = {
   formula: { button: formulaBtn, modeKey: "formula", shortTap: () => openPicker("formula", formulaBtn) },
   cmap: { button: cmapBtn, modeKey: "cmap", shortTap: () => openPicker("cmap", cmapBtn) },
@@ -130,7 +161,13 @@ const sliderKeyByParamKey = {
   c: "delta",
   d: "gamma",
   iters: "iters",
+  burn: "burn",
 };
+
+const RANGE_KEYS = ["a", "b", "c", "d"];
+
+let builtInFormulaRanges = {};
+let rangesEditorFormulaId = null;
 
 let interactionState = INTERACTION_STATE.NONE;
 let activePointers = new Map();
@@ -234,8 +271,29 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function formatNumberForUi(value, fractionDigits = 0) {
+  if (!Number.isFinite(value)) {
+    return "--";
+  }
+
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  });
+}
+
+function getRangeValuesForFormula(formulaId) {
+  if (!appData || !formulaId) {
+    return DEFAULT_PARAM_RANGES;
+  }
+
+  const override = appData.defaults.rangesOverridesByFormula?.[formulaId];
+  const builtIn = builtInFormulaRanges[formulaId];
+  return override || builtIn || DEFAULT_PARAM_RANGES;
+}
+
 function getCurrentFormulaRange() {
-  return appData.formula_ranges_raw[currentFormulaId] || null;
+  return getRangeValuesForFormula(currentFormulaId);
 }
 
 function getDerivedParams() {
@@ -275,10 +333,20 @@ function getActiveActualValue() {
   return getControlValue(activeSliderKey);
 }
 
+function normalizeSliderDefaults() {
+  for (const [sliderKey, control] of Object.entries(sliderControls)) {
+    const rawValue = Number(appData.defaults.sliders?.[sliderKey]);
+    const fallbackValue = sliderKey === "burn" ? 120 : (sliderKey === "iters" ? 200000 : 50);
+    const safeValue = Number.isFinite(rawValue) ? rawValue : fallbackValue;
+    const clampedValue = clamp(safeValue, control.min, control.max);
+    appData.defaults.sliders[sliderKey] = (sliderKey === "iters" || sliderKey === "burn") ? Math.round(clampedValue) : clampedValue;
+  }
+}
+
 function getControlValue(sliderKey) {
   const control = sliderControls[sliderKey];
-  if (control.paramKey === "iters") {
-    return appData.defaults.sliders.iters;
+  if (control.paramKey === "iters" || control.paramKey === "burn") {
+    return appData.defaults.sliders[sliderKey];
   }
 
   const params = getDerivedParams();
@@ -290,12 +358,14 @@ function formatControlValue(control, value) {
     return "--";
   }
 
-  return value.toFixed(control.displayDp ?? 4);
+  return formatNumberForUi(value, control.displayDp ?? 4);
 }
 
 function refreshParamButtons() {
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
-    control.button.textContent = formatControlValue(control, getControlValue(sliderKey));
+    if (control.button) {
+      control.button.textContent = formatControlValue(control, getControlValue(sliderKey));
+    }
   }
 
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
@@ -325,6 +395,204 @@ function layoutFloatingActions() {
   }
 }
 
+function setRangesEditorWarning(message = "") {
+  if (rangesEditorWarningEl) {
+    rangesEditorWarningEl.textContent = message;
+  }
+}
+
+function getSelectedRangesEditorFormulaId() {
+  return rangesFormulaSelectEl?.value || rangesEditorFormulaId || currentFormulaId;
+}
+
+function populateRangeEditorFormulaOptions() {
+  if (!rangesFormulaSelectEl || !appData) {
+    return;
+  }
+
+  rangesFormulaSelectEl.innerHTML = "";
+  for (const formula of appData.formulas) {
+    const option = document.createElement("option");
+    option.value = formula.id;
+    option.textContent = formula.name || formula.id;
+    rangesFormulaSelectEl.append(option);
+  }
+}
+
+function loadFormulaRangesIntoEditor(formulaId) {
+  const ranges = getRangeValuesForFormula(formulaId);
+  for (const key of RANGE_KEYS) {
+    const field = rangeInputMap[key];
+    if (!field) {
+      continue;
+    }
+    field.min.value = String(ranges[key][0]);
+    field.max.value = String(ranges[key][1]);
+  }
+  rangesEditorFormulaId = formulaId;
+  if (rangesFormulaSelectEl) {
+    rangesFormulaSelectEl.value = formulaId;
+  }
+  setRangesEditorWarning("");
+}
+
+function remapSliderToPreserveParams(formulaId, nextRange) {
+  if (!formulaId || formulaId !== currentFormulaId) {
+    return;
+  }
+
+  const previousRange = getRangeValuesForFormula(formulaId);
+  const keysToSliders = { a: "alpha", b: "beta", c: "delta", d: "gamma" };
+
+  for (const key of RANGE_KEYS) {
+    const sliderKey = keysToSliders[key];
+    const sliderValue = Number(appData.defaults.sliders[sliderKey]);
+    const oldMin = previousRange[key][0];
+    const oldMax = previousRange[key][1];
+    const newMin = nextRange[key][0];
+    const newMax = nextRange[key][1];
+    const t = clamp(sliderValue / 100, 0, 1);
+    const actual = oldMin + (oldMax - oldMin) * t;
+    const denom = Math.max(newMax - newMin, 1e-9);
+    const normalized = ((actual - newMin) / denom) * 100;
+    appData.defaults.sliders[sliderKey] = clamp(normalized, 0, 100);
+  }
+}
+
+function readRangeEditorDraft() {
+  const nextRanges = {};
+  for (const key of RANGE_KEYS) {
+    const field = rangeInputMap[key];
+    const minValue = Number(field?.min?.value);
+    const maxValue = Number(field?.max?.value);
+    if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+      return { error: `Please enter valid numeric values for ${key}.` };
+    }
+    if (minValue >= maxValue) {
+      return { error: `Invalid range for ${key}: min must be less than max.` };
+    }
+    nextRanges[key] = [minValue, maxValue];
+  }
+  return { ranges: nextRanges };
+}
+
+function applyRangesOverrideFromEditor() {
+  const formulaId = getSelectedRangesEditorFormulaId();
+  const parsed = readRangeEditorDraft();
+  if (parsed.error) {
+    setRangesEditorWarning(parsed.error);
+    return;
+  }
+
+  remapSliderToPreserveParams(formulaId, parsed.ranges);
+  appData.defaults.rangesOverridesByFormula[formulaId] = parsed.ranges;
+  saveDefaultsToStorage();
+  setRangesEditorWarning("Applied.");
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function resetFormulaRangeOverride(formulaId) {
+  if (!formulaId) {
+    return;
+  }
+  const builtInRange = builtInFormulaRanges[formulaId] || DEFAULT_PARAM_RANGES;
+  remapSliderToPreserveParams(formulaId, builtInRange);
+  delete appData.defaults.rangesOverridesByFormula[formulaId];
+  saveDefaultsToStorage();
+  loadFormulaRangesIntoEditor(formulaId);
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function resetAllRangeOverrides() {
+  const currentBuiltIn = builtInFormulaRanges[currentFormulaId] || DEFAULT_PARAM_RANGES;
+  remapSliderToPreserveParams(currentFormulaId, currentBuiltIn);
+  appData.defaults.rangesOverridesByFormula = {};
+  saveDefaultsToStorage();
+  loadFormulaRangesIntoEditor(getSelectedRangesEditorFormulaId());
+  setRangesEditorWarning("All overrides cleared.");
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function openRangesEditor() {
+  if (!rangesEditorPanelEl) {
+    return;
+  }
+
+  rangesEditorPanelEl.classList.remove("is-hidden");
+  setSettingsTab("ranges");
+  syncDetailedSettingsControls();
+  hideSettingsInfo();
+  const formulaId = getSelectedRangesEditorFormulaId();
+  loadFormulaRangesIntoEditor(formulaId);
+}
+
+function closeRangesEditor() {
+  rangesEditorPanelEl?.classList.add("is-hidden");
+  hideSettingsInfo();
+}
+
+function setSettingsTab(tabKey) {
+  const showRanges = tabKey !== "detailed";
+  settingsTabRangesEl?.classList.toggle("is-active", showRanges);
+  settingsTabDetailedEl?.classList.toggle("is-active", !showRanges);
+  rangesTabPanelEl?.classList.toggle("is-hidden", !showRanges);
+  detailedTabPanelEl?.classList.toggle("is-hidden", showRanges);
+}
+
+function syncDetailedSettingsControls() {
+  const maxRandomIters = Math.round(clamp(appData.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
+  const burnValue = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
+  if (detailMaxRandomItersRangeEl) detailMaxRandomItersRangeEl.value = String(maxRandomIters);
+  if (detailMaxRandomItersFormattedEl) detailMaxRandomItersFormattedEl.textContent = formatNumberForUi(maxRandomIters, 0);
+  if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
+  if (detailBurnFormattedEl) detailBurnFormattedEl.textContent = formatNumberForUi(burnValue, 0);
+  if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
+}
+
+function applyDetailedSliderValue(sliderKey, nextValue) {
+  const control = sliderControls[sliderKey];
+  if (!control) return;
+  const clamped = clamp(Number(nextValue), control.min, control.max);
+  appData.defaults.sliders[sliderKey] = Math.round(clamped);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyMaxRandomIterations(nextValue) {
+  const clamped = Math.round(clamp(Number(nextValue), sliderControls.iters.min, sliderControls.iters.max));
+  appData.defaults.maxRandomIters = clamped;
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  commitCurrentStateToHistory();
+}
+
+function showSettingsInfo(message, anchorEl = null) {
+  if (!settingsInfoPopupEl || !settingsInfoTextEl) return;
+  settingsInfoTextEl.textContent = message;
+  settingsInfoPopupEl.classList.remove("is-hidden");
+
+  const panelRect = rangesEditorPanelEl?.getBoundingClientRect();
+  const anchorRect = anchorEl?.getBoundingClientRect();
+  if (panelRect && anchorRect) {
+    const left = Math.max(8, Math.min(panelRect.width - 290, anchorRect.left - panelRect.left - 240));
+    const top = Math.max(8, Math.min(panelRect.height - 120, anchorRect.top - panelRect.top + 28));
+    settingsInfoPopupEl.style.left = `${left}px`;
+    settingsInfoPopupEl.style.top = `${top}px`;
+  } else {
+    settingsInfoPopupEl.style.left = "10px";
+    settingsInfoPopupEl.style.top = "10px";
+  }
+}
+
+function hideSettingsInfo() {
+  settingsInfoPopupEl?.classList.add("is-hidden");
+}
+
 function getScaleMode() {
   return appData?.defaults?.scaleMode === "fixed" ? "fixed" : "auto";
 }
@@ -340,6 +608,7 @@ function setScaleModeFixed(reason = "manual pan/zoom") {
 
   appData.defaults.scaleMode = "fixed";
   syncScaleModeButton();
+  saveDefaultsToStorage();
   commitCurrentStateToHistory();
   showToast(`Scale: Fixed (${reason})`);
 }
@@ -421,6 +690,7 @@ function applyAllParamModes(nextMode) {
   syncParamModeVisuals();
   saveParamModesToStorage();
   syncRandomModeButton();
+  saveDefaultsToStorage();
   requestDraw();
   commitCurrentStateToHistory();
 }
@@ -572,11 +842,76 @@ function loadParamModesFromStorage() {
   normalizeParamModes();
 }
 
+function normalizeRangePair(pair, fallbackPair) {
+  if (!Array.isArray(pair) || pair.length < 2) {
+    return [...fallbackPair];
+  }
+
+  const min = Number(pair[0]);
+  const max = Number(pair[1]);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min >= max) {
+    return [...fallbackPair];
+  }
+
+  return [min, max];
+}
+
+function normalizeRangeObject(rangeCandidate, fallbackRange = DEFAULT_PARAM_RANGES) {
+  const normalized = {};
+  for (const key of RANGE_KEYS) {
+    normalized[key] = normalizeRangePair(rangeCandidate?.[key], fallbackRange[key]);
+  }
+  return normalized;
+}
+
+function saveDefaultsToStorage() {
+  if (!appData?.defaults) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(APP_DEFAULTS_STORAGE_KEY, JSON.stringify(appData.defaults));
+  } catch (error) {
+    console.warn("Could not save defaults.", error);
+  }
+}
+
+function loadDefaultsFromStorage() {
+  try {
+    const raw = window.localStorage.getItem(APP_DEFAULTS_STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return;
+    }
+
+    appData.defaults = {
+      ...appData.defaults,
+      ...parsed,
+      sliders: {
+        ...(appData.defaults.sliders || {}),
+        ...(parsed.sliders || {}),
+      },
+      rangesOverridesByFormula: {
+        ...(appData.defaults.rangesOverridesByFormula || {}),
+        ...(parsed.rangesOverridesByFormula || {}),
+      },
+    };
+  } catch (error) {
+    console.warn("Could not load defaults.", error);
+  }
+}
+
 function captureCurrentState() {
   return {
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     sliders: { ...appData.defaults.sliders },
+    maxRandomIters: appData.defaults.maxRandomIters,
+    rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
     paramModes: { ...paramModes },
     scaleMode: getScaleMode(),
     fixedView: { ...fixedView },
@@ -628,6 +963,11 @@ function applyState(state) {
   currentFormulaId = state.formulaId;
   appData.defaults.cmapName = state.cmapName;
   appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
+  appData.defaults.maxRandomIters = Math.round(clamp(state.maxRandomIters ?? appData.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
+  normalizeSliderDefaults();
+  if (state.rangesOverridesByFormula && typeof state.rangesOverridesByFormula === "object") {
+    appData.defaults.rangesOverridesByFormula = JSON.parse(JSON.stringify(state.rangesOverridesByFormula));
+  }
   appData.defaults.scaleMode = state.scaleMode === "fixed" ? "fixed" : "auto";
   if (state.fixedView && typeof state.fixedView === "object") {
     fixedView = {
@@ -641,9 +981,11 @@ function applyState(state) {
     normalizeParamModes();
     syncParamModeVisuals();
     saveParamModesToStorage();
+    saveDefaultsToStorage();
     syncRandomModeButton();
   }
   syncScaleModeButton();
+  saveDefaultsToStorage();
   requestDraw();
   isApplyingHistoryState = false;
 }
@@ -666,17 +1008,22 @@ function randomizeAllParameters() {
   }
 
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
+    if (sliderKey === "burn") {
+      continue;
+    }
+
     if (!isRandomizedParam(control.paramKey)) {
       continue;
     }
 
     if (sliderKey === "iters") {
-      appData.defaults.sliders[sliderKey] = randomInt(control.min, control.max);
+      appData.defaults.sliders[sliderKey] = randomInt(control.min, appData.defaults.maxRandomIters || control.max);
       continue;
     }
     appData.defaults.sliders[sliderKey] = Number((Math.random() * (control.max - control.min) + control.min).toFixed(4));
   }
 
+  saveDefaultsToStorage();
   requestDraw();
   commitCurrentStateToHistory();
 }
@@ -686,7 +1033,7 @@ function isEventInsideInteractiveUi(eventTarget) {
     return false;
   }
 
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #modePicker, #debugToggleDock, #floatingActions"));
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #modePicker, #debugToggleDock, #floatingActions, #rangesEditorPanel, #rangesEditorToggle"));
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -1161,6 +1508,7 @@ function renderFormulaPicker() {
     button.addEventListener("click", () => {
       currentFormulaId = formula.id;
       updateCurrentPickerSelection();
+      saveDefaultsToStorage();
       requestDraw();
       commitCurrentStateToHistory();
       // Keep picker open so users can live-preview multiple options before closing.
@@ -1199,6 +1547,7 @@ function renderColorMapPicker() {
     button.addEventListener("click", () => {
       appData.defaults.cmapName = cmapName;
       updateCurrentPickerSelection();
+      saveDefaultsToStorage();
       requestDraw();
       commitCurrentStateToHistory();
       // Keep picker open so users can live-preview multiple options before closing.
@@ -1241,6 +1590,7 @@ function applySliderValue(nextValue, { commitHistory = true } = {}) {
   const control = sliderControls[activeSliderKey];
   const value = clamp(nextValue, control.min, control.max);
   appData.defaults.sliders[activeSliderKey] = value;
+  saveDefaultsToStorage();
   qsRange.value = value;
   updateQuickSliderReadout();
   requestDraw();
@@ -1512,7 +1862,7 @@ function formatTickValue(value, step) {
   }
 
   const clamped = Number.parseFloat(value.toFixed(decimals));
-  return clamped.toFixed(decimals);
+  return formatNumberForUi(clamped, decimals);
 }
 
 function getControlForSlider(sliderKey) {
@@ -1794,19 +2144,19 @@ function drawDebugOverlay(meta) {
 
   debugInfoEl.textContent = [
     `formula: ${formula?.name || currentFormulaId}`,
-    `a: ${params.a.toFixed(6)}`,
-    `b: ${params.b.toFixed(6)}`,
-    `c: ${params.c.toFixed(6)}`,
-    `d: ${params.d.toFixed(6)}`,
-    `iterations: ${meta.iterations}`,
-    "seeds/orbits: 1",
-    `x range: ${world.minX.toFixed(3)} to ${world.maxX.toFixed(3)}`,
-    `y range: ${world.minY.toFixed(3)} to ${world.maxY.toFixed(3)}`,
-    `range centre: (${centerX.toFixed(3)}, ${centerY.toFixed(3)})`,
+    `a: ${formatNumberForUi(params.a, 6)}`,
+    `b: ${formatNumberForUi(params.b, 6)}`,
+    `c: ${formatNumberForUi(params.c, 6)}`,
+    `d: ${formatNumberForUi(params.d, 6)}`,
+    `iterations: ${formatNumberForUi(meta.iterations, 0)}`,
+    "seeds: 1",
+    `x range: ${formatNumberForUi(world.minX, 3)} to ${formatNumberForUi(world.maxX, 3)}`,
+    `y range: ${formatNumberForUi(world.minY, 3)} to ${formatNumberForUi(world.maxY, 3)}`,
+    `range centre: (${formatNumberForUi(centerX, 3)}, ${formatNumberForUi(centerY, 3)})`,
     `gesture state: ${interactionState}`,
-    `2f dxm/dym/dd: ${lastTwoDebug ? `${lastTwoDebug.dxm.toFixed(2)} / ${lastTwoDebug.dym.toFixed(2)} / ${lastTwoDebug.dd.toFixed(2)}` : "-"}`,
-    `2f ratioStep/zoom: ${lastTwoDebug ? `${lastTwoDebug.ratioStep.toFixed(4)} / ${lastTwoDebug.viewZoom.toFixed(4)}` : "-"}`,
-    `fps: ${fpsEstimate.toFixed(1)}`,
+    `2f dxm/dym/dd: ${lastTwoDebug ? `${formatNumberForUi(lastTwoDebug.dxm, 2)} / ${formatNumberForUi(lastTwoDebug.dym, 2)} / ${formatNumberForUi(lastTwoDebug.dd, 2)}` : "-"}`,
+    `2f ratioStep/zoom: ${lastTwoDebug ? `${formatNumberForUi(lastTwoDebug.ratioStep, 4)} / ${formatNumberForUi(lastTwoDebug.viewZoom, 4)}` : "-"}`,
+    `fps: ${formatNumberForUi(fpsEstimate, 1)}`,
   ].join("\n");
 }
 
@@ -1818,6 +2168,7 @@ function draw() {
   const startedAt = performance.now();
   const didResize = resizeCanvas();
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const iterations = iterationSetting;
   const frameMeta = renderFrame({
     ctx,
@@ -1826,6 +2177,7 @@ function draw() {
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
     iterations: didResize ? Math.max(10000, Math.round(iterations * 0.6)) : iterations,
+    burn: burnSetting,
     scaleMode: getScaleMode(),
     fixedView,
   });
@@ -1848,6 +2200,7 @@ function draw() {
   drawManualParamOverlay(lastRenderMeta);
   refreshParamButtons();
   updateQuickSliderReadout();
+  syncDetailedSettingsControls();
   layoutFloatingActions();
 
 }
@@ -1871,7 +2224,7 @@ function buildScreenshotOverlayLines() {
   const iterValue = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   return [
     `${formula?.name || currentFormulaId} · ${appData.defaults.cmapName}`,
-    `a ${params.a.toFixed(4)}   b ${params.b.toFixed(4)}   c ${params.c.toFixed(4)}   d ${params.d.toFixed(4)}   iter ${iterValue}`,
+    `a ${formatNumberForUi(params.a, 4)}   b ${formatNumberForUi(params.b, 4)}   c ${formatNumberForUi(params.c, 4)}   d ${formatNumberForUi(params.d, 4)}   iter ${formatNumberForUi(iterValue, 0)}`,
   ];
 }
 
@@ -1987,10 +2340,14 @@ function registerHandlers() {
   pickerBackdrop.addEventListener("click", closePicker);
   debugOnEl.addEventListener("change", () => {
     appData.defaults.debug = debugOnEl.checked;
+    if (detailDebugToggleEl) detailDebugToggleEl.checked = appData.defaults.debug;
+    saveDefaultsToStorage();
     requestDraw();
   });
   debugOffEl.addEventListener("change", () => {
     appData.defaults.debug = debugOnEl.checked;
+    if (detailDebugToggleEl) detailDebugToggleEl.checked = appData.defaults.debug;
+    saveDefaultsToStorage();
     requestDraw();
   });
 
@@ -2077,6 +2434,7 @@ function registerHandlers() {
   scaleModeBtn.addEventListener("click", () => {
     appData.defaults.scaleMode = getScaleMode() === "fixed" ? "auto" : "fixed";
     syncScaleModeButton();
+    saveDefaultsToStorage();
     requestDraw();
     commitCurrentStateToHistory();
     showToast(getScaleMode() === "fixed" ? "Fixed scale mode enabled." : "Auto scale mode enabled.");
@@ -2093,6 +2451,48 @@ function registerHandlers() {
   };
 
   randomModeBtn.addEventListener("click", toggleRandomMode);
+
+  rangesEditorToggleEl?.addEventListener("click", () => {
+    if (rangesEditorPanelEl?.classList.contains("is-hidden")) {
+      openRangesEditor();
+    } else {
+      closeRangesEditor();
+    }
+  });
+  rangesEditorCloseEl?.addEventListener("click", closeRangesEditor);
+  rangesFormulaSelectEl?.addEventListener("change", () => {
+    loadFormulaRangesIntoEditor(rangesFormulaSelectEl.value);
+  });
+  rangesApplyBtnEl?.addEventListener("click", applyRangesOverrideFromEditor);
+  rangesDefaultsBtnEl?.addEventListener("click", () => {
+    resetFormulaRangeOverride(getSelectedRangesEditorFormulaId());
+    setRangesEditorWarning("Restored built-in defaults for this formula.");
+  });
+  rangesResetAllBtnEl?.addEventListener("click", resetAllRangeOverrides);
+  settingsTabRangesEl?.addEventListener("click", () => setSettingsTab("ranges"));
+  settingsTabDetailedEl?.addEventListener("click", () => setSettingsTab("detailed"));
+
+  detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
+  detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
+
+  detailDebugToggleEl?.addEventListener("change", () => {
+    appData.defaults.debug = Boolean(detailDebugToggleEl.checked);
+    debugOnEl.checked = appData.defaults.debug;
+    debugOffEl.checked = !appData.defaults.debug;
+    saveDefaultsToStorage();
+    requestDraw();
+  });
+
+  infoMaxRandomItersEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Max random iterations limits the upper bound for randomization of iteration count.", event.currentTarget);
+  });
+  infoBurnEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Burn-in steps discard the first orbit points. Higher burn removes initial transients before plotting.", event.currentTarget);
+  });
+  infoDebugEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Debug overlay draws extra guides and diagnostics. Turning it off reduces UI drawing overhead.", event.currentTarget);
+  });
+  settingsInfoPopupEl?.addEventListener("click", hideSettingsInfo);
 
   canvas.style.touchAction = "none";
   canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: false });
@@ -2186,17 +2586,30 @@ async function loadData() {
     data.defaults.debug = false;
   }
 
-  if (typeof data.defaults.sliders?.iters !== "number") {
-    data.defaults.sliders = {
-      ...(data.defaults.sliders || {}),
-      iters: 200000,
-    };
+  data.defaults.sliders = {
+    ...(data.defaults.sliders || {}),
+  };
+
+  if (typeof data.defaults.sliders.iters !== "number") {
+    data.defaults.sliders.iters = 200000;
+  }
+  if (typeof data.defaults.sliders.burn !== "number") {
+    data.defaults.sliders.burn = 120;
+  }
+  if (typeof data.defaults.maxRandomIters !== "number") {
+    data.defaults.maxRandomIters = sliderControls.iters.max;
   }
 
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
+  data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
+  data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
 
   if (data.defaults.scaleMode !== "fixed") {
     data.defaults.scaleMode = "auto";
+  }
+
+  if (!data.defaults.rangesOverridesByFormula || typeof data.defaults.rangesOverridesByFormula !== "object") {
+    data.defaults.rangesOverridesByFormula = {};
   }
 
   if (!Array.isArray(data.formulas) || data.formulas.length === 0) {
@@ -2219,17 +2632,32 @@ async function bootstrap() {
   try {
     installGlobalZoomBlockers();
     appData = await loadData();
+    builtInFormulaRanges = JSON.parse(JSON.stringify(appData.formula_ranges_raw || {}));
+    loadDefaultsFromStorage();
+    normalizeSliderDefaults();
+
+    appData.defaults.rangesOverridesByFormula = Object.fromEntries(
+      Object.entries(appData.defaults.rangesOverridesByFormula || {}).map(([formulaId, range]) => {
+        const fallback = builtInFormulaRanges[formulaId] || DEFAULT_PARAM_RANGES;
+        return [formulaId, normalizeRangeObject(range, fallback)];
+      }),
+    );
+
     loadParamModesFromStorage();
 
     currentFormulaId = resolveInitialFormulaId();
     appData.defaults.cmapName = resolveInitialColorMap();
     configureNameBoxWidths();
+    populateRangeEditorFormulaOptions();
+    rangesEditorFormulaId = currentFormulaId;
     debugOnEl.checked = Boolean(appData.defaults.debug);
     debugOffEl.checked = !debugOnEl.checked;
+    if (detailDebugToggleEl) detailDebugToggleEl.checked = debugOnEl.checked;
     syncScaleModeButton();
     syncRandomModeButton();
     syncParamModeVisuals();
     saveParamModesToStorage();
+    saveDefaultsToStorage();
 
     registerHandlers();
     maybeShowLandscapeHint();

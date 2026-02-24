@@ -4,112 +4,112 @@
     {
       "id": "classic_sqrt",
       "name": "Classic (sqrt)",
-      "desc": "Wolfram/Martin: x' = y − sgn(x)·sqrt(|bx − c|), y' = a − x"
+      "desc": "Wolfram/Martin: x' = y \u2212 sgn(x)\u00b7sqrt(|bx \u2212 c|), y' = a \u2212 x"
     },
     {
       "id": "sqrt_plus_gamma_y",
       "name": "Classic + dy",
-      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + dy, y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7sqrt(|bx \u2212 c|) + dy, y' = a \u2212 x"
     },
     {
       "id": "sqrt_plus_gamma_x",
       "name": "Classic + dx",
-      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + dx, y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7sqrt(|bx \u2212 c|) + dx, y' = a \u2212 x"
     },
     {
       "id": "mix_inside",
-      "name": "sqrt(|b(x+dy)−c|)",
-      "desc": "Mix x,y inside sqrt: x' = y − sgn(x)·sqrt(|b(x+dy) − c|), y' = a − x"
+      "name": "sqrt(|b(x+dy)\u2212c|)",
+      "desc": "Mix x,y inside sqrt: x' = y \u2212 sgn(x)\u00b7sqrt(|b(x+dy) \u2212 c|), y' = a \u2212 x"
     },
     {
       "id": "trig_kick_x",
       "name": "Trig kick (sin x)",
-      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + d·sin(x), y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7sqrt(|bx \u2212 c|) + d\u00b7sin(x), y' = a \u2212 x"
     },
     {
       "id": "damped",
       "name": "Damped (|d|)",
-      "desc": "x' = (y − sgn(x)·sqrt(|b x − c|))·(1−|d|), y' = a − x"
+      "desc": "x' = (y \u2212 sgn(x)\u00b7sqrt(|b x \u2212 c|))\u00b7(1\u2212|d|), y' = a \u2212 x"
     },
     {
       "id": "y_feedback",
-      "name": "Y feedback (a−x+d·y)",
-      "desc": "Keep classic x', add feedback on y: y' = a − x + d·y"
+      "name": "Y feedback (a\u2212x+d\u00b7y)",
+      "desc": "Keep classic x', add feedback on y: y' = a \u2212 x + d\u00b7y"
     },
     {
       "id": "trig_kick_y",
       "name": "Trig kick (sin y)",
-      "desc": "x' = y − sgn(x)·sqrt(|b x − c|) + d·sin(y), y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7sqrt(|b x \u2212 c|) + d\u00b7sin(y), y' = a \u2212 x"
     },
     {
       "id": "classic_plus_yy",
-      "name": "Classic + d·y²",
-      "desc": "x' = y − sgn(x)·sqrt(|b x − c|) + d·y², y' = a − x"
+      "name": "Classic + d\u00b7y\u00b2",
+      "desc": "x' = y \u2212 sgn(x)\u00b7sqrt(|b x \u2212 c|) + d\u00b7y\u00b2, y' = a \u2212 x"
     },
     {
       "id": "cos_xy_kick",
       "name": "Trig kick (cos(x+y))",
-      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + d·cos(x+y), y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7sqrt(|bx \u2212 c|) + d\u00b7cos(x+y), y' = a \u2212 x"
     },
     {
       "id": "inside_sin_y",
       "name": "Inside sqrt sin(y)",
-      "desc": "x' = y − sgn(x)·sqrt(|b(x+d·sin(y)) − c|), y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7sqrt(|b(x+d\u00b7sin(y)) \u2212 c|), y' = a \u2212 x"
     },
     {
       "id": "inside_cos_x",
       "name": "Inside sqrt cos(x)",
-      "desc": "x' = y − sgn(x)·sqrt(|b(x+d·cos(x)) − c|), y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7sqrt(|b(x+d\u00b7cos(x)) \u2212 c|), y' = a \u2212 x"
     },
     {
       "id": "softsign_kick",
       "name": "Softsign kick",
-      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + d·(x/(1+|x|)), y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7sqrt(|bx \u2212 c|) + d\u00b7(x/(1+|x|)), y' = a \u2212 x"
     },
     {
       "id": "tanh_kick",
       "name": "Tanh kick",
-      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + d·tanh(x), y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7sqrt(|bx \u2212 c|) + d\u00b7tanh(x), y' = a \u2212 x"
     },
     {
       "id": "sign_xy",
-      "name": "Sign of (x·y)",
-      "desc": "Use sign(x·y): x' = y − sgn(xy)·sqrt(|bx − c|), y' = a − x"
+      "name": "Sign of (x\u00b7y)",
+      "desc": "Use sign(x\u00b7y): x' = y \u2212 sgn(xy)\u00b7sqrt(|bx \u2212 c|), y' = a \u2212 x"
     },
     {
       "id": "double_root",
       "name": "Double-root kick",
-      "desc": "x' = y − sgn(x)·(sqrt(|bx−c|)+d·sqrt(|by−c|)), y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7(sqrt(|bx\u2212c|)+d\u00b7sqrt(|by\u2212c|)), y' = a \u2212 x"
     },
     {
       "id": "xy_coupling",
       "name": "XY coupling",
-      "desc": "x' = y − sgn(x)·sqrt(|bx − c|) + d·(x·y/50), y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7sqrt(|bx \u2212 c|) + d\u00b7(x\u00b7y/50), y' = a \u2212 x"
     },
     {
       "id": "positive_hopalong",
       "name": "Positive Hopalong",
-      "desc": "x' = y + sgn(x)·sqrt(|bx − c|), y' = a − x"
+      "desc": "x' = y + sgn(x)\u00b7sqrt(|bx \u2212 c|), y' = a \u2212 x"
     },
     {
       "id": "sinusoidal_hopalong",
       "name": "Sinusoidal Hopalong",
-      "desc": "x' = y + sin(bx − c), y' = a − x"
+      "desc": "x' = y + sin(bx \u2212 c), y' = a \u2212 x"
     },
     {
       "id": "threeply",
       "name": "Threeply (Peters)",
-      "desc": "x' = y − sgn(x)·|sin(x)cos(b) + d − x·sin(a+b+d)|, y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7|sin(x)cos(b) + d \u2212 x\u00b7sin(a+b+d)|, y' = a \u2212 x"
     },
     {
       "id": "quadrup2",
       "name": "Quadrup-2 (Peters)",
-      "desc": "x' = y − sgn(x)·sin(ln|bx−c|)·atan((ln|cx−b|)^2), y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7sin(ln|bx\u2212c|)\u00b7atan((ln|cx\u2212b|)^2), y' = a \u2212 x"
     },
     {
       "id": "chip",
       "name": "Chip (Peters)",
-      "desc": "x' = y − sgn(x)·cos((ln|bx−c|)^2)·atan((ln|bx−c|)^2), y' = a − x"
+      "desc": "x' = y \u2212 sgn(x)\u00b7cos((ln|bx\u2212c|)^2)\u00b7atan((ln|bx\u2212c|)^2), y' = a \u2212 x"
     }
   ],
   "formula_ranges_raw": {
@@ -543,13 +543,13 @@
     "Fluorescein",
     "Toluidine",
     "Safranin+FG",
-    "Ice → Cyan → White",
-    "White → Indigo",
-    "Sand → Coral → Rose",
-    "Mint→Teal→Cyan",
-    "White → Gold",
-    "Blue↔White↔Orange",
-    "Gray→White→Laven",
+    "Ice \u2192 Cyan \u2192 White",
+    "White \u2192 Indigo",
+    "Sand \u2192 Coral \u2192 Rose",
+    "Mint\u2192Teal\u2192Cyan",
+    "White \u2192 Gold",
+    "Blue\u2194White\u2194Orange",
+    "Gray\u2192White\u2192Laven",
     "Pastel 5-band soft",
     "Gold contour bands"
   ],
@@ -560,11 +560,8 @@
     "b",
     "c",
     "d",
-    "orbits",
     "iters",
-    "burn",
-    "rangeR",
-    "initR"
+    "burn"
   ],
   "state_values": [
     "rand",
