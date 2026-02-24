@@ -263,6 +263,12 @@
       .perfRangeInput {
         width: 100%;
       }
+      .perfFormattedValue {
+        font-size: 11px;
+        opacity: 0.78;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
       .perfNumberInput {
         width: 100%;
         min-height: 30px;
@@ -756,6 +762,7 @@
               <input id="detailMaxRandomItersRange" class="perfRangeInput" type="range" min="1000" max="10000000" step="100" />
               <input id="detailMaxRandomItersNumber" class="perfNumberInput" type="number" min="1000" max="10000000" step="100" />
             </div>
+            <div id="detailMaxRandomItersFormatted" class="perfFormattedValue">--</div>
           </div>
           <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Burn-in steps</span><button id="infoBurn" class="perfInfoBtn" type="button">i</button></div>
@@ -763,6 +770,7 @@
               <input id="detailBurnRange" class="perfRangeInput" type="range" min="0" max="5000" step="1" />
               <input id="detailBurnNumber" class="perfNumberInput" type="number" min="0" max="5000" step="1" />
             </div>
+            <div id="detailBurnFormatted" class="perfFormattedValue">--</div>
           </div>
           <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Debug overlay</span><button id="infoDebug" class="perfInfoBtn" type="button">i</button></div>

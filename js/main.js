@@ -28,6 +28,8 @@ const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomIter
 const detailMaxRandomItersNumberEl = document.getElementById("detailMaxRandomItersNumber");
 const detailBurnRangeEl = document.getElementById("detailBurnRange");
 const detailBurnNumberEl = document.getElementById("detailBurnNumber");
+const detailMaxRandomItersFormattedEl = document.getElementById("detailMaxRandomItersFormatted");
+const detailBurnFormattedEl = document.getElementById("detailBurnFormatted");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const settingsInfoTextEl = document.getElementById("settingsInfoText");
 const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
@@ -569,14 +571,20 @@ function syncDetailedSettingsControls() {
   if (detailMaxRandomItersNumberEl) detailMaxRandomItersNumberEl.value = String(maxRandomIters);
   if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
   if (detailBurnNumberEl) detailBurnNumberEl.value = String(burnValue);
+  if (detailMaxRandomItersFormattedEl) detailMaxRandomItersFormattedEl.textContent = formatNumberForUi(maxRandomIters, 0);
+  if (detailBurnFormattedEl) detailBurnFormattedEl.textContent = formatNumberForUi(burnValue, 0);
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
 
   for (const field of DETAILED_DEFAULT_FIELDS) {
     const input = document.getElementById(`detailDefault_${field.key}`);
+    const formatted = document.getElementById(`detailDefaultFormatted_${field.key}`);
     if (input) {
       const raw = appData.defaults.sliders?.[field.key] ?? "";
       input.value = String(raw);
       input.title = Number.isFinite(Number(raw)) ? formatNumberAutoForUi(Number(raw), 6) : "";
+      if (formatted) {
+        formatted.textContent = Number.isFinite(Number(raw)) ? formatNumberAutoForUi(Number(raw), 6) : "--";
+      }
     }
   }
 }
@@ -644,7 +652,12 @@ function renderAllDefaultSettingsControls() {
     input.step = String(field.step);
     input.addEventListener("change", () => applyDetailedDefaultField(field.key, input.value));
 
-    card.append(head, input);
+    const formatted = document.createElement("div");
+    formatted.id = `detailDefaultFormatted_${field.key}`;
+    formatted.className = "perfFormattedValue";
+    formatted.textContent = "--";
+
+    card.append(head, input, formatted);
     allDefaultsSettingsEl.append(card);
   }
 }
