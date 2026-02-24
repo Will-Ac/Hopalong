@@ -74,29 +74,18 @@
         top: calc(10px + env(safe-area-inset-top));
         left: max(0px, env(safe-area-inset-left));
         z-index: 39;
-        background: rgba(12, 14, 20, 0.22);
-        border: 1px solid rgba(255, 255, 255, 0.11);
-        border-radius: 9px;
-        padding: 4px 6px;
       }
-      .debugToggle {
-        display: flex;
-        justify-content: flex-end;
-        align-items: center;
-        gap: 6px;
-        font-size: 11px;
+      #debugBugBtn {
+        width: 48px;
+        min-height: 48px;
+        border-radius: 10px;
+        border: 2px solid var(--param-outline);
+        background: var(--panel-bg);
+        color: rgba(255, 255, 255, 0.95);
+        font-size: 20px;
       }
-      .debugToggle strong {
-        font-size: 11px;
-        opacity: 0.9;
-      }
-      .debugToggle label {
-        display: inline-flex;
-        align-items: center;
-        gap: 2px;
-      }
-      .debugToggle input {
-        transform: scale(0.88);
+      #debugBugBtn.is-active {
+        background: rgba(255, 255, 255, 0.1);
       }
       #debugPanel {
         position: absolute;
@@ -135,11 +124,11 @@
       }
 
       .topActionBtn {
-        min-height: 32px;
-        min-width: 32px;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        background: rgba(12, 14, 20, 0.28);
+        width: 48px;
+        min-height: 48px;
+        border-radius: 10px;
+        border: 2px solid var(--param-outline);
+        background: var(--panel-bg);
         color: var(--text);
       }
 
@@ -391,16 +380,13 @@
       }
       .bottomBar {
         display: grid;
-        grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+        grid-template-columns: repeat(8, minmax(0, 1fr));
         gap: 6px;
         align-items: stretch;
         pointer-events: auto;
       }
       #paramRow {
-        display: grid;
-        grid-template-columns: repeat(7, minmax(0, 1fr));
-        gap: 6px;
-        overflow: hidden;
+        display: contents;
       }
       .poItem {
         position: relative;
@@ -489,8 +475,7 @@
       }
       #pickerPanel {
         position: absolute;
-        left: 50%;
-        transform: translateX(-50%);
+        left: max(6px, env(safe-area-inset-left));
         width: min(648px, calc(100vw - 12px));
         top: calc(58px + env(safe-area-inset-top));
         bottom: calc(98px + env(safe-area-inset-bottom));
@@ -566,11 +551,11 @@
 
       #cameraBtn {
         position: relative;
-        width: 40px;
-        min-height: 32px;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        background: rgba(12, 14, 20, 0.28);
+        width: 48px;
+        min-height: 48px;
+        border-radius: 10px;
+        border: 2px solid var(--param-outline);
+        background: var(--panel-bg);
         color: rgba(255, 255, 255, 0.95);
         display: inline-grid;
         align-items: center;
@@ -581,11 +566,11 @@
       }
       #scaleModeBtn {
         position: relative;
-        width: 68px;
-        min-height: 32px;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        background: rgba(12, 14, 20, 0.28);
+        width: 48px;
+        min-height: 48px;
+        border-radius: 10px;
+        border: 2px solid var(--param-outline);
+        background: var(--panel-bg);
         color: rgba(255, 255, 255, 0.95);
         display: inline-flex;
         align-items: center;
@@ -593,7 +578,7 @@
         z-index: 33;
         backdrop-filter: blur(2px);
         -webkit-backdrop-filter: blur(2px);
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 600;
         letter-spacing: 0.02em;
         text-align: center;
@@ -647,10 +632,6 @@
       #cameraBtn.is-armed {
         background: rgba(255, 255, 255, 0.1);
       }
-      #floatingActions {
-        display: grid;
-      }
-
       @media (max-width: 900px) and (orientation: landscape) {
         .poItem {
           padding: 3px;
@@ -672,6 +653,13 @@
           width: 16px;
           height: 16px;
         }
+        #cameraBtn,
+        #scaleModeBtn,
+        #debugBugBtn {
+          width: 28px;
+          min-height: 28px;
+          border-radius: 8px;
+        }
       }
 
       @media (max-width: 900px) {
@@ -692,11 +680,7 @@
       <canvas id="c"></canvas>
       <p id="toast" aria-live="polite" aria-atomic="true"></p>
       <div id="debugToggleDock">
-        <div class="debugToggle">
-          <strong>Debug</strong>
-          <label><input type="radio" name="debug" id="debugOff" checked />Off</label>
-          <label><input type="radio" name="debug" id="debugOn" />On</label>
-        </div>
+        <button id="debugBugBtn" type="button" aria-label="Toggle debug overlay" title="Debug">🐞</button>
       </div>
       <div id="debugPanel" class="is-hidden">
         <p id="debugInfo">Debug off</p>
@@ -830,7 +814,8 @@ Scale</button>
             <button id="btnIters" class="poBtn" type="button">--</button>
           </div>
         </div>
-        <div id="floatingActions">
+        <div class="poItem">
+          <span class="poLabel">Mode</span>
           <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode">Random
 All</button>
         </div>

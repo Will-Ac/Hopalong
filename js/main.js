@@ -8,8 +8,7 @@ const canvas = document.getElementById("c");
 const toastEl = document.getElementById("toast");
 const formulaBtn = document.getElementById("formulaBtn");
 const cmapBtn = document.getElementById("cmapBtn");
-const debugOnEl = document.getElementById("debugOn");
-const debugOffEl = document.getElementById("debugOff");
+const debugBugBtn = document.getElementById("debugBugBtn");
 const debugInfoEl = document.getElementById("debugInfo");
 const debugPanelEl = document.getElementById("debugPanel");
 const rangesEditorToggleEl = document.getElementById("rangesEditorToggle");
@@ -130,6 +129,7 @@ let historyStates = [];
 let historyIndex = -1;
 let paramModes = {};
 let lastParamTap = { targetKey: null, timestamp: 0 };
+let pendingTileTapTimer = null;
 const paramPressState = {
   pointerId: null,
   targetKey: null,
@@ -623,6 +623,16 @@ function syncRandomModeButton() {
   randomModeBtn.classList.toggle("is-mixed", globalMode === "mix");
   randomModeBtn.setAttribute("aria-label", globalMode === "ran" ? "All parameter modes set to random" : globalMode === "fix" ? "All parameter modes set to fixed" : "Mixed parameter modes");
   randomModeBtn.title = globalMode === "ran" ? "All random" : globalMode === "fix" ? "All fixed" : "Mixed parameter modes";
+}
+
+
+function syncDebugToggleUi() {
+  const isDebug = Boolean(appData?.defaults?.debug);
+  debugPanelEl?.classList.toggle("is-hidden", !isDebug);
+  debugBugBtn?.classList.toggle("is-active", isDebug);
+  if (detailDebugToggleEl) {
+    detailDebugToggleEl.checked = isDebug;
+  }
 }
 
 function maybeShowLandscapeHint() {
@@ -1454,21 +1464,14 @@ function closePicker() {
 }
 
 function layoutPickerPanel() {
-  if (!activePickerTrigger) {
-    return;
-  }
-
-  const triggerRect = activePickerTrigger.getBoundingClientRect();
   const viewportWidth = window.innerWidth;
   const margin = 6;
-  const targetWidth = clamp(triggerRect.width * 1.8, 180, 310);
-  const maxWidth = Math.max(180, viewportWidth - margin * 2);
-  const width = Math.min(targetWidth, maxWidth);
-  const triggerCenter = triggerRect.left + triggerRect.width / 2;
-  const left = clamp(triggerCenter - width / 2, margin, viewportWidth - margin - width);
+  const gap = 6;
+  const tileWidth = Math.max(26, (viewportWidth - margin * 2 - gap * 7) / 8);
+  const width = clamp(tileWidth * 3 + gap * 2, 180, viewportWidth - margin * 2);
 
   pickerPanel.style.width = `${width}px`;
-  pickerPanel.style.left = `${left}px`;
+  pickerPanel.style.left = `${margin}px`;
   pickerPanel.style.transform = "none";
 }
 
@@ -1688,7 +1691,22 @@ function onParamPointerEnd(event) {
   lastParamTap = { targetKey, timestamp: now };
 
   if (isDoubleTap) {
+    if (pendingTileTapTimer) {
+      window.clearTimeout(pendingTileTapTimer);
+      pendingTileTapTimer = null;
+    }
     toggleFixRandMode(paramTileTargets[targetKey]?.modeKey);
+    return;
+  }
+
+  if (targetKey === "formula" || targetKey === "cmap") {
+    if (pendingTileTapTimer) {
+      window.clearTimeout(pendingTileTapTimer);
+    }
+    pendingTileTapTimer = window.setTimeout(() => {
+      pendingTileTapTimer = null;
+      paramTileTargets[targetKey]?.shortTap();
+    }, DOUBLE_TAP_MS + 10);
     return;
   }
 
@@ -2302,15 +2320,9 @@ async function endCameraPress(event) {
 function registerHandlers() {
   pickerClose.addEventListener("click", closePicker);
   pickerBackdrop.addEventListener("click", closePicker);
-  debugOnEl.addEventListener("change", () => {
-    appData.defaults.debug = debugOnEl.checked;
-    if (detailDebugToggleEl) detailDebugToggleEl.checked = appData.defaults.debug;
-    saveDefaultsToStorage();
-    requestDraw();
-  });
-  debugOffEl.addEventListener("change", () => {
-    appData.defaults.debug = debugOnEl.checked;
-    if (detailDebugToggleEl) detailDebugToggleEl.checked = appData.defaults.debug;
+  debugBugBtn?.addEventListener("click", () => {
+    appData.defaults.debug = !Boolean(appData.defaults.debug);
+    syncDebugToggleUi();
     saveDefaultsToStorage();
     requestDraw();
   });
@@ -2422,8 +2434,7 @@ function registerHandlers() {
 
   detailDebugToggleEl?.addEventListener("change", () => {
     appData.defaults.debug = Boolean(detailDebugToggleEl.checked);
-    debugOnEl.checked = appData.defaults.debug;
-    debugOffEl.checked = !appData.defaults.debug;
+    syncDebugToggleUi();
     saveDefaultsToStorage();
     requestDraw();
   });
@@ -2589,9 +2600,7 @@ async function bootstrap() {
     configureNameBoxWidths();
     populateRangeEditorFormulaOptions();
     rangesEditorFormulaId = currentFormulaId;
-    debugOnEl.checked = Boolean(appData.defaults.debug);
-    debugOffEl.checked = !debugOnEl.checked;
-    if (detailDebugToggleEl) detailDebugToggleEl.checked = debugOnEl.checked;
+    syncDebugToggleUi();
     syncScaleModeButton();
     syncRandomModeButton();
     syncParamModeVisuals();
