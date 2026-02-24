@@ -24,17 +24,11 @@ const settingsTabRangesEl = document.getElementById("settingsTabRanges");
 const settingsTabDetailedEl = document.getElementById("settingsTabDetailed");
 const rangesTabPanelEl = document.getElementById("rangesTabPanel");
 const detailedTabPanelEl = document.getElementById("detailedTabPanel");
-const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomItersRange");
-const detailMaxRandomItersNumberEl = document.getElementById("detailMaxRandomItersNumber");
 const detailBurnRangeEl = document.getElementById("detailBurnRange");
-const detailBurnNumberEl = document.getElementById("detailBurnNumber");
-const detailMaxRandomItersFormattedEl = document.getElementById("detailMaxRandomItersFormatted");
 const detailBurnFormattedEl = document.getElementById("detailBurnFormatted");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const settingsInfoTextEl = document.getElementById("settingsInfoText");
 const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
-const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
-const allDefaultsSettingsEl = document.getElementById("allDefaultsSettings");
 const infoBurnEl = document.getElementById("infoBurn");
 const infoDebugEl = document.getElementById("infoDebug");
 
@@ -169,14 +163,6 @@ const sliderKeyByParamKey = {
 
 const RANGE_KEYS = ["a", "b", "c", "d"];
 
-const DETAILED_DEFAULT_FIELDS = [
-  { key: "alpha", min: 0, max: 100, step: 0.1, label: "Default alpha slider", help: "Saved default position for alpha (a) slider before range mapping." },
-  { key: "beta", min: 0, max: 100, step: 0.1, label: "Default beta slider", help: "Saved default position for beta (b) slider before range mapping." },
-  { key: "gamma", min: 0, max: 100, step: 0.1, label: "Default gamma slider", help: "Saved default position for gamma (d) slider before range mapping." },
-  { key: "delta", min: 0, max: 100, step: 0.1, label: "Default delta slider", help: "Saved default position for delta (c) slider before range mapping." },
-  { key: "iters", min: 1000, max: 10000000, step: 100, label: "Render iterations", help: "Actual iterations used when rendering frames now. This is separate from max random iterations." },
-];
-
 let builtInFormulaRanges = {};
 let rangesEditorFormulaId = null;
 
@@ -290,17 +276,6 @@ function formatNumberForUi(value, fractionDigits = 0) {
   return value.toLocaleString("en-US", {
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
-  });
-}
-
-function formatNumberAutoForUi(value, maxFractionDigits = 6) {
-  if (!Number.isFinite(value)) {
-    return "--";
-  }
-
-  return value.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: maxFractionDigits,
   });
 }
 
@@ -565,28 +540,10 @@ function setSettingsTab(tabKey) {
 }
 
 function syncDetailedSettingsControls() {
-  const maxRandomIters = Math.round(clamp(appData.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
   const burnValue = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
-  if (detailMaxRandomItersRangeEl) detailMaxRandomItersRangeEl.value = String(maxRandomIters);
-  if (detailMaxRandomItersNumberEl) detailMaxRandomItersNumberEl.value = String(maxRandomIters);
   if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
-  if (detailBurnNumberEl) detailBurnNumberEl.value = String(burnValue);
-  if (detailMaxRandomItersFormattedEl) detailMaxRandomItersFormattedEl.textContent = formatNumberForUi(maxRandomIters, 0);
   if (detailBurnFormattedEl) detailBurnFormattedEl.textContent = formatNumberForUi(burnValue, 0);
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
-
-  for (const field of DETAILED_DEFAULT_FIELDS) {
-    const input = document.getElementById(`detailDefault_${field.key}`);
-    const formatted = document.getElementById(`detailDefaultFormatted_${field.key}`);
-    if (input) {
-      const raw = appData.defaults.sliders?.[field.key] ?? "";
-      input.value = String(raw);
-      input.title = Number.isFinite(Number(raw)) ? formatNumberAutoForUi(Number(raw), 6) : "";
-      if (formatted) {
-        formatted.textContent = Number.isFinite(Number(raw)) ? formatNumberAutoForUi(Number(raw), 6) : "--";
-      }
-    }
-  }
 }
 
 function applyDetailedSliderValue(sliderKey, nextValue) {
@@ -600,72 +557,22 @@ function applyDetailedSliderValue(sliderKey, nextValue) {
   commitCurrentStateToHistory();
 }
 
-function applyMaxRandomIterations(nextValue) {
-  const clamped = Math.round(clamp(Number(nextValue), sliderControls.iters.min, sliderControls.iters.max));
-  appData.defaults.maxRandomIters = clamped;
-  syncDetailedSettingsControls();
-  saveDefaultsToStorage();
-  commitCurrentStateToHistory();
-}
-
-function applyDetailedDefaultField(fieldKey, rawValue) {
-  const field = DETAILED_DEFAULT_FIELDS.find((item) => item.key === fieldKey);
-  if (!field) return;
-  const numeric = Number(rawValue);
-  if (!Number.isFinite(numeric)) return;
-  const clamped = clamp(numeric, field.min, field.max);
-  appData.defaults.sliders[fieldKey] = clamped;
-  saveDefaultsToStorage();
-  if (fieldKey === "iters") {
-    requestDraw();
-    commitCurrentStateToHistory();
-  }
-  syncDetailedSettingsControls();
-}
-
-function renderAllDefaultSettingsControls() {
-  if (!allDefaultsSettingsEl) return;
-  allDefaultsSettingsEl.innerHTML = "";
-
-  for (const field of DETAILED_DEFAULT_FIELDS) {
-    const card = document.createElement("div");
-    card.className = "perfSettingCard";
-
-    const head = document.createElement("div");
-    head.className = "perfSettingHead";
-    const label = document.createElement("span");
-    label.className = "perfSettingLabel";
-    label.textContent = field.label;
-    const info = document.createElement("button");
-    info.type = "button";
-    info.className = "perfInfoBtn";
-    info.textContent = "i";
-    info.addEventListener("click", () => showSettingsInfo(field.help));
-    head.append(label, info);
-
-    const input = document.createElement("input");
-    input.id = `detailDefault_${field.key}`;
-    input.className = "perfNumberInput";
-    input.type = "number";
-    input.min = String(field.min);
-    input.max = String(field.max);
-    input.step = String(field.step);
-    input.addEventListener("change", () => applyDetailedDefaultField(field.key, input.value));
-
-    const formatted = document.createElement("div");
-    formatted.id = `detailDefaultFormatted_${field.key}`;
-    formatted.className = "perfFormattedValue";
-    formatted.textContent = "--";
-
-    card.append(head, input, formatted);
-    allDefaultsSettingsEl.append(card);
-  }
-}
-
-function showSettingsInfo(message) {
+function showSettingsInfo(message, anchorEl = null) {
   if (!settingsInfoPopupEl || !settingsInfoTextEl) return;
   settingsInfoTextEl.textContent = message;
   settingsInfoPopupEl.classList.remove("is-hidden");
+
+  const panelRect = rangesEditorPanelEl?.getBoundingClientRect();
+  const anchorRect = anchorEl?.getBoundingClientRect();
+  if (panelRect && anchorRect) {
+    const left = Math.max(8, Math.min(panelRect.width - 290, anchorRect.left - panelRect.left - 240));
+    const top = Math.max(8, Math.min(panelRect.height - 120, anchorRect.top - panelRect.top + 28));
+    settingsInfoPopupEl.style.left = `${left}px`;
+    settingsInfoPopupEl.style.top = `${top}px`;
+  } else {
+    settingsInfoPopupEl.style.left = "10px";
+    settingsInfoPopupEl.style.top = "10px";
+  }
 }
 
 function hideSettingsInfo() {
@@ -2551,13 +2458,7 @@ function registerHandlers() {
   settingsTabRangesEl?.addEventListener("click", () => setSettingsTab("ranges"));
   settingsTabDetailedEl?.addEventListener("click", () => setSettingsTab("detailed"));
 
-  const bindDetailedPair = (rangeEl, numberEl, sliderKey) => {
-    rangeEl?.addEventListener("input", () => applyDetailedSliderValue(sliderKey, rangeEl.value));
-    numberEl?.addEventListener("change", () => applyDetailedSliderValue(sliderKey, numberEl.value));
-  };
-  detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
-  detailMaxRandomItersNumberEl?.addEventListener("change", () => applyMaxRandomIterations(detailMaxRandomItersNumberEl.value));
-  bindDetailedPair(detailBurnRangeEl, detailBurnNumberEl, "burn");
+  detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
 
   detailDebugToggleEl?.addEventListener("change", () => {
     appData.defaults.debug = Boolean(detailDebugToggleEl.checked);
@@ -2567,14 +2468,11 @@ function registerHandlers() {
     requestDraw();
   });
 
-  infoMaxRandomItersEl?.addEventListener("click", () => {
-    showSettingsInfo("Max random iterations limits the upper bound when randomisation picks a new iteration count. It does not change the current render iterations directly.");
+  infoBurnEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Burn-in steps discard the first orbit points. Higher burn removes initial transients before plotting.", event.currentTarget);
   });
-  infoBurnEl?.addEventListener("click", () => {
-    showSettingsInfo("Burn-in steps discard the first orbit points. Higher burn removes initial transients before plotting.");
-  });
-  infoDebugEl?.addEventListener("click", () => {
-    showSettingsInfo("Debug overlay draws extra guides and diagnostics. Turning it off reduces UI drawing overhead.");
+  infoDebugEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Debug overlay draws extra guides and diagnostics. Turning it off reduces UI drawing overhead.", event.currentTarget);
   });
   settingsInfoPopupEl?.addEventListener("click", hideSettingsInfo);
 
@@ -2733,7 +2631,6 @@ async function bootstrap() {
     appData.defaults.cmapName = resolveInitialColorMap();
     configureNameBoxWidths();
     populateRangeEditorFormulaOptions();
-    renderAllDefaultSettingsControls();
     rangesEditorFormulaId = currentFormulaId;
     debugOnEl.checked = Boolean(appData.defaults.debug);
     debugOffEl.checked = !debugOnEl.checked;
