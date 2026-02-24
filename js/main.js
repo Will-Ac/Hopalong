@@ -8,8 +8,7 @@ const canvas = document.getElementById("c");
 const toastEl = document.getElementById("toast");
 const formulaBtn = document.getElementById("formulaBtn");
 const cmapBtn = document.getElementById("cmapBtn");
-const debugOnEl = document.getElementById("debugOn");
-const debugOffEl = document.getElementById("debugOff");
+const debugBugBtn = document.getElementById("debugBugBtn");
 const debugInfoEl = document.getElementById("debugInfo");
 const debugPanelEl = document.getElementById("debugPanel");
 const rangesEditorToggleEl = document.getElementById("rangesEditorToggle");
@@ -63,9 +62,7 @@ const paramRowEl = document.getElementById("paramRow");
 const cameraBtn = document.getElementById("cameraBtn");
 const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
-const floatingActionsEl = document.getElementById("floatingActions");
-const modePickerEl = document.getElementById("modePicker");
-const modePickerRadios = Array.from(modePickerEl?.querySelectorAll('input[name="paramMode"]') || []);
+const randomModeTile = document.getElementById("randomModeTile");
 
 const sliderControls = {
   alpha: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
@@ -104,8 +101,9 @@ const HOLD_MAX_MULTIPLIER = 10;
 const NAME_MAX_CHARS = 20;
 const CAMERA_LONG_PRESS_MS = 550;
 const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
-const PARAM_LONG_MS = 450;
 const PARAM_MOVE_CANCEL_PX = 10;
+const PARAM_SWIPE_TRIGGER_PX = 20;
+const DOUBLE_TAP_MS = 320;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
 const APP_DEFAULTS_STORAGE_KEY = "hopalong.defaults.v2";
 const PARAM_MODE_VALUES = new Set(["fix", "manx", "many", "rand"]);
@@ -130,8 +128,10 @@ let longPressTriggered = false;
 let isApplyingHistoryState = false;
 let historyStates = [];
 let historyIndex = -1;
-let activeModeParamKey = null;
 let paramModes = {};
+let lastParamTap = { targetKey: null, timestamp: 0 };
+let pendingTileTapTimer = null;
+let randomAllNextMode = "rand";
 const paramPressState = {
   pointerId: null,
   targetKey: null,
@@ -389,11 +389,7 @@ function configureNameBoxWidths() {
   document.documentElement.style.setProperty("--name-box-width", `${widthPx}px`);
 }
 
-function layoutFloatingActions() {
-  if (!floatingActionsEl || !paramRowEl) {
-    return;
-  }
-}
+function layoutFloatingActions() {}
 
 function setRangesEditorWarning(message = "") {
   if (rangesEditorWarningEl) {
@@ -623,12 +619,29 @@ function syncScaleModeButton() {
 
 function syncRandomModeButton() {
   const globalMode = getGlobalRandomFixMixState();
-  randomModeBtn.textContent = globalMode === "ran" ? "Fix\nAll" : "Randomise\nAll";
-  randomModeBtn.classList.toggle("is-random", globalMode === "ran");
-  randomModeBtn.classList.toggle("is-fixed", globalMode === "fix");
-  randomModeBtn.classList.toggle("is-mixed", globalMode === "mix");
-  randomModeBtn.setAttribute("aria-label", globalMode === "ran" ? "All parameter modes set to random" : globalMode === "fix" ? "All parameter modes set to fixed" : "Mixed parameter modes");
-  randomModeBtn.title = globalMode === "ran" ? "All random" : globalMode === "fix" ? "All fixed" : "Mixed parameter modes";
+
+  if (globalMode === "ran") {
+    randomAllNextMode = "fix";
+  } else if (globalMode === "fix") {
+    randomAllNextMode = "rand";
+  }
+
+  randomModeBtn.textContent = randomAllNextMode === "fix" ? "Fix\nAll" : "Random\nAll";
+  randomModeTile?.classList.toggle("is-random", globalMode === "ran");
+  randomModeTile?.classList.toggle("is-fixed", globalMode === "fix");
+  randomModeTile?.classList.toggle("is-mixed", globalMode === "mix");
+  randomModeBtn.setAttribute("aria-label", randomAllNextMode === "fix" ? "Set all parameter modes to fixed" : "Set all parameter modes to random");
+  randomModeBtn.title = randomAllNextMode === "fix" ? "Fix all" : "Random all";
+}
+
+
+function syncDebugToggleUi() {
+  const isDebug = Boolean(appData?.defaults?.debug);
+  debugPanelEl?.classList.toggle("is-hidden", !isDebug);
+  debugBugBtn?.classList.toggle("is-active", isDebug);
+  if (detailDebugToggleEl) {
+    detailDebugToggleEl.checked = isDebug;
+  }
 }
 
 function maybeShowLandscapeHint() {
@@ -1033,7 +1046,7 @@ function isEventInsideInteractiveUi(eventTarget) {
     return false;
   }
 
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #modePicker, #debugToggleDock, #floatingActions, #rangesEditorPanel, #rangesEditorToggle"));
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #debugToggleDock, #floatingActions, #rangesEditorPanel, #rangesEditorToggle"));
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -1460,21 +1473,24 @@ function closePicker() {
 }
 
 function layoutPickerPanel() {
-  if (!activePickerTrigger) {
+  const formulaTile = formulaBtn?.closest(".poItem");
+  const cmapTile = cmapBtn?.closest(".poItem");
+  const viewportWidth = window.innerWidth;
+  const margin = 6;
+
+  if (formulaTile && cmapTile) {
+    const firstRect = formulaTile.getBoundingClientRect();
+    const secondRect = cmapTile.getBoundingClientRect();
+    const left = clamp(firstRect.left, margin, viewportWidth - margin - 180);
+    const width = clamp(secondRect.right - firstRect.left, 180, viewportWidth - margin * 2);
+    pickerPanel.style.width = `${width}px`;
+    pickerPanel.style.left = `${left}px`;
+    pickerPanel.style.transform = "none";
     return;
   }
 
-  const triggerRect = activePickerTrigger.getBoundingClientRect();
-  const viewportWidth = window.innerWidth;
-  const margin = 6;
-  const targetWidth = clamp(triggerRect.width * 1.8, 180, 310);
-  const maxWidth = Math.max(180, viewportWidth - margin * 2);
-  const width = Math.min(targetWidth, maxWidth);
-  const triggerCenter = triggerRect.left + triggerRect.width / 2;
-  const left = clamp(triggerCenter - width / 2, margin, viewportWidth - margin - width);
-
-  pickerPanel.style.width = `${width}px`;
-  pickerPanel.style.left = `${left}px`;
+  pickerPanel.style.width = `${Math.min(320, viewportWidth - margin * 2)}px`;
+  pickerPanel.style.left = `${margin}px`;
   pickerPanel.style.transform = "none";
 }
 
@@ -1507,6 +1523,9 @@ function renderFormulaPicker() {
 
     button.addEventListener("click", () => {
       currentFormulaId = formula.id;
+      if (getParamMode("formula") === "rand") {
+        applyParamMode("formula", "fix");
+      }
       updateCurrentPickerSelection();
       saveDefaultsToStorage();
       requestDraw();
@@ -1546,6 +1565,9 @@ function renderColorMapPicker() {
 
     button.addEventListener("click", () => {
       appData.defaults.cmapName = cmapName;
+      if (getParamMode("cmap") === "rand") {
+        applyParamMode("cmap", "fix");
+      }
       updateCurrentPickerSelection();
       saveDefaultsToStorage();
       requestDraw();
@@ -1613,89 +1635,16 @@ function openQuickSlider(sliderKey) {
   updateQuickSliderReadout();
 }
 
-function syncModePickerChoices(paramKey) {
-  const allowedModes = getAllowedModesForParam(paramKey);
-  for (const radio of modePickerRadios) {
-    const optionLabel = radio.closest("label");
-    const visible = allowedModes.includes(radio.value);
-    radio.disabled = !visible;
-    if (optionLabel) {
-      optionLabel.style.display = visible ? "" : "none";
-    }
-  }
-}
-
-function closeModePicker() {
-  activeModeParamKey = null;
-  if (!modePickerEl) {
-    return;
-  }
-  modePickerEl.classList.remove("is-open");
-  modePickerEl.setAttribute("aria-hidden", "true");
-}
-
-function openModePicker(targetKey, anchorRect) {
-  if (!modePickerEl) {
-    return;
-  }
-
-  const target = paramTileTargets[targetKey];
-  if (!target) {
-    return;
-  }
-
-  activeModeParamKey = target.modeKey;
-  syncModePickerChoices(activeModeParamKey);
-
-  const mode = getParamMode(activeModeParamKey);
-  for (const radio of modePickerRadios) {
-    radio.checked = radio.value === mode;
-  }
-
-  const margin = 6;
-  const pickerWidth = Math.round(clamp(anchorRect.width + 10, 150, 200));
-  modePickerEl.style.width = `${pickerWidth}px`;
-
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-  const left = clamp(anchorRect.left + anchorRect.width / 2 - pickerWidth / 2, margin, viewportWidth - pickerWidth - margin);
-
-  modePickerEl.classList.add("is-open");
-  modePickerEl.setAttribute("aria-hidden", "false");
-  const pickerHeight = modePickerEl.getBoundingClientRect().height || 170;
-  const top = clamp(anchorRect.top - pickerHeight - 8, margin, viewportHeight - pickerHeight - margin);
-  modePickerEl.style.left = `${left}px`;
-  modePickerEl.style.top = `${top}px`;
-}
-
-function clearParamLongPressTimer() {
-  if (paramPressState.timer) {
-    window.clearTimeout(paramPressState.timer);
-    paramPressState.timer = null;
-  }
-}
-
 function onParamPointerDown(event, targetKey) {
   if (event.pointerType === "mouse" && event.button !== 0) {
     return;
   }
 
-  closeModePicker();
   paramPressState.pointerId = event.pointerId;
   paramPressState.targetKey = targetKey;
   paramPressState.startX = event.clientX;
   paramPressState.startY = event.clientY;
   paramPressState.longTriggered = false;
-
-  clearParamLongPressTimer();
-  paramPressState.timer = window.setTimeout(() => {
-    const tile = paramTileTargets[targetKey]?.button.closest(".poItem");
-    if (!tile) {
-      return;
-    }
-    paramPressState.longTriggered = true;
-    openModePicker(targetKey, tile.getBoundingClientRect());
-  }, PARAM_LONG_MS);
 }
 
 function onParamPointerMove(event) {
@@ -1706,8 +1655,31 @@ function onParamPointerMove(event) {
   const deltaX = event.clientX - paramPressState.startX;
   const deltaY = event.clientY - paramPressState.startY;
   if (Math.hypot(deltaX, deltaY) > PARAM_MOVE_CANCEL_PX) {
-    clearParamLongPressTimer();
+    paramPressState.longTriggered = true;
   }
+}
+
+function toggleFixRandMode(modeKey) {
+  const nextMode = getParamMode(modeKey) === "rand" ? "fix" : "rand";
+  applyParamMode(modeKey, nextMode);
+  requestDraw();
+}
+
+function applySwipeModeForTile(targetKey, deltaX, deltaY) {
+  const modeKey = paramTileTargets[targetKey]?.modeKey;
+  if (!modeKey || !["a", "b", "c", "d", "iters"].includes(modeKey)) {
+    return false;
+  }
+
+  if (Math.abs(deltaX) < PARAM_SWIPE_TRIGGER_PX && Math.abs(deltaY) < PARAM_SWIPE_TRIGGER_PX) {
+    return false;
+  }
+
+  const nextMode = Math.abs(deltaX) >= Math.abs(deltaY) ? "manx" : "many";
+  applyParamMode(modeKey, nextMode);
+  showToast(nextMode === "manx" ? `${modeKey}: ManX` : `${modeKey}: ManY`);
+  requestDraw();
+  return true;
 }
 
 function onParamPointerEnd(event) {
@@ -1716,15 +1688,44 @@ function onParamPointerEnd(event) {
   }
 
   const targetKey = paramPressState.targetKey;
-  const wasLongPress = paramPressState.longTriggered;
-  clearParamLongPressTimer();
+  const deltaX = event.clientX - paramPressState.startX;
+  const deltaY = event.clientY - paramPressState.startY;
   paramPressState.pointerId = null;
   paramPressState.targetKey = null;
+  const wasGesture = paramPressState.longTriggered;
   paramPressState.longTriggered = false;
 
-  if (wasLongPress) {
+  if (applySwipeModeForTile(targetKey, deltaX, deltaY)) {
     event.preventDefault();
     event.stopPropagation();
+    return;
+  }
+
+  if (wasGesture) {
+    return;
+  }
+
+  const now = performance.now();
+  const isDoubleTap = lastParamTap.targetKey === targetKey && now - lastParamTap.timestamp <= DOUBLE_TAP_MS;
+  lastParamTap = { targetKey, timestamp: now };
+
+  if (isDoubleTap) {
+    if (pendingTileTapTimer) {
+      window.clearTimeout(pendingTileTapTimer);
+      pendingTileTapTimer = null;
+    }
+    toggleFixRandMode(paramTileTargets[targetKey]?.modeKey);
+    return;
+  }
+
+  if (targetKey === "formula" || targetKey === "cmap") {
+    if (pendingTileTapTimer) {
+      window.clearTimeout(pendingTileTapTimer);
+    }
+    pendingTileTapTimer = window.setTimeout(() => {
+      pendingTileTapTimer = null;
+      paramTileTargets[targetKey]?.shortTap();
+    }, DOUBLE_TAP_MS + 10);
     return;
   }
 
@@ -2338,15 +2339,9 @@ async function endCameraPress(event) {
 function registerHandlers() {
   pickerClose.addEventListener("click", closePicker);
   pickerBackdrop.addEventListener("click", closePicker);
-  debugOnEl.addEventListener("change", () => {
-    appData.defaults.debug = debugOnEl.checked;
-    if (detailDebugToggleEl) detailDebugToggleEl.checked = appData.defaults.debug;
-    saveDefaultsToStorage();
-    requestDraw();
-  });
-  debugOffEl.addEventListener("change", () => {
-    appData.defaults.debug = debugOnEl.checked;
-    if (detailDebugToggleEl) detailDebugToggleEl.checked = appData.defaults.debug;
+  debugBugBtn?.addEventListener("click", () => {
+    appData.defaults.debug = !Boolean(appData.defaults.debug);
+    syncDebugToggleUi();
     saveDefaultsToStorage();
     requestDraw();
   });
@@ -2364,34 +2359,6 @@ function registerHandlers() {
     tile.addEventListener("contextmenu", (event) => event.preventDefault());
   }
 
-  if (modePickerEl) {
-    modePickerEl.addEventListener("pointerdown", (event) => event.stopPropagation());
-    modePickerEl.addEventListener("touchmove", (event) => event.preventDefault(), { passive: false });
-    modePickerEl.addEventListener("contextmenu", (event) => event.preventDefault());
-  }
-
-  window.addEventListener("pointerdown", (event) => {
-    if (!modePickerEl?.classList.contains("is-open")) {
-      return;
-    }
-
-    if (event.target instanceof Element && event.target.closest("#modePicker")) {
-      return;
-    }
-
-    closeModePicker();
-  });
-
-  for (const radio of modePickerRadios) {
-    radio.addEventListener("change", () => {
-      if (!radio.checked || !activeModeParamKey) {
-        return;
-      }
-      applyParamMode(activeModeParamKey, radio.value);
-      requestDraw();
-      closeModePicker();
-    });
-  }
 
   const closeSliderFromUi = (event) => {
     event.preventDefault();
@@ -2445,12 +2412,23 @@ function registerHandlers() {
       event.preventDefault();
       event.stopPropagation();
     }
-    const nextMode = getGlobalRandomFixMixState() === "ran" ? "fix" : "rand";
+    const nextMode = randomAllNextMode;
     applyAllParamModes(nextMode);
+    randomAllNextMode = nextMode === "rand" ? "fix" : "rand";
+    syncRandomModeButton();
     showToast(nextMode === "rand" ? "RAN mode enabled. Tap right to go forward/randomise, left to go back." : "FIX mode enabled. History tap controls are inactive.");
   };
 
-  randomModeBtn.addEventListener("click", toggleRandomMode);
+  let randomBtnLastTap = 0;
+  randomModeBtn.addEventListener("pointerup", (event) => {
+    const now = performance.now();
+    if (now - randomBtnLastTap <= DOUBLE_TAP_MS) {
+      toggleRandomMode(event);
+      randomBtnLastTap = 0;
+      return;
+    }
+    randomBtnLastTap = now;
+  });
 
   rangesEditorToggleEl?.addEventListener("click", () => {
     if (rangesEditorPanelEl?.classList.contains("is-hidden")) {
@@ -2477,8 +2455,7 @@ function registerHandlers() {
 
   detailDebugToggleEl?.addEventListener("change", () => {
     appData.defaults.debug = Boolean(detailDebugToggleEl.checked);
-    debugOnEl.checked = appData.defaults.debug;
-    debugOffEl.checked = !appData.defaults.debug;
+    syncDebugToggleUi();
     saveDefaultsToStorage();
     requestDraw();
   });
@@ -2543,9 +2520,6 @@ function registerHandlers() {
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }
-      if (modePickerEl?.classList.contains("is-open")) {
-        closeModePicker();
-      }
       layoutFloatingActions();
       requestDraw();
     },
@@ -2559,9 +2533,6 @@ function registerHandlers() {
       }
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
-      }
-      if (modePickerEl?.classList.contains("is-open")) {
-        closeModePicker();
       }
       layoutFloatingActions();
       requestDraw();
@@ -2650,9 +2621,7 @@ async function bootstrap() {
     configureNameBoxWidths();
     populateRangeEditorFormulaOptions();
     rangesEditorFormulaId = currentFormulaId;
-    debugOnEl.checked = Boolean(appData.defaults.debug);
-    debugOffEl.checked = !debugOnEl.checked;
-    if (detailDebugToggleEl) detailDebugToggleEl.checked = debugOnEl.checked;
+    syncDebugToggleUi();
     syncScaleModeButton();
     syncRandomModeButton();
     syncParamModeVisuals();
