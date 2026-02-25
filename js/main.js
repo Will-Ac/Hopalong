@@ -2628,21 +2628,29 @@ function getDeviceExportSizePx() {
     };
   };
 
+  const screenCssW = Math.max(Number(window.screen?.width) || 0, Number(window.screen?.availWidth) || 0);
+  const screenCssH = Math.max(Number(window.screen?.height) || 0, Number(window.screen?.availHeight) || 0);
+
   const candidates = [
-    { source: "screen", value: orientToCurrentView(Number(window.screen?.width) || 0, Number(window.screen?.height) || 0) },
+    { source: "screen", value: orientToCurrentView(screenCssW, screenCssH) },
     { source: "visualViewport", value: orientToCurrentView(vvW, vvH) },
     { source: "inner", value: orientToCurrentView(innerW, innerH) },
-  ];
+  ].filter((candidate) => candidate.value);
 
-  const chosen = candidates.find((candidate) => candidate.value) || {
-    source: "fallback",
-    value: {
-      cssW: 1,
-      cssH: 1,
-      wPx: Math.max(1, Math.round(dprUsed)),
-      hPx: Math.max(1, Math.round(dprUsed)),
-    },
-  };
+  const maxArea = candidates.reduce((max, candidate) => Math.max(max, candidate.value.cssW * candidate.value.cssH), 0);
+  const minAcceptableArea = maxArea * 0.97;
+  const chosen =
+    candidates.find((candidate) => candidate.value.cssW * candidate.value.cssH >= minAcceptableArea)
+    || candidates[0]
+    || {
+      source: "fallback",
+      value: {
+        cssW: 1,
+        cssH: 1,
+        wPx: Math.max(1, Math.round(dprUsed)),
+        hPx: Math.max(1, Math.round(dprUsed)),
+      },
+    };
 
   if (appData?.defaults?.debug) {
     console.debug("[screenshot] export size", {
@@ -2652,6 +2660,11 @@ function getDeviceExportSizePx() {
       chosenSource: chosen.source,
       cssW: Math.round(chosen.value.cssW),
       cssH: Math.round(chosen.value.cssH),
+      candidates: candidates.map((candidate) => ({
+        source: candidate.source,
+        cssW: Math.round(candidate.value.cssW),
+        cssH: Math.round(candidate.value.cssH),
+      })),
     });
   }
 
