@@ -497,7 +497,8 @@ function applyResponsiveUiSizing({ force = false } = {}) {
     fontSize -= 0.5;
   }
 
-  const roundedFontSize = Math.max(10, Math.floor(fontSize * 2) / 2);
+  const reducedFontSize = fontSize * 0.8;
+  const roundedFontSize = Math.max(10, Math.floor(reducedFontSize * 2) / 2);
   if (lastComputedUiMetrics.fontSize !== roundedFontSize) {
     root.style.setProperty("--ui-font-size", `${roundedFontSize}px`);
     lastComputedUiMetrics.fontSize = roundedFontSize;
