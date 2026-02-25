@@ -418,47 +418,44 @@
         position: relative;
         min-width: 0;
         background: var(--panel-bg);
-        border: 2px solid var(--param-outline);
+        border: 0;
         border-radius: 10px;
         padding: 4px 6px;
       }
-      .poItem.po-mode-fix {
-        border-width: 2px;
-        border-style: solid;
-      }
-      .poItem.po-mode-rand {
-        border-width: 2px;
-        border-style: dashed;
-      }
-      .poItem.po-mode-manx,
-      .poItem.po-mode-many {
-        border-color: transparent;
-      }
-      .poItem.po-mode-manx::before,
-      .poItem.po-mode-manx::after,
-      .poItem.po-mode-many::before,
-      .poItem.po-mode-many::after {
+      .poItem::before,
+      .poItem::after {
         content: "";
         position: absolute;
-        background: var(--param-outline);
-        pointer-events: none;
-      }
-      .poItem.po-mode-manx::before,
-      .poItem.po-mode-manx::after {
         left: 8px;
         right: 8px;
         height: 2px;
+        pointer-events: none;
       }
-      .poItem.po-mode-manx::before { top: 0; }
-      .poItem.po-mode-manx::after { bottom: 0; }
-      .poItem.po-mode-many::before,
-      .poItem.po-mode-many::after {
-        top: 8px;
-        bottom: 8px;
-        width: 2px;
+      .poItem::before { top: 0; }
+      .poItem::after { bottom: 0; }
+      .poItem.po-lock-fix::before,
+      .poItem.po-lock-fix::after {
+        background: var(--param-outline);
       }
-      .poItem.po-mode-many::before { left: 0; }
-      .poItem.po-mode-many::after { right: 0; }
+      .poItem.po-lock-rand::before,
+      .poItem.po-lock-rand::after {
+        background: repeating-linear-gradient(
+          90deg,
+          var(--param-outline) 0,
+          var(--param-outline) 6px,
+          rgba(var(--ui-gray-rgb), 0) 6px,
+          rgba(var(--ui-gray-rgb), 0) 10px
+        );
+      }
+      .poItem.po-has-manx {
+        box-shadow: inset 2px 0 0 var(--param-outline);
+      }
+      .poItem.po-has-many {
+        box-shadow: inset -2px 0 0 var(--param-outline);
+      }
+      .poItem.po-has-manx.po-has-many {
+        box-shadow: inset 2px 0 0 var(--param-outline), inset -2px 0 0 var(--param-outline);
+      }
       .poLabel {
         display: block;
         font-size: var(--ui-font-size);
