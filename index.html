@@ -422,43 +422,27 @@
         border-radius: 10px;
         padding: 4px 6px;
       }
-      .poItem.po-mode-fix {
-        border-width: 2px;
+      .poItem.po-lock-fix {
         border-style: solid;
       }
-      .poItem.po-mode-rand {
-        border-width: 2px;
+      .poItem.po-lock-rand {
         border-style: dashed;
       }
-      .poItem.po-mode-manx,
-      .poItem.po-mode-many {
-        border-color: transparent;
+      .poItem.po-axis-none {
+        border-color: var(--param-outline);
       }
-      .poItem.po-mode-manx::before,
-      .poItem.po-mode-manx::after,
-      .poItem.po-mode-many::before,
-      .poItem.po-mode-many::after {
-        content: "";
-        position: absolute;
-        background: var(--param-outline);
-        pointer-events: none;
+      .poItem.po-axis-manx {
+        border-color: var(--param-outline);
+        border-left-style: none;
+        border-right-style: none;
+        border-radius: 0;
       }
-      .poItem.po-mode-manx::before,
-      .poItem.po-mode-manx::after {
-        left: 8px;
-        right: 8px;
-        height: 2px;
+      .poItem.po-axis-many {
+        border-color: var(--param-outline);
+        border-top-style: none;
+        border-bottom-style: none;
+        border-radius: 0;
       }
-      .poItem.po-mode-manx::before { top: 0; }
-      .poItem.po-mode-manx::after { bottom: 0; }
-      .poItem.po-mode-many::before,
-      .poItem.po-mode-many::after {
-        top: 8px;
-        bottom: 8px;
-        width: 2px;
-      }
-      .poItem.po-mode-many::before { left: 0; }
-      .poItem.po-mode-many::after { right: 0; }
       .poLabel {
         display: block;
         font-size: var(--ui-font-size);
