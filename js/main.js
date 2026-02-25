@@ -418,9 +418,7 @@ function layoutFloatingActions() {
 
 function collectUiTextLines() {
   const lines = [];
-  const trackedNodes = [
-    ...document.querySelectorAll(".poLabel, .poBtn, #randomModeBtn, #scaleModeBtn"),
-  ];
+  const trackedNodes = [...document.querySelectorAll(".poLabel, .poBtn, #randomModeBtn, #scaleModeBtn")];
 
   for (const node of trackedNodes) {
     const text = String(node.textContent || "").trim();
@@ -434,6 +432,21 @@ function collectUiTextLines() {
       }
     }
   }
+
+  // Include the longest possible values (not just current selection) so the
+  // shared font size remains stable and still fits any formula/colormap choice.
+  if (appData?.formulas?.length) {
+    for (const formula of appData.formulas) {
+      lines.push(clampLabel(formula?.name || formula?.id || ""));
+    }
+  }
+  if (appData?.colormaps?.length) {
+    for (const cmapName of appData.colormaps) {
+      lines.push(clampLabel(cmapName || ""));
+    }
+  }
+
+  lines.push("Random", "All", "Fix", "Auto", "Scale", "Fixed", "iter");
 
   return lines;
 }
