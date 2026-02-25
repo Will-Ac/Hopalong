@@ -2143,6 +2143,8 @@ function drawManualParamOverlay(meta) {
   const labelGap = 12;
   const axisNameFontPx = Math.max(12, Math.round(Math.min(view.width, view.height) * 0.017));
   const AXIS_WIDTH = 1;
+  const OVERLAY_WHITE = "rgba(255,255,255,1)";
+  const OVERLAY_BLACK = "rgba(0,0,0,1)";
 
   const alignAxisPixel = (value, lineWidth) => {
     if (Math.round(lineWidth) % 2 === 1) {
@@ -2155,7 +2157,7 @@ function drawManualParamOverlay(meta) {
     // 1) Dark outline pass
     ctx.save();
     ctx.lineWidth = AXIS_WIDTH + 2;
-    ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.strokeStyle = OVERLAY_BLACK;
     ctx.shadowBlur = 0;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
@@ -2163,24 +2165,10 @@ function drawManualParamOverlay(meta) {
     ctx.stroke();
     ctx.restore();
 
-    // 2) Subtle white-on-black halo pass
+    // 2) Final crisp white center pass
     ctx.save();
     ctx.lineWidth = AXIS_WIDTH;
-    ctx.strokeStyle = "rgba(255,255,255,0.94)";
-    ctx.shadowColor = "rgba(0,0,0,0.9)";
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    ctx.restore();
-
-    // 3) Final crisp white pass (no blur)
-    ctx.save();
-    ctx.lineWidth = AXIS_WIDTH;
-    ctx.strokeStyle = "rgba(255,255,255,1.0)";
+    ctx.strokeStyle = OVERLAY_WHITE;
     ctx.shadowBlur = 0;
     ctx.shadowColor = "transparent";
     ctx.beginPath();
@@ -2196,8 +2184,8 @@ function drawManualParamOverlay(meta) {
   const alignedParamY = alignAxisPixel(paramY, AXIS_WIDTH);
 
   ctx.save();
-  ctx.strokeStyle = "rgba(255,255,255,1.0)";
-  ctx.fillStyle = "rgba(255,255,255,0.98)";
+  ctx.strokeStyle = OVERLAY_WHITE;
+  ctx.fillStyle = OVERLAY_WHITE;
   ctx.lineWidth = AXIS_WIDTH;
   ctx.shadowBlur = 0;
 
@@ -2212,7 +2200,7 @@ function drawManualParamOverlay(meta) {
   // Crosshair: black outline pass + white center pass
   ctx.save();
   ctx.lineWidth = AXIS_WIDTH + 2;
-  ctx.strokeStyle = "rgba(0,0,0,0.92)";
+  ctx.strokeStyle = OVERLAY_BLACK;
   ctx.beginPath();
   ctx.moveTo(alignedParamX - crosshairSize, alignedParamY);
   ctx.lineTo(alignedParamX + crosshairSize, alignedParamY);
@@ -2223,7 +2211,7 @@ function drawManualParamOverlay(meta) {
 
   ctx.save();
   ctx.lineWidth = AXIS_WIDTH;
-  ctx.strokeStyle = "rgba(255,255,255,1.0)";
+  ctx.strokeStyle = OVERLAY_WHITE;
   ctx.beginPath();
   ctx.moveTo(alignedParamX - crosshairSize, alignedParamY);
   ctx.lineTo(alignedParamX + crosshairSize, alignedParamY);
@@ -2235,9 +2223,9 @@ function drawManualParamOverlay(meta) {
   const drawOutlinedText = (text, x, y) => {
     ctx.save();
     ctx.lineWidth = 3;
-    ctx.strokeStyle = "rgba(0,0,0,0.92)";
+    ctx.strokeStyle = OVERLAY_BLACK;
     ctx.strokeText(text, x, y);
-    ctx.fillStyle = "rgba(255,255,255,0.98)";
+    ctx.fillStyle = OVERLAY_WHITE;
     ctx.fillText(text, x, y);
     ctx.restore();
   };
