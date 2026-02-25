@@ -2341,6 +2341,30 @@ function formatScreenshotTimestamp(date) {
   return parts.join("");
 }
 
+function getExportSizePx(liveCanvas) {
+  const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+
+  const vw = (window.visualViewport && window.visualViewport.width) ? window.visualViewport.width : window.innerWidth;
+  const vh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+  const isLandscape = vw > vh;
+
+  const screenW = Number(screen?.width) || 0;
+  const screenH = Number(screen?.height) || 0;
+  const sMax = Math.max(screenW, screenH, vw, vh);
+  const sMin = Math.min(screenW || sMax, screenH || sMax, vw, vh);
+
+  const cssW = isLandscape ? sMax : sMin;
+  const cssH = isLandscape ? sMin : sMax;
+
+  let pxW = Math.round(cssW * dpr);
+  let pxH = Math.round(cssH * dpr);
+
+  pxW = Math.max(pxW, liveCanvas.width);
+  pxH = Math.max(pxH, liveCanvas.height);
+
+  return { pxW, pxH, dpr, isLandscape };
+}
+
 function buildScreenshotOverlayLines() {
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   const params = getDerivedParams();
@@ -2397,11 +2421,44 @@ async function captureScreenshot(includeOverlay) {
     return;
   }
 
+  const { pxW, pxH } = getExportSizePx(canvas);
   const exportCanvas = document.createElement("canvas");
-  exportCanvas.width = canvas.width;
-  exportCanvas.height = canvas.height;
-  const exportCtx = exportCanvas.getContext("2d", { alpha: false });
-  exportCtx.drawImage(canvas, 0, 0);
+  exportCanvas.width = pxW;
+  exportCanvas.height = pxH;
+  const exportCtx = exportCanvas.getContext("2d", { willReadFrequently: true });
+  if (!exportCtx) {
+    throw new Error("Screenshot export context unavailable.");
+  }
+
+  const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
+  const scaleMode = getScaleMode();
+
+  let exportScaleMode = scaleMode;
+  let fixedViewExport = fixedView;
+  if (scaleMode === "fixed") {
+    const minLive = Math.min(canvas.width, canvas.height);
+    const minExp = Math.min(exportCanvas.width, exportCanvas.height);
+    const zoomLive = clamp(fixedView?.zoom ?? 1, 0.15, 25);
+    const zoomExp = zoomLive * (minLive / Math.max(minExp, 1));
+    fixedViewExport = {
+      ...(fixedView || {}),
+      zoom: zoomExp,
+    };
+    exportScaleMode = "fixed";
+  }
+
+  renderFrame({
+    ctx: exportCtx,
+    canvas: exportCanvas,
+    formulaId: currentFormulaId,
+    cmapName: appData.defaults.cmapName,
+    params: getDerivedParams(),
+    iterations: iterationSetting,
+    burn: burnSetting,
+    scaleMode: exportScaleMode,
+    fixedView: fixedViewExport,
+  });
 
   if (includeOverlay) {
     drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height);
