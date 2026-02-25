@@ -2163,10 +2163,10 @@ function drawManualParamOverlay(meta) {
     ctx.stroke();
     ctx.restore();
 
-    // 2) Subtle halo pass
+    // 2) Subtle white-on-black halo pass
     ctx.save();
     ctx.lineWidth = AXIS_WIDTH;
-    ctx.strokeStyle = "rgba(255,0,0,0.9)";
+    ctx.strokeStyle = "rgba(255,255,255,0.94)";
     ctx.shadowColor = "rgba(0,0,0,0.9)";
     ctx.shadowBlur = 6;
     ctx.shadowOffsetX = 0;
@@ -2177,10 +2177,10 @@ function drawManualParamOverlay(meta) {
     ctx.stroke();
     ctx.restore();
 
-    // 3) Final crisp red pass (no blur)
+    // 3) Final crisp white pass (no blur)
     ctx.save();
     ctx.lineWidth = AXIS_WIDTH;
-    ctx.strokeStyle = "rgba(255,40,40,1.0)";
+    ctx.strokeStyle = "rgba(255,255,255,1.0)";
     ctx.shadowBlur = 0;
     ctx.shadowColor = "transparent";
     ctx.beginPath();
@@ -2196,8 +2196,8 @@ function drawManualParamOverlay(meta) {
   const alignedParamY = alignAxisPixel(paramY, AXIS_WIDTH);
 
   ctx.save();
-  ctx.strokeStyle = "rgba(255,40,40,1.0)";
-  ctx.fillStyle = "rgba(255,92,92,0.96)";
+  ctx.strokeStyle = "rgba(255,255,255,1.0)";
+  ctx.fillStyle = "rgba(255,255,255,0.98)";
   ctx.lineWidth = AXIS_WIDTH;
   ctx.shadowBlur = 0;
 
@@ -2209,20 +2209,45 @@ function drawManualParamOverlay(meta) {
     drawAxisLine(alignedAxisX, 0, alignedAxisX, view.height);
   }
 
-  // Keep center crosshair crisp and thin (no blur)
+  // Crosshair: black outline pass + white center pass
+  ctx.save();
+  ctx.lineWidth = AXIS_WIDTH + 2;
+  ctx.strokeStyle = "rgba(0,0,0,0.92)";
   ctx.beginPath();
   ctx.moveTo(alignedParamX - crosshairSize, alignedParamY);
   ctx.lineTo(alignedParamX + crosshairSize, alignedParamY);
   ctx.moveTo(alignedParamX, alignedParamY - crosshairSize);
   ctx.lineTo(alignedParamX, alignedParamY + crosshairSize);
   ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.lineWidth = AXIS_WIDTH;
+  ctx.strokeStyle = "rgba(255,255,255,1.0)";
+  ctx.beginPath();
+  ctx.moveTo(alignedParamX - crosshairSize, alignedParamY);
+  ctx.lineTo(alignedParamX + crosshairSize, alignedParamY);
+  ctx.moveTo(alignedParamX, alignedParamY - crosshairSize);
+  ctx.lineTo(alignedParamX, alignedParamY + crosshairSize);
+  ctx.stroke();
+  ctx.restore();
+
+  const drawOutlinedText = (text, x, y) => {
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(0,0,0,0.92)";
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = "rgba(255,255,255,0.98)";
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  };
 
   ctx.font = `${axisNameFontPx}px system-ui, sans-serif`;
   if (manYControl) {
-    ctx.fillText(manYControl.label, view.width - axisNameFontPx * 1.2, Math.max(axisNameFontPx + 4, paramAxisY - labelGap));
+    drawOutlinedText(`${manYControl.label}=0`, view.width - axisNameFontPx * 1.2, Math.max(axisNameFontPx + 4, paramAxisY - labelGap));
   }
   if (manXControl) {
-    ctx.fillText(manXControl.label, Math.min(view.width - axisNameFontPx * 1.5, paramAxisX + labelGap), axisNameFontPx + 4);
+    drawOutlinedText(`${manXControl.label}=0`, Math.min(view.width - axisNameFontPx * 2.8, paramAxisX + labelGap), axisNameFontPx + 4);
   }
 
   ctx.restore();
