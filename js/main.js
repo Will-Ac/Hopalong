@@ -108,15 +108,13 @@ const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
 const PARAM_MOVE_CANCEL_PX = 10;
 const PARAM_SWIPE_TRIGGER_PX = 20;
 const DOUBLE_TAP_MS = 320;
+const PARAM_LONG_PRESS_MS = 550;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
 const APP_DEFAULTS_STORAGE_KEY = "hopalong.defaults.v2";
-const PARAM_MODE_VALUES = new Set(["fix", "manx", "many", "rand"]);
-const PARAM_FULL_MODE_OPTIONS = ["rand", "fix", "manx", "many"];
-const PARAM_MODE_OPTIONS_BY_KEY = {
-  formula: ["rand", "fix"],
-  cmap: ["rand", "fix"],
-};
+const PARAM_LOCK_STATES = new Set(["fix", "rand"]);
+const PARAM_MOD_AXES = new Set(["none", "manX", "manY"]);
 const PARAM_MODE_KEYS = ["formula", "cmap", "a", "b", "c", "d", "iters"];
+const MOD_AXIS_ELIGIBLE_KEYS = new Set(["a", "b", "c", "d"]);
 const paramTileTargets = {
   formula: { button: formulaBtn, modeKey: "formula", shortTap: () => openPicker("formula", formulaBtn) },
   cmap: { button: cmapBtn, modeKey: "cmap", shortTap: () => openPicker("cmap", cmapBtn) },
@@ -145,6 +143,7 @@ const paramPressState = {
   startY: 0,
   timer: null,
   longTriggered: false,
+  moved: false,
 };
 
 const HISTORY_LIMIT = 50;
@@ -817,14 +816,13 @@ function hasAnyRandomizedModes() {
 }
 
 function applyAllParamModes(nextMode) {
-  if (!PARAM_MODE_VALUES.has(nextMode)) {
+  if (!PARAM_LOCK_STATES.has(nextMode)) {
     return;
   }
 
   for (const key of PARAM_MODE_KEYS) {
-    if (getAllowedModesForParam(key).includes(nextMode)) {
-      paramModes[key] = nextMode;
-    }
+    paramModes[key] = getParamState(key);
+    paramModes[key].lockState = nextMode;
   }
 
   normalizeParamModes();
@@ -837,15 +835,22 @@ function applyAllParamModes(nextMode) {
 }
 
 function getParamMode(paramKey) {
-  return PARAM_MODE_VALUES.has(paramModes[paramKey]) ? paramModes[paramKey] : "rand";
+  return getParamState(paramKey).lockState;
 }
 
-function getAllowedModesForParam(paramKey) {
-  return PARAM_MODE_OPTIONS_BY_KEY[paramKey] || PARAM_FULL_MODE_OPTIONS;
+function getParamState(paramKey) {
+  const state = paramModes[paramKey];
+  if (state && typeof state === "object") {
+    const lockState = PARAM_LOCK_STATES.has(state.lockState) ? state.lockState : "rand";
+    const modAxis = PARAM_MOD_AXES.has(state.modAxis) ? state.modAxis : "none";
+    return { lockState, modAxis };
+  }
+
+  return { lockState: "rand", modAxis: "none" };
 }
 
 function isRandomizedParam(paramKey) {
-  return getParamMode(paramKey) === "rand";
+  return getParamState(paramKey).lockState === "rand";
 }
 
 function saveParamModesToStorage() {
@@ -858,94 +863,119 @@ function saveParamModesToStorage() {
 
 function syncParamModeVisuals() {
   for (const target of Object.values(paramTileTargets)) {
-    const mode = getParamMode(target.modeKey);
+    const { lockState, modAxis } = getParamState(target.modeKey);
     const item = target.button.closest(".poItem");
     if (!item) {
       continue;
     }
 
-    item.classList.remove("po-mode-fix", "po-mode-rand", "po-mode-manx", "po-mode-many");
-    item.classList.add(`po-mode-${mode}`);
-    item.dataset.paramMode = mode;
+    item.classList.remove("po-lock-fix", "po-lock-rand", "po-axis-none", "po-axis-manx", "po-axis-many");
+    item.classList.add(`po-lock-${lockState}`);
+    item.classList.add(`po-axis-${modAxis === "manX" ? "manx" : modAxis === "manY" ? "many" : "none"}`);
+    item.dataset.lockState = lockState;
+    item.dataset.modAxis = modAxis;
   }
+}
+
+function normalizeLegacyModeValue(mode) {
+  if (mode === "fix" || mode === "rand") {
+    return { lockState: mode, modAxis: "none" };
+  }
+  if (mode === "manx") {
+    return { lockState: "fix", modAxis: "manX" };
+  }
+  if (mode === "many") {
+    return { lockState: "fix", modAxis: "manY" };
+  }
+  return null;
+}
+
+function normalizeRawParamState(rawState) {
+  if (typeof rawState === "string") {
+    return normalizeLegacyModeValue(rawState) || { lockState: "rand", modAxis: "none" };
+  }
+
+  if (!rawState || typeof rawState !== "object") {
+    return { lockState: "rand", modAxis: "none" };
+  }
+
+  const lockState = PARAM_LOCK_STATES.has(rawState.lockState) ? rawState.lockState : "rand";
+  const modAxis = PARAM_MOD_AXES.has(rawState.modAxis) ? rawState.modAxis : "none";
+  return { lockState, modAxis };
 }
 
 function normalizeParamModes() {
   const normalized = {};
-  let manxParam = null;
-  let manyParam = null;
+  let manXOwner = null;
+  let manYOwner = null;
 
   for (const key of PARAM_MODE_KEYS) {
-    let mode = PARAM_MODE_VALUES.has(paramModes[key]) ? paramModes[key] : "rand";
-    const allowedModes = getAllowedModesForParam(key);
-    if (!allowedModes.includes(mode)) {
-      mode = mode === "rand" ? "rand" : "fix";
+    normalized[key] = normalizeRawParamState(paramModes[key]);
+    if (!MOD_AXIS_ELIGIBLE_KEYS.has(key)) {
+      normalized[key].modAxis = "none";
     }
+  }
 
-    if (mode === "manx") {
-      if (!manxParam) {
-        manxParam = key;
-        normalized[key] = "manx";
+  for (const key of PARAM_MODE_KEYS) {
+    if (normalized[key].modAxis === "manX") {
+      if (!manXOwner) {
+        manXOwner = key;
       } else {
-        normalized[key] = "fix";
+        normalized[key].modAxis = "none";
       }
-      continue;
     }
 
-    if (mode === "many") {
-      if (!manyParam) {
-        manyParam = key;
-        normalized[key] = "many";
+    if (normalized[key].modAxis === "manY") {
+      if (!manYOwner) {
+        manYOwner = key;
       } else {
-        normalized[key] = "fix";
+        normalized[key].modAxis = "none";
       }
-      continue;
     }
-
-    normalized[key] = mode;
   }
 
   paramModes = normalized;
 }
 
-function applyParamMode(paramKey, nextMode) {
-  if (!PARAM_MODE_VALUES.has(nextMode) || !getAllowedModesForParam(paramKey).includes(nextMode)) {
+function applyParamLockState(paramKey, nextLockState) {
+  if (!PARAM_LOCK_STATES.has(nextLockState) || !PARAM_MODE_KEYS.includes(paramKey)) {
     return;
   }
 
-  const currentMode = getParamMode(paramKey);
-  if (currentMode === nextMode) {
+  if (getParamState(paramKey).lockState === nextLockState) {
     return;
   }
 
-  if (nextMode === "manx") {
-    const previousManX = Object.entries(paramModes).find(([key, mode]) => mode === "manx" && key !== paramKey)?.[0];
-    const previousManY = Object.entries(paramModes).find(([key, mode]) => mode === "many" && key !== paramKey)?.[0];
+  paramModes[paramKey] = getParamState(paramKey);
+  paramModes[paramKey].lockState = nextLockState;
 
-    if (previousManX) {
-      if (previousManY) {
-        paramModes[previousManX] = "fix";
-      } else {
-        paramModes[previousManX] = "many";
-      }
-    }
+  normalizeParamModes();
+  syncParamModeVisuals();
+  saveParamModesToStorage();
+  syncRandomModeButton();
+  commitCurrentStateToHistory();
+}
 
-    paramModes[paramKey] = "manx";
-  } else if (nextMode === "many") {
-    const previousManY = Object.entries(paramModes).find(([key, mode]) => mode === "many" && key !== paramKey)?.[0];
-    const previousManX = Object.entries(paramModes).find(([key, mode]) => mode === "manx" && key !== paramKey)?.[0];
+function applyParamModAxis(paramKey, nextAxis) {
+  if (!PARAM_MOD_AXES.has(nextAxis) || !MOD_AXIS_ELIGIBLE_KEYS.has(paramKey)) {
+    return;
+  }
 
-    if (previousManY) {
-      if (previousManX) {
-        paramModes[previousManY] = "fix";
-      } else {
-        paramModes[previousManY] = "manx";
-      }
-    }
+  const currentAxis = getParamState(paramKey).modAxis;
+  if (currentAxis === nextAxis) {
+    return;
+  }
 
-    paramModes[paramKey] = "many";
+  paramModes[paramKey] = getParamState(paramKey);
+
+  if (nextAxis === "none") {
+    paramModes[paramKey].modAxis = "none";
   } else {
-    paramModes[paramKey] = nextMode;
+    const previousOwner = Object.keys(paramModes).find((key) => key !== paramKey && getParamState(key).modAxis === nextAxis);
+    if (previousOwner) {
+      paramModes[previousOwner].modAxis = currentAxis;
+    }
+    paramModes[paramKey].modAxis = nextAxis;
   }
 
   normalizeParamModes();
@@ -958,7 +988,7 @@ function applyParamMode(paramKey, nextMode) {
 function loadParamModesFromStorage() {
   const fallback = {};
   for (const key of PARAM_MODE_KEYS) {
-    fallback[key] = "rand";
+    fallback[key] = { lockState: "rand", modAxis: "none" };
   }
 
   try {
@@ -969,9 +999,9 @@ function loadParamModesFromStorage() {
     }
 
     const parsed = JSON.parse(raw);
-    paramModes = { ...fallback };
+    paramModes = JSON.parse(JSON.stringify(fallback));
     for (const key of Object.keys(fallback)) {
-      if (PARAM_MODE_VALUES.has(parsed?.[key])) {
+      if (Object.prototype.hasOwnProperty.call(parsed || {}, key)) {
         paramModes[key] = parsed[key];
       }
     }
@@ -1235,11 +1265,11 @@ function getManualAxisTargets() {
   let manX = null;
   let manY = null;
 
-  for (const [paramKey, mode] of Object.entries(paramModes)) {
-    if (mode === "manx") {
+  for (const [paramKey, state] of Object.entries(paramModes)) {
+    if (state.modAxis === "manX") {
       manX = sliderKeyByParamKey[paramKey] || null;
     }
-    if (mode === "many") {
+    if (state.modAxis === "manY") {
       manY = sliderKeyByParamKey[paramKey] || null;
     }
   }
@@ -1662,7 +1692,7 @@ function renderFormulaPicker() {
     button.addEventListener("click", () => {
       currentFormulaId = formula.id;
       if (getParamMode("formula") === "rand") {
-        applyParamMode("formula", "fix");
+        applyParamLockState("formula", "fix");
       }
       updateCurrentPickerSelection();
       saveDefaultsToStorage();
@@ -1704,7 +1734,7 @@ function renderColorMapPicker() {
     button.addEventListener("click", () => {
       appData.defaults.cmapName = cmapName;
       if (getParamMode("cmap") === "rand") {
-        applyParamMode("cmap", "fix");
+        applyParamLockState("cmap", "fix");
       }
       updateCurrentPickerSelection();
       saveDefaultsToStorage();
@@ -1783,6 +1813,23 @@ function onParamPointerDown(event, targetKey) {
   paramPressState.startX = event.clientX;
   paramPressState.startY = event.clientY;
   paramPressState.longTriggered = false;
+  paramPressState.moved = false;
+  if (paramPressState.timer) {
+    window.clearTimeout(paramPressState.timer);
+  }
+  paramPressState.timer = window.setTimeout(() => {
+    if (paramPressState.pointerId !== event.pointerId || paramPressState.targetKey !== targetKey) {
+      return;
+    }
+
+    const modeKey = paramTileTargets[targetKey]?.modeKey;
+    if (modeKey && MOD_AXIS_ELIGIBLE_KEYS.has(modeKey) && getParamState(modeKey).modAxis !== "none") {
+      applyParamModAxis(modeKey, "none");
+      showToast(`${modeKey}: modulation cleared`);
+      requestDraw();
+    }
+    paramPressState.longTriggered = true;
+  }, PARAM_LONG_PRESS_MS);
 }
 
 function onParamPointerMove(event) {
@@ -1793,19 +1840,23 @@ function onParamPointerMove(event) {
   const deltaX = event.clientX - paramPressState.startX;
   const deltaY = event.clientY - paramPressState.startY;
   if (Math.hypot(deltaX, deltaY) > PARAM_MOVE_CANCEL_PX) {
-    paramPressState.longTriggered = true;
+    paramPressState.moved = true;
+    if (paramPressState.timer) {
+      window.clearTimeout(paramPressState.timer);
+      paramPressState.timer = null;
+    }
   }
 }
 
 function toggleFixRandMode(modeKey) {
   const nextMode = getParamMode(modeKey) === "rand" ? "fix" : "rand";
-  applyParamMode(modeKey, nextMode);
+  applyParamLockState(modeKey, nextMode);
   requestDraw();
 }
 
 function applySwipeModeForTile(targetKey, deltaX, deltaY) {
   const modeKey = paramTileTargets[targetKey]?.modeKey;
-  if (!modeKey || !["a", "b", "c", "d", "iters"].includes(modeKey)) {
+  if (!modeKey || !MOD_AXIS_ELIGIBLE_KEYS.has(modeKey)) {
     return false;
   }
 
@@ -1813,9 +1864,9 @@ function applySwipeModeForTile(targetKey, deltaX, deltaY) {
     return false;
   }
 
-  const nextMode = Math.abs(deltaX) >= Math.abs(deltaY) ? "manx" : "many";
-  applyParamMode(modeKey, nextMode);
-  showToast(nextMode === "manx" ? `${modeKey}: ManX` : `${modeKey}: ManY`);
+  const nextMode = Math.abs(deltaX) >= Math.abs(deltaY) ? "manX" : "manY";
+  applyParamModAxis(modeKey, nextMode);
+  showToast(nextMode === "manX" ? `${modeKey}: ManX` : `${modeKey}: ManY`);
   requestDraw();
   return true;
 }
@@ -1828,10 +1879,16 @@ function onParamPointerEnd(event) {
   const targetKey = paramPressState.targetKey;
   const deltaX = event.clientX - paramPressState.startX;
   const deltaY = event.clientY - paramPressState.startY;
+  if (paramPressState.timer) {
+    window.clearTimeout(paramPressState.timer);
+    paramPressState.timer = null;
+  }
   paramPressState.pointerId = null;
   paramPressState.targetKey = null;
-  const wasGesture = paramPressState.longTriggered;
+  const wasLongPress = paramPressState.longTriggered;
+  const wasMoved = paramPressState.moved;
   paramPressState.longTriggered = false;
+  paramPressState.moved = false;
 
   if (applySwipeModeForTile(targetKey, deltaX, deltaY)) {
     event.preventDefault();
@@ -1839,7 +1896,7 @@ function onParamPointerEnd(event) {
     return;
   }
 
-  if (wasGesture) {
+  if (wasLongPress || wasMoved) {
     return;
   }
 
