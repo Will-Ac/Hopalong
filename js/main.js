@@ -59,6 +59,8 @@ const pickerList = document.getElementById("pickerList");
 const pickerPanel = document.getElementById("pickerPanel");
 const paramOverlayEl = document.getElementById("paramOverlay");
 const paramRowEl = document.getElementById("paramRow");
+const bottomBarEl = document.querySelector(".bottomBar");
+const topRightActionsEl = document.getElementById("topRightActions");
 const cameraBtn = document.getElementById("cameraBtn");
 const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
@@ -93,6 +95,8 @@ let fpsEstimate = 0;
 let drawScheduled = false;
 let drawDirty = false;
 let toastTimer = null;
+let lastComputedUiMetrics = { fontSize: null, tileSize: null };
+let lastSizingViewport = { width: 0, height: 0 };
 
 const HOLD_REPEAT_MS = 70;
 const HOLD_ACCEL_START_MS = 2000;
@@ -125,6 +129,8 @@ const paramTileTargets = {
 
 let cameraPressTimer = null;
 let longPressTriggered = false;
+let cameraLastTapTs = 0;
+let pendingCameraTapTimer = null;
 let isApplyingHistoryState = false;
 let historyStates = [];
 let historyIndex = -1;
@@ -389,7 +395,128 @@ function configureNameBoxWidths() {
   document.documentElement.style.setProperty("--name-box-width", `${widthPx}px`);
 }
 
-function layoutFloatingActions() {}
+function layoutFloatingActions() {
+  applyResponsiveUiSizing();
+
+  if (!debugBugBtn || !debugPanelEl || !paramOverlayEl) {
+    return;
+  }
+
+  const appRect = paramOverlayEl.parentElement?.getBoundingClientRect();
+  const bugRect = debugBugBtn.getBoundingClientRect();
+  if (!appRect) {
+    return;
+  }
+
+  const margin = 6;
+  const maxLeft = Math.max(0, appRect.width - debugPanelEl.offsetWidth - margin);
+  const nextLeft = clamp(bugRect.left - appRect.left, 0, maxLeft);
+  const nextTop = bugRect.bottom - appRect.top + margin;
+  debugPanelEl.style.left = `${Math.round(nextLeft)}px`;
+  debugPanelEl.style.top = `${Math.round(nextTop)}px`;
+}
+
+function collectUiTextLines() {
+  const lines = [];
+  const trackedNodes = [...document.querySelectorAll(".poLabel, .poBtn, #randomModeBtn, #scaleModeBtn")];
+
+  for (const node of trackedNodes) {
+    const text = String(node.textContent || "").trim();
+    if (!text) {
+      continue;
+    }
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (trimmed) {
+        lines.push(trimmed);
+      }
+    }
+  }
+
+  // Include the longest possible values (not just current selection) so the
+  // shared font size remains stable and still fits any formula/colormap choice.
+  if (appData?.formulas?.length) {
+    for (const formula of appData.formulas) {
+      lines.push(clampLabel(formula?.name || formula?.id || ""));
+    }
+  }
+  if (appData?.colormaps?.length) {
+    for (const cmapName of appData.colormaps) {
+      lines.push(clampLabel(cmapName || ""));
+    }
+  }
+
+  lines.push("Random", "All", "Fix", "Auto", "Scale", "Fixed", "iter");
+
+  return lines;
+}
+
+function measureLineWidth(text, fontSizePx) {
+  if (!ctx) {
+    return text.length * fontSizePx * 0.6;
+  }
+  ctx.save();
+  ctx.font = `${fontSizePx}px Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`;
+  const width = ctx.measureText(text).width;
+  ctx.restore();
+  return width;
+}
+
+function applyResponsiveUiSizing({ force = false } = {}) {
+  if (!bottomBarEl) {
+    return;
+  }
+
+  const viewportWidth = Math.round(window.innerWidth || 0);
+  const viewportHeight = Math.round(window.innerHeight || 0);
+  const viewportUnchanged = viewportWidth === lastSizingViewport.width && viewportHeight === lastSizingViewport.height;
+  if (!force && viewportUnchanged) {
+    return;
+  }
+  lastSizingViewport = { width: viewportWidth, height: viewportHeight };
+
+  const root = document.documentElement;
+  const styles = window.getComputedStyle(bottomBarEl);
+  const gap = Number.parseFloat(styles.columnGap || styles.gap || "6") || 6;
+  const barWidth = bottomBarEl.clientWidth;
+  if (!barWidth) {
+    return;
+  }
+
+  const tileWidth = Math.max(60, (barWidth - gap * 7) / 8);
+  const horizontalPadding = 14;
+  const availableTextWidth = Math.max(24, tileWidth - horizontalPadding);
+  const textLines = collectUiTextLines();
+
+  let fontSize = 18;
+  while (fontSize > 10) {
+    const widestLine = textLines.reduce((max, line) => Math.max(max, measureLineWidth(line, fontSize)), 0);
+    if (widestLine <= availableTextWidth) {
+      break;
+    }
+    fontSize -= 0.5;
+  }
+
+  const reducedFontSize = fontSize * 0.8;
+  const roundedFontSize = Math.max(10, Math.floor(reducedFontSize * 2) / 2);
+  if (lastComputedUiMetrics.fontSize !== roundedFontSize) {
+    root.style.setProperty("--ui-font-size", `${roundedFontSize}px`);
+    lastComputedUiMetrics.fontSize = roundedFontSize;
+  }
+
+  const firstTile = bottomBarEl.querySelector(".poItem");
+  const measuredTileHeight = firstTile ? Math.round(firstTile.getBoundingClientRect().height) : 42;
+  const actionSize = Math.max(34, measuredTileHeight);
+
+  if (lastComputedUiMetrics.tileSize !== actionSize) {
+    root.style.setProperty("--tile-size", `${actionSize}px`);
+    lastComputedUiMetrics.tileSize = actionSize;
+  }
+
+  if (topRightActionsEl) {
+    topRightActionsEl.style.alignItems = "stretch";
+  }
+}
 
 function setRangesEditorWarning(message = "") {
   if (rangesEditorWarningEl) {
@@ -642,6 +769,7 @@ function syncDebugToggleUi() {
   if (detailDebugToggleEl) {
     detailDebugToggleEl.checked = isDebug;
   }
+  layoutFloatingActions();
 }
 
 function maybeShowLandscapeHint() {
@@ -1230,6 +1358,7 @@ function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
     lastD,
     lastMX,
     lastMY,
+    justStarted: true,
   };
   interactionState = INTERACTION_STATE.TWO_ACTIVE;
   suppressHistoryTap = true;
@@ -1352,6 +1481,15 @@ function onCanvasPointerMove(event) {
   const dym = midpoint.y - twoFingerGesture.lastMY;
   const dd = distance - twoFingerGesture.lastD;
   const ratioStep = twoFingerGesture.lastD > 0 ? distance / twoFingerGesture.lastD : 1;
+
+  if (twoFingerGesture.justStarted) {
+    twoFingerGesture.lastD = distance;
+    twoFingerGesture.lastMX = midpoint.x;
+    twoFingerGesture.lastMY = midpoint.y;
+    twoFingerGesture.justStarted = false;
+    return;
+  }
+
   const panMagnitude = Math.hypot(dxm, dym);
   const zoomRatioDelta = Math.abs(ratioStep - 1);
   const shouldPan = panMagnitude > PAN_DEADBAND_PX;
@@ -1714,22 +1852,20 @@ function onParamPointerEnd(event) {
       window.clearTimeout(pendingTileTapTimer);
       pendingTileTapTimer = null;
     }
-    toggleFixRandMode(paramTileTargets[targetKey]?.modeKey);
-    return;
-  }
-
-  if (targetKey === "formula" || targetKey === "cmap") {
-    if (pendingTileTapTimer) {
-      window.clearTimeout(pendingTileTapTimer);
+    const modeKey = paramTileTargets[targetKey]?.modeKey;
+    if (modeKey) {
+      toggleFixRandMode(modeKey);
     }
-    pendingTileTapTimer = window.setTimeout(() => {
-      pendingTileTapTimer = null;
-      paramTileTargets[targetKey]?.shortTap();
-    }, DOUBLE_TAP_MS + 10);
     return;
   }
 
-  paramTileTargets[targetKey]?.shortTap();
+  if (pendingTileTapTimer) {
+    window.clearTimeout(pendingTileTapTimer);
+  }
+  pendingTileTapTimer = window.setTimeout(() => {
+    pendingTileTapTimer = null;
+    paramTileTargets[targetKey]?.shortTap();
+  }, DOUBLE_TAP_MS + 10);
 }
 
 function clearStepHold() {
@@ -2219,33 +2355,60 @@ function formatScreenshotTimestamp(date) {
   return parts.join("");
 }
 
+function getExportSizePx(liveCanvas) {
+  const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+
+  const vw = (window.visualViewport && window.visualViewport.width) ? window.visualViewport.width : window.innerWidth;
+  const vh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+  const isLandscape = vw > vh;
+
+  const screenW = Number(screen?.width) || 0;
+  const screenH = Number(screen?.height) || 0;
+  const sMax = Math.max(screenW, screenH, vw, vh);
+  const sMin = Math.min(screenW || sMax, screenH || sMax, vw, vh);
+
+  const cssW = isLandscape ? sMax : sMin;
+  const cssH = isLandscape ? sMin : sMax;
+
+  let pxW = Math.round(cssW * dpr);
+  let pxH = Math.round(cssH * dpr);
+
+  pxW = Math.max(pxW, liveCanvas.width);
+  pxH = Math.max(pxH, liveCanvas.height);
+
+  return { pxW, pxH, dpr, isLandscape };
+}
+
 function buildScreenshotOverlayLines() {
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   const params = getDerivedParams();
   const iterValue = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  return [
-    `${formula?.name || currentFormulaId} · ${appData.defaults.cmapName}`,
-    `a ${formatNumberForUi(params.a, 4)}   b ${formatNumberForUi(params.b, 4)}   c ${formatNumberForUi(params.c, 4)}   d ${formatNumberForUi(params.d, 4)}   iter ${formatNumberForUi(iterValue, 0)}`,
-  ];
+  return `${formula?.name || currentFormulaId} | ${appData.defaults.cmapName} | a ${formatNumberForUi(params.a, 4)} | b ${formatNumberForUi(params.b, 4)} | c ${formatNumberForUi(params.c, 4)} | d ${formatNumberForUi(params.d, 4)} | iter ${formatNumberForUi(iterValue, 0)}`;
 }
 
 function drawScreenshotOverlay(targetCtx, width, height) {
-  const lines = buildScreenshotOverlayLines();
-  const margin = Math.max(18, Math.round(width * 0.02));
-  const lineHeight = Math.max(20, Math.round(height * 0.032));
-  const panelHeight = lineHeight * lines.length + margin;
+  const line = buildScreenshotOverlayLines();
+  const marginX = Math.max(16, Math.round(width * 0.02));
+  const panelHeight = Math.max(28, Math.round(height * 0.05));
+  const yTop = height - panelHeight;
+  const maxTextWidth = width * 0.75;
 
+  let fontSize = Math.max(11, Math.round(height * 0.02));
   targetCtx.save();
-  targetCtx.fillStyle = "rgba(255, 255, 255, 0.08)";
-  targetCtx.fillRect(0, height - panelHeight, width, panelHeight);
-  targetCtx.fillStyle = "rgba(255, 255, 255, 0.56)";
-  targetCtx.font = `${Math.max(14, Math.round(height * 0.022))}px system-ui, -apple-system, Segoe UI, sans-serif`;
-  targetCtx.textBaseline = "bottom";
+  targetCtx.textBaseline = "middle";
+  targetCtx.textAlign = "left";
+  while (fontSize > 9) {
+    targetCtx.font = `${fontSize}px Inter, system-ui, -apple-system, Segoe UI, sans-serif`;
+    if (targetCtx.measureText(line).width <= maxTextWidth) {
+      break;
+    }
+    fontSize -= 1;
+  }
 
-  lines.forEach((line, index) => {
-    const y = height - margin / 2 - lineHeight * (lines.length - 1 - index);
-    targetCtx.fillText(line, margin, y);
-  });
+  targetCtx.fillStyle = "#000000";
+  targetCtx.fillRect(marginX, yTop, width - marginX * 2, panelHeight);
+  targetCtx.fillStyle = "#7f7f7f";
+  targetCtx.fillText(line, marginX + 10, yTop + panelHeight * 0.5);
 
   targetCtx.restore();
 }
@@ -2272,11 +2435,44 @@ async function captureScreenshot(includeOverlay) {
     return;
   }
 
+  const { pxW, pxH } = getExportSizePx(canvas);
   const exportCanvas = document.createElement("canvas");
-  exportCanvas.width = canvas.width;
-  exportCanvas.height = canvas.height;
-  const exportCtx = exportCanvas.getContext("2d", { alpha: false });
-  exportCtx.drawImage(canvas, 0, 0);
+  exportCanvas.width = pxW;
+  exportCanvas.height = pxH;
+  const exportCtx = exportCanvas.getContext("2d", { willReadFrequently: true });
+  if (!exportCtx) {
+    throw new Error("Screenshot export context unavailable.");
+  }
+
+  const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
+  const scaleMode = getScaleMode();
+
+  let exportScaleMode = scaleMode;
+  let fixedViewExport = fixedView;
+  if (scaleMode === "fixed") {
+    const minLive = Math.min(canvas.width, canvas.height);
+    const minExp = Math.min(exportCanvas.width, exportCanvas.height);
+    const zoomLive = clamp(fixedView?.zoom ?? 1, 0.15, 25);
+    const zoomExp = zoomLive * (minLive / Math.max(minExp, 1));
+    fixedViewExport = {
+      ...(fixedView || {}),
+      zoom: zoomExp,
+    };
+    exportScaleMode = "fixed";
+  }
+
+  renderFrame({
+    ctx: exportCtx,
+    canvas: exportCanvas,
+    formulaId: currentFormulaId,
+    cmapName: appData.defaults.cmapName,
+    params: getDerivedParams(),
+    iterations: iterationSetting,
+    burn: burnSetting,
+    scaleMode: exportScaleMode,
+    fixedView: fixedViewExport,
+  });
 
   if (includeOverlay) {
     drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height);
@@ -2299,6 +2495,22 @@ function clearCameraPressState() {
   }
 }
 
+function clearPendingCameraTap() {
+  if (pendingCameraTapTimer) {
+    window.clearTimeout(pendingCameraTapTimer);
+    pendingCameraTapTimer = null;
+  }
+}
+
+async function captureScreenshotSafe(includeOverlay) {
+  try {
+    await captureScreenshot(includeOverlay);
+  } catch (error) {
+    console.error(error);
+    showToast(`${includeOverlay ? "Overlay screenshot" : "Screenshot"} failed: ${error.message}`);
+  }
+}
+
 function beginCameraPress(event) {
   event.preventDefault();
   event.stopPropagation();
@@ -2308,12 +2520,8 @@ function beginCameraPress(event) {
 
   cameraPressTimer = window.setTimeout(async () => {
     longPressTriggered = true;
-    try {
-      await captureScreenshot(true);
-    } catch (error) {
-      console.error(error);
-      showToast(`Overlay screenshot failed: ${error.message}`);
-    }
+    clearPendingCameraTap();
+    await captureScreenshotSafe(true);
   }, CAMERA_LONG_PRESS_MS);
 }
 
@@ -2328,12 +2536,20 @@ async function endCameraPress(event) {
     return;
   }
 
-  try {
-    await captureScreenshot(false);
-  } catch (error) {
-    console.error(error);
-    showToast(`Screenshot failed: ${error.message}`);
+  const now = performance.now();
+  if (now - cameraLastTapTs <= DOUBLE_TAP_MS) {
+    cameraLastTapTs = 0;
+    clearPendingCameraTap();
+    await captureScreenshotSafe(true);
+    return;
   }
+
+  cameraLastTapTs = now;
+  clearPendingCameraTap();
+  pendingCameraTapTimer = window.setTimeout(() => {
+    pendingCameraTapTimer = null;
+    captureScreenshotSafe(false);
+  }, DOUBLE_TAP_MS + 10);
 }
 
 function registerHandlers() {
