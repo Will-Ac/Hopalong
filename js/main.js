@@ -147,6 +147,8 @@ const paramPressState = {
 };
 
 const HISTORY_LIMIT = 50;
+const OVERLAY_TEXT_COLOR = "#7f7f7f";
+const QR_QUIET_ZONE_MODULES = 4;
 const INTERACTION_STATE = {
   NONE: "none",
   MOD_1: "mod1",
@@ -188,6 +190,8 @@ let fixedView = {
   offsetY: 0,
   zoom: 1,
 };
+let sharedParamsOverride = null;
+let sharedParamsFormulaId = null;
 
 function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   const normalized = String(text ?? "").trim();
@@ -302,10 +306,164 @@ function getCurrentFormulaRange() {
 }
 
 function getDerivedParams() {
+  if (sharedParamsOverride && sharedParamsFormulaId === currentFormulaId) {
+    return { ...sharedParamsOverride };
+  }
+
   return getParamsForFormula({
     rangesForFormula: getCurrentFormulaRange(),
     sliderDefaults: appData.defaults.sliders,
   });
+}
+
+function clearSharedParamsOverride() {
+  sharedParamsOverride = null;
+  sharedParamsFormulaId = null;
+}
+
+function buildSharePayload() {
+  const params = getDerivedParams();
+  const iterations = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const view = fixedView || {};
+  const paramText = `${params.a},${params.b},${params.c},${params.d}`;
+  const viewText = `${view.offsetX ?? 0},${view.offsetY ?? 0},${view.zoom ?? 1}`;
+  const refreshToken = Date.now().toString(36);
+
+  const pairs = [
+    ["f", currentFormulaId],
+    ["c", appData.defaults.cmapName],
+    ["p", paramText],
+    ["i", String(iterations)],
+    ["v", viewText],
+    ["r", refreshToken],
+  ];
+
+  return pairs
+    .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
+    .join("&");
+}
+
+function buildShareUrl() {
+  return `${location.origin}${location.pathname}#s=${buildSharePayload()}`;
+}
+
+function applySharedStateFromHash() {
+  if (!location.hash.includes("#s=")) {
+    return false;
+  }
+
+  const payloadStart = location.hash.indexOf("#s=");
+  if (payloadStart < 0) {
+    return false;
+  }
+
+  const payload = location.hash.slice(payloadStart + 3);
+  if (!payload) {
+    return false;
+  }
+
+  try {
+    const params = new URLSearchParams(payload);
+    const formulaId = params.get("f");
+    const cmapName = params.get("c");
+    const pRaw = params.get("p");
+    const iRaw = params.get("i");
+    const vRaw = params.get("v");
+    if (!formulaId || !cmapName || !pRaw || !iRaw || !vRaw) {
+      return false;
+    }
+
+    const pValues = pRaw.split(",").map((value) => Number.parseFloat(value));
+    const vValues = vRaw.split(",").map((value) => Number.parseFloat(value));
+    const iterations = Number.parseInt(iRaw, 10);
+    if (pValues.length !== 4 || pValues.some((value) => !Number.isFinite(value))) {
+      return false;
+    }
+    if (vValues.length !== 3 || vValues.some((value) => !Number.isFinite(value))) {
+      return false;
+    }
+    if (!Number.isFinite(iterations) || iterations < 1 || vValues[2] <= 0) {
+      return false;
+    }
+
+    const formulaExists = appData.formulas.some((formula) => formula.id === formulaId);
+    const cmapExists = appData.colormaps.includes(cmapName);
+    if (!formulaExists || !cmapExists) {
+      return false;
+    }
+
+    appData.defaults.scaleMode = "fixed";
+    for (const key of PARAM_MODE_KEYS) {
+      paramModes[key] = { lockState: "fix", modAxis: "none" };
+    }
+    normalizeParamModes();
+
+    currentFormulaId = formulaId;
+    appData.defaults.cmapName = cmapName;
+    appData.defaults.sliders.iters = Math.round(clamp(iterations, sliderControls.iters.min, sliderControls.iters.max));
+    fixedView = {
+      offsetX: vValues[0],
+      offsetY: vValues[1],
+      zoom: clamp(vValues[2], 0.15, 25),
+    };
+    sharedParamsOverride = {
+      a: pValues[0],
+      b: pValues[1],
+      c: pValues[2],
+      d: pValues[3],
+    };
+    sharedParamsFormulaId = formulaId;
+    syncParamModeVisuals();
+    syncScaleModeButton();
+    syncRandomModeButton();
+    saveParamModesToStorage();
+    saveDefaultsToStorage();
+    return true;
+  } catch (error) {
+    console.warn("Could not parse shared hash state.", error);
+    return false;
+  }
+}
+
+function buildQrCanvas(text, sizePx) {
+  const qrcodeFactory = window.qrcode;
+  if (typeof qrcodeFactory !== "function") {
+    throw new Error("QR generator unavailable.");
+  }
+
+  const qr = qrcodeFactory(0, "M");
+  qr.addData(text);
+  qr.make();
+
+  const moduleCount = qr.getModuleCount();
+  const totalModules = moduleCount + QR_QUIET_ZONE_MODULES * 2;
+  const canvasEl = document.createElement("canvas");
+  canvasEl.width = sizePx;
+  canvasEl.height = sizePx;
+  const qrCtx = canvasEl.getContext("2d", { alpha: false });
+  if (!qrCtx) {
+    throw new Error("QR canvas context unavailable.");
+  }
+
+  qrCtx.fillStyle = "#000000";
+  qrCtx.fillRect(0, 0, sizePx, sizePx);
+  qrCtx.fillStyle = OVERLAY_TEXT_COLOR;
+
+  for (let row = 0; row < moduleCount; row += 1) {
+    for (let col = 0; col < moduleCount; col += 1) {
+      if (!qr.isDark(row, col)) {
+        continue;
+      }
+
+      const x = Math.round(((col + QR_QUIET_ZONE_MODULES) * sizePx) / totalModules);
+      const y = Math.round(((row + QR_QUIET_ZONE_MODULES) * sizePx) / totalModules);
+      const nextX = Math.round(((col + QR_QUIET_ZONE_MODULES + 1) * sizePx) / totalModules);
+      const nextY = Math.round(((row + QR_QUIET_ZONE_MODULES + 1) * sizePx) / totalModules);
+      qrCtx.fillRect(x, y, Math.max(1, nextX - x), Math.max(1, nextY - y));
+    }
+  }
+
+  return canvasEl;
 }
 
 function resolveInitialFormulaId() {
@@ -562,6 +720,8 @@ function remapSliderToPreserveParams(formulaId, nextRange) {
   if (!formulaId || formulaId !== currentFormulaId) {
     return;
   }
+
+  clearSharedParamsOverride();
 
   const previousRange = getRangeValuesForFormula(formulaId);
   const keysToSliders = { a: "alpha", b: "beta", c: "delta", d: "gamma" };
@@ -1170,6 +1330,8 @@ function randomChoice(items) {
 }
 
 function randomizeAllParameters() {
+  clearSharedParamsOverride();
+
   if (isRandomizedParam("formula")) {
     currentFormulaId = randomChoice(appData.formulas).id;
   }
@@ -1690,6 +1852,7 @@ function renderFormulaPicker() {
     button.append(row);
 
     button.addEventListener("click", () => {
+      clearSharedParamsOverride();
       currentFormulaId = formula.id;
       if (getParamMode("formula") === "rand") {
         applyParamLockState("formula", "fix");
@@ -1732,6 +1895,7 @@ function renderColorMapPicker() {
     button.append(row);
 
     button.addEventListener("click", () => {
+      clearSharedParamsOverride();
       appData.defaults.cmapName = cmapName;
       if (getParamMode("cmap") === "rand") {
         applyParamLockState("cmap", "fix");
@@ -1779,6 +1943,9 @@ function applySliderValue(nextValue, { commitHistory = true } = {}) {
 
   const control = sliderControls[activeSliderKey];
   const value = clamp(nextValue, control.min, control.max);
+  if (activeSliderKey !== "iters" && activeSliderKey !== "burn") {
+    clearSharedParamsOverride();
+  }
   appData.defaults.sliders[activeSliderKey] = value;
   saveDefaultsToStorage();
   qsRange.value = value;
@@ -2461,7 +2628,11 @@ function drawScreenshotOverlay(targetCtx, width, height) {
   const marginX = Math.max(16, Math.round(width * 0.02));
   const panelHeight = Math.max(28, Math.round(height * 0.05));
   const yTop = height - panelHeight;
-  const maxTextWidth = width * 0.75;
+  const margin = Math.max(18, Math.round(width * 0.02));
+  const qrSize = clamp(Math.round(Math.min(width, height) * 0.14), 140, 320);
+  const qrX = width - margin - qrSize;
+  const qrY = height - margin - qrSize;
+  const maxTextWidth = Math.max(120, Math.min(width * 0.75, qrX - marginX - 12));
 
   let fontSize = Math.max(11, Math.round(height * 0.02));
   targetCtx.save();
@@ -2476,9 +2647,13 @@ function drawScreenshotOverlay(targetCtx, width, height) {
   }
 
   targetCtx.fillStyle = "#000000";
-  targetCtx.fillRect(marginX, yTop, width - marginX * 2, panelHeight);
-  targetCtx.fillStyle = "#7f7f7f";
+  targetCtx.fillRect(marginX, yTop, Math.max(80, qrX - marginX - 8), panelHeight);
+  targetCtx.fillStyle = OVERLAY_TEXT_COLOR;
   targetCtx.fillText(line, marginX + 10, yTop + panelHeight * 0.5);
+
+  const shareUrl = buildShareUrl();
+  const qrCanvas = buildQrCanvas(shareUrl, qrSize);
+  targetCtx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
 
   targetCtx.restore();
 }
@@ -2904,6 +3079,7 @@ async function bootstrap() {
 
     currentFormulaId = resolveInitialFormulaId();
     appData.defaults.cmapName = resolveInitialColorMap();
+    const loadedSharedState = applySharedStateFromHash();
     configureNameBoxWidths();
     populateRangeEditorFormulaOptions();
     rangesEditorFormulaId = currentFormulaId;
@@ -2919,7 +3095,7 @@ async function bootstrap() {
     commitCurrentStateToHistory();
     requestDraw();
     const formula = appData.formulas.find((item) => item.id === currentFormulaId);
-    showToast(`Loaded ${formula?.name || currentFormulaId}. Slice 2.1 controls ready.`);
+    showToast(loadedSharedState ? "Loaded shared state" : `Loaded ${formula?.name || currentFormulaId}. Slice 2.1 controls ready.`);
   } catch (error) {
     console.error(error);
     showToast(`Startup failed: ${error.message}`);
