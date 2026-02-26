@@ -96,6 +96,11 @@ const EXTRA_FORMULA_SEEDS = {
   lozi: { x: 0.1, y: 0 },
   ikeda: { x: 0, y: 0 },
   gingerbread: { x: 0, y: 0 },
+  zaslavsky_web: { x: 0.1, y: 0 },
+  popcorn: { x: 0.1, y: 0.1 },
+  bedhead: { x: 0, y: 0 },
+  gumowski_mira: { x: 0.1, y: 0 },
+  shifted_hopalong: { x: 0, y: 0 },
 };
 
 

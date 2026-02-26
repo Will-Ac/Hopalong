@@ -46,6 +46,26 @@
     "gingerbread": {
       "x": 0.0,
       "y": 0.0
+    },
+    "zaslavsky_web": {
+      "x": 0.1,
+      "y": 0.0
+    },
+    "popcorn": {
+      "x": 0.1,
+      "y": 0.1
+    },
+    "bedhead": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "gumowski_mira": {
+      "x": 0.1,
+      "y": 0.0
+    },
+    "shifted_hopalong": {
+      "x": 0.0,
+      "y": 0.0
     }
   }
 }

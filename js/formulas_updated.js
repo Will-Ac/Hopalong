@@ -250,8 +250,69 @@ export const EXTRA_FORMULAS = [
       c * x + d,
     ],
   },
-];
 
+
+
+  {
+    id: "zaslavsky_web",
+    name: "Zaslavsky Web",
+    desc: "t = y + d·sin(x+c); x' = x + a·sin(t); y' = t + b",
+    step: (x, y, a, b, c, d) => {
+      const t = y + d * Math.sin(x + c);
+      return [x + a * Math.sin(t), t + b];
+    },
+  },
+
+  {
+    id: "popcorn",
+    name: "Popcorn",
+    desc: "x' = x − a·sin(y + tan(3y)) + c, y' = y − b·sin(x + tan(3x)) + d",
+    step: (x, y, a, b, c, d) => {
+      const x1 = x - a * Math.sin(y + Math.tan(3 * y));
+      const y1 = y - b * Math.sin(x + Math.tan(3 * x));
+      return [x1 + c, y1 + d];
+    },
+  },
+
+  {
+    id: "bedhead",
+    name: "Bedhead",
+    desc: "x' = sin(xy/b)·y + cos(ax−y) + d, y' = x + sin(y)/c",
+    step: (x, y, a, b, c, d) => {
+      const safeB = Math.abs(b) < 1e-9 ? (b < 0 ? -1e-9 : 1e-9) : b;
+      const safeC = Math.abs(c) < 1e-9 ? (c < 0 ? -1e-9 : 1e-9) : c;
+      const x1 = Math.sin((x * y) / safeB) * y + Math.cos(a * x - y);
+      const y1 = x + Math.sin(y) / safeC;
+      return [x1 + d, y1];
+    },
+  },
+
+  {
+    id: "gumowski_mira",
+    name: "Gumowski–Mira",
+    desc: "f(u)=c·u+2(1−c)u²/(1+u²); x'=y+a(1−by²)y+f(x), y'=-x+d·f(x')",
+    step: (x, y, a, b, c, d) => {
+      const f = (u) => c * u + (2 * (1 - c) * u * u) / (1 + u * u);
+      const x1 = y + a * (1 - b * y * y) * y + f(x);
+      return [x1, -x + f(x1) * d];
+    },
+  },
+
+  {
+    id: "shifted_hopalong",
+    name: "Shifted Hopalong",
+    desc: "xShift=x+c; x' = y − sgn(xShift)·sqrt(|b·xShift−a|), y' = a − xShift + d",
+    step: (x, y, a, b, c, d) => {
+      const xShift = x + c;
+      const sign = xShift >= 0 ? 1 : -1;
+      return [
+        y - sign * Math.sqrt(Math.abs(b * xShift - a)),
+        a - xShift + d,
+      ];
+    },
+  },
+
+];
 // Built-in ranges to seed your in-app range editor and “Randomize” behavior.
 // These are intentionally conservative to reduce blow-ups / NaNs.
 // Tune freely in your ranges editor once integrated.
@@ -289,6 +350,13 @@ export const EXTRA_FORMULA_RANGES_RAW = {
 
   // Gingerbreadman generalization: easy to explode if c too large; keep moderate.
   gingerbread:       { a: [-2.0, 2.0], b: [0.0, 2.0],   c: [-1.2, 1.2], d: [-2.0, 2.0] },
+
+  zaslavsky_web:      { a: [0.0, 2.0],   b: [0.0, 2.0],   c: [0.0, 6.28318], d: [0.0, 2.0] },
+  popcorn:            { a: [0.0, 0.2],   b: [0.0, 0.2],   c: [-2.0, 2.0],   d: [-2.0, 2.0] },
+  bedhead:            { a: [-2.0, 2.0],  b: [-2.0, 2.0],  c: [-2.0, 2.0],   d: [-2.0, 2.0] },
+  gumowski_mira:      { a: [-1.0, 1.0],  b: [-1.0, 1.0],  c: [0.0, 1.0],    d: [0.0, 1.0] },
+  shifted_hopalong:   { a: [-5.0, 5.0],  b: [-5.0, 5.0],  c: [-5.0, 5.0],   d: [-5.0, 5.0] },
+
 };
 
 export function getExtraFormulaById(id) {
