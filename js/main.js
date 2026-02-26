@@ -736,6 +736,7 @@ function loadFormulaRangesIntoEditor(formulaId) {
     rangesFormulaSelectEl.value = formulaId;
   }
   setRangesEditorWarning("");
+  syncSeedEditorInputs(formulaId);
 }
 
 function remapSliderToPreserveParams(formulaId, nextRange) {
@@ -831,6 +832,7 @@ function openRangesEditor() {
   hideSettingsInfo();
   const formulaId = getSelectedRangesEditorFormulaId();
   loadFormulaRangesIntoEditor(formulaId);
+  syncSeedEditorInputs(formulaId);
 }
 
 function closeRangesEditor() {
@@ -854,7 +856,6 @@ function syncDetailedSettingsControls() {
   if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
   if (detailBurnFormattedEl) detailBurnFormattedEl.textContent = formatNumberForUi(burnValue, 0);
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
-  syncSeedEditorInputs();
 }
 
 function applyDetailedSliderValue(sliderKey, nextValue) {

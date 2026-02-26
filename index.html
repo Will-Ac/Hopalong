@@ -735,7 +735,7 @@ Scale</button>
           <button id="rangesEditorClose" type="button" aria-label="Close ranges editor">✕</button>
         </div>
         <div class="rangesEditorTabs">
-          <button id="settingsTabRanges" class="rangesTabBtn is-active" type="button">Formula ranges</button>
+          <button id="settingsTabRanges" class="rangesTabBtn is-active" type="button">Formula defaults</button>
           <button id="settingsTabDetailed" class="rangesTabBtn" type="button">Detailed settings</button>
         </div>
         <div id="rangesTabPanel" class="rangesEditorBody settingsTabPanel">
@@ -752,6 +752,26 @@ Scale</button>
             <label class="rangeField"><span class="rangeFieldLabel">c max</span><input id="rangeCmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
             <label class="rangeField"><span class="rangeFieldLabel">d min</span><input id="rangeDmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
             <label class="rangeField"><span class="rangeFieldLabel">d max</span><input id="rangeDmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Orbit seed (x0, y0)</span><button id="infoSeed" class="perfInfoBtn" type="button">i</button></div>
+            <div class="rangeField">
+              <label for="detailSeedFormulaSelect">Formula</label>
+              <select id="detailSeedFormulaSelect"></select>
+            </div>
+            <div class="rangeGrid" style="margin-top:10px;">
+              <div class="rangeField">
+                <label for="detailSeedXInput">x0</label>
+                <input id="detailSeedXInput" type="number" step="0.0001" />
+              </div>
+              <div class="rangeField">
+                <label for="detailSeedYInput">y0</label>
+                <input id="detailSeedYInput" type="number" step="0.0001" />
+              </div>
+            </div>
+            <div class="rangesActions" style="margin-top:10px;">
+              <button id="detailSeedApplyBtn" class="rangesActionBtn" type="button">Apply seed</button>
+            </div>
           </div>
           <p id="rangesEditorWarning" aria-live="polite"></p>
           <div class="rangesActions">
@@ -778,26 +798,6 @@ Scale</button>
           <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Debug overlay</span><button id="infoDebug" class="perfInfoBtn" type="button">i</button></div>
             <label class="modeOption"><input id="detailDebugToggle" type="checkbox" /> Show debug overlays and diagnostics</label>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Orbit seed (x0, y0)</span><button id="infoSeed" class="perfInfoBtn" type="button">i</button></div>
-            <div class="rangeField">
-              <label for="detailSeedFormulaSelect">Formula</label>
-              <select id="detailSeedFormulaSelect"></select>
-            </div>
-            <div class="rangeGrid" style="margin-top:10px;">
-              <div class="rangeField">
-                <label for="detailSeedXInput">x0</label>
-                <input id="detailSeedXInput" type="number" step="0.0001" />
-              </div>
-              <div class="rangeField">
-                <label for="detailSeedYInput">y0</label>
-                <input id="detailSeedYInput" type="number" step="0.0001" />
-              </div>
-            </div>
-            <div class="rangesActions" style="margin-top:10px;">
-              <button id="detailSeedApplyBtn" class="rangesActionBtn" type="button">Apply seed</button>
-            </div>
           </div>
           <div id="settingsInfoPopup" class="is-hidden" role="dialog" aria-live="polite">
             <div id="settingsInfoText"></div>
