@@ -29,7 +29,7 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null }) {
+export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null }) {
   const variant = getVariantById(formulaId);
   if (!variant) {
     throw new Error(`Unknown formula id: ${formulaId}`);
@@ -78,7 +78,14 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   let worldSpanX;
   let worldSpanY;
 
-  if (scaleMode === "fixed") {
+  if (worldOverride) {
+    worldMinX = Number(worldOverride.minX);
+    worldMaxX = Number(worldOverride.maxX);
+    worldMinY = Number(worldOverride.minY);
+    worldMaxY = Number(worldOverride.maxY);
+    worldSpanX = Math.max(worldMaxX - worldMinX, 1e-6);
+    worldSpanY = Math.max(worldMaxY - worldMinY, 1e-6);
+  } else if (scaleMode === "fixed") {
     const minDim = Math.min(width, height);
     const zoom = clamp(fixedView?.zoom ?? 1, 0.15, 25);
     const scale = (minDim / 220) * zoom;

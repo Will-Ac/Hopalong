@@ -2408,6 +2408,36 @@ function drawManualParamOverlay(meta) {
   ctx.restore();
 }
 
+function formatDebugDimension(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return "n/a";
+  }
+  return formatNumberForUi(num, Number.isInteger(num) ? 0 : 2);
+}
+
+function getScreenViewportDebugLines() {
+  const vv = window.visualViewport;
+  const orientationType = String(window.screen?.orientation?.type || "n/a");
+  const orientationAngle = Number(window.screen?.orientation?.angle);
+
+  return [
+    "-- screen / viewport --",
+    `screen.width/height: ${formatDebugDimension(window.screen?.width)} x ${formatDebugDimension(window.screen?.height)}`,
+    `screen.availWidth/availHeight: ${formatDebugDimension(window.screen?.availWidth)} x ${formatDebugDimension(window.screen?.availHeight)}`,
+    `screen.colorDepth/pixelDepth: ${formatDebugDimension(window.screen?.colorDepth)} / ${formatDebugDimension(window.screen?.pixelDepth)}`,
+    `screen.orientation.type/angle: ${orientationType} / ${Number.isFinite(orientationAngle) ? formatDebugDimension(orientationAngle) : "n/a"}`,
+    `window.devicePixelRatio: ${formatDebugDimension(window.devicePixelRatio)}`,
+    `window.innerWidth/innerHeight: ${formatDebugDimension(window.innerWidth)} x ${formatDebugDimension(window.innerHeight)}`,
+    `window.outerWidth/outerHeight: ${formatDebugDimension(window.outerWidth)} x ${formatDebugDimension(window.outerHeight)}`,
+    `document.clientWidth/clientHeight: ${formatDebugDimension(document.documentElement?.clientWidth)} x ${formatDebugDimension(document.documentElement?.clientHeight)}`,
+    `visualViewport.width/height: ${formatDebugDimension(vv?.width)} x ${formatDebugDimension(vv?.height)}`,
+    `visualViewport.pageLeft/pageTop: ${formatDebugDimension(vv?.pageLeft)} / ${formatDebugDimension(vv?.pageTop)}`,
+    `visualViewport.offsetLeft/offsetTop: ${formatDebugDimension(vv?.offsetLeft)} / ${formatDebugDimension(vv?.offsetTop)}`,
+    `visualViewport.scale: ${formatDebugDimension(vv?.scale)}`,
+  ];
+}
+
 function drawDebugOverlay(meta) {
   if (!appData.defaults.debug || !meta) {
     debugInfoEl.textContent = "Debug off";
@@ -2531,6 +2561,7 @@ function drawDebugOverlay(meta) {
     `2f dxm/dym/dd: ${lastTwoDebug ? `${formatNumberForUi(lastTwoDebug.dxm, 2)} / ${formatNumberForUi(lastTwoDebug.dym, 2)} / ${formatNumberForUi(lastTwoDebug.dd, 2)}` : "-"}`,
     `2f ratioStep/zoom: ${lastTwoDebug ? `${formatNumberForUi(lastTwoDebug.ratioStep, 4)} / ${formatNumberForUi(lastTwoDebug.viewZoom, 4)}` : "-"}`,
     `fps: ${formatNumberForUi(fpsEstimate, 1)}`,
+    ...getScreenViewportDebugLines(),
   ].join("\n");
 }
 
@@ -2597,23 +2628,87 @@ function getExportSizePx(liveCanvas) {
 
   const vw = (window.visualViewport && window.visualViewport.width) ? window.visualViewport.width : window.innerWidth;
   const vh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
-  const isLandscape = vw > vh;
+  const orientationType = String(window.screen?.orientation?.type || "").toLowerCase();
+  const isLandscape = orientationType
+    ? orientationType.startsWith("landscape")
+    : vw > vh;
 
-  const screenW = Number(screen?.width) || 0;
-  const screenH = Number(screen?.height) || 0;
-  const sMax = Math.max(screenW, screenH, vw, vh);
-  const sMin = Math.min(screenW || sMax, screenH || sMax, vw, vh);
+  const viewportLong = Math.max(vw, vh);
+  const viewportShort = Math.max(1, Math.min(vw, vh));
+  const viewportAspect = viewportLong / viewportShort;
 
-  const cssW = isLandscape ? sMax : sMin;
-  const cssH = isLandscape ? sMin : sMax;
+  const screenW = Number(window.screen?.width) || 0;
+  const screenH = Number(window.screen?.height) || 0;
+  const availW = Number(window.screen?.availWidth) || 0;
+  const availH = Number(window.screen?.availHeight) || 0;
 
-  let pxW = Math.round(cssW * dpr);
-  let pxH = Math.round(cssH * dpr);
+  const rawPairs = [
+    { source: "screen", w: screenW, h: screenH },
+    { source: "avail", w: availW, h: availH },
+  ];
 
-  pxW = Math.max(pxW, liveCanvas.width);
-  pxH = Math.max(pxH, liveCanvas.height);
+  const candidates = rawPairs
+    .filter((pair) => pair.w > 0 && pair.h > 0)
+    .map((pair) => {
+      const long = Math.max(pair.w, pair.h);
+      const short = Math.min(pair.w, pair.h);
+      const aspect = long / Math.max(1, short);
+      return { ...pair, long, short, aspect };
+    });
 
-  return { pxW, pxH, dpr, isLandscape };
+  const nonSquareCandidate = candidates.find((pair) => Number.isFinite(pair.aspect) && pair.aspect > 1.01) || null;
+  const baseCandidate = nonSquareCandidate || candidates[0] || null;
+  const hasScreenSize = Boolean(baseCandidate);
+
+  const rawCssLong = hasScreenSize ? baseCandidate.long : viewportLong;
+  const rawCssShort = hasScreenSize ? baseCandidate.short : viewportShort;
+
+  const isSuspiciousSquareScreen = hasScreenSize
+    && Math.abs(rawCssLong - rawCssShort) <= 1
+    && Number.isFinite(viewportAspect)
+    && viewportAspect > 1.01;
+
+  const cssLong = rawCssLong;
+  const cssShort = isSuspiciousSquareScreen
+    ? Math.max(1, Math.round(rawCssLong / viewportAspect))
+    : rawCssShort;
+
+  let pxW = Math.round((isLandscape ? cssLong : cssShort) * dpr);
+  let pxH = Math.round((isLandscape ? cssShort : cssLong) * dpr);
+
+  const liveMin = Math.max(1, Math.min(liveCanvas.width, liveCanvas.height));
+  const exportMin = Math.max(1, Math.min(pxW, pxH));
+  if (exportMin < liveMin) {
+    const upscale = liveMin / exportMin;
+    pxW = Math.round(pxW * upscale);
+    pxH = Math.round(pxH * upscale);
+  }
+
+  return {
+    pxW,
+    pxH,
+    dpr,
+    isLandscape,
+    hasScreenSize,
+    debug: {
+      orientationType,
+      vw,
+      vh,
+      viewportAspect,
+      screenW,
+      screenH,
+      availW,
+      availH,
+      selectedSource: baseCandidate?.source || "viewport",
+      selectedLong: rawCssLong,
+      selectedShort: rawCssShort,
+      isSuspiciousSquareScreen,
+      cssW: isLandscape ? cssLong : cssShort,
+      cssH: isLandscape ? cssShort : cssLong,
+      liveCanvasW: liveCanvas.width,
+      liveCanvasH: liveCanvas.height,
+    },
+  };
 }
 
 function buildScreenshotOverlayLines() {
@@ -2675,12 +2770,51 @@ async function saveBlobToDevice(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
 }
 
+function getExportWorldFromLiveMeta(exportWidth, exportHeight) {
+  if (!lastRenderMeta?.world || !lastRenderMeta?.view) {
+    return null;
+  }
+
+  const liveView = lastRenderMeta.view;
+  const liveWorld = lastRenderMeta.world;
+  const liveSpanX = Math.max(liveWorld.maxX - liveWorld.minX, 1e-6);
+  const liveSpanY = Math.max(liveWorld.maxY - liveWorld.minY, 1e-6);
+  const worldPerPxX = liveSpanX / Math.max(1, liveView.width - 1);
+  const worldPerPxY = liveSpanY / Math.max(1, liveView.height - 1);
+
+  const exportSpanX = worldPerPxX * Math.max(1, exportWidth - 1);
+  const exportSpanY = worldPerPxY * Math.max(1, exportHeight - 1);
+  const centerX = Number.isFinite(liveWorld.centerX) ? liveWorld.centerX : (liveWorld.minX + liveWorld.maxX) * 0.5;
+  const centerY = Number.isFinite(liveWorld.centerY) ? liveWorld.centerY : (liveWorld.minY + liveWorld.maxY) * 0.5;
+
+  return {
+    minX: centerX - exportSpanX * 0.5,
+    maxX: centerX + exportSpanX * 0.5,
+    minY: centerY - exportSpanY * 0.5,
+    maxY: centerY + exportSpanY * 0.5,
+    worldPerPxX,
+    worldPerPxY,
+  };
+}
+
 async function captureScreenshot(includeOverlay) {
   if (!canvas) {
     return;
   }
 
-  const { pxW, pxH } = getExportSizePx(canvas);
+  const { pxW, pxH, dpr, isLandscape, hasScreenSize, debug } = getExportSizePx(canvas);
+  const exportWorld = getExportWorldFromLiveMeta(pxW, pxH);
+  if (window.__HOPALONG_SCREENSHOT_DEBUG) {
+    console.info("[screenshot] export sizing", {
+      pxW,
+      pxH,
+      dpr,
+      isLandscape,
+      hasScreenSize,
+      exportWorld,
+      ...debug,
+    });
+  }
   const exportCanvas = document.createElement("canvas");
   exportCanvas.width = pxW;
   exportCanvas.height = pxH;
@@ -2693,20 +2827,6 @@ async function captureScreenshot(includeOverlay) {
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const scaleMode = getScaleMode();
 
-  let exportScaleMode = scaleMode;
-  let fixedViewExport = fixedView;
-  if (scaleMode === "fixed") {
-    const minLive = Math.min(canvas.width, canvas.height);
-    const minExp = Math.min(exportCanvas.width, exportCanvas.height);
-    const zoomLive = clamp(fixedView?.zoom ?? 1, 0.15, 25);
-    const zoomExp = zoomLive * (minLive / Math.max(minExp, 1));
-    fixedViewExport = {
-      ...(fixedView || {}),
-      zoom: zoomExp,
-    };
-    exportScaleMode = "fixed";
-  }
-
   renderFrame({
     ctx: exportCtx,
     canvas: exportCanvas,
@@ -2715,8 +2835,9 @@ async function captureScreenshot(includeOverlay) {
     params: getDerivedParams(),
     iterations: iterationSetting,
     burn: burnSetting,
-    scaleMode: exportScaleMode,
-    fixedView: fixedViewExport,
+    scaleMode,
+    fixedView,
+    worldOverride: exportWorld,
   });
 
   if (includeOverlay) {
