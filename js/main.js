@@ -2408,6 +2408,36 @@ function drawManualParamOverlay(meta) {
   ctx.restore();
 }
 
+function formatDebugDimension(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return "n/a";
+  }
+  return formatNumberForUi(num, Number.isInteger(num) ? 0 : 2);
+}
+
+function getScreenViewportDebugLines() {
+  const vv = window.visualViewport;
+  const orientationType = String(window.screen?.orientation?.type || "n/a");
+  const orientationAngle = Number(window.screen?.orientation?.angle);
+
+  return [
+    "-- screen / viewport --",
+    `screen.width/height: ${formatDebugDimension(window.screen?.width)} x ${formatDebugDimension(window.screen?.height)}`,
+    `screen.availWidth/availHeight: ${formatDebugDimension(window.screen?.availWidth)} x ${formatDebugDimension(window.screen?.availHeight)}`,
+    `screen.colorDepth/pixelDepth: ${formatDebugDimension(window.screen?.colorDepth)} / ${formatDebugDimension(window.screen?.pixelDepth)}`,
+    `screen.orientation.type/angle: ${orientationType} / ${Number.isFinite(orientationAngle) ? formatDebugDimension(orientationAngle) : "n/a"}`,
+    `window.devicePixelRatio: ${formatDebugDimension(window.devicePixelRatio)}`,
+    `window.innerWidth/innerHeight: ${formatDebugDimension(window.innerWidth)} x ${formatDebugDimension(window.innerHeight)}`,
+    `window.outerWidth/outerHeight: ${formatDebugDimension(window.outerWidth)} x ${formatDebugDimension(window.outerHeight)}`,
+    `document.clientWidth/clientHeight: ${formatDebugDimension(document.documentElement?.clientWidth)} x ${formatDebugDimension(document.documentElement?.clientHeight)}`,
+    `visualViewport.width/height: ${formatDebugDimension(vv?.width)} x ${formatDebugDimension(vv?.height)}`,
+    `visualViewport.pageLeft/pageTop: ${formatDebugDimension(vv?.pageLeft)} / ${formatDebugDimension(vv?.pageTop)}`,
+    `visualViewport.offsetLeft/offsetTop: ${formatDebugDimension(vv?.offsetLeft)} / ${formatDebugDimension(vv?.offsetTop)}`,
+    `visualViewport.scale: ${formatDebugDimension(vv?.scale)}`,
+  ];
+}
+
 function drawDebugOverlay(meta) {
   if (!appData.defaults.debug || !meta) {
     debugInfoEl.textContent = "Debug off";
@@ -2531,6 +2561,7 @@ function drawDebugOverlay(meta) {
     `2f dxm/dym/dd: ${lastTwoDebug ? `${formatNumberForUi(lastTwoDebug.dxm, 2)} / ${formatNumberForUi(lastTwoDebug.dym, 2)} / ${formatNumberForUi(lastTwoDebug.dd, 2)}` : "-"}`,
     `2f ratioStep/zoom: ${lastTwoDebug ? `${formatNumberForUi(lastTwoDebug.ratioStep, 4)} / ${formatNumberForUi(lastTwoDebug.viewZoom, 4)}` : "-"}`,
     `fps: ${formatNumberForUi(fpsEstimate, 1)}`,
+    ...getScreenViewportDebugLines(),
   ].join("\n");
 }
 
