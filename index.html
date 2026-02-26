@@ -421,27 +421,59 @@
         border: 2px solid var(--param-outline);
         border-radius: 10px;
         padding: 4px 6px;
+        --param-bar-style: solid;
+        --param-bar-inset: 10px;
       }
       .poItem.po-lock-fix {
         border-style: solid;
+        --param-bar-style: solid;
       }
       .poItem.po-lock-rand {
         border-style: dashed;
+        --param-bar-style: dashed;
       }
       .poItem.po-axis-none {
         border-color: var(--param-outline);
       }
       .poItem.po-axis-manx {
         border-color: var(--param-outline);
-        border-left-style: none;
-        border-right-style: none;
+        border: 0;
         border-radius: 0;
+      }
+      .poItem.po-axis-manx::before,
+      .poItem.po-axis-manx::after {
+        content: "";
+        position: absolute;
+        left: var(--param-bar-inset);
+        right: var(--param-bar-inset);
+        border-top: 2px var(--param-bar-style) var(--param-outline);
+        pointer-events: none;
+      }
+      .poItem.po-axis-manx::before {
+        top: 0;
+      }
+      .poItem.po-axis-manx::after {
+        bottom: 0;
       }
       .poItem.po-axis-many {
         border-color: var(--param-outline);
-        border-top-style: none;
-        border-bottom-style: none;
+        border: 0;
         border-radius: 0;
+      }
+      .poItem.po-axis-many::before,
+      .poItem.po-axis-many::after {
+        content: "";
+        position: absolute;
+        top: var(--param-bar-inset);
+        bottom: var(--param-bar-inset);
+        border-left: 2px var(--param-bar-style) var(--param-outline);
+        pointer-events: none;
+      }
+      .poItem.po-axis-many::before {
+        left: 0;
+      }
+      .poItem.po-axis-many::after {
+        right: 0;
       }
       .poLabel {
         display: block;
