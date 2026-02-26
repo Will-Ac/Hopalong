@@ -2602,29 +2602,48 @@ function getExportSizePx(liveCanvas) {
     ? orientationType.startsWith("landscape")
     : vw > vh;
 
-  const screenW = Number(window.screen?.width) || 0;
-  const screenH = Number(window.screen?.height) || 0;
-  const hasScreenSize = screenW > 0 && screenH > 0;
-
   const viewportLong = Math.max(vw, vh);
   const viewportShort = Math.max(1, Math.min(vw, vh));
   const viewportAspect = viewportLong / viewportShort;
-  const hasViewportAspect = Number.isFinite(viewportAspect) && viewportAspect > 1.01;
 
-  const rawCssLong = hasScreenSize ? Math.max(screenW, screenH) : viewportLong;
-  const rawCssShort = hasScreenSize ? Math.min(screenW, screenH) : viewportShort;
-  const isSuspiciousSquareScreen = hasScreenSize && Math.abs(screenW - screenH) <= 1 && hasViewportAspect;
+  const screenW = Number(window.screen?.width) || 0;
+  const screenH = Number(window.screen?.height) || 0;
+  const availW = Number(window.screen?.availWidth) || 0;
+  const availH = Number(window.screen?.availHeight) || 0;
+
+  const rawPairs = [
+    { source: "screen", w: screenW, h: screenH },
+    { source: "avail", w: availW, h: availH },
+  ];
+
+  const candidates = rawPairs
+    .filter((pair) => pair.w > 0 && pair.h > 0)
+    .map((pair) => {
+      const long = Math.max(pair.w, pair.h);
+      const short = Math.min(pair.w, pair.h);
+      const aspect = long / Math.max(1, short);
+      return { ...pair, long, short, aspect };
+    });
+
+  const nonSquareCandidate = candidates.find((pair) => Number.isFinite(pair.aspect) && pair.aspect > 1.01) || null;
+  const baseCandidate = nonSquareCandidate || candidates[0] || null;
+  const hasScreenSize = Boolean(baseCandidate);
+
+  const rawCssLong = hasScreenSize ? baseCandidate.long : viewportLong;
+  const rawCssShort = hasScreenSize ? baseCandidate.short : viewportShort;
+
+  const isSuspiciousSquareScreen = hasScreenSize
+    && Math.abs(rawCssLong - rawCssShort) <= 1
+    && Number.isFinite(viewportAspect)
+    && viewportAspect > 1.01;
 
   const cssLong = rawCssLong;
   const cssShort = isSuspiciousSquareScreen
     ? Math.max(1, Math.round(rawCssLong / viewportAspect))
     : rawCssShort;
 
-  const cssW = isLandscape ? cssLong : cssShort;
-  const cssH = isLandscape ? cssShort : cssLong;
-
-  let pxW = Math.round(cssW * dpr);
-  let pxH = Math.round(cssH * dpr);
+  let pxW = Math.round((isLandscape ? cssLong : cssShort) * dpr);
+  let pxH = Math.round((isLandscape ? cssShort : cssLong) * dpr);
 
   const liveMin = Math.max(1, Math.min(liveCanvas.width, liveCanvas.height));
   const exportMin = Math.max(1, Math.min(pxW, pxH));
@@ -2644,12 +2663,17 @@ function getExportSizePx(liveCanvas) {
       orientationType,
       vw,
       vh,
+      viewportAspect,
       screenW,
       screenH,
-      cssW,
-      cssH,
-      viewportAspect,
+      availW,
+      availH,
+      selectedSource: baseCandidate?.source || "viewport",
+      selectedLong: rawCssLong,
+      selectedShort: rawCssShort,
       isSuspiciousSquareScreen,
+      cssW: isLandscape ? cssLong : cssShort,
+      cssH: isLandscape ? cssShort : cssLong,
       liveCanvasW: liveCanvas.width,
       liveCanvasH: liveCanvas.height,
     },
