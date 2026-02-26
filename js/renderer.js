@@ -50,7 +50,7 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null }) {
+export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null }) {
   const step = formulaStepById.get(formulaId);
   if (!step) {
     throw new Error(`Unknown formula id: ${formulaId}`);
@@ -68,8 +68,10 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     pixels[i + 3] = 255;
   }
 
-  let x = 0;
-  let y = 0;
+  let x = Number(seed?.x);
+  let y = Number(seed?.y);
+  if (!Number.isFinite(x)) x = 0;
+  if (!Number.isFinite(y)) y = 0;
   const burnSteps = clamp(burn ?? 120, 0, 5000);
   for (let i = 0; i < burnSteps; i += 1) {
     [x, y] = step(x, y, params.a, params.b, params.c, params.d);
