@@ -35,7 +35,6 @@ const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
 const infoBurnEl = document.getElementById("infoBurn");
 const infoDebugEl = document.getElementById("infoDebug");
 const infoSeedEl = document.getElementById("infoSeed");
-const detailSeedFormulaSelectEl = document.getElementById("detailSeedFormulaSelect");
 const detailSeedXInputEl = document.getElementById("detailSeedXInput");
 const detailSeedYInputEl = document.getElementById("detailSeedYInput");
 const detailSeedApplyBtnEl = document.getElementById("detailSeedApplyBtn");
@@ -1264,46 +1263,27 @@ function getSeedForFormula(formulaId) {
   return getBuiltInFormulaSeed(formulaId);
 }
 
-function populateSeedFormulaOptions() {
-  if (!detailSeedFormulaSelectEl || !appData) {
-    return;
-  }
-
-  detailSeedFormulaSelectEl.innerHTML = "";
-  for (const formula of appData.formulas) {
-    const option = document.createElement("option");
-    option.value = formula.id;
-    option.textContent = `${formula.name} (${formula.id})`;
-    detailSeedFormulaSelectEl.append(option);
-  }
-
-  if (!detailSeedFormulaSelectEl.value) {
-    detailSeedFormulaSelectEl.value = currentFormulaId;
-  }
-}
-
 function syncSeedEditorInputs(formulaId = null) {
-  if (!appData || !detailSeedFormulaSelectEl || !detailSeedXInputEl || !detailSeedYInputEl) {
+  if (!appData || !detailSeedXInputEl || !detailSeedYInputEl) {
     return;
   }
 
-  const selectedFormulaId = formulaId || detailSeedFormulaSelectEl.value || currentFormulaId;
+  const selectedFormulaId = formulaId || getSelectedRangesEditorFormulaId() || currentFormulaId;
   if (!selectedFormulaId) {
     return;
   }
 
-  detailSeedFormulaSelectEl.value = selectedFormulaId;
   const seed = getSeedForFormula(selectedFormulaId);
   detailSeedXInputEl.value = formatNumberForUi(seed.x, 4);
   detailSeedYInputEl.value = formatNumberForUi(seed.y, 4);
 }
 
 function applySeedOverrideFromEditor() {
-  if (!appData || !detailSeedFormulaSelectEl || !detailSeedXInputEl || !detailSeedYInputEl) {
+  if (!appData || !detailSeedXInputEl || !detailSeedYInputEl) {
     return;
   }
 
-  const formulaId = detailSeedFormulaSelectEl.value || currentFormulaId;
+  const formulaId = getSelectedRangesEditorFormulaId() || currentFormulaId;
   if (!formulaId) {
     return;
   }
@@ -3172,9 +3152,6 @@ function registerHandlers() {
     requestDraw();
   });
 
-  detailSeedFormulaSelectEl?.addEventListener("change", () => {
-    syncSeedEditorInputs(detailSeedFormulaSelectEl.value);
-  });
   detailSeedApplyBtnEl?.addEventListener("click", applySeedOverrideFromEditor);
   detailSeedXInputEl?.addEventListener("change", applySeedOverrideFromEditor);
   detailSeedYInputEl?.addEventListener("change", applySeedOverrideFromEditor);
@@ -3373,7 +3350,6 @@ async function bootstrap() {
     populateRangeEditorFormulaOptions();
     updateCurrentPickerSelection();
     refreshParamButtons();
-    populateSeedFormulaOptions();
     syncSeedEditorInputs(currentFormulaId);
     rangesEditorFormulaId = currentFormulaId;
     syncDebugToggleUi();
