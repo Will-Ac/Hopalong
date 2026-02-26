@@ -2770,12 +2770,40 @@ async function saveBlobToDevice(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
 }
 
+function getExportWorldFromLiveMeta(exportWidth, exportHeight) {
+  if (!lastRenderMeta?.world || !lastRenderMeta?.view) {
+    return null;
+  }
+
+  const liveView = lastRenderMeta.view;
+  const liveWorld = lastRenderMeta.world;
+  const liveSpanX = Math.max(liveWorld.maxX - liveWorld.minX, 1e-6);
+  const liveSpanY = Math.max(liveWorld.maxY - liveWorld.minY, 1e-6);
+  const worldPerPxX = liveSpanX / Math.max(1, liveView.width - 1);
+  const worldPerPxY = liveSpanY / Math.max(1, liveView.height - 1);
+
+  const exportSpanX = worldPerPxX * Math.max(1, exportWidth - 1);
+  const exportSpanY = worldPerPxY * Math.max(1, exportHeight - 1);
+  const centerX = Number.isFinite(liveWorld.centerX) ? liveWorld.centerX : (liveWorld.minX + liveWorld.maxX) * 0.5;
+  const centerY = Number.isFinite(liveWorld.centerY) ? liveWorld.centerY : (liveWorld.minY + liveWorld.maxY) * 0.5;
+
+  return {
+    minX: centerX - exportSpanX * 0.5,
+    maxX: centerX + exportSpanX * 0.5,
+    minY: centerY - exportSpanY * 0.5,
+    maxY: centerY + exportSpanY * 0.5,
+    worldPerPxX,
+    worldPerPxY,
+  };
+}
+
 async function captureScreenshot(includeOverlay) {
   if (!canvas) {
     return;
   }
 
   const { pxW, pxH, dpr, isLandscape, hasScreenSize, debug } = getExportSizePx(canvas);
+  const exportWorld = getExportWorldFromLiveMeta(pxW, pxH);
   if (window.__HOPALONG_SCREENSHOT_DEBUG) {
     console.info("[screenshot] export sizing", {
       pxW,
@@ -2783,6 +2811,7 @@ async function captureScreenshot(includeOverlay) {
       dpr,
       isLandscape,
       hasScreenSize,
+      exportWorld,
       ...debug,
     });
   }
@@ -2798,20 +2827,6 @@ async function captureScreenshot(includeOverlay) {
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const scaleMode = getScaleMode();
 
-  let exportScaleMode = scaleMode;
-  let fixedViewExport = fixedView;
-  if (scaleMode === "fixed") {
-    const minLive = Math.min(canvas.width, canvas.height);
-    const minExp = Math.min(exportCanvas.width, exportCanvas.height);
-    const zoomLive = clamp(fixedView?.zoom ?? 1, 0.15, 25);
-    const zoomExp = zoomLive * (minLive / Math.max(minExp, 1));
-    fixedViewExport = {
-      ...(fixedView || {}),
-      zoom: zoomExp,
-    };
-    exportScaleMode = "fixed";
-  }
-
   renderFrame({
     ctx: exportCtx,
     canvas: exportCanvas,
@@ -2820,8 +2835,9 @@ async function captureScreenshot(includeOverlay) {
     params: getDerivedParams(),
     iterations: iterationSetting,
     burn: burnSetting,
-    scaleMode: exportScaleMode,
-    fixedView: fixedViewExport,
+    scaleMode,
+    fixedView,
+    worldOverride: exportWorld,
   });
 
   if (includeOverlay) {
