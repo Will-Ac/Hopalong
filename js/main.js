@@ -1,5 +1,6 @@
 import { ColorMapNames, sampleColorMap } from "./colormaps.js";
 import { renderFrame, getParamsForFormula } from "./renderer.js";
+import { EXTRA_FORMULAS, EXTRA_FORMULA_RANGES_RAW } from "./formulas_updated.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
@@ -3169,6 +3170,28 @@ async function loadData() {
     throw new Error("Data file has no formulas. Expected at least one formula option.");
   }
 
+  const existingFormulaIds = new Set(data.formulas.map((formula) => formula.id));
+  for (const formula of EXTRA_FORMULAS) {
+    if (!existingFormulaIds.has(formula.id)) {
+      data.formulas.push({
+        id: formula.id,
+        name: formula.name,
+        desc: formula.desc,
+      });
+      existingFormulaIds.add(formula.id);
+    }
+  }
+
+  if (!data.formula_ranges_raw || typeof data.formula_ranges_raw !== "object") {
+    data.formula_ranges_raw = {};
+  }
+
+  for (const [formulaId, range] of Object.entries(EXTRA_FORMULA_RANGES_RAW)) {
+    if (!data.formula_ranges_raw[formulaId]) {
+      data.formula_ranges_raw[formulaId] = range;
+    }
+  }
+
   const configuredColormaps = Array.isArray(data.colormaps) ? data.colormaps : [];
   const validConfigured = configuredColormaps.filter((name) => ColorMapNames.includes(name));
   const missingFromConfig = ColorMapNames.filter((name) => !validConfigured.includes(name));
@@ -3185,7 +3208,7 @@ async function bootstrap() {
   try {
     installGlobalZoomBlockers();
     appData = await loadData();
-    builtInFormulaRanges = JSON.parse(JSON.stringify(appData.formula_ranges_raw || {}));
+    builtInFormulaRanges = appData.formula_ranges_raw || {};
     loadDefaultsFromStorage();
     normalizeSliderDefaults();
 
@@ -3203,6 +3226,8 @@ async function bootstrap() {
     const loadedSharedState = applySharedStateFromHash();
     configureNameBoxWidths();
     populateRangeEditorFormulaOptions();
+    updateCurrentPickerSelection();
+    refreshParamButtons();
     rangesEditorFormulaId = currentFormulaId;
     syncDebugToggleUi();
     syncScaleModeButton();
