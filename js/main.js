@@ -2597,15 +2597,20 @@ function getExportSizePx(liveCanvas) {
 
   const vw = (window.visualViewport && window.visualViewport.width) ? window.visualViewport.width : window.innerWidth;
   const vh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
-  const isLandscape = vw > vh;
+  const orientationType = String(screen?.orientation?.type || "").toLowerCase();
+  const isLandscape = orientationType
+    ? orientationType.startsWith("landscape")
+    : vw > vh;
 
   const screenW = Number(screen?.width) || 0;
   const screenH = Number(screen?.height) || 0;
-  const sMax = Math.max(screenW, screenH, vw, vh);
-  const sMin = Math.min(screenW || sMax, screenH || sMax, vw, vh);
+  const hasScreenSize = screenW > 0 && screenH > 0;
 
-  const cssW = isLandscape ? sMax : sMin;
-  const cssH = isLandscape ? sMin : sMax;
+  const cssLong = hasScreenSize ? Math.max(screenW, screenH) : Math.max(vw, vh);
+  const cssShort = hasScreenSize ? Math.min(screenW, screenH) : Math.min(vw, vh);
+
+  const cssW = isLandscape ? cssLong : cssShort;
+  const cssH = isLandscape ? cssShort : cssLong;
 
   let pxW = Math.round(cssW * dpr);
   let pxH = Math.round(cssH * dpr);
