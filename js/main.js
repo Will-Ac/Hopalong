@@ -2602,21 +2602,12 @@ function getExportSizePx(liveCanvas) {
     ? orientationType.startsWith("landscape")
     : vw > vh;
 
-  const screenWidthCandidates = [
-    Number(window.screen?.width) || 0,
-    Number(window.screen?.availWidth) || 0,
-  ].filter((value) => value > 0);
-  const screenHeightCandidates = [
-    Number(window.screen?.height) || 0,
-    Number(window.screen?.availHeight) || 0,
-  ].filter((value) => value > 0);
-  const hasScreenSize = screenWidthCandidates.length > 0 && screenHeightCandidates.length > 0;
+  const screenW = Number(window.screen?.width) || 0;
+  const screenH = Number(window.screen?.height) || 0;
+  const hasScreenSize = screenW > 0 && screenH > 0;
 
-  const baseScreenW = hasScreenSize ? Math.max(...screenWidthCandidates) : 0;
-  const baseScreenH = hasScreenSize ? Math.max(...screenHeightCandidates) : 0;
-
-  const cssLong = hasScreenSize ? Math.max(baseScreenW, baseScreenH) : Math.max(vw, vh);
-  const cssShort = hasScreenSize ? Math.min(baseScreenW, baseScreenH) : Math.min(vw, vh);
+  const cssLong = hasScreenSize ? Math.max(screenW, screenH) : Math.max(vw, vh);
+  const cssShort = hasScreenSize ? Math.min(screenW, screenH) : Math.min(vw, vh);
 
   const cssW = isLandscape ? cssLong : cssShort;
   const cssH = isLandscape ? cssShort : cssLong;
@@ -2624,10 +2615,32 @@ function getExportSizePx(liveCanvas) {
   let pxW = Math.round(cssW * dpr);
   let pxH = Math.round(cssH * dpr);
 
-  pxW = Math.max(pxW, liveCanvas.width);
-  pxH = Math.max(pxH, liveCanvas.height);
+  const liveMin = Math.max(1, Math.min(liveCanvas.width, liveCanvas.height));
+  const exportMin = Math.max(1, Math.min(pxW, pxH));
+  if (exportMin < liveMin) {
+    const upscale = liveMin / exportMin;
+    pxW = Math.round(pxW * upscale);
+    pxH = Math.round(pxH * upscale);
+  }
 
-  return { pxW, pxH, dpr, isLandscape };
+  return {
+    pxW,
+    pxH,
+    dpr,
+    isLandscape,
+    hasScreenSize,
+    debug: {
+      orientationType,
+      vw,
+      vh,
+      screenW,
+      screenH,
+      cssW,
+      cssH,
+      liveCanvasW: liveCanvas.width,
+      liveCanvasH: liveCanvas.height,
+    },
+  };
 }
 
 function buildScreenshotOverlayLines() {
@@ -2694,7 +2707,17 @@ async function captureScreenshot(includeOverlay) {
     return;
   }
 
-  const { pxW, pxH } = getExportSizePx(canvas);
+  const { pxW, pxH, dpr, isLandscape, hasScreenSize, debug } = getExportSizePx(canvas);
+  if (window.__HOPALONG_SCREENSHOT_DEBUG) {
+    console.info("[screenshot] export sizing", {
+      pxW,
+      pxH,
+      dpr,
+      isLandscape,
+      hasScreenSize,
+      ...debug,
+    });
+  }
   const exportCanvas = document.createElement("canvas");
   exportCanvas.width = pxW;
   exportCanvas.height = pxH;
