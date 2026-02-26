@@ -2597,17 +2597,26 @@ function getExportSizePx(liveCanvas) {
 
   const vw = (window.visualViewport && window.visualViewport.width) ? window.visualViewport.width : window.innerWidth;
   const vh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
-  const orientationType = String(screen?.orientation?.type || "").toLowerCase();
+  const orientationType = String(window.screen?.orientation?.type || "").toLowerCase();
   const isLandscape = orientationType
     ? orientationType.startsWith("landscape")
     : vw > vh;
 
-  const screenW = Number(screen?.width) || 0;
-  const screenH = Number(screen?.height) || 0;
-  const hasScreenSize = screenW > 0 && screenH > 0;
+  const screenWidthCandidates = [
+    Number(window.screen?.width) || 0,
+    Number(window.screen?.availWidth) || 0,
+  ].filter((value) => value > 0);
+  const screenHeightCandidates = [
+    Number(window.screen?.height) || 0,
+    Number(window.screen?.availHeight) || 0,
+  ].filter((value) => value > 0);
+  const hasScreenSize = screenWidthCandidates.length > 0 && screenHeightCandidates.length > 0;
 
-  const cssLong = hasScreenSize ? Math.max(screenW, screenH) : Math.max(vw, vh);
-  const cssShort = hasScreenSize ? Math.min(screenW, screenH) : Math.min(vw, vh);
+  const baseScreenW = hasScreenSize ? Math.max(...screenWidthCandidates) : 0;
+  const baseScreenH = hasScreenSize ? Math.max(...screenHeightCandidates) : 0;
+
+  const cssLong = hasScreenSize ? Math.max(baseScreenW, baseScreenH) : Math.max(vw, vh);
+  const cssShort = hasScreenSize ? Math.min(baseScreenW, baseScreenH) : Math.min(vw, vh);
 
   const cssW = isLandscape ? cssLong : cssShort;
   const cssH = isLandscape ? cssShort : cssLong;
