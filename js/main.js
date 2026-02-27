@@ -352,6 +352,11 @@ function noteInteractionActivity() {
 }
 
 function isInteractionIterationClampActive(now = performance.now()) {
+  const isActivePanOrZoom = interactionState === INTERACTION_STATE.PAN_MOUSE_RMB || interactionState === INTERACTION_STATE.TWO_ACTIVE;
+  if (isActivePanOrZoom || shouldShowManualOverlay()) {
+    return true;
+  }
+
   if (!lastInteractionActivityAt) {
     return false;
   }
@@ -1806,6 +1811,7 @@ function onCanvasPointerDown(event) {
   if (event.pointerType === "mouse" && event.button === 2) {
     setScaleModeFixed("manual pan/zoom");
     interactionState = INTERACTION_STATE.PAN_MOUSE_RMB;
+    noteInteractionActivity();
     primaryPointerId = event.pointerId;
     const pos = getCanvasPointerPosition(event);
     lastPointerPosition = { x: pos.x, y: pos.y };
@@ -1827,6 +1833,7 @@ function onCanvasPointerDown(event) {
   if (activePointers.size === 2) {
     const pointers = Array.from(activePointers.values());
     initializeTwoFingerGesture(pointers[0].pointerId, pointers[1].pointerId);
+    noteInteractionActivity();
     requestDraw();
   }
 }
@@ -1989,6 +1996,7 @@ function onCanvasPointerUp(event) {
 function onCanvasWheel(event) {
   event.preventDefault();
   setScaleModeFixed("manual pan/zoom");
+  noteInteractionActivity();
   const pos = getCanvasPointerPosition(event);
   const zoomFactor = Math.exp(-event.deltaY * 0.0025);
   applyZoomAtPoint(zoomFactor, pos.x, pos.y);
