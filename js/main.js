@@ -220,8 +220,8 @@ let fixedView = {
   offsetY: 0,
   zoom: 1,
 };
-let lastManualModulationAt = 0;
-let modulationResumeTimer = null;
+let lastInteractionActivityAt = 0;
+let interactionResumeTimer = null;
 let sharedParamsOverride = null;
 let sharedParamsFormulaId = null;
 
@@ -339,40 +339,40 @@ function getModulationPauseMs() {
   return Math.round(clamp(configured, 0, MAX_MODULATION_PAUSE_MS));
 }
 
-function clearModulationResumeTimer() {
-  if (modulationResumeTimer) {
-    window.clearTimeout(modulationResumeTimer);
-    modulationResumeTimer = null;
+function clearInteractionResumeTimer() {
+  if (interactionResumeTimer) {
+    window.clearTimeout(interactionResumeTimer);
+    interactionResumeTimer = null;
   }
 }
 
-function noteManualModulationActivity() {
-  lastManualModulationAt = performance.now();
-  clearModulationResumeTimer();
+function noteInteractionActivity() {
+  lastInteractionActivityAt = performance.now();
+  clearInteractionResumeTimer();
 }
 
-function isModulationClampActive(now = performance.now()) {
-  if (!shouldShowManualOverlay()) {
+function isInteractionIterationClampActive(now = performance.now()) {
+  if (!lastInteractionActivityAt) {
     return false;
   }
 
-  const elapsed = now - lastManualModulationAt;
+  const elapsed = now - lastInteractionActivityAt;
   return elapsed <= getModulationPauseMs();
 }
 
-function scheduleModulationResumeDraw(now = performance.now()) {
-  clearModulationResumeTimer();
-  if (!shouldShowManualOverlay()) {
+function scheduleInteractionResumeDraw(now = performance.now()) {
+  clearInteractionResumeTimer();
+  if (!lastInteractionActivityAt) {
     return;
   }
 
-  const remaining = getModulationPauseMs() - (now - lastManualModulationAt);
+  const remaining = getModulationPauseMs() - (now - lastInteractionActivityAt);
   if (remaining <= 0) {
     return;
   }
 
-  modulationResumeTimer = window.setTimeout(() => {
-    modulationResumeTimer = null;
+  interactionResumeTimer = window.setTimeout(() => {
+    interactionResumeTimer = null;
     requestDraw();
   }, remaining + 1);
 }
@@ -1675,7 +1675,7 @@ function applyManualModulation(deltaX, deltaY) {
     );
   }
 
-  noteManualModulationActivity();
+  noteInteractionActivity();
   requestDraw();
   return true;
 }
@@ -1683,6 +1683,7 @@ function applyManualModulation(deltaX, deltaY) {
 function applyPanDelta(deltaX, deltaY) {
   fixedView.offsetX += deltaX;
   fixedView.offsetY += deltaY;
+  noteInteractionActivity();
   requestDraw();
 }
 
@@ -1708,6 +1709,7 @@ function applyZoomAtPoint(zoomFactor, anchorX, anchorY) {
   fixedView.zoom = nextZoom;
   fixedView.offsetX = nextCenterX - viewCenterX;
   fixedView.offsetY = nextCenterY - viewCenterY;
+  noteInteractionActivity();
   requestDraw();
 }
 
@@ -1942,8 +1944,8 @@ function clearPointerState(pointerId) {
     primaryPointerId = null;
     lastPointerPosition = null;
     isManualModulating = false;
-    lastManualModulationAt = 0;
-    clearModulationResumeTimer();
+    lastInteractionActivityAt = 0;
+    clearInteractionResumeTimer();
     clearTwoFingerGesture();
     requestDraw();
     return;
@@ -1955,8 +1957,8 @@ function clearPointerState(pointerId) {
     primaryPointerId = remaining.pointerId;
     interactionState = INTERACTION_STATE.MOD_1;
     isManualModulating = false;
-    lastManualModulationAt = 0;
-    clearModulationResumeTimer();
+    lastInteractionActivityAt = 0;
+    clearInteractionResumeTimer();
     const pos = getCanvasPointerPosition(remaining);
     lastPointerPosition = { x: pos.x, y: pos.y };
     requestDraw();
@@ -2792,8 +2794,8 @@ function draw() {
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const now = performance.now();
-  const clampForModulation = isModulationClampActive(now);
-  const iterations = clampForModulation
+  const clampForInteraction = isInteractionIterationClampActive(now);
+  const iterations = clampForInteraction
     ? Math.min(iterationSetting, getModulationIterationClamp())
     : iterationSetting;
   const frameMeta = renderFrame({
@@ -2823,10 +2825,10 @@ function draw() {
     renderMs: drawnAt - startedAt,
   };
 
-  if (clampForModulation) {
-    scheduleModulationResumeDraw(drawnAt);
+  if (clampForInteraction) {
+    scheduleInteractionResumeDraw(drawnAt);
   } else {
-    clearModulationResumeTimer();
+    clearInteractionResumeTimer();
   }
 
   drawDebugOverlay(lastRenderMeta);
@@ -3277,10 +3279,10 @@ function registerHandlers() {
     showSettingsInfo("Max random iterations limits the upper bound for randomization of iteration count.", event.currentTarget);
   });
   infoModClampItersEl?.addEventListener("click", (event) => {
-    showSettingsInfo("During ModX/ModY interaction, iteration count is temporarily clamped to this value so modulation stays responsive.", event.currentTarget);
+    showSettingsInfo("During ModX/ModY, pan, or zoom interaction, iteration count is temporarily clamped to this value so interaction stays responsive.", event.currentTarget);
   });
   infoModPauseMsEl?.addEventListener("click", (event) => {
-    showSettingsInfo("After ModX/ModY movement pauses for this many milliseconds, rendering returns to your selected iteration value.", event.currentTarget);
+    showSettingsInfo("After ModX/ModY, pan, or zoom pauses for this many milliseconds, rendering returns to your selected iteration value.", event.currentTarget);
   });
   infoBurnEl?.addEventListener("click", (event) => {
     showSettingsInfo("Burn-in steps discard the first orbit points. Higher burn removes initial transients before plotting.", event.currentTarget);

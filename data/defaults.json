@@ -15,8 +15,8 @@
     "Actual a/b/c/d values must be derived from slider position using formula-specific ranges.",
     "debug controls whether the debug axis/tick/info overlay is shown.",
     "formulaSeeds stores per-formula orbit starting seed (x0/y0).",
-    "modulationIterationClamp is the temporary render iteration cap while ModX/ModY movement is active.",
-    "modulationPauseMs is how long to wait after modulation motion stops before rendering at full selected iterations again."
+    "modulationIterationClamp is the temporary render iteration cap while ModX/ModY, pan, or zoom interaction is active.",
+    "modulationPauseMs is how long to wait after ModX/ModY, pan, or zoom interaction stops before rendering at full selected iterations again."
   ],
   "debug": false,
   "maxRandomIters": 10000000,
