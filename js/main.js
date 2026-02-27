@@ -412,19 +412,20 @@ function deriveFixedViewFromWorldBounds(world, fallbackView = fixedView) {
   const width = Math.max(1, Number(canvas.width) || 0);
   const height = Math.max(1, Number(canvas.height) || 0);
   const spanX = Math.max(bounds.maxX - bounds.minX, 1e-9);
-  const scale = width / spanX;
+  const spanY = Math.max(bounds.maxY - bounds.minY, 1e-9);
+  const scale = Math.min(width / spanX, height / spanY);
   if (!Number.isFinite(scale) || scale <= 0) {
     return null;
   }
 
   const minDim = Math.max(1, Math.min(width, height));
   const zoom = normalizeFixedZoom(scale / (minDim / 220), fallbackView?.zoom || 1);
-  const centerX = -bounds.minX * scale;
-  const centerY = -bounds.minY * scale;
+  const worldCenterX = (bounds.minX + bounds.maxX) * 0.5;
+  const worldCenterY = (bounds.minY + bounds.maxY) * 0.5;
 
   return {
-    offsetX: centerX - width * 0.5,
-    offsetY: centerY - height * 0.5,
+    offsetX: -worldCenterX * scale,
+    offsetY: -worldCenterY * scale,
     zoom,
   };
 }
@@ -495,8 +496,10 @@ function buildSharePayload() {
   const params = getDerivedParams();
   const iterations = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const view = getViewportFixedViewSnapshot();
+  const world = captureWorldBoundsFromLastRender();
   const paramText = `${params.a},${params.b},${params.c},${params.d}`;
   const viewText = `${view.offsetX},${view.offsetY},${view.zoom}`;
+  const worldText = world ? `${world.minX},${world.maxX},${world.minY},${world.maxY}` : "";
   const refreshToken = Date.now().toString(36);
 
   const pairs = [
@@ -505,6 +508,7 @@ function buildSharePayload() {
     ["p", paramText],
     ["i", String(iterations)],
     ["v", viewText],
+    ["w", worldText],
     ["r", refreshToken],
   ];
 
@@ -539,12 +543,14 @@ function applySharedStateFromHash() {
     const pRaw = params.get("p");
     const iRaw = params.get("i");
     const vRaw = params.get("v");
+    const wRaw = params.get("w");
     if (!formulaId || !cmapName || !pRaw || !iRaw || !vRaw) {
       return false;
     }
 
     const pValues = pRaw.split(",").map((value) => Number.parseFloat(value));
     const vValues = vRaw.split(",").map((value) => Number.parseFloat(value));
+    const wValues = wRaw ? wRaw.split(",").map((value) => Number.parseFloat(value)) : null;
     const iterations = Number.parseInt(iRaw, 10);
     if (pValues.length !== 4 || pValues.some((value) => !Number.isFinite(value))) {
       return false;
@@ -555,6 +561,11 @@ function applySharedStateFromHash() {
     if (!Number.isFinite(iterations) || iterations < 1 || vValues[2] <= 0) {
       return false;
     }
+    const hasValidWorld = Array.isArray(wValues)
+      && wValues.length === 4
+      && wValues.every((value) => Number.isFinite(value))
+      && wValues[0] < wValues[1]
+      && wValues[2] < wValues[3];
 
     const formulaExists = appData.formulas.some((formula) => formula.id === formulaId);
     const cmapExists = appData.colormaps.includes(cmapName);
@@ -571,11 +582,20 @@ function applySharedStateFromHash() {
     currentFormulaId = formulaId;
     appData.defaults.cmapName = cmapName;
     appData.defaults.sliders.iters = Math.round(clamp(iterations, sliderControls.iters.min, sliderControls.iters.max));
-    fixedView = {
-      offsetX: vValues[0],
-      offsetY: vValues[1],
-      zoom: normalizeFixedZoom(vValues[2], 1),
-    };
+    if (hasValidWorld) {
+      updateFixedViewFromWorldBounds({
+        minX: wValues[0],
+        maxX: wValues[1],
+        minY: wValues[2],
+        maxY: wValues[3],
+      });
+    } else {
+      fixedView = {
+        offsetX: vValues[0],
+        offsetY: vValues[1],
+        zoom: normalizeFixedZoom(vValues[2], 1),
+      };
+    }
     sharedParamsOverride = {
       a: pValues[0],
       b: pValues[1],
