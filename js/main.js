@@ -1125,7 +1125,6 @@ function setScaleModeFixed(reason = "manual pan/zoom") {
     return;
   }
 
-  updateFixedViewFromWorldBounds(captureWorldBoundsFromLastRender());
   pendingAutoScaleWorldOverride = null;
   appData.defaults.scaleMode = "fixed";
   syncScaleModeButton();
@@ -3324,7 +3323,6 @@ function registerHandlers() {
       pendingAutoScaleWorldOverride = worldBounds;
       appData.defaults.scaleMode = "auto";
     } else {
-      updateFixedViewFromWorldBounds(worldBounds);
       pendingAutoScaleWorldOverride = null;
       appData.defaults.scaleMode = "fixed";
     }
