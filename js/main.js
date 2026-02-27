@@ -1,5 +1,6 @@
 import { ColorMapNames, sampleColorMap } from "./colormaps.js";
 import { renderFrame, getParamsForFormula } from "./renderer.js";
+import { EXTRA_FORMULAS, EXTRA_FORMULA_RANGES_RAW } from "./formulas_updated.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
@@ -33,6 +34,10 @@ const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
 const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
 const infoBurnEl = document.getElementById("infoBurn");
 const infoDebugEl = document.getElementById("infoDebug");
+const infoSeedEl = document.getElementById("infoSeed");
+const detailSeedXInputEl = document.getElementById("detailSeedXInput");
+const detailSeedYInputEl = document.getElementById("detailSeedYInput");
+const detailSeedApplyBtnEl = document.getElementById("detailSeedApplyBtn");
 
 const rangeInputMap = {
   a: { min: document.getElementById("rangeAmin"), max: document.getElementById("rangeAmax") },
@@ -81,6 +86,22 @@ const DEFAULT_PARAM_RANGES = {
   c: [-20, 20],
   d: [-20, 20],
 };
+
+const EXTRA_FORMULA_SEEDS = {
+  peter_de_jong: { x: 0, y: 0 },
+  clifford: { x: 0.1, y: 0.1 },
+  tinkerbell: { x: 0, y: 0 },
+  henon: { x: 0.1, y: 0 },
+  lozi: { x: 0.1, y: 0 },
+  ikeda: { x: 0, y: 0 },
+  gingerbread: { x: 0, y: 0 },
+  zaslavsky_web: { x: 0.1, y: 0 },
+  popcorn: { x: 0.1, y: 0.1 },
+  bedhead: { x: 0, y: 0 },
+  gumowski_mira: { x: 0.1, y: 0 },
+  shifted_hopalong: { x: 0, y: 0 },
+};
+
 
 const ctx = canvas.getContext("2d", { alpha: false });
 let appData = null;
@@ -714,6 +735,7 @@ function loadFormulaRangesIntoEditor(formulaId) {
     rangesFormulaSelectEl.value = formulaId;
   }
   setRangesEditorWarning("");
+  syncSeedEditorInputs(formulaId);
 }
 
 function remapSliderToPreserveParams(formulaId, nextRange) {
@@ -809,6 +831,7 @@ function openRangesEditor() {
   hideSettingsInfo();
   const formulaId = getSelectedRangesEditorFormulaId();
   loadFormulaRangesIntoEditor(formulaId);
+  syncSeedEditorInputs(formulaId);
 }
 
 function closeRangesEditor() {
@@ -1195,6 +1218,87 @@ function normalizeRangeObject(rangeCandidate, fallbackRange = DEFAULT_PARAM_RANG
   return normalized;
 }
 
+function normalizeSeedValue(value, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+function getBuiltInFormulaSeed(formulaId) {
+  const base = EXTRA_FORMULA_SEEDS[formulaId];
+  if (base) {
+    return {
+      x: normalizeSeedValue(base.x, 0),
+      y: normalizeSeedValue(base.y, 0),
+    };
+  }
+
+  return { x: 0, y: 0 };
+}
+
+function normalizeFormulaSeeds(seedMap, formulaList) {
+  const normalized = {};
+  for (const formula of formulaList || []) {
+    const formulaId = formula.id;
+    const builtIn = getBuiltInFormulaSeed(formulaId);
+    const candidate = seedMap?.[formulaId] || {};
+    normalized[formulaId] = {
+      x: normalizeSeedValue(candidate.x, builtIn.x),
+      y: normalizeSeedValue(candidate.y, builtIn.y),
+    };
+  }
+
+  return normalized;
+}
+
+function getSeedForFormula(formulaId) {
+  const existing = appData?.defaults?.formulaSeeds?.[formulaId];
+  if (existing && Number.isFinite(existing.x) && Number.isFinite(existing.y)) {
+    return existing;
+  }
+
+  return getBuiltInFormulaSeed(formulaId);
+}
+
+function syncSeedEditorInputs(formulaId = null) {
+  if (!appData || !detailSeedXInputEl || !detailSeedYInputEl) {
+    return;
+  }
+
+  const selectedFormulaId = formulaId || getSelectedRangesEditorFormulaId() || currentFormulaId;
+  if (!selectedFormulaId) {
+    return;
+  }
+
+  const seed = getSeedForFormula(selectedFormulaId);
+  detailSeedXInputEl.value = formatNumberForUi(seed.x, 4);
+  detailSeedYInputEl.value = formatNumberForUi(seed.y, 4);
+}
+
+function applySeedOverrideFromEditor() {
+  if (!appData || !detailSeedXInputEl || !detailSeedYInputEl) {
+    return;
+  }
+
+  const formulaId = getSelectedRangesEditorFormulaId() || currentFormulaId;
+  if (!formulaId) {
+    return;
+  }
+
+  const builtIn = getBuiltInFormulaSeed(formulaId);
+  const xSeed = normalizeSeedValue(detailSeedXInputEl.value, builtIn.x);
+  const ySeed = normalizeSeedValue(detailSeedYInputEl.value, builtIn.y);
+
+  appData.defaults.formulaSeeds[formulaId] = { x: xSeed, y: ySeed };
+  syncSeedEditorInputs(formulaId);
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
 function saveDefaultsToStorage() {
   if (!appData?.defaults) {
     return;
@@ -1229,6 +1333,10 @@ function loadDefaultsFromStorage() {
       rangesOverridesByFormula: {
         ...(appData.defaults.rangesOverridesByFormula || {}),
         ...(parsed.rangesOverridesByFormula || {}),
+      },
+      formulaSeeds: {
+        ...(appData.defaults.formulaSeeds || {}),
+        ...(parsed.formulaSeeds || {}),
       },
     };
   } catch (error) {
@@ -2585,6 +2693,7 @@ function draw() {
     burn: burnSetting,
     scaleMode: getScaleMode(),
     fixedView,
+    seed: getSeedForFormula(currentFormulaId),
   });
 
   const now = performance.now();
@@ -2838,6 +2947,7 @@ async function captureScreenshot(includeOverlay) {
     scaleMode,
     fixedView,
     worldOverride: exportWorld,
+    seed: getSeedForFormula(currentFormulaId),
   });
 
   if (includeOverlay) {
@@ -3042,6 +3152,10 @@ function registerHandlers() {
     requestDraw();
   });
 
+  detailSeedApplyBtnEl?.addEventListener("click", applySeedOverrideFromEditor);
+  detailSeedXInputEl?.addEventListener("change", applySeedOverrideFromEditor);
+  detailSeedYInputEl?.addEventListener("change", applySeedOverrideFromEditor);
+
   infoMaxRandomItersEl?.addEventListener("click", (event) => {
     showSettingsInfo("Max random iterations limits the upper bound for randomization of iteration count.", event.currentTarget);
   });
@@ -3050,6 +3164,9 @@ function registerHandlers() {
   });
   infoDebugEl?.addEventListener("click", (event) => {
     showSettingsInfo("Debug overlay draws extra guides and diagnostics. Turning it off reduces UI drawing overhead.", event.currentTarget);
+  });
+  infoSeedEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Seed is the starting point (x0/y0) for each formula's orbit. Most formulas work with 0,0; some are more stable with small non-zero seeds.", event.currentTarget);
   });
   settingsInfoPopupEl?.addEventListener("click", hideSettingsInfo);
 
@@ -3165,8 +3282,34 @@ async function loadData() {
     data.defaults.rangesOverridesByFormula = {};
   }
 
+  if (!data.defaults.formulaSeeds || typeof data.defaults.formulaSeeds !== "object") {
+    data.defaults.formulaSeeds = {};
+  }
+
   if (!Array.isArray(data.formulas) || data.formulas.length === 0) {
     throw new Error("Data file has no formulas. Expected at least one formula option.");
+  }
+
+  const existingFormulaIds = new Set(data.formulas.map((formula) => formula.id));
+  for (const formula of EXTRA_FORMULAS) {
+    if (!existingFormulaIds.has(formula.id)) {
+      data.formulas.push({
+        id: formula.id,
+        name: formula.name,
+        desc: formula.desc,
+      });
+      existingFormulaIds.add(formula.id);
+    }
+  }
+
+  if (!data.formula_ranges_raw || typeof data.formula_ranges_raw !== "object") {
+    data.formula_ranges_raw = {};
+  }
+
+  for (const [formulaId, range] of Object.entries(EXTRA_FORMULA_RANGES_RAW)) {
+    if (!data.formula_ranges_raw[formulaId]) {
+      data.formula_ranges_raw[formulaId] = range;
+    }
   }
 
   const configuredColormaps = Array.isArray(data.colormaps) ? data.colormaps : [];
@@ -3185,9 +3328,11 @@ async function bootstrap() {
   try {
     installGlobalZoomBlockers();
     appData = await loadData();
-    builtInFormulaRanges = JSON.parse(JSON.stringify(appData.formula_ranges_raw || {}));
+    builtInFormulaRanges = appData.formula_ranges_raw || {};
     loadDefaultsFromStorage();
     normalizeSliderDefaults();
+
+    appData.defaults.formulaSeeds = normalizeFormulaSeeds(appData.defaults.formulaSeeds, appData.formulas);
 
     appData.defaults.rangesOverridesByFormula = Object.fromEntries(
       Object.entries(appData.defaults.rangesOverridesByFormula || {}).map(([formulaId, range]) => {
@@ -3203,6 +3348,9 @@ async function bootstrap() {
     const loadedSharedState = applySharedStateFromHash();
     configureNameBoxWidths();
     populateRangeEditorFormulaOptions();
+    updateCurrentPickerSelection();
+    refreshParamButtons();
+    syncSeedEditorInputs(currentFormulaId);
     rangesEditorFormulaId = currentFormulaId;
     syncDebugToggleUi();
     syncScaleModeButton();
