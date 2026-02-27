@@ -14,7 +14,9 @@
     "alpha/beta/gamma/delta defaults are slider positions (0\u2013100).",
     "Actual a/b/c/d values must be derived from slider position using formula-specific ranges.",
     "debug controls whether the debug axis/tick/info overlay is shown.",
-    "formulaSeeds stores per-formula orbit starting seed (x0/y0)."
+    "formulaSeeds stores per-formula orbit starting seed (x0/y0).",
+    "modulationIterationClamp is the temporary render iteration cap while ModX/ModY movement is active.",
+    "modulationPauseMs is how long to wait after modulation motion stops before rendering at full selected iterations again."
   ],
   "debug": false,
   "maxRandomIters": 10000000,
@@ -67,5 +69,7 @@
       "x": 0.0,
       "y": 0.0
     }
-  }
+  },
+  "modulationIterationClamp": 500000,
+  "modulationPauseMs": 1000
 }

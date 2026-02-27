@@ -26,12 +26,18 @@ const rangesTabPanelEl = document.getElementById("rangesTabPanel");
 const detailedTabPanelEl = document.getElementById("detailedTabPanel");
 const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomItersRange");
 const detailMaxRandomItersFormattedEl = document.getElementById("detailMaxRandomItersFormatted");
+const detailModClampItersRangeEl = document.getElementById("detailModClampItersRange");
+const detailModClampItersFormattedEl = document.getElementById("detailModClampItersFormatted");
+const detailModPauseMsRangeEl = document.getElementById("detailModPauseMsRange");
+const detailModPauseMsFormattedEl = document.getElementById("detailModPauseMsFormatted");
 const detailBurnRangeEl = document.getElementById("detailBurnRange");
 const detailBurnFormattedEl = document.getElementById("detailBurnFormatted");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const settingsInfoTextEl = document.getElementById("settingsInfoText");
 const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
 const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
+const infoModClampItersEl = document.getElementById("infoModClampIters");
+const infoModPauseMsEl = document.getElementById("infoModPauseMs");
 const infoBurnEl = document.getElementById("infoBurn");
 const infoDebugEl = document.getElementById("infoDebug");
 const detailSeedXInputEl = document.getElementById("detailSeedXInput");
@@ -182,6 +188,9 @@ const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
 const MIN_FIXED_ZOOM = 1e-300;
 const MAX_FIXED_ZOOM = 1e300;
+const DEFAULT_MODULATION_ITERATION_CLAMP = 500000;
+const DEFAULT_MODULATION_PAUSE_MS = 1000;
+const MAX_MODULATION_PAUSE_MS = 10000;
 
 const sliderKeyByParamKey = {
   a: "alpha",
@@ -211,6 +220,8 @@ let fixedView = {
   offsetY: 0,
   zoom: 1,
 };
+let lastManualModulationAt = 0;
+let modulationResumeTimer = null;
 let sharedParamsOverride = null;
 let sharedParamsFormulaId = null;
 
@@ -308,6 +319,62 @@ function normalizeFixedZoom(value, fallback = 1) {
   }
 
   return clamp(parsed, MIN_FIXED_ZOOM, MAX_FIXED_ZOOM);
+}
+
+function getModulationIterationClamp() {
+  const configured = Number(appData?.defaults?.modulationIterationClamp);
+  if (!Number.isFinite(configured)) {
+    return DEFAULT_MODULATION_ITERATION_CLAMP;
+  }
+
+  return Math.round(clamp(configured, sliderControls.iters.min, sliderControls.iters.max));
+}
+
+function getModulationPauseMs() {
+  const configured = Number(appData?.defaults?.modulationPauseMs);
+  if (!Number.isFinite(configured)) {
+    return DEFAULT_MODULATION_PAUSE_MS;
+  }
+
+  return Math.round(clamp(configured, 0, MAX_MODULATION_PAUSE_MS));
+}
+
+function clearModulationResumeTimer() {
+  if (modulationResumeTimer) {
+    window.clearTimeout(modulationResumeTimer);
+    modulationResumeTimer = null;
+  }
+}
+
+function noteManualModulationActivity() {
+  lastManualModulationAt = performance.now();
+  clearModulationResumeTimer();
+}
+
+function isModulationClampActive(now = performance.now()) {
+  if (!shouldShowManualOverlay()) {
+    return false;
+  }
+
+  const elapsed = now - lastManualModulationAt;
+  return elapsed <= getModulationPauseMs();
+}
+
+function scheduleModulationResumeDraw(now = performance.now()) {
+  clearModulationResumeTimer();
+  if (!shouldShowManualOverlay()) {
+    return;
+  }
+
+  const remaining = getModulationPauseMs() - (now - lastManualModulationAt);
+  if (remaining <= 0) {
+    return;
+  }
+
+  modulationResumeTimer = window.setTimeout(() => {
+    modulationResumeTimer = null;
+    requestDraw();
+  }, remaining + 1);
 }
 
 function formatNumberForUi(value, fractionDigits = 0) {
@@ -878,9 +945,18 @@ function setSettingsTab(tabKey) {
 
 function syncDetailedSettingsControls() {
   const maxRandomIters = Math.round(clamp(appData.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
+  const modulationIterationClamp = getModulationIterationClamp();
+  const modulationPauseMs = getModulationPauseMs();
   const burnValue = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   if (detailMaxRandomItersRangeEl) detailMaxRandomItersRangeEl.value = String(maxRandomIters);
   if (detailMaxRandomItersFormattedEl) detailMaxRandomItersFormattedEl.textContent = formatNumberForUi(maxRandomIters, 0);
+  if (detailModClampItersRangeEl) {
+    detailModClampItersRangeEl.max = String(sliderControls.iters.max);
+    detailModClampItersRangeEl.value = String(modulationIterationClamp);
+  }
+  if (detailModClampItersFormattedEl) detailModClampItersFormattedEl.textContent = formatNumberForUi(modulationIterationClamp, 0);
+  if (detailModPauseMsRangeEl) detailModPauseMsRangeEl.value = String(modulationPauseMs);
+  if (detailModPauseMsFormattedEl) detailModPauseMsFormattedEl.textContent = formatNumberForUi(modulationPauseMs, 0);
   if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
   if (detailBurnFormattedEl) detailBurnFormattedEl.textContent = formatNumberForUi(burnValue, 0);
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
@@ -902,6 +978,22 @@ function applyMaxRandomIterations(nextValue) {
   appData.defaults.maxRandomIters = clamped;
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
+  commitCurrentStateToHistory();
+}
+
+function applyModulationIterationClamp(nextValue) {
+  appData.defaults.modulationIterationClamp = Math.round(clamp(Number(nextValue), sliderControls.iters.min, sliderControls.iters.max));
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyModulationPauseMs(nextValue) {
+  appData.defaults.modulationPauseMs = Math.round(clamp(Number(nextValue), 0, MAX_MODULATION_PAUSE_MS));
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
   commitCurrentStateToHistory();
 }
 
@@ -1358,6 +1450,8 @@ function captureCurrentState() {
     cmapName: appData.defaults.cmapName,
     sliders: { ...appData.defaults.sliders },
     maxRandomIters: appData.defaults.maxRandomIters,
+    modulationIterationClamp: getModulationIterationClamp(),
+    modulationPauseMs: getModulationPauseMs(),
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
     paramModes: { ...paramModes },
     scaleMode: getScaleMode(),
@@ -1411,6 +1505,8 @@ function applyState(state) {
   appData.defaults.cmapName = state.cmapName;
   appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
   appData.defaults.maxRandomIters = Math.round(clamp(state.maxRandomIters ?? appData.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
+  appData.defaults.modulationIterationClamp = Math.round(clamp(state.modulationIterationClamp ?? appData.defaults.modulationIterationClamp, sliderControls.iters.min, sliderControls.iters.max));
+  appData.defaults.modulationPauseMs = Math.round(clamp(state.modulationPauseMs ?? appData.defaults.modulationPauseMs, 0, MAX_MODULATION_PAUSE_MS));
   normalizeSliderDefaults();
   if (state.rangesOverridesByFormula && typeof state.rangesOverridesByFormula === "object") {
     appData.defaults.rangesOverridesByFormula = JSON.parse(JSON.stringify(state.rangesOverridesByFormula));
@@ -1579,6 +1675,7 @@ function applyManualModulation(deltaX, deltaY) {
     );
   }
 
+  noteManualModulationActivity();
   requestDraw();
   return true;
 }
@@ -1845,6 +1942,8 @@ function clearPointerState(pointerId) {
     primaryPointerId = null;
     lastPointerPosition = null;
     isManualModulating = false;
+    lastManualModulationAt = 0;
+    clearModulationResumeTimer();
     clearTwoFingerGesture();
     requestDraw();
     return;
@@ -1856,6 +1955,8 @@ function clearPointerState(pointerId) {
     primaryPointerId = remaining.pointerId;
     interactionState = INTERACTION_STATE.MOD_1;
     isManualModulating = false;
+    lastManualModulationAt = 0;
+    clearModulationResumeTimer();
     const pos = getCanvasPointerPosition(remaining);
     lastPointerPosition = { x: pos.x, y: pos.y };
     requestDraw();
@@ -2690,7 +2791,11 @@ function draw() {
   const didResize = resizeCanvas();
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
-  const iterations = iterationSetting;
+  const now = performance.now();
+  const clampForModulation = isModulationClampActive(now);
+  const iterations = clampForModulation
+    ? Math.min(iterationSetting, getModulationIterationClamp())
+    : iterationSetting;
   const frameMeta = renderFrame({
     ctx,
     canvas,
@@ -2704,19 +2809,25 @@ function draw() {
     seed: getSeedForFormula(currentFormulaId),
   });
 
-  const now = performance.now();
-  const delta = lastDrawTimestamp > 0 ? now - lastDrawTimestamp : 0;
+  const drawnAt = performance.now();
+  const delta = lastDrawTimestamp > 0 ? drawnAt - lastDrawTimestamp : 0;
   if (delta > 0) {
     const instantFps = 1000 / delta;
     fpsEstimate = fpsEstimate === 0 ? instantFps : fpsEstimate * 0.85 + instantFps * 0.15;
   }
-  lastDrawTimestamp = now;
+  lastDrawTimestamp = drawnAt;
 
   lastRenderMeta = {
     ...frameMeta,
     iterations,
-    renderMs: now - startedAt,
+    renderMs: drawnAt - startedAt,
   };
+
+  if (clampForModulation) {
+    scheduleModulationResumeDraw(drawnAt);
+  } else {
+    clearModulationResumeTimer();
+  }
 
   drawDebugOverlay(lastRenderMeta);
   drawManualParamOverlay(lastRenderMeta);
@@ -3151,6 +3262,8 @@ function registerHandlers() {
   settingsTabDetailedEl?.addEventListener("click", () => setSettingsTab("detailed"));
 
   detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
+  detailModClampItersRangeEl?.addEventListener("input", () => applyModulationIterationClamp(detailModClampItersRangeEl.value));
+  detailModPauseMsRangeEl?.addEventListener("input", () => applyModulationPauseMs(detailModPauseMsRangeEl.value));
   detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
 
   detailDebugToggleEl?.addEventListener("change", () => {
@@ -3162,6 +3275,12 @@ function registerHandlers() {
 
   infoMaxRandomItersEl?.addEventListener("click", (event) => {
     showSettingsInfo("Max random iterations limits the upper bound for randomization of iteration count.", event.currentTarget);
+  });
+  infoModClampItersEl?.addEventListener("click", (event) => {
+    showSettingsInfo("During ModX/ModY interaction, iteration count is temporarily clamped to this value so modulation stays responsive.", event.currentTarget);
+  });
+  infoModPauseMsEl?.addEventListener("click", (event) => {
+    showSettingsInfo("After ModX/ModY movement pauses for this many milliseconds, rendering returns to your selected iteration value.", event.currentTarget);
   });
   infoBurnEl?.addEventListener("click", (event) => {
     showSettingsInfo("Burn-in steps discard the first orbit points. Higher burn removes initial transients before plotting.", event.currentTarget);
@@ -3270,9 +3389,17 @@ async function loadData() {
   if (typeof data.defaults.maxRandomIters !== "number") {
     data.defaults.maxRandomIters = sliderControls.iters.max;
   }
+  if (typeof data.defaults.modulationIterationClamp !== "number") {
+    data.defaults.modulationIterationClamp = DEFAULT_MODULATION_ITERATION_CLAMP;
+  }
+  if (typeof data.defaults.modulationPauseMs !== "number") {
+    data.defaults.modulationPauseMs = DEFAULT_MODULATION_PAUSE_MS;
+  }
 
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
+  data.defaults.modulationIterationClamp = Math.round(clamp(data.defaults.modulationIterationClamp, sliderControls.iters.min, sliderControls.iters.max));
+  data.defaults.modulationPauseMs = Math.round(clamp(data.defaults.modulationPauseMs, 0, MAX_MODULATION_PAUSE_MS));
   data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
 
   if (data.defaults.scaleMode !== "fixed") {
