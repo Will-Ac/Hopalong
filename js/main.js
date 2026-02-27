@@ -222,6 +222,7 @@ let fixedView = {
 };
 let lastInteractionActivityAt = 0;
 let interactionResumeTimer = null;
+let pendingAutoScaleWorldOverride = null;
 let sharedParamsOverride = null;
 let sharedParamsFormulaId = null;
 
@@ -380,6 +381,51 @@ function scheduleInteractionResumeDraw(now = performance.now()) {
     interactionResumeTimer = null;
     requestDraw();
   }, remaining + 1);
+}
+
+function cloneWorldBounds(world) {
+  if (!world) {
+    return null;
+  }
+
+  const minX = Number(world.minX);
+  const maxX = Number(world.maxX);
+  const minY = Number(world.minY);
+  const maxY = Number(world.maxY);
+  if (![minX, maxX, minY, maxY].every(Number.isFinite)) {
+    return null;
+  }
+
+  return { minX, maxX, minY, maxY };
+}
+
+function captureWorldBoundsFromLastRender() {
+  return cloneWorldBounds(lastRenderMeta?.world);
+}
+
+function updateFixedViewFromWorldBounds(world) {
+  const bounds = cloneWorldBounds(world);
+  if (!bounds || !canvas) {
+    return false;
+  }
+
+  const width = Math.max(1, Number(canvas.width) || 0);
+  const height = Math.max(1, Number(canvas.height) || 0);
+  const spanX = Math.max(bounds.maxX - bounds.minX, 1e-9);
+  const scale = width / spanX;
+  if (!Number.isFinite(scale) || scale <= 0) {
+    return false;
+  }
+
+  const minDim = Math.max(1, Math.min(width, height));
+  const zoom = normalizeFixedZoom(scale / (minDim / 220), fixedView.zoom || 1);
+  const centerX = -bounds.minX * scale;
+  const centerY = -bounds.minY * scale;
+
+  fixedView.zoom = zoom;
+  fixedView.offsetX = centerX - width * 0.5;
+  fixedView.offsetY = centerY - height * 0.5;
+  return true;
 }
 
 function formatNumberForUi(value, fractionDigits = 0) {
@@ -1037,6 +1083,8 @@ function setScaleModeFixed(reason = "manual pan/zoom") {
     return;
   }
 
+  updateFixedViewFromWorldBounds(captureWorldBoundsFromLastRender());
+  pendingAutoScaleWorldOverride = null;
   appData.defaults.scaleMode = "fixed";
   syncScaleModeButton();
   saveDefaultsToStorage();
@@ -2806,6 +2854,8 @@ function draw() {
   const iterations = clampForInteraction
     ? Math.min(iterationSetting, getModulationIterationClamp())
     : iterationSetting;
+  const scaleMode = getScaleMode();
+  const worldOverride = scaleMode === "auto" ? pendingAutoScaleWorldOverride : null;
   const frameMeta = renderFrame({
     ctx,
     canvas,
@@ -2814,8 +2864,9 @@ function draw() {
     params: getDerivedParams(),
     iterations: didResize ? Math.max(10000, Math.round(iterations * 0.6)) : iterations,
     burn: burnSetting,
-    scaleMode: getScaleMode(),
+    scaleMode,
     fixedView,
+    worldOverride,
     seed: getSeedForFormula(currentFormulaId),
   });
 
@@ -2832,6 +2883,10 @@ function draw() {
     iterations,
     renderMs: drawnAt - startedAt,
   };
+
+  if (worldOverride) {
+    pendingAutoScaleWorldOverride = null;
+  }
 
   if (clampForInteraction) {
     scheduleInteractionResumeDraw(drawnAt);
@@ -3220,7 +3275,18 @@ function registerHandlers() {
   cameraBtn.addEventListener("contextmenu", (event) => event.preventDefault());
 
   scaleModeBtn.addEventListener("click", () => {
-    appData.defaults.scaleMode = getScaleMode() === "fixed" ? "auto" : "fixed";
+    const currentMode = getScaleMode();
+    const worldBounds = captureWorldBoundsFromLastRender();
+
+    if (currentMode === "fixed") {
+      pendingAutoScaleWorldOverride = worldBounds;
+      appData.defaults.scaleMode = "auto";
+    } else {
+      updateFixedViewFromWorldBounds(worldBounds);
+      pendingAutoScaleWorldOverride = null;
+      appData.defaults.scaleMode = "fixed";
+    }
+
     syncScaleModeButton();
     saveDefaultsToStorage();
     requestDraw();
