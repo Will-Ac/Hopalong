@@ -403,10 +403,10 @@ function captureWorldBoundsFromLastRender() {
   return cloneWorldBounds(lastRenderMeta?.world);
 }
 
-function updateFixedViewFromWorldBounds(world) {
+function deriveFixedViewFromWorldBounds(world, fallbackView = fixedView) {
   const bounds = cloneWorldBounds(world);
   if (!bounds || !canvas) {
-    return false;
+    return null;
   }
 
   const width = Math.max(1, Number(canvas.width) || 0);
@@ -414,17 +414,39 @@ function updateFixedViewFromWorldBounds(world) {
   const spanX = Math.max(bounds.maxX - bounds.minX, 1e-9);
   const scale = width / spanX;
   if (!Number.isFinite(scale) || scale <= 0) {
-    return false;
+    return null;
   }
 
   const minDim = Math.max(1, Math.min(width, height));
-  const zoom = normalizeFixedZoom(scale / (minDim / 220), fixedView.zoom || 1);
+  const zoom = normalizeFixedZoom(scale / (minDim / 220), fallbackView?.zoom || 1);
   const centerX = -bounds.minX * scale;
   const centerY = -bounds.minY * scale;
 
-  fixedView.zoom = zoom;
-  fixedView.offsetX = centerX - width * 0.5;
-  fixedView.offsetY = centerY - height * 0.5;
+  return {
+    offsetX: centerX - width * 0.5,
+    offsetY: centerY - height * 0.5,
+    zoom,
+  };
+}
+
+function getViewportFixedViewSnapshot() {
+  const derived = deriveFixedViewFromWorldBounds(lastRenderMeta?.world, fixedView);
+  return derived || {
+    offsetX: Number.isFinite(fixedView?.offsetX) ? fixedView.offsetX : 0,
+    offsetY: Number.isFinite(fixedView?.offsetY) ? fixedView.offsetY : 0,
+    zoom: normalizeFixedZoom(fixedView?.zoom, 1),
+  };
+}
+
+function updateFixedViewFromWorldBounds(world) {
+  const nextView = deriveFixedViewFromWorldBounds(world, fixedView);
+  if (!nextView) {
+    return false;
+  }
+
+  fixedView.offsetX = nextView.offsetX;
+  fixedView.offsetY = nextView.offsetY;
+  fixedView.zoom = nextView.zoom;
   return true;
 }
 
@@ -472,9 +494,9 @@ function clearSharedParamsOverride() {
 function buildSharePayload() {
   const params = getDerivedParams();
   const iterations = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  const view = fixedView || {};
+  const view = getViewportFixedViewSnapshot();
   const paramText = `${params.a},${params.b},${params.c},${params.d}`;
-  const viewText = `${view.offsetX ?? 0},${view.offsetY ?? 0},${view.zoom ?? 1}`;
+  const viewText = `${view.offsetX},${view.offsetY},${view.zoom}`;
   const refreshToken = Date.now().toString(36);
 
   const pairs = [
@@ -1508,7 +1530,7 @@ function captureCurrentState() {
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
     paramModes: { ...paramModes },
     scaleMode: getScaleMode(),
-    fixedView: { ...fixedView },
+    fixedView: { ...getViewportFixedViewSnapshot() },
     viewport: {
       canvasWidth: canvas.width,
       canvasHeight: canvas.height,
