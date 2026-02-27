@@ -6,6 +6,14 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function normalizeFixedZoom(value, fallback = 1) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
 function mapNormalized(normalizedValue, min, max) {
   const t = clamp(normalizedValue / 100, 0, 1);
   return min + (max - min) * t;
@@ -144,7 +152,7 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     worldSpanY = Math.max(worldMaxY - worldMinY, 1e-6);
   } else if (scaleMode === "fixed") {
     const minDim = Math.min(width, height);
-    const zoom = clamp(fixedView?.zoom ?? 1, 0.15, 25);
+    const zoom = normalizeFixedZoom(fixedView?.zoom, 1);
     const scale = (minDim / 220) * zoom;
     const centerX = width * 0.5 + (fixedView?.offsetX ?? 0);
     const centerY = height * 0.5 + (fixedView?.offsetY ?? 0);
