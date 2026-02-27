@@ -1,5 +1,6 @@
 import { sampleColorMap } from "./colormaps.js";
-import { getVariantById } from "./formulas.js";
+import { VARIANTS } from "./formulas.js";
+import { EXTRA_FORMULAS } from "./formulas_updated.js";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -11,6 +12,26 @@ function mapNormalized(normalizedValue, min, max) {
 }
 
 const LUT_SIZE = 2048;
+
+const ESCAPE_ABS_BOUND = 1e6;
+
+const formulaStepById = (() => {
+  const byId = new Map();
+  for (const variant of VARIANTS) {
+    if (!byId.has(variant.id)) {
+      byId.set(variant.id, variant.step);
+    }
+  }
+
+  for (const formula of EXTRA_FORMULAS) {
+    if (!byId.has(formula.id)) {
+      byId.set(formula.id, formula.step);
+    }
+  }
+
+  return byId;
+})();
+
 
 export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   const fallbackRanges = {
@@ -29,9 +50,9 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null }) {
-  const variant = getVariantById(formulaId);
-  if (!variant) {
+export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null }) {
+  const step = formulaStepById.get(formulaId);
+  if (!step) {
     throw new Error(`Unknown formula id: ${formulaId}`);
   }
 
@@ -47,28 +68,64 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     pixels[i + 3] = 255;
   }
 
-  let x = 0;
-  let y = 0;
+  let x = Number(seed?.x);
+  let y = Number(seed?.y);
+  if (!Number.isFinite(x)) x = 0;
+  if (!Number.isFinite(y)) y = 0;
   const burnSteps = clamp(burn ?? 120, 0, 5000);
   for (let i = 0; i < burnSteps; i += 1) {
-    [x, y] = variant.step(x, y, params.a, params.b, params.d, params.c);
+    [x, y] = step(x, y, params.a, params.b, params.c, params.d);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
+      x = 0;
+      y = 0;
+      break;
+    }
   }
 
   const xs = new Float32Array(iterations);
   const ys = new Float32Array(iterations);
+  let sampleCount = 0;
   let minX = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
 
   for (let i = 0; i < iterations; i += 1) {
-    [x, y] = variant.step(x, y, params.a, params.b, params.d, params.c);
-    xs[i] = x;
-    ys[i] = y;
+    [x, y] = step(x, y, params.a, params.b, params.c, params.d);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
+      break;
+    }
+
+    xs[sampleCount] = x;
+    ys[sampleCount] = y;
+    sampleCount += 1;
+
     if (x < minX) minX = x;
     if (x > maxX) maxX = x;
     if (y < minY) minY = y;
     if (y > maxY) maxY = y;
+  }
+
+  if (sampleCount === 0) {
+    ctx.putImageData(image, 0, 0);
+    return {
+      world: {
+        minX: -1,
+        maxX: 1,
+        minY: -1,
+        maxY: 1,
+        centerX: 0,
+        centerY: 0,
+      },
+      view: {
+        width,
+        height,
+        centerX: width * 0.5,
+        centerY: height * 0.5,
+        scaleX: (width - 1) / 2,
+        scaleY: (height - 1) / 2,
+      },
+    };
   }
 
   let worldMinX;
@@ -132,7 +189,7 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     colorLut[colorOffset + 2] = b;
   }
 
-  for (let i = 0; i < iterations; i += 1) {
+  for (let i = 0; i < sampleCount; i += 1) {
     const px = Math.round(((xs[i] - worldMinX) / worldSpanX) * (width - 1));
     const py = Math.round(((ys[i] - worldMinY) / worldSpanY) * (height - 1));
 
@@ -141,7 +198,7 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     }
 
     const idx = (py * width + px) * 4;
-    const lutIndex = Math.floor((i * (LUT_SIZE - 1)) / iterations);
+    const lutIndex = Math.floor((i * (LUT_SIZE - 1)) / Math.max(1, sampleCount));
     const colorOffset = lutIndex * 3;
     pixels[idx] = colorLut[colorOffset];
     pixels[idx + 1] = colorLut[colorOffset + 1];

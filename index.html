@@ -735,7 +735,7 @@ Scale</button>
           <button id="rangesEditorClose" type="button" aria-label="Close ranges editor">✕</button>
         </div>
         <div class="rangesEditorTabs">
-          <button id="settingsTabRanges" class="rangesTabBtn is-active" type="button">Formula ranges</button>
+          <button id="settingsTabRanges" class="rangesTabBtn is-active" type="button">Formula defaults</button>
           <button id="settingsTabDetailed" class="rangesTabBtn" type="button">Detailed settings</button>
         </div>
         <div id="rangesTabPanel" class="rangesEditorBody settingsTabPanel">
@@ -753,11 +753,18 @@ Scale</button>
             <label class="rangeField"><span class="rangeFieldLabel">d min</span><input id="rangeDmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
             <label class="rangeField"><span class="rangeFieldLabel">d max</span><input id="rangeDmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
           </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Orbit seed defaults</span><button id="infoSeed" class="perfInfoBtn" type="button">i</button></div>
+            <div class="rangeGrid" style="margin-top:10px;">
+              <label class="rangeField"><span class="rangeFieldLabel">x0</span><input id="detailSeedXInput" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
+              <label class="rangeField"><span class="rangeFieldLabel">y0</span><input id="detailSeedYInput" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
+            </div>
+          </div>
           <p id="rangesEditorWarning" aria-live="polite"></p>
           <div class="rangesActions">
             <button id="rangesApplyBtn" class="rangesActionBtn" type="button">Apply</button>
-            <button id="rangesDefaultsBtn" class="rangesActionBtn" type="button">Set to defaults</button>
-            <button id="rangesResetAllBtn" class="rangesActionBtn" type="button">Reset all</button>
+            <button id="rangesDefaultsBtn" class="rangesActionBtn" type="button">Set this to defaults</button>
+            <button id="rangesResetAllBtn" class="rangesActionBtn" type="button">Set all to defaults</button>
           </div>
         </div>
         <div id="detailedTabPanel" class="rangesEditorBody settingsTabPanel is-hidden">
