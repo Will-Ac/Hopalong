@@ -1,6 +1,6 @@
 import { ColorMapNames, sampleColorMap } from "./colormaps.js";
 import { renderFrame, getParamsForFormula } from "./renderer.js";
-import { VARIANTS, EXTRA_FORMULA_RANGES_RAW, FORMULA_DEFAULT_PRESETS } from "./formulas.js";
+import { FORMULA_METADATA, FORMULA_RANGES_RAW, FORMULA_DEFAULT_PRESETS, FORMULA_DEFAULT_SEEDS } from "./formulas.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
@@ -85,21 +85,6 @@ const DEFAULT_PARAM_RANGES = {
   b: [-20, 20],
   c: [-20, 20],
   d: [-20, 20],
-};
-
-const EXTRA_FORMULA_SEEDS = {
-  peter_de_jong: { x: 0.0, y: 0.0 },
-  clifford: { x: 0.1, y: 0.1 },
-  tinkerbell: { x: 0.0, y: 0.0 },
-  henon: { x: 0.1, y: 0.0 },
-  lozi: { x: 0.1, y: 0.0 },
-  ikeda: { x: 0.0, y: 0.0 },
-  gingerbread: { x: 0.1, y: 0.1 },
-  zaslavsky_web: { x: 0.123, y: 0.0 },
-  popcorn: { x: 0.1, y: 0.1 },
-  bedhead: { x: 1.0, y: 1.0 },
-  gumowski_mira: { x: 0.0, y: 0.5 },
-  shifted_hopalong: { x: 0.0, y: 0.0 },
 };
 
 
@@ -1436,7 +1421,7 @@ function normalizeSeedValue(value, fallback = 0) {
 }
 
 function getBuiltInFormulaSeed(formulaId) {
-  const base = EXTRA_FORMULA_SEEDS[formulaId];
+  const base = FORMULA_DEFAULT_SEEDS[formulaId];
   if (base) {
     return {
       x: normalizeSeedValue(base.x, 0),
@@ -3523,31 +3508,8 @@ async function loadData() {
     data.defaults.formulaParamDefaultsByFormula = {};
   }
 
-  if (!Array.isArray(data.formulas) || data.formulas.length === 0) {
-    throw new Error("Data file has no formulas. Expected at least one formula option.");
-  }
-
-  const existingFormulaIds = new Set(data.formulas.map((formula) => formula.id));
-  for (const formula of VARIANTS) {
-    if (!existingFormulaIds.has(formula.id)) {
-      data.formulas.push({
-        id: formula.id,
-        name: formula.name,
-        desc: formula.desc,
-      });
-      existingFormulaIds.add(formula.id);
-    }
-  }
-
-  if (!data.formula_ranges_raw || typeof data.formula_ranges_raw !== "object") {
-    data.formula_ranges_raw = {};
-  }
-
-  for (const [formulaId, range] of Object.entries(EXTRA_FORMULA_RANGES_RAW)) {
-    if (!data.formula_ranges_raw[formulaId]) {
-      data.formula_ranges_raw[formulaId] = range;
-    }
-  }
+  data.formulas = FORMULA_METADATA.map((formula) => ({ ...formula }));
+  data.formula_ranges_raw = JSON.parse(JSON.stringify(FORMULA_RANGES_RAW));
 
   const configuredColormaps = Array.isArray(data.colormaps) ? data.colormaps : [];
   const validConfigured = configuredColormaps.filter((name) => ColorMapNames.includes(name));
