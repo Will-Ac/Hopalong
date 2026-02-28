@@ -16,6 +16,8 @@ const rangesEditorToggleEl = document.getElementById("rangesEditorToggle");
 const rangesEditorPanelEl = document.getElementById("rangesEditorPanel");
 const rangesEditorCloseEl = document.getElementById("rangesEditorClose");
 const rangesFormulaSelectEl = document.getElementById("rangesFormulaSelect");
+const rangesFormulaLineXEl = document.getElementById("rangesFormulaLineX");
+const rangesFormulaLineYEl = document.getElementById("rangesFormulaLineY");
 const rangesEditorWarningEl = document.getElementById("rangesEditorWarning");
 const rangesApplyBtnEl = document.getElementById("rangesApplyBtn");
 const rangesDefaultsBtnEl = document.getElementById("rangesDefaultsBtn");
@@ -38,10 +40,10 @@ const detailSeedXInputEl = document.getElementById("detailSeedXInput");
 const detailSeedYInputEl = document.getElementById("detailSeedYInput");
 
 const rangeInputMap = {
-  a: { min: document.getElementById("rangeAmin"), max: document.getElementById("rangeAmax") },
-  b: { min: document.getElementById("rangeBmin"), max: document.getElementById("rangeBmax") },
-  c: { min: document.getElementById("rangeCmin"), max: document.getElementById("rangeCmax") },
-  d: { min: document.getElementById("rangeDmin"), max: document.getElementById("rangeDmax") },
+  a: { min: document.getElementById("rangeAmin"), value: document.getElementById("rangeAdefault"), max: document.getElementById("rangeAmax") },
+  b: { min: document.getElementById("rangeBmin"), value: document.getElementById("rangeBdefault"), max: document.getElementById("rangeBmax") },
+  c: { min: document.getElementById("rangeCmin"), value: document.getElementById("rangeCdefault"), max: document.getElementById("rangeCmax") },
+  d: { min: document.getElementById("rangeDmin"), value: document.getElementById("rangeDdefault"), max: document.getElementById("rangeDmax") },
 };
 
 const quickSliderOverlay = document.getElementById("quickSliderOverlay");
@@ -330,7 +332,7 @@ function getCurrentFormulaRange() {
 }
 
 function applyFormulaPresetToSliders(formulaId) {
-  const preset = FORMULA_DEFAULT_PRESETS[formulaId];
+  const preset = appData?.defaults?.formulaParamDefaultsByFormula?.[formulaId] || FORMULA_DEFAULT_PRESETS[formulaId];
   if (!preset || !appData?.defaults?.sliders) {
     return false;
   }
@@ -353,6 +355,37 @@ function applyFormulaPresetToSliders(formulaId) {
   }
 
   return true;
+}
+
+function findFormulaMeta(formulaId) {
+  return appData?.formulas?.find((formula) => formula.id === formulaId) || null;
+}
+
+function renderFormulaDetail(formulaId) {
+  if (!rangesFormulaLineXEl || !rangesFormulaLineYEl) {
+    return;
+  }
+
+  const formula = findFormulaMeta(formulaId);
+  const desc = String(formula?.desc || "").trim();
+  if (!desc) {
+    rangesFormulaLineXEl.textContent = "x' = --";
+    rangesFormulaLineYEl.textContent = "y' = --";
+    return;
+  }
+
+  const splitToken = ", y'";
+  const splitIndex = desc.indexOf(splitToken);
+  if (splitIndex > -1) {
+    const xLine = desc.slice(0, splitIndex).trim();
+    const yLine = `y'${desc.slice(splitIndex + splitToken.length)}`.trim();
+    rangesFormulaLineXEl.textContent = xLine;
+    rangesFormulaLineYEl.textContent = yLine;
+    return;
+  }
+
+  rangesFormulaLineXEl.textContent = desc;
+  rangesFormulaLineYEl.textContent = "y' = --";
 }
 
 function getDerivedParams() {
@@ -751,12 +784,14 @@ function populateRangeEditorFormulaOptions() {
 
 function loadFormulaRangesIntoEditor(formulaId) {
   const ranges = getRangeValuesForFormula(formulaId);
+  const presetValues = appData?.defaults?.formulaParamDefaultsByFormula?.[formulaId] || FORMULA_DEFAULT_PRESETS[formulaId] || {};
   for (const key of RANGE_KEYS) {
     const field = rangeInputMap[key];
     if (!field) {
       continue;
     }
     field.min.value = String(ranges[key][0]);
+    field.value.value = String(Number.isFinite(Number(presetValues[key])) ? Number(presetValues[key]) : "");
     field.max.value = String(ranges[key][1]);
   }
   rangesEditorFormulaId = formulaId;
@@ -764,6 +799,7 @@ function loadFormulaRangesIntoEditor(formulaId) {
     rangesFormulaSelectEl.value = formulaId;
   }
   setRangesEditorWarning("");
+  renderFormulaDetail(formulaId);
   syncSeedEditorInputs(formulaId);
 }
 
@@ -794,9 +830,11 @@ function remapSliderToPreserveParams(formulaId, nextRange) {
 
 function readRangeEditorDraft() {
   const nextRanges = {};
+  const nextDefaults = {};
   for (const key of RANGE_KEYS) {
     const field = rangeInputMap[key];
     const minValue = Number(field?.min?.value);
+    const defaultValueRaw = String(field?.value?.value ?? "").trim();
     const maxValue = Number(field?.max?.value);
     if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
       return { error: `Please enter valid numeric values for ${key}.` };
@@ -804,9 +842,19 @@ function readRangeEditorDraft() {
     if (minValue >= maxValue) {
       return { error: `Invalid range for ${key}: min must be less than max.` };
     }
+    if (defaultValueRaw.length > 0) {
+      const defaultValue = Number(defaultValueRaw);
+      if (!Number.isFinite(defaultValue)) {
+        return { error: `Please enter a valid default value for ${key}.` };
+      }
+      if (defaultValue < minValue || defaultValue > maxValue) {
+        return { error: `Default ${key} must be inside min/max.` };
+      }
+      nextDefaults[key] = defaultValue;
+    }
     nextRanges[key] = [minValue, maxValue];
   }
-  return { ranges: nextRanges };
+  return { ranges: nextRanges, defaults: nextDefaults };
 }
 
 function readSeedEditorDraft(formulaId) {
@@ -841,6 +889,7 @@ function applyRangesOverrideFromEditor() {
 
   remapSliderToPreserveParams(formulaId, rangeDraft.ranges);
   appData.defaults.rangesOverridesByFormula[formulaId] = rangeDraft.ranges;
+  appData.defaults.formulaParamDefaultsByFormula[formulaId] = rangeDraft.defaults;
   appData.defaults.formulaSeeds[formulaId] = seedDraft.seed;
   syncSeedEditorInputs(formulaId);
   saveDefaultsToStorage();
@@ -873,6 +922,7 @@ function resetFormulaDefaults(formulaId) {
   }
 
   resetFormulaRangeOverride(formulaId);
+  delete appData.defaults.formulaParamDefaultsByFormula[formulaId];
   resetFormulaSeedOverride(formulaId);
   syncSeedEditorInputs(formulaId);
   saveDefaultsToStorage();
@@ -889,10 +939,15 @@ function resetAllFormulaSeeds() {
   appData.defaults.formulaSeeds = nextSeeds;
 }
 
+function resetAllFormulaParamDefaults() {
+  appData.defaults.formulaParamDefaultsByFormula = {};
+}
+
 function resetAllRangeOverrides() {
   const currentBuiltIn = builtInFormulaRanges[currentFormulaId] || DEFAULT_PARAM_RANGES;
   remapSliderToPreserveParams(currentFormulaId, currentBuiltIn);
   appData.defaults.rangesOverridesByFormula = {};
+  resetAllFormulaParamDefaults();
   resetAllFormulaSeeds();
   saveDefaultsToStorage();
   loadFormulaRangesIntoEditor(getSelectedRangesEditorFormulaId());
@@ -1470,6 +1525,10 @@ function loadDefaultsFromStorage() {
         ...(appData.defaults.formulaSeeds || {}),
         ...(parsed.formulaSeeds || {}),
       },
+      formulaParamDefaultsByFormula: {
+        ...(appData.defaults.formulaParamDefaultsByFormula || {}),
+        ...(parsed.formulaParamDefaultsByFormula || {}),
+      },
     };
   } catch (error) {
     console.warn("Could not load defaults.", error);
@@ -1492,6 +1551,7 @@ function captureCurrentState() {
       devicePixelRatio: window.devicePixelRatio || 1,
     },
     formulaSeeds: JSON.parse(JSON.stringify(appData.defaults.formulaSeeds || {})),
+    formulaParamDefaultsByFormula: JSON.parse(JSON.stringify(appData.defaults.formulaParamDefaultsByFormula || {})),
   };
 }
 
@@ -1539,6 +1599,9 @@ function applyState(state) {
   }
   if (state.formulaSeeds && typeof state.formulaSeeds === "object") {
     appData.defaults.formulaSeeds = JSON.parse(JSON.stringify(state.formulaSeeds));
+  }
+  if (state.formulaParamDefaultsByFormula && typeof state.formulaParamDefaultsByFormula === "object") {
+    appData.defaults.formulaParamDefaultsByFormula = JSON.parse(JSON.stringify(state.formulaParamDefaultsByFormula));
   }
   if (state.fixedView && typeof state.fixedView === "object") {
     fixedView = {
@@ -2127,11 +2190,7 @@ function renderFormulaPicker() {
     name.className = "formulaName";
     name.textContent = clampLabel(formula.name);
 
-    const desc = document.createElement("span");
-    desc.className = "formulaDesc";
-    desc.textContent = formula.desc;
-
-    row.append(name, desc);
+    row.append(name);
     button.append(row);
 
     button.addEventListener("click", () => {
@@ -3458,6 +3517,10 @@ async function loadData() {
 
   if (!data.defaults.formulaSeeds || typeof data.defaults.formulaSeeds !== "object") {
     data.defaults.formulaSeeds = {};
+  }
+
+  if (!data.defaults.formulaParamDefaultsByFormula || typeof data.defaults.formulaParamDefaultsByFormula !== "object") {
+    data.defaults.formulaParamDefaultsByFormula = {};
   }
 
   if (!Array.isArray(data.formulas) || data.formulas.length === 0) {
