@@ -17,16 +17,19 @@ const ESCAPE_ABS_BOUND = 1e6;
 
 const formulaStepById = (() => {
   const byId = new Map();
+  const extraFormulaIds = new Set(EXTRA_FORMULAS.map((formula) => formula.id));
+
+  // Ignore legacy variants that have been redefined in formulas_updated.js
+  // so the renderer has a single implementation per formula id.
   for (const variant of VARIANTS) {
-    if (!byId.has(variant.id)) {
-      byId.set(variant.id, variant.step);
+    if (extraFormulaIds.has(variant.id)) {
+      continue;
     }
+    byId.set(variant.id, variant.step);
   }
 
   for (const formula of EXTRA_FORMULAS) {
-    if (!byId.has(formula.id)) {
-      byId.set(formula.id, formula.step);
-    }
+    byId.set(formula.id, formula.step);
   }
 
   return byId;
@@ -144,7 +147,8 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     worldSpanY = Math.max(worldMaxY - worldMinY, 1e-6);
   } else if (scaleMode === "fixed") {
     const minDim = Math.min(width, height);
-    const zoom = clamp(fixedView?.zoom ?? 1, 0.15, 25);
+    const zoomRaw = Number(fixedView?.zoom ?? 1);
+    const zoom = Number.isFinite(zoomRaw) && zoomRaw > 0 ? zoomRaw : 1;
     const scale = (minDim / 220) * zoom;
     const centerX = width * 0.5 + (fixedView?.offsetX ?? 0);
     const centerY = height * 0.5 + (fixedView?.offsetY ?? 0);

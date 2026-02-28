@@ -34,10 +34,8 @@ const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
 const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
 const infoBurnEl = document.getElementById("infoBurn");
 const infoDebugEl = document.getElementById("infoDebug");
-const infoSeedEl = document.getElementById("infoSeed");
 const detailSeedXInputEl = document.getElementById("detailSeedXInput");
 const detailSeedYInputEl = document.getElementById("detailSeedYInput");
-const detailSeedApplyBtnEl = document.getElementById("detailSeedApplyBtn");
 
 const rangeInputMap = {
   a: { min: document.getElementById("rangeAmin"), max: document.getElementById("rangeAmax") },
@@ -425,7 +423,7 @@ function applySharedStateFromHash() {
     fixedView = {
       offsetX: vValues[0],
       offsetY: vValues[1],
-      zoom: clamp(vValues[2], 0.15, 25),
+      zoom: vValues[2],
     };
     sharedParamsOverride = {
       a: pValues[0],
@@ -780,16 +778,40 @@ function readRangeEditorDraft() {
   return { ranges: nextRanges };
 }
 
+function readSeedEditorDraft(formulaId) {
+  const builtIn = getBuiltInFormulaSeed(formulaId);
+  const xSeed = Number(detailSeedXInputEl?.value);
+  const ySeed = Number(detailSeedYInputEl?.value);
+  if (!Number.isFinite(xSeed) || !Number.isFinite(ySeed)) {
+    return { error: "Please enter valid numeric seed values." };
+  }
+
+  return {
+    seed: {
+      x: normalizeSeedValue(xSeed, builtIn.x),
+      y: normalizeSeedValue(ySeed, builtIn.y),
+    },
+  };
+}
+
 function applyRangesOverrideFromEditor() {
   const formulaId = getSelectedRangesEditorFormulaId();
-  const parsed = readRangeEditorDraft();
-  if (parsed.error) {
-    setRangesEditorWarning(parsed.error);
+  const rangeDraft = readRangeEditorDraft();
+  if (rangeDraft.error) {
+    setRangesEditorWarning(rangeDraft.error);
     return;
   }
 
-  remapSliderToPreserveParams(formulaId, parsed.ranges);
-  appData.defaults.rangesOverridesByFormula[formulaId] = parsed.ranges;
+  const seedDraft = readSeedEditorDraft(formulaId);
+  if (seedDraft.error) {
+    setRangesEditorWarning(seedDraft.error);
+    return;
+  }
+
+  remapSliderToPreserveParams(formulaId, rangeDraft.ranges);
+  appData.defaults.rangesOverridesByFormula[formulaId] = rangeDraft.ranges;
+  appData.defaults.formulaSeeds[formulaId] = seedDraft.seed;
+  syncSeedEditorInputs(formulaId);
   saveDefaultsToStorage();
   setRangesEditorWarning("Applied.");
   requestDraw();
@@ -803,18 +825,47 @@ function resetFormulaRangeOverride(formulaId) {
   const builtInRange = builtInFormulaRanges[formulaId] || DEFAULT_PARAM_RANGES;
   remapSliderToPreserveParams(formulaId, builtInRange);
   delete appData.defaults.rangesOverridesByFormula[formulaId];
-  saveDefaultsToStorage();
   loadFormulaRangesIntoEditor(formulaId);
+}
+
+function resetFormulaSeedOverride(formulaId) {
+  if (!formulaId) {
+    return;
+  }
+
+  appData.defaults.formulaSeeds[formulaId] = getBuiltInFormulaSeed(formulaId);
+}
+
+function resetFormulaDefaults(formulaId) {
+  if (!formulaId) {
+    return;
+  }
+
+  resetFormulaRangeOverride(formulaId);
+  resetFormulaSeedOverride(formulaId);
+  syncSeedEditorInputs(formulaId);
+  saveDefaultsToStorage();
+  setRangesEditorWarning("Formula defaults reset.");
   requestDraw();
   commitCurrentStateToHistory();
+}
+
+function resetAllFormulaSeeds() {
+  const nextSeeds = {};
+  for (const formula of appData.formulas || []) {
+    nextSeeds[formula.id] = getBuiltInFormulaSeed(formula.id);
+  }
+  appData.defaults.formulaSeeds = nextSeeds;
 }
 
 function resetAllRangeOverrides() {
   const currentBuiltIn = builtInFormulaRanges[currentFormulaId] || DEFAULT_PARAM_RANGES;
   remapSliderToPreserveParams(currentFormulaId, currentBuiltIn);
   appData.defaults.rangesOverridesByFormula = {};
+  resetAllFormulaSeeds();
   saveDefaultsToStorage();
   loadFormulaRangesIntoEditor(getSelectedRangesEditorFormulaId());
+  syncSeedEditorInputs(getSelectedRangesEditorFormulaId());
   setRangesEditorWarning("All overrides cleared.");
   requestDraw();
   commitCurrentStateToHistory();
@@ -1278,27 +1329,6 @@ function syncSeedEditorInputs(formulaId = null) {
   detailSeedYInputEl.value = formatNumberForUi(seed.y, 4);
 }
 
-function applySeedOverrideFromEditor() {
-  if (!appData || !detailSeedXInputEl || !detailSeedYInputEl) {
-    return;
-  }
-
-  const formulaId = getSelectedRangesEditorFormulaId() || currentFormulaId;
-  if (!formulaId) {
-    return;
-  }
-
-  const builtIn = getBuiltInFormulaSeed(formulaId);
-  const xSeed = normalizeSeedValue(detailSeedXInputEl.value, builtIn.x);
-  const ySeed = normalizeSeedValue(detailSeedYInputEl.value, builtIn.y);
-
-  appData.defaults.formulaSeeds[formulaId] = { x: xSeed, y: ySeed };
-  syncSeedEditorInputs(formulaId);
-  saveDefaultsToStorage();
-  requestDraw();
-  commitCurrentStateToHistory();
-}
-
 function saveDefaultsToStorage() {
   if (!appData?.defaults) {
     return;
@@ -1351,8 +1381,6 @@ function captureCurrentState() {
     sliders: { ...appData.defaults.sliders },
     maxRandomIters: appData.defaults.maxRandomIters,
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
-    paramModes: { ...paramModes },
-    scaleMode: getScaleMode(),
     fixedView: { ...fixedView },
     viewport: {
       canvasWidth: canvas.width,
@@ -1361,7 +1389,7 @@ function captureCurrentState() {
       cssHeight: Math.round(canvas.getBoundingClientRect().height),
       devicePixelRatio: window.devicePixelRatio || 1,
     },
-    seeds: { orbitSeed: 0 },
+    formulaSeeds: JSON.parse(JSON.stringify(appData.defaults.formulaSeeds || {})),
   };
 }
 
@@ -1407,23 +1435,18 @@ function applyState(state) {
   if (state.rangesOverridesByFormula && typeof state.rangesOverridesByFormula === "object") {
     appData.defaults.rangesOverridesByFormula = JSON.parse(JSON.stringify(state.rangesOverridesByFormula));
   }
-  appData.defaults.scaleMode = state.scaleMode === "fixed" ? "fixed" : "auto";
+  if (state.formulaSeeds && typeof state.formulaSeeds === "object") {
+    appData.defaults.formulaSeeds = JSON.parse(JSON.stringify(state.formulaSeeds));
+  }
   if (state.fixedView && typeof state.fixedView === "object") {
     fixedView = {
       offsetX: Number.isFinite(state.fixedView.offsetX) ? state.fixedView.offsetX : 0,
       offsetY: Number.isFinite(state.fixedView.offsetY) ? state.fixedView.offsetY : 0,
-      zoom: Number.isFinite(state.fixedView.zoom) ? clamp(state.fixedView.zoom, 0.15, 25) : 1,
+      zoom: Number.isFinite(state.fixedView.zoom) && state.fixedView.zoom > 0 ? state.fixedView.zoom : 1,
     };
   }
-  if (state.paramModes && typeof state.paramModes === "object") {
-    paramModes = { ...paramModes, ...state.paramModes };
-    normalizeParamModes();
-    syncParamModeVisuals();
-    saveParamModesToStorage();
-    saveDefaultsToStorage();
-    syncRandomModeButton();
-  }
-  syncScaleModeButton();
+  syncSeedEditorInputs(currentFormulaId);
+  syncQuickSliderPosition();
   saveDefaultsToStorage();
   requestDraw();
   isApplyingHistoryState = false;
@@ -1575,9 +1598,32 @@ function applyManualModulation(deltaX, deltaY) {
   return true;
 }
 
+function syncQuickSliderPosition() {
+  if (!activeSliderKey || !qsRange) {
+    return;
+  }
+
+  qsRange.value = String(appData.defaults.sliders[activeSliderKey]);
+  updateQuickSliderReadout();
+}
+
+function persistCurrentHistoryViewState() {
+  if (historyIndex < 0 || historyIndex >= historyStates.length) {
+    return;
+  }
+
+  const state = historyStates[historyIndex];
+  if (!state || typeof state !== "object") {
+    return;
+  }
+
+  state.fixedView = { ...fixedView };
+}
+
 function applyPanDelta(deltaX, deltaY) {
   fixedView.offsetX += deltaX;
   fixedView.offsetY += deltaY;
+  persistCurrentHistoryViewState();
   requestDraw();
 }
 
@@ -1587,7 +1633,11 @@ function applyZoomAtPoint(zoomFactor, anchorX, anchorY) {
   }
 
   const prevZoom = fixedView.zoom;
-  const nextZoom = clamp(prevZoom * zoomFactor, 0.15, 25);
+  const nextZoom = prevZoom * zoomFactor;
+  if (!Number.isFinite(nextZoom) || nextZoom <= 0) {
+    return;
+  }
+
   const ratio = nextZoom / prevZoom;
   if (!Number.isFinite(ratio) || ratio === 1) {
     return;
@@ -1603,6 +1653,7 @@ function applyZoomAtPoint(zoomFactor, anchorX, anchorY) {
   fixedView.zoom = nextZoom;
   fixedView.offsetX = nextCenterX - viewCenterX;
   fixedView.offsetY = nextCenterY - viewCenterY;
+  persistCurrentHistoryViewState();
   requestDraw();
 }
 
@@ -2074,8 +2125,7 @@ function openQuickSlider(sliderKey) {
   qsRange.min = String(control.min);
   qsRange.max = String(control.max);
   qsRange.step = String(control.sliderStep);
-  qsRange.value = appData.defaults.sliders[sliderKey];
-  updateQuickSliderReadout();
+  syncQuickSliderPosition();
 }
 
 function onParamPointerDown(event, targetKey) {
@@ -3135,8 +3185,7 @@ function registerHandlers() {
   });
   rangesApplyBtnEl?.addEventListener("click", applyRangesOverrideFromEditor);
   rangesDefaultsBtnEl?.addEventListener("click", () => {
-    resetFormulaRangeOverride(getSelectedRangesEditorFormulaId());
-    setRangesEditorWarning("Restored built-in defaults for this formula.");
+    resetFormulaDefaults(getSelectedRangesEditorFormulaId());
   });
   rangesResetAllBtnEl?.addEventListener("click", resetAllRangeOverrides);
   settingsTabRangesEl?.addEventListener("click", () => setSettingsTab("ranges"));
@@ -3152,10 +3201,6 @@ function registerHandlers() {
     requestDraw();
   });
 
-  detailSeedApplyBtnEl?.addEventListener("click", applySeedOverrideFromEditor);
-  detailSeedXInputEl?.addEventListener("change", applySeedOverrideFromEditor);
-  detailSeedYInputEl?.addEventListener("change", applySeedOverrideFromEditor);
-
   infoMaxRandomItersEl?.addEventListener("click", (event) => {
     showSettingsInfo("Max random iterations limits the upper bound for randomization of iteration count.", event.currentTarget);
   });
@@ -3164,9 +3209,6 @@ function registerHandlers() {
   });
   infoDebugEl?.addEventListener("click", (event) => {
     showSettingsInfo("Debug overlay draws extra guides and diagnostics. Turning it off reduces UI drawing overhead.", event.currentTarget);
-  });
-  infoSeedEl?.addEventListener("click", (event) => {
-    showSettingsInfo("Seed is the starting point (x0/y0) for each formula's orbit. Most formulas work with 0,0; some are more stable with small non-zero seeds.", event.currentTarget);
   });
   settingsInfoPopupEl?.addEventListener("click", hideSettingsInfo);
 
