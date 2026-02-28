@@ -423,7 +423,7 @@ function applySharedStateFromHash() {
     fixedView = {
       offsetX: vValues[0],
       offsetY: vValues[1],
-      zoom: clamp(vValues[2], 0.15, 25),
+      zoom: vValues[2],
     };
     sharedParamsOverride = {
       a: pValues[0],
@@ -1442,7 +1442,7 @@ function applyState(state) {
     fixedView = {
       offsetX: Number.isFinite(state.fixedView.offsetX) ? state.fixedView.offsetX : 0,
       offsetY: Number.isFinite(state.fixedView.offsetY) ? state.fixedView.offsetY : 0,
-      zoom: Number.isFinite(state.fixedView.zoom) ? clamp(state.fixedView.zoom, 0.15, 25) : 1,
+      zoom: Number.isFinite(state.fixedView.zoom) && state.fixedView.zoom > 0 ? state.fixedView.zoom : 1,
     };
   }
   if (state.paramModes && typeof state.paramModes === "object") {
@@ -1617,7 +1617,11 @@ function applyZoomAtPoint(zoomFactor, anchorX, anchorY) {
   }
 
   const prevZoom = fixedView.zoom;
-  const nextZoom = clamp(prevZoom * zoomFactor, 0.15, 25);
+  const nextZoom = prevZoom * zoomFactor;
+  if (!Number.isFinite(nextZoom) || nextZoom <= 0) {
+    return;
+  }
+
   const ratio = nextZoom / prevZoom;
   if (!Number.isFinite(ratio) || ratio === 1) {
     return;

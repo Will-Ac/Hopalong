@@ -147,7 +147,8 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     worldSpanY = Math.max(worldMaxY - worldMinY, 1e-6);
   } else if (scaleMode === "fixed") {
     const minDim = Math.min(width, height);
-    const zoom = clamp(fixedView?.zoom ?? 1, 0.15, 25);
+    const zoomRaw = Number(fixedView?.zoom ?? 1);
+    const zoom = Number.isFinite(zoomRaw) && zoomRaw > 0 ? zoomRaw : 1;
     const scale = (minDim / 220) * zoom;
     const centerX = width * 0.5 + (fixedView?.offsetX ?? 0);
     const centerY = height * 0.5 + (fixedView?.offsetY ?? 0);
