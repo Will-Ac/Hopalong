@@ -976,15 +976,30 @@ function syncFixedViewFromLastRenderMeta() {
     return false;
   }
 
-  const worldPerPxX = spanX / width;
-  const worldPerPxY = spanY / height;
-  if (!Number.isFinite(worldPerPxX) || !Number.isFinite(worldPerPxY) || worldPerPxX <= 0 || worldPerPxY <= 0) {
+  let scaleX = Number(view.scaleX);
+  let scaleY = Number(view.scaleY);
+
+  if (!Number.isFinite(scaleX) || scaleX <= 0) {
+    const safeWidth = Math.max(1, width - 1);
+    const worldPerPxX = spanX / safeWidth;
+    scaleX = 1 / worldPerPxX;
+  }
+
+  if (!Number.isFinite(scaleY) || scaleY <= 0) {
+    const safeHeight = Math.max(1, height - 1);
+    const worldPerPxY = spanY / safeHeight;
+    scaleY = 1 / worldPerPxY;
+  }
+
+  if (!Number.isFinite(scaleX) || scaleX <= 0 || !Number.isFinite(scaleY) || scaleY <= 0) {
     return false;
   }
 
-  const scaleX = 1 / worldPerPxX;
-  const scaleY = 1 / worldPerPxY;
-  const scale = (scaleX + scaleY) * 0.5;
+  const spanFromScaleX = (Math.max(1, width - 1)) / scaleX;
+  const spanFromScaleY = (Math.max(1, height - 1)) / scaleY;
+  const fixedScaleX = width / spanFromScaleX;
+  const fixedScaleY = height / spanFromScaleY;
+  const scale = (fixedScaleX + fixedScaleY) * 0.5;
   const minDim = Math.min(width, height);
   const baseScale = minDim / 220;
   if (!Number.isFinite(scale) || scale <= 0 || !Number.isFinite(baseScale) || baseScale <= 0) {
@@ -999,8 +1014,10 @@ function syncFixedViewFromLastRenderMeta() {
 
   const viewCenterX = width * 0.5;
   const viewCenterY = height * 0.5;
-  const fixedCenterX = viewCenterX - centerX * scale;
-  const fixedCenterY = viewCenterY - centerY * scale;
+  const screenCenterX = (width - 1) * 0.5;
+  const screenCenterY = (height - 1) * 0.5;
+  const fixedCenterX = screenCenterX - centerX * scale;
+  const fixedCenterY = screenCenterY - centerY * scale;
 
   fixedView = {
     offsetX: fixedCenterX - viewCenterX,
@@ -1764,6 +1781,7 @@ function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
     lastMX,
     lastMY,
     justStarted: true,
+    isArmed: false,
   };
   interactionState = INTERACTION_STATE.TWO_ACTIVE;
   suppressHistoryTap = true;
@@ -1912,9 +1930,23 @@ function onCanvasPointerMove(event) {
     viewZoom: fixedView.zoom,
   };
 
+  if (!twoFingerGesture.isArmed) {
+    if (shouldZoom || shouldPan) {
+      twoFingerGesture.isArmed = true;
+    }
+    twoFingerGesture.lastD = distance;
+    twoFingerGesture.lastMX = midpoint.x;
+    twoFingerGesture.lastMY = midpoint.y;
+    return;
+  }
+
   if ((shouldZoom || shouldPan) && isAutoScale()) {
     syncFixedViewFromLastRenderMeta();
     setScaleModeFixed("manual pan/zoom");
+    twoFingerGesture.lastD = distance;
+    twoFingerGesture.lastMX = midpoint.x;
+    twoFingerGesture.lastMY = midpoint.y;
+    return;
   }
 
   if (shouldZoom && Number.isFinite(ratioStep) && ratioStep > 0) {
