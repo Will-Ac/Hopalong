@@ -88,18 +88,18 @@ const DEFAULT_PARAM_RANGES = {
 };
 
 const EXTRA_FORMULA_SEEDS = {
-  peter_de_jong: { x: 0, y: 0 },
+  peter_de_jong: { x: 0.0, y: 0.0 },
   clifford: { x: 0.1, y: 0.1 },
-  tinkerbell: { x: 0, y: 0 },
-  henon: { x: 0.1, y: 0 },
-  lozi: { x: 0.1, y: 0 },
-  ikeda: { x: 0, y: 0 },
-  gingerbread: { x: 0, y: 0 },
-  zaslavsky_web: { x: 0.1, y: 0 },
+  tinkerbell: { x: 0.0, y: 0.0 },
+  henon: { x: 0.1, y: 0.0 },
+  lozi: { x: 0.1, y: 0.0 },
+  ikeda: { x: 0.0, y: 0.0 },
+  gingerbread: { x: 0.1, y: 0.1 },
+  zaslavsky_web: { x: 0.123, y: 0.0 },
   popcorn: { x: 0.1, y: 0.1 },
-  bedhead: { x: 0, y: 0 },
-  gumowski_mira: { x: 0.1, y: 0 },
-  shifted_hopalong: { x: 0, y: 0 },
+  bedhead: { x: 1.0, y: 1.0 },
+  gumowski_mira: { x: 0.0, y: 0.5 },
+  shifted_hopalong: { x: 0.0, y: 0.0 },
 };
 
 
