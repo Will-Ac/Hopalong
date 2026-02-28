@@ -957,6 +957,60 @@ function isAutoScale() {
   return getScaleMode() === "auto";
 }
 
+function syncFixedViewFromLastRenderMeta() {
+  if (!lastRenderMeta?.world || !lastRenderMeta?.view) {
+    return false;
+  }
+
+  const world = lastRenderMeta.world;
+  const view = lastRenderMeta.view;
+  const width = Number(view.width);
+  const height = Number(view.height);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return false;
+  }
+
+  const spanX = Number(world.maxX) - Number(world.minX);
+  const spanY = Number(world.maxY) - Number(world.minY);
+  if (!Number.isFinite(spanX) || !Number.isFinite(spanY) || spanX <= 0 || spanY <= 0) {
+    return false;
+  }
+
+  const worldPerPxX = spanX / width;
+  const worldPerPxY = spanY / height;
+  if (!Number.isFinite(worldPerPxX) || !Number.isFinite(worldPerPxY) || worldPerPxX <= 0 || worldPerPxY <= 0) {
+    return false;
+  }
+
+  const scaleX = 1 / worldPerPxX;
+  const scaleY = 1 / worldPerPxY;
+  const scale = (scaleX + scaleY) * 0.5;
+  const minDim = Math.min(width, height);
+  const baseScale = minDim / 220;
+  if (!Number.isFinite(scale) || scale <= 0 || !Number.isFinite(baseScale) || baseScale <= 0) {
+    return false;
+  }
+
+  const centerX = Number.isFinite(world.centerX) ? Number(world.centerX) : (Number(world.minX) + Number(world.maxX)) * 0.5;
+  const centerY = Number.isFinite(world.centerY) ? Number(world.centerY) : (Number(world.minY) + Number(world.maxY)) * 0.5;
+  if (!Number.isFinite(centerX) || !Number.isFinite(centerY)) {
+    return false;
+  }
+
+  const viewCenterX = width * 0.5;
+  const viewCenterY = height * 0.5;
+  const fixedCenterX = viewCenterX - centerX * scale;
+  const fixedCenterY = viewCenterY - centerY * scale;
+
+  fixedView = {
+    offsetX: fixedCenterX - viewCenterX,
+    offsetY: fixedCenterY - viewCenterY,
+    zoom: scale / baseScale,
+  };
+
+  return true;
+}
+
 function setScaleModeFixed(reason = "manual pan/zoom") {
   if (!appData || !isAutoScale()) {
     return;
@@ -1748,6 +1802,9 @@ function onCanvasPointerDown(event) {
   };
 
   if (event.pointerType === "mouse" && event.button === 2) {
+    if (isAutoScale()) {
+      syncFixedViewFromLastRenderMeta();
+    }
     setScaleModeFixed("manual pan/zoom");
     interactionState = INTERACTION_STATE.PAN_MOUSE_RMB;
     primaryPointerId = event.pointerId;
@@ -1855,20 +1912,17 @@ function onCanvasPointerMove(event) {
     viewZoom: fixedView.zoom,
   };
 
-  let appliedGesture = false;
+  if ((shouldZoom || shouldPan) && isAutoScale()) {
+    syncFixedViewFromLastRenderMeta();
+    setScaleModeFixed("manual pan/zoom");
+  }
 
   if (shouldZoom && Number.isFinite(ratioStep) && ratioStep > 0) {
     applyZoomAtPoint(ratioStep, midpoint.x, midpoint.y);
-    appliedGesture = true;
   }
 
   if (shouldPan) {
     applyPanDelta(dxm, dym);
-    appliedGesture = true;
-  }
-
-  if (appliedGesture) {
-    setScaleModeFixed("manual pan/zoom");
   }
 
   twoFingerGesture.lastD = distance;
@@ -1928,6 +1982,9 @@ function onCanvasPointerUp(event) {
 
 function onCanvasWheel(event) {
   event.preventDefault();
+  if (isAutoScale()) {
+    syncFixedViewFromLastRenderMeta();
+  }
   setScaleModeFixed("manual pan/zoom");
   const pos = getCanvasPointerPosition(event);
   const zoomFactor = Math.exp(-event.deltaY * 0.0025);
