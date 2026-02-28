@@ -17,14 +17,17 @@ const ESCAPE_ABS_BOUND = 1e6;
 
 const formulaStepById = (() => {
   const byId = new Map();
+  const extraFormulaIds = new Set(EXTRA_FORMULAS.map((formula) => formula.id));
+
+  // Ignore legacy variants that have been redefined in formulas_updated.js
+  // so the renderer has a single implementation per formula id.
   for (const variant of VARIANTS) {
-    if (!byId.has(variant.id)) {
-      byId.set(variant.id, variant.step);
+    if (extraFormulaIds.has(variant.id)) {
+      continue;
     }
+    byId.set(variant.id, variant.step);
   }
 
-  // Prefer implementations from formulas_updated.js when ids overlap
-  // so newer/corrected formula math takes precedence over legacy copies.
   for (const formula of EXTRA_FORMULAS) {
     byId.set(formula.id, formula.step);
   }
