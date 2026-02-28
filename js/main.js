@@ -34,10 +34,8 @@ const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
 const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
 const infoBurnEl = document.getElementById("infoBurn");
 const infoDebugEl = document.getElementById("infoDebug");
-const infoSeedEl = document.getElementById("infoSeed");
 const detailSeedXInputEl = document.getElementById("detailSeedXInput");
 const detailSeedYInputEl = document.getElementById("detailSeedYInput");
-const detailSeedApplyBtnEl = document.getElementById("detailSeedApplyBtn");
 
 const rangeInputMap = {
   a: { min: document.getElementById("rangeAmin"), max: document.getElementById("rangeAmax") },
@@ -780,16 +778,40 @@ function readRangeEditorDraft() {
   return { ranges: nextRanges };
 }
 
+function readSeedEditorDraft(formulaId) {
+  const builtIn = getBuiltInFormulaSeed(formulaId);
+  const xSeed = Number(detailSeedXInputEl?.value);
+  const ySeed = Number(detailSeedYInputEl?.value);
+  if (!Number.isFinite(xSeed) || !Number.isFinite(ySeed)) {
+    return { error: "Please enter valid numeric seed values." };
+  }
+
+  return {
+    seed: {
+      x: normalizeSeedValue(xSeed, builtIn.x),
+      y: normalizeSeedValue(ySeed, builtIn.y),
+    },
+  };
+}
+
 function applyRangesOverrideFromEditor() {
   const formulaId = getSelectedRangesEditorFormulaId();
-  const parsed = readRangeEditorDraft();
-  if (parsed.error) {
-    setRangesEditorWarning(parsed.error);
+  const rangeDraft = readRangeEditorDraft();
+  if (rangeDraft.error) {
+    setRangesEditorWarning(rangeDraft.error);
     return;
   }
 
-  remapSliderToPreserveParams(formulaId, parsed.ranges);
-  appData.defaults.rangesOverridesByFormula[formulaId] = parsed.ranges;
+  const seedDraft = readSeedEditorDraft(formulaId);
+  if (seedDraft.error) {
+    setRangesEditorWarning(seedDraft.error);
+    return;
+  }
+
+  remapSliderToPreserveParams(formulaId, rangeDraft.ranges);
+  appData.defaults.rangesOverridesByFormula[formulaId] = rangeDraft.ranges;
+  appData.defaults.formulaSeeds[formulaId] = seedDraft.seed;
+  syncSeedEditorInputs(formulaId);
   saveDefaultsToStorage();
   setRangesEditorWarning("Applied.");
   requestDraw();
@@ -803,18 +825,47 @@ function resetFormulaRangeOverride(formulaId) {
   const builtInRange = builtInFormulaRanges[formulaId] || DEFAULT_PARAM_RANGES;
   remapSliderToPreserveParams(formulaId, builtInRange);
   delete appData.defaults.rangesOverridesByFormula[formulaId];
-  saveDefaultsToStorage();
   loadFormulaRangesIntoEditor(formulaId);
+}
+
+function resetFormulaSeedOverride(formulaId) {
+  if (!formulaId) {
+    return;
+  }
+
+  appData.defaults.formulaSeeds[formulaId] = getBuiltInFormulaSeed(formulaId);
+}
+
+function resetFormulaDefaults(formulaId) {
+  if (!formulaId) {
+    return;
+  }
+
+  resetFormulaRangeOverride(formulaId);
+  resetFormulaSeedOverride(formulaId);
+  syncSeedEditorInputs(formulaId);
+  saveDefaultsToStorage();
+  setRangesEditorWarning("Formula defaults reset.");
   requestDraw();
   commitCurrentStateToHistory();
+}
+
+function resetAllFormulaSeeds() {
+  const nextSeeds = {};
+  for (const formula of appData.formulas || []) {
+    nextSeeds[formula.id] = getBuiltInFormulaSeed(formula.id);
+  }
+  appData.defaults.formulaSeeds = nextSeeds;
 }
 
 function resetAllRangeOverrides() {
   const currentBuiltIn = builtInFormulaRanges[currentFormulaId] || DEFAULT_PARAM_RANGES;
   remapSliderToPreserveParams(currentFormulaId, currentBuiltIn);
   appData.defaults.rangesOverridesByFormula = {};
+  resetAllFormulaSeeds();
   saveDefaultsToStorage();
   loadFormulaRangesIntoEditor(getSelectedRangesEditorFormulaId());
+  syncSeedEditorInputs(getSelectedRangesEditorFormulaId());
   setRangesEditorWarning("All overrides cleared.");
   requestDraw();
   commitCurrentStateToHistory();
@@ -1276,27 +1327,6 @@ function syncSeedEditorInputs(formulaId = null) {
   const seed = getSeedForFormula(selectedFormulaId);
   detailSeedXInputEl.value = formatNumberForUi(seed.x, 4);
   detailSeedYInputEl.value = formatNumberForUi(seed.y, 4);
-}
-
-function applySeedOverrideFromEditor() {
-  if (!appData || !detailSeedXInputEl || !detailSeedYInputEl) {
-    return;
-  }
-
-  const formulaId = getSelectedRangesEditorFormulaId() || currentFormulaId;
-  if (!formulaId) {
-    return;
-  }
-
-  const builtIn = getBuiltInFormulaSeed(formulaId);
-  const xSeed = normalizeSeedValue(detailSeedXInputEl.value, builtIn.x);
-  const ySeed = normalizeSeedValue(detailSeedYInputEl.value, builtIn.y);
-
-  appData.defaults.formulaSeeds[formulaId] = { x: xSeed, y: ySeed };
-  syncSeedEditorInputs(formulaId);
-  saveDefaultsToStorage();
-  requestDraw();
-  commitCurrentStateToHistory();
 }
 
 function saveDefaultsToStorage() {
@@ -3135,8 +3165,7 @@ function registerHandlers() {
   });
   rangesApplyBtnEl?.addEventListener("click", applyRangesOverrideFromEditor);
   rangesDefaultsBtnEl?.addEventListener("click", () => {
-    resetFormulaRangeOverride(getSelectedRangesEditorFormulaId());
-    setRangesEditorWarning("Restored built-in defaults for this formula.");
+    resetFormulaDefaults(getSelectedRangesEditorFormulaId());
   });
   rangesResetAllBtnEl?.addEventListener("click", resetAllRangeOverrides);
   settingsTabRangesEl?.addEventListener("click", () => setSettingsTab("ranges"));
@@ -3152,10 +3181,6 @@ function registerHandlers() {
     requestDraw();
   });
 
-  detailSeedApplyBtnEl?.addEventListener("click", applySeedOverrideFromEditor);
-  detailSeedXInputEl?.addEventListener("change", applySeedOverrideFromEditor);
-  detailSeedYInputEl?.addEventListener("change", applySeedOverrideFromEditor);
-
   infoMaxRandomItersEl?.addEventListener("click", (event) => {
     showSettingsInfo("Max random iterations limits the upper bound for randomization of iteration count.", event.currentTarget);
   });
@@ -3164,9 +3189,6 @@ function registerHandlers() {
   });
   infoDebugEl?.addEventListener("click", (event) => {
     showSettingsInfo("Debug overlay draws extra guides and diagnostics. Turning it off reduces UI drawing overhead.", event.currentTarget);
-  });
-  infoSeedEl?.addEventListener("click", (event) => {
-    showSettingsInfo("Seed is the starting point (x0/y0) for each formula's orbit. Most formulas work with 0,0; some are more stable with small non-zero seeds.", event.currentTarget);
   });
   settingsInfoPopupEl?.addEventListener("click", hideSettingsInfo);
 
