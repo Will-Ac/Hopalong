@@ -3230,7 +3230,11 @@ function registerHandlers() {
   cameraBtn.addEventListener("contextmenu", (event) => event.preventDefault());
 
   scaleModeBtn.addEventListener("click", () => {
-    appData.defaults.scaleMode = getScaleMode() === "fixed" ? "auto" : "fixed";
+    const currentlyFixed = getScaleMode() === "fixed";
+    if (!currentlyFixed) {
+      syncFixedViewFromLastRenderMeta();
+    }
+    appData.defaults.scaleMode = currentlyFixed ? "auto" : "fixed";
     syncScaleModeButton();
     saveDefaultsToStorage();
     requestDraw();
