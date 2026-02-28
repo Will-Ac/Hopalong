@@ -957,6 +957,77 @@ function isAutoScale() {
   return getScaleMode() === "auto";
 }
 
+function syncFixedViewFromLastRenderMeta() {
+  if (!lastRenderMeta?.world || !lastRenderMeta?.view) {
+    return false;
+  }
+
+  const world = lastRenderMeta.world;
+  const view = lastRenderMeta.view;
+  const width = Number(view.width);
+  const height = Number(view.height);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return false;
+  }
+
+  const spanX = Number(world.maxX) - Number(world.minX);
+  const spanY = Number(world.maxY) - Number(world.minY);
+  if (!Number.isFinite(spanX) || !Number.isFinite(spanY) || spanX <= 0 || spanY <= 0) {
+    return false;
+  }
+
+  let scaleX = Number(view.scaleX);
+  let scaleY = Number(view.scaleY);
+
+  if (!Number.isFinite(scaleX) || scaleX <= 0) {
+    const safeWidth = Math.max(1, width - 1);
+    const worldPerPxX = spanX / safeWidth;
+    scaleX = 1 / worldPerPxX;
+  }
+
+  if (!Number.isFinite(scaleY) || scaleY <= 0) {
+    const safeHeight = Math.max(1, height - 1);
+    const worldPerPxY = spanY / safeHeight;
+    scaleY = 1 / worldPerPxY;
+  }
+
+  if (!Number.isFinite(scaleX) || scaleX <= 0 || !Number.isFinite(scaleY) || scaleY <= 0) {
+    return false;
+  }
+
+  const spanFromScaleX = (Math.max(1, width - 1)) / scaleX;
+  const spanFromScaleY = (Math.max(1, height - 1)) / scaleY;
+  const fixedScaleX = width / spanFromScaleX;
+  const fixedScaleY = height / spanFromScaleY;
+  const scale = (fixedScaleX + fixedScaleY) * 0.5;
+  const minDim = Math.min(width, height);
+  const baseScale = minDim / 220;
+  if (!Number.isFinite(scale) || scale <= 0 || !Number.isFinite(baseScale) || baseScale <= 0) {
+    return false;
+  }
+
+  const centerX = Number.isFinite(world.centerX) ? Number(world.centerX) : (Number(world.minX) + Number(world.maxX)) * 0.5;
+  const centerY = Number.isFinite(world.centerY) ? Number(world.centerY) : (Number(world.minY) + Number(world.maxY)) * 0.5;
+  if (!Number.isFinite(centerX) || !Number.isFinite(centerY)) {
+    return false;
+  }
+
+  const viewCenterX = width * 0.5;
+  const viewCenterY = height * 0.5;
+  const screenCenterX = (width - 1) * 0.5;
+  const screenCenterY = (height - 1) * 0.5;
+  const fixedCenterX = screenCenterX - centerX * scale;
+  const fixedCenterY = screenCenterY - centerY * scale;
+
+  fixedView = {
+    offsetX: fixedCenterX - viewCenterX,
+    offsetY: fixedCenterY - viewCenterY,
+    zoom: scale / baseScale,
+  };
+
+  return true;
+}
+
 function setScaleModeFixed(reason = "manual pan/zoom") {
   if (!appData || !isAutoScale()) {
     return;
@@ -1710,6 +1781,7 @@ function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
     lastMX,
     lastMY,
     justStarted: true,
+    isArmed: false,
   };
   interactionState = INTERACTION_STATE.TWO_ACTIVE;
   suppressHistoryTap = true;
@@ -1748,6 +1820,9 @@ function onCanvasPointerDown(event) {
   };
 
   if (event.pointerType === "mouse" && event.button === 2) {
+    if (isAutoScale()) {
+      syncFixedViewFromLastRenderMeta();
+    }
     setScaleModeFixed("manual pan/zoom");
     interactionState = INTERACTION_STATE.PAN_MOUSE_RMB;
     primaryPointerId = event.pointerId;
@@ -1855,20 +1930,31 @@ function onCanvasPointerMove(event) {
     viewZoom: fixedView.zoom,
   };
 
-  let appliedGesture = false;
+  if (!twoFingerGesture.isArmed) {
+    if (shouldZoom || shouldPan) {
+      twoFingerGesture.isArmed = true;
+    }
+    twoFingerGesture.lastD = distance;
+    twoFingerGesture.lastMX = midpoint.x;
+    twoFingerGesture.lastMY = midpoint.y;
+    return;
+  }
+
+  if ((shouldZoom || shouldPan) && isAutoScale()) {
+    syncFixedViewFromLastRenderMeta();
+    setScaleModeFixed("manual pan/zoom");
+    twoFingerGesture.lastD = distance;
+    twoFingerGesture.lastMX = midpoint.x;
+    twoFingerGesture.lastMY = midpoint.y;
+    return;
+  }
 
   if (shouldZoom && Number.isFinite(ratioStep) && ratioStep > 0) {
     applyZoomAtPoint(ratioStep, midpoint.x, midpoint.y);
-    appliedGesture = true;
   }
 
   if (shouldPan) {
     applyPanDelta(dxm, dym);
-    appliedGesture = true;
-  }
-
-  if (appliedGesture) {
-    setScaleModeFixed("manual pan/zoom");
   }
 
   twoFingerGesture.lastD = distance;
@@ -1928,6 +2014,9 @@ function onCanvasPointerUp(event) {
 
 function onCanvasWheel(event) {
   event.preventDefault();
+  if (isAutoScale()) {
+    syncFixedViewFromLastRenderMeta();
+  }
   setScaleModeFixed("manual pan/zoom");
   const pos = getCanvasPointerPosition(event);
   const zoomFactor = Math.exp(-event.deltaY * 0.0025);
