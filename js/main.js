@@ -1,6 +1,6 @@
 import { ColorMapNames, sampleColorMap } from "./colormaps.js";
 import { renderFrame, getParamsForFormula } from "./renderer.js";
-import { EXTRA_FORMULAS, EXTRA_FORMULA_RANGES_RAW } from "./formulas_updated.js";
+import { VARIANTS, EXTRA_FORMULA_RANGES_RAW, FORMULA_DEFAULT_PRESETS } from "./formulas.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
@@ -299,6 +299,11 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function actualToSliderValue(actualValue, min, max) {
+  const span = Math.max(max - min, 1e-9);
+  return clamp(((actualValue - min) / span) * 100, 0, 100);
+}
+
 function formatNumberForUi(value, fractionDigits = 0) {
   if (!Number.isFinite(value)) {
     return "--";
@@ -322,6 +327,32 @@ function getRangeValuesForFormula(formulaId) {
 
 function getCurrentFormulaRange() {
   return getRangeValuesForFormula(currentFormulaId);
+}
+
+function applyFormulaPresetToSliders(formulaId) {
+  const preset = FORMULA_DEFAULT_PRESETS[formulaId];
+  if (!preset || !appData?.defaults?.sliders) {
+    return false;
+  }
+
+  const range = getRangeValuesForFormula(formulaId);
+  const keyToSlider = { a: "alpha", b: "beta", c: "delta", d: "gamma" };
+
+  for (const [paramKey, sliderKey] of Object.entries(keyToSlider)) {
+    if (!Object.prototype.hasOwnProperty.call(preset, paramKey)) {
+      continue;
+    }
+
+    const value = Number(preset[paramKey]);
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+
+    const [min, max] = range[paramKey];
+    appData.defaults.sliders[sliderKey] = actualToSliderValue(value, min, max);
+  }
+
+  return true;
 }
 
 function getDerivedParams() {
@@ -1535,7 +1566,11 @@ function randomizeAllParameters() {
   clearSharedParamsOverride();
 
   if (isRandomizedParam("formula")) {
+    const previousFormulaId = currentFormulaId;
     currentFormulaId = randomChoice(appData.formulas).id;
+    if (currentFormulaId !== previousFormulaId) {
+      applyFormulaPresetToSliders(currentFormulaId);
+    }
   }
 
   if (isRandomizedParam("cmap")) {
@@ -2101,7 +2136,11 @@ function renderFormulaPicker() {
 
     button.addEventListener("click", () => {
       clearSharedParamsOverride();
+      const previousFormulaId = currentFormulaId;
       currentFormulaId = formula.id;
+      if (previousFormulaId !== currentFormulaId) {
+        applyFormulaPresetToSliders(currentFormulaId);
+      }
       if (getParamMode("formula") === "rand") {
         applyParamLockState("formula", "fix");
       }
@@ -3426,7 +3465,7 @@ async function loadData() {
   }
 
   const existingFormulaIds = new Set(data.formulas.map((formula) => formula.id));
-  for (const formula of EXTRA_FORMULAS) {
+  for (const formula of VARIANTS) {
     if (!existingFormulaIds.has(formula.id)) {
       data.formulas.push({
         id: formula.id,
