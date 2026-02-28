@@ -1,5 +1,4 @@
 {
-  "formulaId": "classic_sqrt",
   "cmapName": "Turbo",
   "scaleMode": "auto",
   "sliders": {
@@ -13,59 +12,8 @@
   "notes": [
     "alpha/beta/gamma/delta defaults are slider positions (0\u2013100).",
     "Actual a/b/c/d values must be derived from slider position using formula-specific ranges.",
-    "debug controls whether the debug axis/tick/info overlay is shown.",
-    "formulaSeeds stores per-formula orbit starting seed (x0/y0)."
+    "debug controls whether the debug axis/tick/info overlay is shown."
   ],
   "debug": false,
-  "maxRandomIters": 10000000,
-  "formulaSeeds": {
-    "peter_de_jong": {
-      "x": 0.0,
-      "y": 0.0
-    },
-    "clifford": {
-      "x": 0.1,
-      "y": 0.1
-    },
-    "tinkerbell": {
-      "x": 0.0,
-      "y": 0.0
-    },
-    "henon": {
-      "x": 0.1,
-      "y": 0.0
-    },
-    "lozi": {
-      "x": 0.1,
-      "y": 0.0
-    },
-    "ikeda": {
-      "x": 0.0,
-      "y": 0.0
-    },
-    "gingerbread": {
-      "x": 0.0,
-      "y": 0.0
-    },
-    "zaslavsky_web": {
-      "x": 0.1,
-      "y": 0.0
-    },
-    "popcorn": {
-      "x": 0.1,
-      "y": 0.1
-    },
-    "bedhead": {
-      "x": 0.0,
-      "y": 0.0
-    },
-    "gumowski_mira": {
-      "x": 0.1,
-      "y": 0.0
-    },
-    "shifted_hopalong": {
-      "x": 0.0,
-      "y": 0.0
-    }
-  }
+  "maxRandomIters": 10000000
 }
