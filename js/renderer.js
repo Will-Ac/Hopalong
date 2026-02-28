@@ -23,10 +23,10 @@ const formulaStepById = (() => {
     }
   }
 
+  // Prefer implementations from formulas_updated.js when ids overlap
+  // so newer/corrected formula math takes precedence over legacy copies.
   for (const formula of EXTRA_FORMULAS) {
-    if (!byId.has(formula.id)) {
-      byId.set(formula.id, formula.step);
-    }
+    byId.set(formula.id, formula.step);
   }
 
   return byId;
