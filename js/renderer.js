@@ -1,6 +1,5 @@
 import { sampleColorMap } from "./colormaps.js";
 import { VARIANTS } from "./formulas.js";
-import { EXTRA_FORMULAS } from "./formulas_updated.js";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -15,25 +14,7 @@ const LUT_SIZE = 2048;
 
 const ESCAPE_ABS_BOUND = 1e6;
 
-const formulaStepById = (() => {
-  const byId = new Map();
-  const extraFormulaIds = new Set(EXTRA_FORMULAS.map((formula) => formula.id));
-
-  // Ignore legacy variants that have been redefined in formulas_updated.js
-  // so the renderer has a single implementation per formula id.
-  for (const variant of VARIANTS) {
-    if (extraFormulaIds.has(variant.id)) {
-      continue;
-    }
-    byId.set(variant.id, variant.step);
-  }
-
-  for (const formula of EXTRA_FORMULAS) {
-    byId.set(formula.id, formula.step);
-  }
-
-  return byId;
-})();
+const formulaStepById = new Map(VARIANTS.map((formula) => [formula.id, formula.step]));
 
 
 export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {

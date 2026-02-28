@@ -231,8 +231,23 @@
       }
       .rangeGrid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 8px;
+      }
+      .formulaDetailBox {
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.14);
+        border-radius: 8px;
+        padding: 7px;
+        background: rgba(var(--ui-gray-rgb), 0.05);
+        display: grid;
+        gap: 4px;
+      }
+      .formulaDetailLine {
+        margin: 0;
+        font-size: var(--ui-font-size);
+        line-height: 1.35;
+        opacity: 0.9;
+        overflow-wrap: anywhere;
       }
       .rangeField {
         display: grid;
@@ -562,24 +577,9 @@
       }
       .pickerOption.is-selected { border-color: rgba(var(--ui-gray-rgb), 0.24); background: rgba(var(--ui-gray-rgb), 0.08); }
       .formulaRow {
-        display: grid;
-        grid-template-columns: 116px 1fr;
-        gap: 8px;
-        align-items: start;
+        display: block;
       }
       .formulaName { font-weight: var(--ui-font-weight); }
-      .formulaDesc {
-        opacity: 0.85;
-        font-size: var(--ui-font-size);
-        max-width: 100%;
-        overflow-wrap: anywhere;
-        white-space: normal;
-        line-height: 1.25;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-      }
       .cmapRow {
         display: grid;
         grid-template-columns: 108px 1fr;
@@ -743,14 +743,22 @@ Scale</button>
             <span class="rangeFieldLabel">Formula</span>
             <select id="rangesFormulaSelect"></select>
           </label>
+          <div id="rangesFormulaDetail" class="formulaDetailBox" aria-live="polite">
+            <p id="rangesFormulaLineX" class="formulaDetailLine">x' = --</p>
+            <p id="rangesFormulaLineY" class="formulaDetailLine">y' = --</p>
+          </div>
           <div class="rangeGrid">
             <label class="rangeField"><span class="rangeFieldLabel">a min</span><input id="rangeAmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
+            <label class="rangeField"><span class="rangeFieldLabel">a default</span><input id="rangeAdefault" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
             <label class="rangeField"><span class="rangeFieldLabel">a max</span><input id="rangeAmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
             <label class="rangeField"><span class="rangeFieldLabel">b min</span><input id="rangeBmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
+            <label class="rangeField"><span class="rangeFieldLabel">b default</span><input id="rangeBdefault" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
             <label class="rangeField"><span class="rangeFieldLabel">b max</span><input id="rangeBmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
             <label class="rangeField"><span class="rangeFieldLabel">c min</span><input id="rangeCmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
+            <label class="rangeField"><span class="rangeFieldLabel">c default</span><input id="rangeCdefault" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
             <label class="rangeField"><span class="rangeFieldLabel">c max</span><input id="rangeCmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
             <label class="rangeField"><span class="rangeFieldLabel">d min</span><input id="rangeDmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
+            <label class="rangeField"><span class="rangeFieldLabel">d default</span><input id="rangeDdefault" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
             <label class="rangeField"><span class="rangeFieldLabel">d max</span><input id="rangeDmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
           </div>
           <div class="rangeGrid" style="margin-top:10px;">
