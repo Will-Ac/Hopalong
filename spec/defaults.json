@@ -18,5 +18,12 @@
   "renderColorMode": "iteration_order",
   "renderLogStrength": 9,
   "renderDensityGamma": 0.6,
-  "renderHybridBlend": 0.3
+  "renderHybridBlend": 0.3,
+  "userMap": {
+    "background": "#05070c",
+    "drawA": "#35b4ff",
+    "drawB": "#ff6a8f",
+    "uiText": "#a6afbb"
+  },
+  "colorMapOverrides": {}
 }

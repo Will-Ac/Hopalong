@@ -80,10 +80,17 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   const image = ctx.createImageData(width, height);
   const pixels = image.data;
 
+  const backgroundColor = Array.isArray(renderColoring?.backgroundColor)
+    ? renderColoring.backgroundColor
+    : [5, 7, 12];
+  const bgR = clamp(Math.round(Number(backgroundColor[0]) || 0), 0, 255);
+  const bgG = clamp(Math.round(Number(backgroundColor[1]) || 0), 0, 255);
+  const bgB = clamp(Math.round(Number(backgroundColor[2]) || 0), 0, 255);
+
   for (let i = 0; i < pixels.length; i += 4) {
-    pixels[i] = 5;
-    pixels[i + 1] = 7;
-    pixels[i + 2] = 12;
+    pixels[i] = bgR;
+    pixels[i + 1] = bgG;
+    pixels[i + 2] = bgB;
     pixels[i + 3] = 255;
   }
 
@@ -204,14 +211,69 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   }
 
   const colorLut = new Uint8Array(LUT_SIZE * 3);
+  const cmapOverrideStops = Array.isArray(renderColoring?.cmapOverrideStops)
+    ? renderColoring.cmapOverrideStops
+    : null;
+
+  const sampleOverrideStops = (stops, t) => {
+    const normalized = clamp01(t);
+    if (!Array.isArray(stops) || stops.length === 0) {
+      return [255, 255, 255, 1];
+    }
+
+    if (stops.length === 1) {
+      const only = stops[0];
+      return [
+        clamp(Math.round(Number(only?.r) || 0), 0, 255),
+        clamp(Math.round(Number(only?.g) || 0), 0, 255),
+        clamp(Math.round(Number(only?.b) || 0), 0, 255),
+        clamp01(Number.isFinite(Number(only?.a)) ? Number(only.a) : 1),
+      ];
+    }
+
+    let left = stops[0];
+    let right = stops[stops.length - 1];
+    for (let i = 0; i < stops.length - 1; i += 1) {
+      const a = stops[i];
+      const b = stops[i + 1];
+      if (normalized >= a.t && normalized <= b.t) {
+        left = a;
+        right = b;
+        break;
+      }
+    }
+
+    const denom = Math.max(1e-9, (right.t - left.t));
+    const u = clamp01((normalized - left.t) / denom);
+    const lerpChan = (a, b) => a + (b - a) * u;
+    return [
+      lerpChan(Number(left.r) || 0, Number(right.r) || 0),
+      lerpChan(Number(left.g) || 0, Number(right.g) || 0),
+      lerpChan(Number(left.b) || 0, Number(right.b) || 0),
+      lerpChan(Number.isFinite(Number(left.a)) ? Number(left.a) : 1, Number.isFinite(Number(right.a)) ? Number(right.a) : 1),
+    ];
+  };
 
   for (let lutIndex = 0; lutIndex < LUT_SIZE; lutIndex += 1) {
     const t = lutIndex / (LUT_SIZE - 1);
-    const [r, g, b] = sampleColorMap(cmapName, t);
+    let r;
+    let g;
+    let b;
+    let alpha = 1;
+    if (cmapOverrideStops) {
+      [r, g, b, alpha] = sampleOverrideStops(cmapOverrideStops, t);
+    } else {
+      [r, g, b] = sampleColorMap(cmapName, t);
+    }
+
+    const a = clamp01(alpha);
+    const outR = Math.round(bgR + (r - bgR) * a);
+    const outG = Math.round(bgG + (g - bgG) * a);
+    const outB = Math.round(bgB + (b - bgB) * a);
     const colorOffset = lutIndex * 3;
-    colorLut[colorOffset] = r;
-    colorLut[colorOffset + 1] = g;
-    colorLut[colorOffset + 2] = b;
+    colorLut[colorOffset] = outR;
+    colorLut[colorOffset + 1] = outG;
+    colorLut[colorOffset + 2] = outB;
   }
 
   if (renderMode === "iteration_order") {

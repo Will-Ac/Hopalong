@@ -24,8 +24,10 @@ const rangesDefaultsBtnEl = document.getElementById("rangesDefaultsBtn");
 const rangesResetAllBtnEl = document.getElementById("rangesResetAllBtn");
 const settingsTabRangesEl = document.getElementById("settingsTabRanges");
 const settingsTabDetailedEl = document.getElementById("settingsTabDetailed");
+const settingsTabColorsEl = document.getElementById("settingsTabColors");
 const rangesTabPanelEl = document.getElementById("rangesTabPanel");
 const detailedTabPanelEl = document.getElementById("detailedTabPanel");
+const colorsTabPanelEl = document.getElementById("colorsTabPanel");
 const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomItersRange");
 const detailMaxRandomItersFormattedEl = document.getElementById("detailMaxRandomItersFormatted");
 const detailBurnRangeEl = document.getElementById("detailBurnRange");
@@ -49,6 +51,19 @@ const infoDensityGammaEl = document.getElementById("infoDensityGamma");
 const infoHybridBlendEl = document.getElementById("infoHybridBlend");
 const detailSeedXInputEl = document.getElementById("detailSeedXInput");
 const detailSeedYInputEl = document.getElementById("detailSeedYInput");
+const userBgColorInputEl = document.getElementById("userBgColor");
+const userDrawColorAInputEl = document.getElementById("userDrawColorA");
+const userDrawColorBInputEl = document.getElementById("userDrawColorB");
+const userUiTextColorInputEl = document.getElementById("userUiTextColor");
+const userMapResetBtnEl = document.getElementById("userMapResetBtn");
+const userMapPreviewEl = document.getElementById("userMapPreview");
+const userMapPreviewBarEl = document.getElementById("userMapPreviewBar");
+const userMapPreviewTextEl = document.getElementById("userMapPreviewText");
+const existingMapSelectEl = document.getElementById("existingMapSelect");
+const existingMapGradientEl = document.getElementById("existingMapGradient");
+const existingMapStopsEl = document.getElementById("existingMapStops");
+const existingMapAddStopBtnEl = document.getElementById("existingMapAddStopBtn");
+const existingMapResetBtnEl = document.getElementById("existingMapResetBtn");
 
 const rangeInputMap = {
   a: { min: document.getElementById("rangeAmin"), value: document.getElementById("rangeAdefault"), max: document.getElementById("rangeAmax") },
@@ -108,6 +123,14 @@ const RENDER_COLOR_MODES = {
 };
 
 const RENDER_COLOR_MODE_SET = new Set(Object.values(RENDER_COLOR_MODES));
+
+const USER_MAP_NAME = "User defined";
+const USER_MAP_DEFAULT = {
+  background: "#05070c",
+  drawA: "#35b4ff",
+  drawB: "#ff6a8f",
+  uiText: "#a6afbb",
+};
 
 const ctx = canvas.getContext("2d", { alpha: false });
 let appData = null;
@@ -227,6 +250,140 @@ function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   }
 
   return `${normalized.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
+}
+
+function hexToRgb(hex, fallback = [255, 255, 255]) {
+  const cleaned = String(hex || "").trim();
+  const match = /^#?([0-9a-f]{6})$/i.exec(cleaned);
+  if (!match) {
+    return [...fallback];
+  }
+
+  const digits = match[1];
+  return [
+    Number.parseInt(digits.slice(0, 2), 16),
+    Number.parseInt(digits.slice(2, 4), 16),
+    Number.parseInt(digits.slice(4, 6), 16),
+  ];
+}
+
+function rgbToHex(r, g, b) {
+  const channelToHex = (value) => clamp(Math.round(Number(value) || 0), 0, 255).toString(16).padStart(2, "0");
+  return `#${channelToHex(r)}${channelToHex(g)}${channelToHex(b)}`;
+}
+
+function normalizeEditableStop(raw, fallbackT = 0, fallbackColor = [255, 255, 255]) {
+  return {
+    t: clamp(Number(raw?.t), 0, 1),
+    r: clamp(Math.round(Number(raw?.r) || fallbackColor[0]), 0, 255),
+    g: clamp(Math.round(Number(raw?.g) || fallbackColor[1]), 0, 255),
+    b: clamp(Math.round(Number(raw?.b) || fallbackColor[2]), 0, 255),
+    a: clamp(Number.isFinite(Number(raw?.a)) ? Number(raw.a) : 1, 0, 1),
+  };
+}
+
+function sortStops(stops) {
+  return [...stops].sort((a, b) => a.t - b.t);
+}
+
+function sampleStops(stops, t) {
+  if (!Array.isArray(stops) || stops.length === 0) {
+    return [255, 255, 255, 1];
+  }
+
+  const sorted = sortStops(stops);
+  const normalized = clamp(t, 0, 1);
+  if (sorted.length === 1) {
+    const only = sorted[0];
+    return [only.r, only.g, only.b, only.a];
+  }
+
+  let left = sorted[0];
+  let right = sorted[sorted.length - 1];
+  for (let i = 0; i < sorted.length - 1; i += 1) {
+    if (normalized >= sorted[i].t && normalized <= sorted[i + 1].t) {
+      left = sorted[i];
+      right = sorted[i + 1];
+      break;
+    }
+  }
+
+  const denom = Math.max(1e-9, right.t - left.t);
+  const u = clamp((normalized - left.t) / denom, 0, 1);
+  const lerpChan = (a, b) => a + (b - a) * u;
+  return [
+    lerpChan(left.r, right.r),
+    lerpChan(left.g, right.g),
+    lerpChan(left.b, right.b),
+    lerpChan(left.a, right.a),
+  ];
+}
+
+function buildGradientFromStops(stops) {
+  const sorted = sortStops(stops);
+  const pieces = sorted.map((stop) => {
+    const alpha = clamp(stop.a, 0, 1);
+    return `rgba(${stop.r}, ${stop.g}, ${stop.b}, ${alpha}) ${Math.round(stop.t * 100)}%`;
+  });
+  return `linear-gradient(90deg, ${pieces.join(", ")})`;
+}
+
+function getBuiltInStopsForMap(cmapName) {
+  const stops = [];
+  const samples = 8;
+  for (let i = 0; i <= samples; i += 1) {
+    const t = i / samples;
+    const [r, g, b] = sampleColorMap(cmapName, t);
+    stops.push({ t, r, g, b, a: 1 });
+  }
+  return stops;
+}
+
+function getEditableStopsForMap(cmapName) {
+  const overrides = appData?.defaults?.colorMapOverrides?.[cmapName];
+  if (Array.isArray(overrides) && overrides.length >= 2) {
+    return sortStops(overrides.map((stop) => normalizeEditableStop(stop)));
+  }
+  return getBuiltInStopsForMap(cmapName);
+}
+
+function getUserMapStops() {
+  const userMap = appData?.defaults?.userMap || USER_MAP_DEFAULT;
+  const a = hexToRgb(userMap.drawA, [53, 180, 255]);
+  const b = hexToRgb(userMap.drawB, [255, 106, 143]);
+  return [
+    { t: 0, r: a[0], g: a[1], b: a[2], a: 1 },
+    { t: 1, r: b[0], g: b[1], b: b[2], a: 1 },
+  ];
+}
+
+function getBackgroundColorRgb() {
+  const bg = appData?.defaults?.userMap?.background || USER_MAP_DEFAULT.background;
+  return hexToRgb(bg, [5, 7, 12]);
+}
+
+function getUiTextColorHex() {
+  return appData?.defaults?.userMap?.uiText || USER_MAP_DEFAULT.uiText;
+}
+
+function applyUiThemeFromUserSettings() {
+  const root = document.documentElement;
+  const [r, g, b] = hexToRgb(getUiTextColorHex(), [148, 154, 164]);
+  root.style.setProperty("--ui-gray-rgb", `${r}, ${g}, ${b}`);
+  root.style.setProperty("--text", `rgb(${r}, ${g}, ${b})`);
+}
+
+function getColorOverrideStopsForCurrentMap() {
+  if (appData?.defaults?.cmapName === USER_MAP_NAME) {
+    return getUserMapStops();
+  }
+
+  const overrides = appData?.defaults?.colorMapOverrides?.[appData?.defaults?.cmapName];
+  if (Array.isArray(overrides) && overrides.length >= 2) {
+    return sortStops(overrides.map((stop) => normalizeEditableStop(stop)));
+  }
+
+  return null;
 }
 
 function requestDraw() {
@@ -476,7 +633,7 @@ function applySharedStateFromHash() {
     }
 
     const formulaExists = appData.formulas.some((formula) => formula.id === formulaId);
-    const cmapExists = appData.colormaps.includes(cmapName);
+    const cmapExists = cmapName === USER_MAP_NAME || appData.colormaps.includes(cmapName);
     if (!formulaExists || !cmapExists) {
       return false;
     }
@@ -561,11 +718,20 @@ function resolveInitialFormulaId() {
 }
 
 function resolveInitialColorMap() {
-  const names = new Set(appData.colormaps || []);
-  return names.has(appData.defaults.cmapName) ? appData.defaults.cmapName : appData.colormaps[0];
+  const names = new Set([USER_MAP_NAME, ...(appData.colormaps || [])]);
+  return names.has(appData.defaults.cmapName) ? appData.defaults.cmapName : USER_MAP_NAME;
 }
 
 function buildColorMapGradient(cmapName) {
+  if (cmapName === USER_MAP_NAME) {
+    return buildGradientFromStops(getUserMapStops());
+  }
+
+  const overrideStops = appData?.defaults?.colorMapOverrides?.[cmapName];
+  if (Array.isArray(overrideStops) && overrideStops.length >= 2) {
+    return buildGradientFromStops(sortStops(overrideStops.map((stop) => normalizeEditableStop(stop))));
+  }
+
   const stops = [];
   const count = 9;
   for (let index = 0; index < count; index += 1) {
@@ -576,6 +742,7 @@ function buildColorMapGradient(cmapName) {
 
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
+
 
 function getActiveActualValue() {
   if (!activeSliderKey) {
@@ -635,7 +802,7 @@ function updateCurrentPickerSelection() {
 
 function configureNameBoxWidths() {
   const formulaLengths = appData.formulas.map((formula) => clampLabel(formula.name).length);
-  const cmapLengths = appData.colormaps.map((name) => clampLabel(name).length);
+  const cmapLengths = [USER_MAP_NAME, ...appData.colormaps].map((name) => clampLabel(name).length);
   const longest = Math.max(10, ...formulaLengths, ...cmapLengths);
   const widthPx = Math.round(clamp(longest * 8.1 + 16, 124, 210));
   document.documentElement.style.setProperty("--name-box-width", `${widthPx}px`);
@@ -687,6 +854,7 @@ function collectUiTextLines() {
     }
   }
   if (appData?.colormaps?.length) {
+    lines.push(clampLabel(USER_MAP_NAME));
     for (const cmapName of appData.colormaps) {
       lines.push(clampLabel(cmapName || ""));
     }
@@ -983,11 +1151,166 @@ function closeRangesEditor() {
 }
 
 function setSettingsTab(tabKey) {
-  const showRanges = tabKey !== "detailed";
-  settingsTabRangesEl?.classList.toggle("is-active", showRanges);
-  settingsTabDetailedEl?.classList.toggle("is-active", !showRanges);
-  rangesTabPanelEl?.classList.toggle("is-hidden", !showRanges);
-  detailedTabPanelEl?.classList.toggle("is-hidden", showRanges);
+  const selected = tabKey === "detailed" || tabKey === "colors" ? tabKey : "ranges";
+  settingsTabRangesEl?.classList.toggle("is-active", selected === "ranges");
+  settingsTabDetailedEl?.classList.toggle("is-active", selected === "detailed");
+  settingsTabColorsEl?.classList.toggle("is-active", selected === "colors");
+  rangesTabPanelEl?.classList.toggle("is-hidden", selected !== "ranges");
+  detailedTabPanelEl?.classList.toggle("is-hidden", selected !== "detailed");
+  colorsTabPanelEl?.classList.toggle("is-hidden", selected !== "colors");
+  if (selected === "colors") {
+    syncColorSettingsControls();
+  }
+}
+
+function ensureColorSettingsDefaults() {
+  if (!appData.defaults.userMap || typeof appData.defaults.userMap !== "object") {
+    appData.defaults.userMap = { ...USER_MAP_DEFAULT };
+  }
+  appData.defaults.userMap.background = String(appData.defaults.userMap.background || USER_MAP_DEFAULT.background);
+  appData.defaults.userMap.drawA = String(appData.defaults.userMap.drawA || USER_MAP_DEFAULT.drawA);
+  appData.defaults.userMap.drawB = String(appData.defaults.userMap.drawB || USER_MAP_DEFAULT.drawB);
+  appData.defaults.userMap.uiText = String(appData.defaults.userMap.uiText || USER_MAP_DEFAULT.uiText);
+
+  if (!appData.defaults.colorMapOverrides || typeof appData.defaults.colorMapOverrides !== "object") {
+    appData.defaults.colorMapOverrides = {};
+  }
+}
+
+function syncUserMapPreview() {
+  if (!userMapPreviewEl || !userMapPreviewBarEl || !userMapPreviewTextEl) {
+    return;
+  }
+
+  const userMap = appData.defaults.userMap;
+  userMapPreviewEl.style.background = userMap.background;
+  userMapPreviewBarEl.style.background = `linear-gradient(90deg, ${userMap.drawA}, ${userMap.drawB})`;
+  userMapPreviewTextEl.style.color = userMap.uiText;
+}
+
+function renderExistingMapStopsEditor(cmapName) {
+  if (!existingMapStopsEl) {
+    return;
+  }
+
+  existingMapStopsEl.innerHTML = "";
+  const stops = getEditableStopsForMap(cmapName);
+
+  stops.forEach((stop, index) => {
+    const row = document.createElement("div");
+    row.className = "colorStopRow";
+
+    const positionWrap = document.createElement("label");
+    positionWrap.className = "colorStopPositionWrap";
+    const positionLabel = document.createElement("span");
+    positionLabel.textContent = `Stop ${index + 1}`;
+    const positionInput = document.createElement("input");
+    positionInput.type = "range";
+    positionInput.min = "0";
+    positionInput.max = "100";
+    positionInput.step = "1";
+    positionInput.value = String(Math.round(stop.t * 100));
+    positionWrap.append(positionLabel, positionInput);
+
+    const percentInput = document.createElement("input");
+    percentInput.type = "number";
+    percentInput.min = "0";
+    percentInput.max = "100";
+    percentInput.step = "1";
+    percentInput.className = "colorStopPercentInput";
+    percentInput.value = String(Math.round(stop.t * 100));
+
+    const colorInput = document.createElement("input");
+    colorInput.type = "color";
+    colorInput.value = rgbToHex(stop.r, stop.g, stop.b);
+
+    const transparentLabel = document.createElement("label");
+    transparentLabel.className = "transparentToggle";
+    const transparentInput = document.createElement("input");
+    transparentInput.type = "checkbox";
+    transparentInput.checked = stop.a <= 0.001;
+    transparentLabel.append(transparentInput, document.createTextNode("Transparent"));
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "stopDeleteBtn";
+    removeBtn.textContent = "Remove";
+    removeBtn.disabled = stops.length <= 2;
+
+    const update = () => {
+      const targetStops = getEditableStopsForMap(cmapName);
+      const target = targetStops[index];
+      if (!target) {
+        return;
+      }
+      target.t = clamp(Number(percentInput.value) / 100, 0, 1);
+      const [r, g, b] = hexToRgb(colorInput.value, [target.r, target.g, target.b]);
+      target.r = r;
+      target.g = g;
+      target.b = b;
+      target.a = transparentInput.checked ? 0 : 1;
+      appData.defaults.colorMapOverrides[cmapName] = sortStops(targetStops);
+      syncColorSettingsControls();
+      saveDefaultsToStorage();
+      requestDraw();
+      commitCurrentStateToHistory();
+    };
+
+    positionInput.addEventListener("input", () => {
+      percentInput.value = positionInput.value;
+      update();
+    });
+    percentInput.addEventListener("input", () => {
+      const clamped = String(Math.round(clamp(Number(percentInput.value), 0, 100)));
+      percentInput.value = clamped;
+      positionInput.value = clamped;
+      update();
+    });
+    colorInput.addEventListener("input", update);
+    transparentInput.addEventListener("change", update);
+    removeBtn.addEventListener("click", () => {
+      const targetStops = getEditableStopsForMap(cmapName);
+      targetStops.splice(index, 1);
+      appData.defaults.colorMapOverrides[cmapName] = sortStops(targetStops);
+      syncColorSettingsControls();
+      saveDefaultsToStorage();
+      requestDraw();
+      commitCurrentStateToHistory();
+    });
+
+    row.append(positionWrap, percentInput, colorInput, transparentLabel, removeBtn);
+    existingMapStopsEl.append(row);
+  });
+}
+
+function syncColorSettingsControls() {
+  ensureColorSettingsDefaults();
+  applyUiThemeFromUserSettings();
+
+  if (userBgColorInputEl) userBgColorInputEl.value = appData.defaults.userMap.background;
+  if (userDrawColorAInputEl) userDrawColorAInputEl.value = appData.defaults.userMap.drawA;
+  if (userDrawColorBInputEl) userDrawColorBInputEl.value = appData.defaults.userMap.drawB;
+  if (userUiTextColorInputEl) userUiTextColorInputEl.value = appData.defaults.userMap.uiText;
+  syncUserMapPreview();
+
+  if (existingMapSelectEl && existingMapSelectEl.options.length === 0) {
+    for (const cmapName of appData.colormaps) {
+      const option = document.createElement("option");
+      option.value = cmapName;
+      option.textContent = cmapName;
+      existingMapSelectEl.append(option);
+    }
+  }
+
+  if (existingMapSelectEl && !existingMapSelectEl.value) {
+    existingMapSelectEl.value = appData.colormaps[0];
+  }
+
+  const selectedMap = existingMapSelectEl?.value || appData.colormaps[0];
+  if (existingMapGradientEl) {
+    existingMapGradientEl.style.background = buildColorMapGradient(selectedMap);
+  }
+  renderExistingMapStopsEditor(selectedMap);
 }
 
 function syncDetailedSettingsControls() {
@@ -1053,6 +1376,8 @@ function getRenderColoringOptions() {
     logStrength: appData.defaults.renderLogStrength,
     densityGamma: appData.defaults.renderDensityGamma,
     hybridBlend: appData.defaults.renderHybridBlend,
+    backgroundColor: getBackgroundColorRgb(),
+    cmapOverrideStops: getColorOverrideStopsForCurrentMap(),
   };
 }
 
@@ -1599,6 +1924,8 @@ function captureCurrentState() {
     },
     formulaSeeds: JSON.parse(JSON.stringify(appData.defaults.formulaSeeds || {})),
     formulaParamDefaultsByFormula: JSON.parse(JSON.stringify(appData.defaults.formulaParamDefaultsByFormula || {})),
+    colorMapOverrides: JSON.parse(JSON.stringify(appData.defaults.colorMapOverrides || {})),
+    userMap: JSON.parse(JSON.stringify(appData.defaults.userMap || USER_MAP_DEFAULT)),
   };
 }
 
@@ -1656,6 +1983,14 @@ function applyState(state) {
   if (state.formulaParamDefaultsByFormula && typeof state.formulaParamDefaultsByFormula === "object") {
     appData.defaults.formulaParamDefaultsByFormula = JSON.parse(JSON.stringify(state.formulaParamDefaultsByFormula));
   }
+  if (state.colorMapOverrides && typeof state.colorMapOverrides === "object") {
+    appData.defaults.colorMapOverrides = JSON.parse(JSON.stringify(state.colorMapOverrides));
+  }
+  if (state.userMap && typeof state.userMap === "object") {
+    appData.defaults.userMap = JSON.parse(JSON.stringify(state.userMap));
+  }
+  ensureColorSettingsDefaults();
+  applyUiThemeFromUserSettings();
   if (state.fixedView && typeof state.fixedView === "object") {
     fixedView = {
       offsetX: Number.isFinite(state.fixedView.offsetX) ? state.fixedView.offsetX : 0,
@@ -2271,7 +2606,8 @@ function renderColorMapPicker() {
   pickerTitle.textContent = "Select color map";
   pickerList.innerHTML = "";
 
-  for (const cmapName of appData.colormaps) {
+  const allMaps = [USER_MAP_NAME, ...appData.colormaps];
+  for (const cmapName of allMaps) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "pickerOption";
@@ -2300,6 +2636,7 @@ function renderColorMapPicker() {
         applyParamLockState("cmap", "fix");
       }
       updateCurrentPickerSelection();
+      syncColorSettingsControls();
       saveDefaultsToStorage();
       requestDraw();
       commitCurrentStateToHistory();
@@ -2309,6 +2646,7 @@ function renderColorMapPicker() {
     pickerList.append(button);
   }
 }
+
 
 function openPicker(kind, triggerEl) {
   activePicker = kind;
@@ -3436,6 +3774,50 @@ function registerHandlers() {
   rangesResetAllBtnEl?.addEventListener("click", resetAllRangeOverrides);
   settingsTabRangesEl?.addEventListener("click", () => setSettingsTab("ranges"));
   settingsTabDetailedEl?.addEventListener("click", () => setSettingsTab("detailed"));
+  settingsTabColorsEl?.addEventListener("click", () => setSettingsTab("colors"));
+
+  const updateUserMapSetting = (key, value) => {
+    appData.defaults.userMap[key] = value;
+    syncColorSettingsControls();
+    saveDefaultsToStorage();
+    requestDraw();
+    commitCurrentStateToHistory();
+  };
+
+  userBgColorInputEl?.addEventListener("input", () => updateUserMapSetting("background", userBgColorInputEl.value));
+  userDrawColorAInputEl?.addEventListener("input", () => updateUserMapSetting("drawA", userDrawColorAInputEl.value));
+  userDrawColorBInputEl?.addEventListener("input", () => updateUserMapSetting("drawB", userDrawColorBInputEl.value));
+  userUiTextColorInputEl?.addEventListener("input", () => updateUserMapSetting("uiText", userUiTextColorInputEl.value));
+
+  userMapResetBtnEl?.addEventListener("click", () => {
+    appData.defaults.userMap = { ...USER_MAP_DEFAULT };
+    syncColorSettingsControls();
+    saveDefaultsToStorage();
+    requestDraw();
+    commitCurrentStateToHistory();
+  });
+
+  existingMapSelectEl?.addEventListener("change", syncColorSettingsControls);
+  existingMapAddStopBtnEl?.addEventListener("click", () => {
+    const mapName = existingMapSelectEl?.value || appData.colormaps[0];
+    const stops = getEditableStopsForMap(mapName);
+    const mid = sampleStops(stops, 0.5);
+    stops.push({ t: 0.5, r: Math.round(mid[0]), g: Math.round(mid[1]), b: Math.round(mid[2]), a: mid[3] });
+    appData.defaults.colorMapOverrides[mapName] = sortStops(stops);
+    syncColorSettingsControls();
+    saveDefaultsToStorage();
+    requestDraw();
+    commitCurrentStateToHistory();
+  });
+
+  existingMapResetBtnEl?.addEventListener("click", () => {
+    const mapName = existingMapSelectEl?.value || appData.colormaps[0];
+    delete appData.defaults.colorMapOverrides[mapName];
+    syncColorSettingsControls();
+    saveDefaultsToStorage();
+    requestDraw();
+    commitCurrentStateToHistory();
+  });
 
   detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
   detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
@@ -3609,6 +3991,12 @@ async function loadData() {
   if (!data.defaults.formulaParamDefaultsByFormula || typeof data.defaults.formulaParamDefaultsByFormula !== "object") {
     data.defaults.formulaParamDefaultsByFormula = {};
   }
+  if (!data.defaults.colorMapOverrides || typeof data.defaults.colorMapOverrides !== "object") {
+    data.defaults.colorMapOverrides = {};
+  }
+  if (!data.defaults.userMap || typeof data.defaults.userMap !== "object") {
+    data.defaults.userMap = { ...USER_MAP_DEFAULT };
+  }
 
   data.formulas = FORMULA_METADATA.map((formula) => ({ ...formula }));
   data.formula_ranges_raw = JSON.parse(JSON.stringify(FORMULA_RANGES_RAW));
@@ -3632,6 +4020,8 @@ async function bootstrap() {
     builtInFormulaRanges = appData.formula_ranges_raw || {};
     loadDefaultsFromStorage();
     normalizeSliderDefaults();
+    ensureColorSettingsDefaults();
+    applyUiThemeFromUserSettings();
 
     appData.defaults.formulaSeeds = normalizeFormulaSeeds(appData.defaults.formulaSeeds, appData.formulas);
 

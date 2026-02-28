@@ -336,6 +336,75 @@
         color: var(--text);
         font-size: var(--ui-font-size);
       }
+
+      .colorUserGrid {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .userMapPreviewBox {
+        margin-top: 10px;
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.2);
+        border-radius: 10px;
+        padding: 10px;
+      }
+      .userMapPreviewBar {
+        height: 22px;
+        border-radius: 7px;
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.25);
+      }
+      .userMapPreviewText {
+        margin-top: 10px;
+        border: 1px dashed rgba(var(--ui-gray-rgb), 0.3);
+        border-radius: 8px;
+        padding: 8px;
+      }
+      .colorSettingsGradient {
+        margin-top: 8px;
+        margin-bottom: 8px;
+      }
+      .colorStopsEditor {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .colorStopRow {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 74px 44px auto auto;
+        gap: 6px;
+        align-items: center;
+      }
+      .colorStopPositionWrap {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .colorStopPositionWrap span {
+        font-size: 11px;
+        opacity: 0.85;
+      }
+      .colorStopPercentInput {
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.2);
+        background: rgba(var(--ui-gray-rgb), 0.08);
+        color: var(--text);
+        border-radius: 6px;
+        padding: 6px;
+      }
+      .transparentToggle {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .stopDeleteBtn {
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.2);
+        background: rgba(var(--ui-gray-rgb), 0.08);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 6px 8px;
+      }
+      .stopDeleteBtn:disabled {
+        opacity: 0.45;
+      }
       #settingsInfoPopup {
         position: absolute;
         min-width: 220px;
@@ -747,6 +816,7 @@ Scale</button>
         <div class="rangesEditorTabs">
           <button id="settingsTabRanges" class="rangesTabBtn is-active" type="button">Formula defaults</button>
           <button id="settingsTabDetailed" class="rangesTabBtn" type="button">Detailed settings</button>
+          <button id="settingsTabColors" class="rangesTabBtn" type="button">Color settings</button>
         </div>
         <div id="rangesTabPanel" class="rangesEditorBody settingsTabPanel">
           <label>
@@ -835,6 +905,37 @@ Scale</button>
           </div>
           <div id="settingsInfoPopup" class="is-hidden" role="dialog" aria-live="polite">
             <div id="settingsInfoText"></div>
+          </div>
+        </div>
+
+        <div id="colorsTabPanel" class="rangesEditorBody settingsTabPanel is-hidden">
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">User defined map (shown first)</span></div>
+            <div class="colorUserGrid">
+              <label class="rangeField"><span class="rangeFieldLabel">Background</span><input id="userBgColor" type="color" value="#05070c" /></label>
+              <label class="rangeField"><span class="rangeFieldLabel">Draw color 1</span><input id="userDrawColorA" type="color" value="#35b4ff" /></label>
+              <label class="rangeField"><span class="rangeFieldLabel">Draw color 2</span><input id="userDrawColorB" type="color" value="#ff6a8f" /></label>
+              <label class="rangeField"><span class="rangeFieldLabel">UI and text color</span><input id="userUiTextColor" type="color" value="#a6afbb" /></label>
+            </div>
+            <div id="userMapPreview" class="userMapPreviewBox">
+              <div id="userMapPreviewBar" class="userMapPreviewBar"></div>
+              <div id="userMapPreviewText" class="userMapPreviewText">Sample UI text and controls</div>
+            </div>
+            <button id="userMapResetBtn" class="rangesActionBtn" type="button">Reset user map</button>
+          </div>
+
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Existing map editor</span></div>
+            <label>
+              <span class="rangeFieldLabel">Map</span>
+              <select id="existingMapSelect" class="perfSelect" aria-label="Map to edit"></select>
+            </label>
+            <div id="existingMapGradient" class="cmapBar colorSettingsGradient"></div>
+            <div id="existingMapStops" class="colorStopsEditor"></div>
+            <div class="rangesActions">
+              <button id="existingMapAddStopBtn" class="rangesActionBtn" type="button">Add stop</button>
+              <button id="existingMapResetBtn" class="rangesActionBtn" type="button">Reset selected map</button>
+            </div>
           </div>
         </div>
       </aside>
