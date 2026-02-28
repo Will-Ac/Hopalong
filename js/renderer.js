@@ -10,6 +10,41 @@ function mapNormalized(normalizedValue, min, max) {
   return min + (max - min) * t;
 }
 
+
+function clamp01(value) {
+  return clamp(value, 0, 1);
+}
+
+function blendRgb(base, top, amount) {
+  const t = clamp01(amount);
+  return [
+    Math.round(base[0] + (top[0] - base[0]) * t),
+    Math.round(base[1] + (top[1] - base[1]) * t),
+    Math.round(base[2] + (top[2] - base[2]) * t),
+  ];
+}
+
+function mapHitToT(hits, maxHits, mode, { logStrength, densityGamma }) {
+  if (!Number.isFinite(hits) || hits <= 0 || !Number.isFinite(maxHits) || maxHits <= 0) {
+    return 0;
+  }
+
+  const linear = clamp01(hits / maxHits);
+  if (mode === "hit_density_log") {
+    const k = Math.max(0.01, Number(logStrength) || 9);
+    const numerator = Math.log1p(k * hits);
+    const denominator = Math.log1p(k * maxHits);
+    return clamp01(denominator > 0 ? numerator / denominator : linear);
+  }
+
+  if (mode === "hit_density_gamma") {
+    const gamma = Math.max(0.05, Number(densityGamma) || 0.6);
+    return clamp01(linear ** gamma);
+  }
+
+  return linear;
+}
+
 const LUT_SIZE = 2048;
 
 const ESCAPE_ABS_BOUND = 1e6;
@@ -34,7 +69,7 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null }) {
+export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {} }) {
   const step = formulaStepById.get(formulaId);
   if (!step) {
     throw new Error(`Unknown formula id: ${formulaId}`);
@@ -51,6 +86,11 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     pixels[i + 2] = 12;
     pixels[i + 3] = 255;
   }
+
+  const renderMode = String(renderColoring?.mode || "iteration_order").trim();
+  const logStrength = Number(renderColoring?.logStrength) || 9;
+  const densityGamma = Number(renderColoring?.densityGamma) || 0.6;
+  const hybridBlend = clamp01(Number(renderColoring?.hybridBlend) || 0.3);
 
   let x = Number(seed?.x);
   let y = Number(seed?.y);
@@ -174,21 +214,98 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     colorLut[colorOffset + 2] = b;
   }
 
-  for (let i = 0; i < sampleCount; i += 1) {
-    const px = Math.round(((xs[i] - worldMinX) / worldSpanX) * (width - 1));
-    const py = Math.round(((ys[i] - worldMinY) / worldSpanY) * (height - 1));
+  if (renderMode === "iteration_order") {
+    for (let i = 0; i < sampleCount; i += 1) {
+      const px = Math.round(((xs[i] - worldMinX) / worldSpanX) * (width - 1));
+      const py = Math.round(((ys[i] - worldMinY) / worldSpanY) * (height - 1));
 
-    if (px < 0 || py < 0 || px >= width || py >= height) {
-      continue;
+      if (px < 0 || py < 0 || px >= width || py >= height) {
+        continue;
+      }
+
+      const idx = (py * width + px) * 4;
+      const lutIndex = Math.floor((i * (LUT_SIZE - 1)) / Math.max(1, sampleCount));
+      const colorOffset = lutIndex * 3;
+      pixels[idx] = colorLut[colorOffset];
+      pixels[idx + 1] = colorLut[colorOffset + 1];
+      pixels[idx + 2] = colorLut[colorOffset + 2];
+      pixels[idx + 3] = 255;
+    }
+  } else {
+    const pixelCount = width * height;
+    const hitCounts = new Uint32Array(pixelCount);
+    const lastHitIteration = renderMode === "hybrid_density_age" ? new Uint32Array(pixelCount) : null;
+    let maxHits = 0;
+
+    for (let i = 0; i < sampleCount; i += 1) {
+      const px = Math.round(((xs[i] - worldMinX) / worldSpanX) * (width - 1));
+      const py = Math.round(((ys[i] - worldMinY) / worldSpanY) * (height - 1));
+
+      if (px < 0 || py < 0 || px >= width || py >= height) {
+        continue;
+      }
+
+      const pixelIndex = py * width + px;
+      const nextHits = hitCounts[pixelIndex] + 1;
+      hitCounts[pixelIndex] = nextHits;
+      if (nextHits > maxHits) {
+        maxHits = nextHits;
+      }
+      if (lastHitIteration) {
+        lastHitIteration[pixelIndex] = i + 1;
+      }
     }
 
-    const idx = (py * width + px) * 4;
-    const lutIndex = Math.floor((i * (LUT_SIZE - 1)) / Math.max(1, sampleCount));
-    const colorOffset = lutIndex * 3;
-    pixels[idx] = colorLut[colorOffset];
-    pixels[idx + 1] = colorLut[colorOffset + 1];
-    pixels[idx + 2] = colorLut[colorOffset + 2];
-    pixels[idx + 3] = 255;
+    const percentileLookup = new Map();
+    if (renderMode === "hit_density_percentile" && maxHits > 0) {
+      const frequencyByHits = new Map();
+      let activePixels = 0;
+      for (let i = 0; i < hitCounts.length; i += 1) {
+        const hits = hitCounts[i];
+        if (hits <= 0) continue;
+        activePixels += 1;
+        frequencyByHits.set(hits, (frequencyByHits.get(hits) || 0) + 1);
+      }
+
+      const sortedHits = [...frequencyByHits.keys()].sort((a, b) => a - b);
+      let cumulative = 0;
+      for (const hits of sortedHits) {
+        cumulative += frequencyByHits.get(hits) || 0;
+        percentileLookup.set(hits, activePixels > 0 ? cumulative / activePixels : 0);
+      }
+    }
+
+    for (let pixelIndex = 0; pixelIndex < hitCounts.length; pixelIndex += 1) {
+      const hits = hitCounts[pixelIndex];
+      if (hits <= 0) {
+        continue;
+      }
+
+      let t = 0;
+      if (renderMode === "hit_density_percentile") {
+        t = percentileLookup.get(hits) || 0;
+      } else {
+        t = mapHitToT(hits, maxHits, renderMode, { logStrength, densityGamma });
+      }
+
+      const idx = pixelIndex * 4;
+      if (renderMode === "hybrid_density_age") {
+        const ageT = clamp01((lastHitIteration[pixelIndex] - 1) / Math.max(1, sampleCount - 1));
+        const [baseR, baseG, baseB] = sampleColorMap(cmapName, t);
+        const [ageR, ageG, ageB] = sampleColorMap(cmapName, ageT);
+        const [mixR, mixG, mixB] = blendRgb([baseR, baseG, baseB], [ageR, ageG, ageB], hybridBlend);
+        pixels[idx] = mixR;
+        pixels[idx + 1] = mixG;
+        pixels[idx + 2] = mixB;
+      } else {
+        const lutIndex = Math.floor(clamp01(t) * (LUT_SIZE - 1));
+        const colorOffset = lutIndex * 3;
+        pixels[idx] = colorLut[colorOffset];
+        pixels[idx + 1] = colorLut[colorOffset + 1];
+        pixels[idx + 2] = colorLut[colorOffset + 2];
+      }
+      pixels[idx + 3] = 255;
+    }
   }
 
   ctx.putImageData(image, 0, 0);

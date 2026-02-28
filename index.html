@@ -302,6 +302,16 @@
       .perfRangeInput {
         width: 100%;
       }
+      .perfSelect {
+        width: 100%;
+        min-height: 32px;
+        border-radius: 6px;
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.24);
+        background: rgba(0, 0, 0, 0.24);
+        color: var(--text);
+        font-size: var(--ui-font-size);
+        padding: 4px 8px;
+      }
       .perfFormattedValue {
         font-size: var(--ui-font-size);
         opacity: 0.78;
@@ -790,6 +800,38 @@ Scale</button>
           <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Debug overlay</span><button id="infoDebug" class="perfInfoBtn" type="button">i</button></div>
             <label class="modeOption"><input id="detailDebugToggle" type="checkbox" /> Show debug overlays and diagnostics</label>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Coloring mode</span><button id="infoColorMode" class="perfInfoBtn" type="button">i</button></div>
+            <select id="detailColorModeSelect" class="perfSelect" aria-label="Coloring mode">
+              <option value="iteration_order">Iteration order</option>
+              <option value="hit_density_linear">Hit density (linear)</option>
+              <option value="hit_density_log">Hit density (log)</option>
+              <option value="hit_density_gamma">Hit density (gamma)</option>
+              <option value="hit_density_percentile">Hit density (percentile)</option>
+              <option value="hybrid_density_age">Hybrid (density + recency)</option>
+            </select>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Log strength</span><button id="infoLogStrength" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfControlRow">
+              <input id="detailLogStrengthRange" class="perfRangeInput" type="range" min="0.5" max="30" step="0.1" />
+              <div id="detailLogStrengthFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Gamma</span><button id="infoDensityGamma" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfControlRow">
+              <input id="detailDensityGammaRange" class="perfRangeInput" type="range" min="0.2" max="2" step="0.01" />
+              <div id="detailDensityGammaFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Hybrid age blend</span><button id="infoHybridBlend" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfControlRow">
+              <input id="detailHybridBlendRange" class="perfRangeInput" type="range" min="0" max="1" step="0.01" />
+              <div id="detailHybridBlendFormatted" class="perfFormattedValue">--</div>
+            </div>
           </div>
           <div id="settingsInfoPopup" class="is-hidden" role="dialog" aria-live="polite">
             <div id="settingsInfoText"></div>

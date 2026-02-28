@@ -14,5 +14,9 @@
     "Actual a/b/c/d values must be derived from slider position using formula-specific ranges.",
     "debug controls whether the debug axis/tick/info overlay is shown."
   ],
-  "debug": false
+  "debug": false,
+  "renderColorMode": "iteration_order",
+  "renderLogStrength": 9,
+  "renderDensityGamma": 0.6,
+  "renderHybridBlend": 0.3
 }

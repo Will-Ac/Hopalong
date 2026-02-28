@@ -31,11 +31,22 @@ const detailMaxRandomItersFormattedEl = document.getElementById("detailMaxRandom
 const detailBurnRangeEl = document.getElementById("detailBurnRange");
 const detailBurnFormattedEl = document.getElementById("detailBurnFormatted");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
+const detailColorModeSelectEl = document.getElementById("detailColorModeSelect");
+const detailLogStrengthRangeEl = document.getElementById("detailLogStrengthRange");
+const detailLogStrengthFormattedEl = document.getElementById("detailLogStrengthFormatted");
+const detailDensityGammaRangeEl = document.getElementById("detailDensityGammaRange");
+const detailDensityGammaFormattedEl = document.getElementById("detailDensityGammaFormatted");
+const detailHybridBlendRangeEl = document.getElementById("detailHybridBlendRange");
+const detailHybridBlendFormattedEl = document.getElementById("detailHybridBlendFormatted");
 const settingsInfoTextEl = document.getElementById("settingsInfoText");
 const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
 const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
 const infoBurnEl = document.getElementById("infoBurn");
 const infoDebugEl = document.getElementById("infoDebug");
+const infoColorModeEl = document.getElementById("infoColorMode");
+const infoLogStrengthEl = document.getElementById("infoLogStrength");
+const infoDensityGammaEl = document.getElementById("infoDensityGamma");
+const infoHybridBlendEl = document.getElementById("infoHybridBlend");
 const detailSeedXInputEl = document.getElementById("detailSeedXInput");
 const detailSeedYInputEl = document.getElementById("detailSeedYInput");
 
@@ -87,6 +98,16 @@ const DEFAULT_PARAM_RANGES = {
   d: [-20, 20],
 };
 
+const RENDER_COLOR_MODES = {
+  ITERATION_ORDER: "iteration_order",
+  HIT_DENSITY_LINEAR: "hit_density_linear",
+  HIT_DENSITY_LOG: "hit_density_log",
+  HIT_DENSITY_GAMMA: "hit_density_gamma",
+  HIT_DENSITY_PERCENTILE: "hit_density_percentile",
+  HYBRID_DENSITY_AGE: "hybrid_density_age",
+};
+
+const RENDER_COLOR_MODE_SET = new Set(Object.values(RENDER_COLOR_MODES));
 
 const ctx = canvas.getContext("2d", { alpha: false });
 let appData = null;
@@ -977,6 +998,13 @@ function syncDetailedSettingsControls() {
   if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
   if (detailBurnFormattedEl) detailBurnFormattedEl.textContent = formatNumberForUi(burnValue, 0);
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
+  if (detailColorModeSelectEl) detailColorModeSelectEl.value = appData.defaults.renderColorMode;
+  if (detailLogStrengthRangeEl) detailLogStrengthRangeEl.value = String(appData.defaults.renderLogStrength);
+  if (detailLogStrengthFormattedEl) detailLogStrengthFormattedEl.textContent = formatNumberForUi(appData.defaults.renderLogStrength, 1);
+  if (detailDensityGammaRangeEl) detailDensityGammaRangeEl.value = String(appData.defaults.renderDensityGamma);
+  if (detailDensityGammaFormattedEl) detailDensityGammaFormattedEl.textContent = formatNumberForUi(appData.defaults.renderDensityGamma, 2);
+  if (detailHybridBlendRangeEl) detailHybridBlendRangeEl.value = String(appData.defaults.renderHybridBlend);
+  if (detailHybridBlendFormattedEl) detailHybridBlendFormattedEl.textContent = formatNumberForUi(appData.defaults.renderHybridBlend, 2);
 }
 
 function applyDetailedSliderValue(sliderKey, nextValue) {
@@ -996,6 +1024,36 @@ function applyMaxRandomIterations(nextValue) {
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   commitCurrentStateToHistory();
+}
+
+function applyRenderColorMode(mode) {
+  const normalizedMode = String(mode || "").trim();
+  appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(normalizedMode)
+    ? normalizedMode
+    : RENDER_COLOR_MODES.ITERATION_ORDER;
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyRenderColorParam(key, nextValue, min, max, digits) {
+  const numeric = clamp(Number(nextValue), min, max);
+  const factor = 10 ** digits;
+  appData.defaults[key] = Math.round(numeric * factor) / factor;
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function getRenderColoringOptions() {
+  return {
+    mode: appData.defaults.renderColorMode,
+    logStrength: appData.defaults.renderLogStrength,
+    densityGamma: appData.defaults.renderDensityGamma,
+    hybridBlend: appData.defaults.renderHybridBlend,
+  };
 }
 
 function showSettingsInfo(message, anchorEl = null) {
@@ -1526,6 +1584,10 @@ function captureCurrentState() {
     cmapName: appData.defaults.cmapName,
     sliders: { ...appData.defaults.sliders },
     maxRandomIters: appData.defaults.maxRandomIters,
+    renderColorMode: appData.defaults.renderColorMode,
+    renderLogStrength: appData.defaults.renderLogStrength,
+    renderDensityGamma: appData.defaults.renderDensityGamma,
+    renderHybridBlend: appData.defaults.renderHybridBlend,
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
     fixedView: { ...fixedView },
     viewport: {
@@ -1578,6 +1640,12 @@ function applyState(state) {
   appData.defaults.cmapName = state.cmapName;
   appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
   appData.defaults.maxRandomIters = Math.round(clamp(state.maxRandomIters ?? appData.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
+  appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(state.renderColorMode)
+    ? state.renderColorMode
+    : appData.defaults.renderColorMode;
+  appData.defaults.renderLogStrength = clamp(Number(state.renderLogStrength ?? appData.defaults.renderLogStrength), 0.5, 30);
+  appData.defaults.renderDensityGamma = clamp(Number(state.renderDensityGamma ?? appData.defaults.renderDensityGamma), 0.2, 2);
+  appData.defaults.renderHybridBlend = clamp(Number(state.renderHybridBlend ?? appData.defaults.renderHybridBlend), 0, 1);
   normalizeSliderDefaults();
   if (state.rangesOverridesByFormula && typeof state.rangesOverridesByFormula === "object") {
     appData.defaults.rangesOverridesByFormula = JSON.parse(JSON.stringify(state.rangesOverridesByFormula));
@@ -2916,6 +2984,7 @@ function draw() {
     scaleMode: getScaleMode(),
     fixedView,
     seed: getSeedForFormula(currentFormulaId),
+    renderColoring: getRenderColoringOptions(),
   });
 
   const now = performance.now();
@@ -3170,6 +3239,7 @@ async function captureScreenshot(includeOverlay) {
     fixedView,
     worldOverride: exportWorld,
     seed: getSeedForFormula(currentFormulaId),
+    renderColoring: getRenderColoringOptions(),
   });
 
   if (includeOverlay) {
@@ -3377,6 +3447,11 @@ function registerHandlers() {
     requestDraw();
   });
 
+  detailColorModeSelectEl?.addEventListener("change", () => applyRenderColorMode(detailColorModeSelectEl.value));
+  detailLogStrengthRangeEl?.addEventListener("input", () => applyRenderColorParam("renderLogStrength", detailLogStrengthRangeEl.value, 0.5, 30, 1));
+  detailDensityGammaRangeEl?.addEventListener("input", () => applyRenderColorParam("renderDensityGamma", detailDensityGammaRangeEl.value, 0.2, 2, 2));
+  detailHybridBlendRangeEl?.addEventListener("input", () => applyRenderColorParam("renderHybridBlend", detailHybridBlendRangeEl.value, 0, 1, 2));
+
   infoMaxRandomItersEl?.addEventListener("click", (event) => {
     showSettingsInfo("Max random iterations limits the upper bound for randomization of iteration count.", event.currentTarget);
   });
@@ -3385,6 +3460,18 @@ function registerHandlers() {
   });
   infoDebugEl?.addEventListener("click", (event) => {
     showSettingsInfo("Debug overlay draws extra guides and diagnostics. Turning it off reduces UI drawing overhead.", event.currentTarget);
+  });
+  infoColorModeEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Switch between iteration-order and density-based coloring methods to emphasize different structure in the attractor.", event.currentTarget);
+  });
+  infoLogStrengthEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Log strength compresses extreme hit counts. Increase it when dense centers overwhelm medium-detail regions.", event.currentTarget);
+  });
+  infoDensityGammaEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Gamma reshapes density contrast. Lower values brighten medium-density detail; higher values emphasize only the densest regions.", event.currentTarget);
+  });
+  infoHybridBlendEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Hybrid age blend mixes density color with recency color. Increase to make newer orbit paths more visible.", event.currentTarget);
   });
   settingsInfoPopupEl?.addEventListener("click", hideSettingsInfo);
 
@@ -3487,10 +3574,25 @@ async function loadData() {
   if (typeof data.defaults.maxRandomIters !== "number") {
     data.defaults.maxRandomIters = sliderControls.iters.max;
   }
+  if (!RENDER_COLOR_MODE_SET.has(data.defaults.renderColorMode)) {
+    data.defaults.renderColorMode = RENDER_COLOR_MODES.ITERATION_ORDER;
+  }
+  if (typeof data.defaults.renderLogStrength !== "number") {
+    data.defaults.renderLogStrength = 9;
+  }
+  if (typeof data.defaults.renderDensityGamma !== "number") {
+    data.defaults.renderDensityGamma = 0.6;
+  }
+  if (typeof data.defaults.renderHybridBlend !== "number") {
+    data.defaults.renderHybridBlend = 0.3;
+  }
 
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
   data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
+  data.defaults.renderLogStrength = clamp(data.defaults.renderLogStrength, 0.5, 30);
+  data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
+  data.defaults.renderHybridBlend = clamp(data.defaults.renderHybridBlend, 0, 1);
 
   if (data.defaults.scaleMode !== "fixed") {
     data.defaults.scaleMode = "auto";
