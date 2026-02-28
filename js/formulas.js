@@ -92,8 +92,21 @@ export const VARIANTS = [
   { id:"gingerbread", name:"Gingerbreadman (generalized)", desc:"x' = a − y + b|x|, y' = c·x + d",
     step:(x,y,a,b,c,d)=>[ a - y + b*Math.abs(x), c*x + d ] },
 
-  { id:"zaslavsky_web", name:"Zaslavsky Web", desc:"t = y + d·sin(x+c); x' = x + a·sin(t); y' = t + b",
-    step:(x,y,a,b,c,d)=>{ const t=y + d*Math.sin(x+c); return [x + a*Math.sin(t), t+b]; } },
+  { id:"zaslavsky_web", name:"Zaslavsky Web", desc:"t = y + d·sin(x+c); x' = wrapPI(x + a·sin(t)); y' = wrapPI(t + b)",
+    step:(x,y,a,b,c,d)=>{
+      const wrapPI = (v) => {
+        const twoPi = 2 * Math.PI;
+        v = (v + Math.PI) % twoPi;
+        if (v < 0) v += twoPi;
+        return v - Math.PI;
+      };
+
+      const t = y + d * Math.sin(x + c);
+      const x1 = wrapPI(x + a * Math.sin(t));
+      const y1 = wrapPI(t + b);
+
+      return [x1, y1];
+    } },
 
   { id:"popcorn", name:"Popcorn", desc:"x' = x − a·sin(y + tan(3y)) + c, y' = y − b·sin(x + tan(3x)) + d",
     step:(x,y,a,b,c,d)=>{ const safeTan=(v)=>{ const t=Math.tan(v); return Number.isFinite(t)?Math.max(-10,Math.min(10,t)):0; }; return [ x - a*Math.sin(y + safeTan(3*y)) + c, y - b*Math.sin(x + safeTan(3*x)) + d ]; } },
