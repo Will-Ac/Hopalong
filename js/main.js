@@ -1381,8 +1381,6 @@ function captureCurrentState() {
     sliders: { ...appData.defaults.sliders },
     maxRandomIters: appData.defaults.maxRandomIters,
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
-    paramModes: { ...paramModes },
-    scaleMode: getScaleMode(),
     fixedView: { ...fixedView },
     viewport: {
       canvasWidth: canvas.width,
@@ -1391,7 +1389,7 @@ function captureCurrentState() {
       cssHeight: Math.round(canvas.getBoundingClientRect().height),
       devicePixelRatio: window.devicePixelRatio || 1,
     },
-    seeds: { orbitSeed: 0 },
+    formulaSeeds: JSON.parse(JSON.stringify(appData.defaults.formulaSeeds || {})),
   };
 }
 
@@ -1437,7 +1435,9 @@ function applyState(state) {
   if (state.rangesOverridesByFormula && typeof state.rangesOverridesByFormula === "object") {
     appData.defaults.rangesOverridesByFormula = JSON.parse(JSON.stringify(state.rangesOverridesByFormula));
   }
-  appData.defaults.scaleMode = state.scaleMode === "fixed" ? "fixed" : "auto";
+  if (state.formulaSeeds && typeof state.formulaSeeds === "object") {
+    appData.defaults.formulaSeeds = JSON.parse(JSON.stringify(state.formulaSeeds));
+  }
   if (state.fixedView && typeof state.fixedView === "object") {
     fixedView = {
       offsetX: Number.isFinite(state.fixedView.offsetX) ? state.fixedView.offsetX : 0,
@@ -1445,15 +1445,8 @@ function applyState(state) {
       zoom: Number.isFinite(state.fixedView.zoom) && state.fixedView.zoom > 0 ? state.fixedView.zoom : 1,
     };
   }
-  if (state.paramModes && typeof state.paramModes === "object") {
-    paramModes = { ...paramModes, ...state.paramModes };
-    normalizeParamModes();
-    syncParamModeVisuals();
-    saveParamModesToStorage();
-    saveDefaultsToStorage();
-    syncRandomModeButton();
-  }
-  syncScaleModeButton();
+  syncSeedEditorInputs(currentFormulaId);
+  syncQuickSliderPosition();
   saveDefaultsToStorage();
   requestDraw();
   isApplyingHistoryState = false;
@@ -1605,9 +1598,32 @@ function applyManualModulation(deltaX, deltaY) {
   return true;
 }
 
+function syncQuickSliderPosition() {
+  if (!activeSliderKey || !qsRange) {
+    return;
+  }
+
+  qsRange.value = String(appData.defaults.sliders[activeSliderKey]);
+  updateQuickSliderReadout();
+}
+
+function persistCurrentHistoryViewState() {
+  if (historyIndex < 0 || historyIndex >= historyStates.length) {
+    return;
+  }
+
+  const state = historyStates[historyIndex];
+  if (!state || typeof state !== "object") {
+    return;
+  }
+
+  state.fixedView = { ...fixedView };
+}
+
 function applyPanDelta(deltaX, deltaY) {
   fixedView.offsetX += deltaX;
   fixedView.offsetY += deltaY;
+  persistCurrentHistoryViewState();
   requestDraw();
 }
 
@@ -1637,6 +1653,7 @@ function applyZoomAtPoint(zoomFactor, anchorX, anchorY) {
   fixedView.zoom = nextZoom;
   fixedView.offsetX = nextCenterX - viewCenterX;
   fixedView.offsetY = nextCenterY - viewCenterY;
+  persistCurrentHistoryViewState();
   requestDraw();
 }
 
@@ -2108,8 +2125,7 @@ function openQuickSlider(sliderKey) {
   qsRange.min = String(control.min);
   qsRange.max = String(control.max);
   qsRange.step = String(control.sliderStep);
-  qsRange.value = appData.defaults.sliders[sliderKey];
-  updateQuickSliderReadout();
+  syncQuickSliderPosition();
 }
 
 function onParamPointerDown(event, targetKey) {
