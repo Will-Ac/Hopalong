@@ -346,47 +346,85 @@
         margin-top: 8px;
         margin-bottom: 8px;
       }
-      .colorStopsEditor {
+      .colorHelperText {
+        margin: 8px 0 0;
+        opacity: 0.8;
+      }
+      .gradientEditorWrap {
         display: flex;
         flex-direction: column;
         gap: 8px;
       }
-      .colorStopRow {
+      .gradientEditorBar {
+        position: relative;
+        height: 34px;
+        border-radius: 10px;
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.28);
+        touch-action: none;
+        cursor: crosshair;
+        user-select: none;
+      }
+      .gradientStopHandle {
+        position: absolute;
+        bottom: -11px;
+        transform: translateX(-50%);
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        border: 2px solid rgba(255, 255, 255, 0.95);
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
+        cursor: grab;
+      }
+      .gradientStopHandle.is-selected {
+        box-shadow: 0 0 0 2px rgba(var(--ui-gray-rgb), 0.95), 0 0 0 4px rgba(0,0,0,0.35);
+      }
+      .gradientStopHandle:focus-visible {
+        outline: 2px solid rgba(var(--ui-gray-rgb), 0.95);
+        outline-offset: 2px;
+      }
+      .stopDetailsCard {
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.18);
+        border-radius: 10px;
+        padding: 8px;
+        background: rgba(0,0,0,0.18);
+      }
+      .stopDetailsGrid {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 74px 44px auto auto;
-        gap: 6px;
-        align-items: center;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 8px;
+        align-items: end;
       }
-      .colorStopPositionWrap {
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
+      .stopDetailsGrid .rangeFieldLabel {
+        font-size: 12px;
       }
-      .colorStopPositionWrap span {
-        font-size: 11px;
-        opacity: 0.85;
-      }
-      .colorStopPercentInput {
-        border: 1px solid rgba(var(--ui-gray-rgb), 0.2);
-        background: rgba(var(--ui-gray-rgb), 0.08);
-        color: var(--text);
-        border-radius: 6px;
-        padding: 6px;
-      }
-      .transparentToggle {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-      }
-      .stopDeleteBtn {
+      .stopPosInput {
+        width: 100%;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.2);
         background: rgba(var(--ui-gray-rgb), 0.08);
         color: var(--text);
         border-radius: 8px;
-        padding: 6px 8px;
+        padding: 6px;
       }
-      .stopDeleteBtn:disabled {
+      .stopActionBtn {
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.2);
+        background: rgba(var(--ui-gray-rgb), 0.08);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 6px 10px;
+      }
+      .stopActionBtn:disabled {
         opacity: 0.45;
+      }
+      .stopToggleRow {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 8px;
+      }
+      .snapToggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
       }
       #settingsInfoPopup {
         position: absolute;
@@ -907,10 +945,12 @@ Scale</button>
               <span class="rangeFieldLabel">Map</span>
               <select id="existingMapSelect" class="perfSelect" aria-label="Map to edit"></select>
             </label>
-            <div id="existingMapGradient" class="cmapBar colorSettingsGradient"></div>
-            <div id="existingMapStops" class="colorStopsEditor"></div>
+            <div class="gradientEditorWrap">
+              <div id="gradientBar" class="gradientEditorBar" role="application" aria-label="Gradient stop editor"></div>
+              <div id="stopDetails" class="stopDetailsCard"></div>
+              <input id="stopColorPickerInput" type="color" value="#ffffff" style="position:absolute;left:-9999px;opacity:0;pointer-events:none;" />
+            </div>
             <div class="rangesActions">
-              <button id="existingMapAddStopBtn" class="rangesActionBtn" type="button">Add stop</button>
               <button id="existingMapResetBtn" class="rangesActionBtn" type="button">Reset selected map</button>
             </div>
           </div>

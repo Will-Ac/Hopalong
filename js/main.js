@@ -53,9 +53,9 @@ const detailSeedXInputEl = document.getElementById("detailSeedXInput");
 const detailSeedYInputEl = document.getElementById("detailSeedYInput");
 const globalBgColorInputEl = document.getElementById("globalBgColor");
 const existingMapSelectEl = document.getElementById("existingMapSelect");
-const existingMapGradientEl = document.getElementById("existingMapGradient");
-const existingMapStopsEl = document.getElementById("existingMapStops");
-const existingMapAddStopBtnEl = document.getElementById("existingMapAddStopBtn");
+const gradientBarEl = document.getElementById("gradientBar");
+const stopDetailsEl = document.getElementById("stopDetails");
+const stopColorPickerInputEl = document.getElementById("stopColorPickerInput");
 const existingMapResetBtnEl = document.getElementById("existingMapResetBtn");
 
 const rangeInputMap = {
@@ -236,6 +236,15 @@ let fixedView = {
 let sharedParamsOverride = null;
 let sharedParamsFormulaId = null;
 
+let gradientEditorSelectedStopId = null;
+let gradientEditorSnapEnabled = false;
+let nextStopIdCounter = 1;
+let gradientDragState = null;
+let gradientPointerMoveRaf = null;
+let gradientPointerMovePending = null;
+let gradientLongPressTimer = null;
+let gradientLastBarTap = { timestamp: 0, x: 0 };
+
 function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   const normalized = String(text ?? "").trim();
   if (normalized.length <= maxChars) {
@@ -267,7 +276,8 @@ function rgbToHex(r, g, b) {
 
 function normalizeEditableStop(raw, fallbackT = 0, fallbackColor = [255, 255, 255]) {
   return {
-    t: clamp(Number(raw?.t), 0, 1),
+    id: String(raw?.id || ""),
+    t: clamp(Number.isFinite(Number(raw?.t)) ? Number(raw.t) : fallbackT, 0, 1),
     r: clamp(Math.round(Number(raw?.r) || fallbackColor[0]), 0, 255),
     g: clamp(Math.round(Number(raw?.g) || fallbackColor[1]), 0, 255),
     b: clamp(Math.round(Number(raw?.b) || fallbackColor[2]), 0, 255),
@@ -275,8 +285,24 @@ function normalizeEditableStop(raw, fallbackT = 0, fallbackColor = [255, 255, 25
   };
 }
 
+function ensureStopIds(stops) {
+  return stops.map((stop) => {
+    const normalized = normalizeEditableStop(stop, stop?.t ?? 0);
+    if (!normalized.id) {
+      normalized.id = `stop_${nextStopIdCounter}`;
+      nextStopIdCounter += 1;
+    }
+    return normalized;
+  });
+}
+
 function sortStops(stops) {
-  return [...stops].sort((a, b) => a.t - b.t);
+  return [...stops].sort((a, b) => {
+    if (a.t === b.t) {
+      return String(a.id || "").localeCompare(String(b.id || ""));
+    }
+    return a.t - b.t;
+  });
 }
 
 function sampleStops(stops, t) {
@@ -322,31 +348,46 @@ function buildGradientFromStops(stops) {
 }
 
 function getBuiltInStopsForMap(cmapName) {
+  let baseStops;
   if (cmapName === USER_MAP_NAME) {
-    return USER_MAP_DEFAULT_STOPS.map((stop) => ({ ...stop }));
+    baseStops = USER_MAP_DEFAULT_STOPS.map((stop) => ({ ...stop }));
+  } else {
+    const defined = getColorMapStops(cmapName);
+    if (Array.isArray(defined) && defined.length >= 2) {
+      baseStops = defined;
+    } else {
+      const sampledStops = [];
+      const samples = 8;
+      for (let i = 0; i <= samples; i += 1) {
+        const t = i / samples;
+        const [r, g, b] = sampleColorMap(cmapName, t);
+        sampledStops.push({ t, r, g, b, a: 1 });
+      }
+      baseStops = sampledStops;
+    }
   }
 
-  const defined = getColorMapStops(cmapName);
-  if (Array.isArray(defined) && defined.length >= 2) {
-    return defined;
-  }
-
-  const sampledStops = [];
-  const samples = 8;
-  for (let i = 0; i <= samples; i += 1) {
-    const t = i / samples;
-    const [r, g, b] = sampleColorMap(cmapName, t);
-    sampledStops.push({ t, r, g, b, a: 1 });
-  }
-  return sampledStops;
+  return ensureStopIds(baseStops);
 }
 
 function getEditableStopsForMap(cmapName) {
   const overrides = appData?.defaults?.colorMapOverrides?.[cmapName];
   if (Array.isArray(overrides) && overrides.length >= 2) {
-    return sortStops(overrides.map((stop) => normalizeEditableStop(stop)));
+    return sortStops(ensureStopIds(overrides));
   }
-  return getBuiltInStopsForMap(cmapName);
+  return sortStops(getBuiltInStopsForMap(cmapName));
+}
+
+function setEditableStopsForMap(cmapName, stops) {
+  appData.defaults.colorMapOverrides[cmapName] = sortStops(ensureStopIds(stops));
+}
+
+function getCurrentGradientEditorMapName() {
+  return existingMapSelectEl?.value || USER_MAP_NAME;
+}
+
+function findStopById(stops, stopId) {
+  return stops.find((stop) => stop.id === stopId) || null;
 }
 
 function getBackgroundColorHex() {
@@ -1190,98 +1231,351 @@ function ensureColorSettingsDefaults() {
   }
 }
 
-function renderExistingMapStopsEditor(cmapName) {
-  if (!existingMapStopsEl) {
+function updateMapGradientPreview(cmapName) {
+  if (!gradientBarEl) {
+    return;
+  }
+  gradientBarEl.style.background = buildColorMapGradient(cmapName);
+}
+
+function applyStopsChange(cmapName, stops, { persist = false, commitHistory = false, refreshEditor = true } = {}) {
+  setEditableStopsForMap(cmapName, stops);
+  updateMapGradientPreview(cmapName);
+  if (refreshEditor) {
+    renderGradientBarEditor(cmapName);
+    renderSelectedStopDetails(cmapName);
+  }
+  requestDraw();
+  if (persist) {
+    saveDefaultsToStorage();
+  }
+  if (commitHistory) {
+    commitCurrentStateToHistory();
+  }
+}
+
+function removeStopById(cmapName, stopId, { persist = true, commitHistory = true } = {}) {
+  const stops = getEditableStopsForMap(cmapName);
+  if (stops.length <= 2) {
     return;
   }
 
-  existingMapStopsEl.innerHTML = "";
+  const nextStops = stops.filter((stop) => stop.id !== stopId);
+  if (nextStops.length < 2) {
+    return;
+  }
+
+  const removedIndex = stops.findIndex((stop) => stop.id === stopId);
+  const fallback = nextStops[Math.max(0, Math.min(removedIndex, nextStops.length - 1))];
+  gradientEditorSelectedStopId = fallback?.id || null;
+  applyStopsChange(cmapName, nextStops, { persist, commitHistory, refreshEditor: true });
+}
+
+function addStopAt(cmapName, t, { openColorPicker = false } = {}) {
   const stops = getEditableStopsForMap(cmapName);
+  const clamped = clamp(t, 0, 1);
+  const [r, g, b, a] = sampleStops(stops, clamped);
+  const nextStop = {
+    id: `stop_${nextStopIdCounter}`,
+    t: clamped,
+    r: Math.round(r),
+    g: Math.round(g),
+    b: Math.round(b),
+    a: clamp(a, 0, 1),
+  };
+  nextStopIdCounter += 1;
 
-  stops.forEach((stop, index) => {
-    const row = document.createElement("div");
-    row.className = "colorStopRow";
+  const nextStops = [...stops, nextStop];
+  gradientEditorSelectedStopId = nextStop.id;
+  applyStopsChange(cmapName, nextStops, { persist: true, commitHistory: true });
 
-    const positionWrap = document.createElement("label");
-    positionWrap.className = "colorStopPositionWrap";
-    const positionLabel = document.createElement("span");
-    positionLabel.textContent = `Stop ${index + 1}`;
-    const positionInput = document.createElement("input");
-    positionInput.type = "range";
-    positionInput.min = "0";
-    positionInput.max = "100";
-    positionInput.step = "1";
-    positionInput.value = String(Math.round(stop.t * 100));
-    positionWrap.append(positionLabel, positionInput);
+  if (openColorPicker) {
+    window.setTimeout(() => {
+      stopColorPickerInputEl?.click();
+    }, 0);
+  }
+}
 
-    const percentInput = document.createElement("input");
-    percentInput.type = "number";
-    percentInput.min = "0";
-    percentInput.max = "100";
-    percentInput.step = "1";
-    percentInput.className = "colorStopPercentInput";
-    percentInput.value = String(Math.round(stop.t * 100));
+function updateStopPosition(cmapName, stopId, nextT, { persist = false, commitHistory = false, refreshEditor = true } = {}) {
+  const stops = getEditableStopsForMap(cmapName);
+  const index = stops.findIndex((stop) => stop.id === stopId);
+  if (index < 0) {
+    return;
+  }
 
-    const colorInput = document.createElement("input");
-    colorInput.type = "color";
-    colorInput.value = rgbToHex(stop.r, stop.g, stop.b);
+  const nextStops = [...stops];
+  nextStops[index] = {
+    ...nextStops[index],
+    t: clamp(nextT, 0, 1),
+  };
+  applyStopsChange(cmapName, nextStops, { persist, commitHistory, refreshEditor: true });
+}
 
-    const transparentLabel = document.createElement("label");
-    transparentLabel.className = "transparentToggle";
-    const transparentInput = document.createElement("input");
-    transparentInput.type = "checkbox";
-    transparentInput.checked = stop.a <= 0.001;
-    transparentLabel.append(transparentInput, document.createTextNode("Transparent"));
+function updateSelectedStopDetails(cmapName, mutator, { persist = true, commitHistory = true } = {}) {
+  const stops = getEditableStopsForMap(cmapName);
+  const index = stops.findIndex((stop) => stop.id === gradientEditorSelectedStopId);
+  if (index < 0) {
+    return;
+  }
 
-    const removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "stopDeleteBtn";
-    removeBtn.textContent = "Remove";
-    removeBtn.disabled = stops.length <= 2;
+  const nextStops = [...stops];
+  nextStops[index] = mutator({ ...nextStops[index] });
+  applyStopsChange(cmapName, nextStops, { persist, commitHistory, refreshEditor: true });
+}
 
-    const update = () => {
-      const targetStops = getEditableStopsForMap(cmapName);
-      const target = targetStops[index];
-      if (!target) {
+function renderGradientBarEditor(cmapName) {
+  if (!gradientBarEl) {
+    return;
+  }
+
+  updateMapGradientPreview(cmapName);
+  gradientBarEl.innerHTML = "";
+
+  const stops = getEditableStopsForMap(cmapName);
+  if (!findStopById(stops, gradientEditorSelectedStopId)) {
+    gradientEditorSelectedStopId = stops[0]?.id || null;
+  }
+
+  for (const stop of stops) {
+    const handle = document.createElement("button");
+    handle.type = "button";
+    handle.className = "gradientStopHandle";
+    if (stop.id === gradientEditorSelectedStopId) {
+      handle.classList.add("is-selected");
+    }
+    handle.style.left = `${(stop.t * 100).toFixed(3)}%`;
+    handle.style.background = `rgba(${stop.r}, ${stop.g}, ${stop.b}, ${clamp(stop.a, 0, 1)})`;
+    handle.dataset.stopId = stop.id;
+    handle.setAttribute("aria-label", `Color stop at ${Math.round(stop.t * 100)} percent`);
+
+    handle.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      gradientEditorSelectedStopId = stop.id;
+      renderGradientBarEditor(cmapName);
+      renderSelectedStopDetails(cmapName);
+    });
+
+    handle.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      gradientEditorSelectedStopId = stop.id;
+      for (const el of gradientBarEl.querySelectorAll('.gradientStopHandle')) {
+        el.classList.toggle('is-selected', el.dataset.stopId === stop.id);
+      }
+      renderSelectedStopDetails(cmapName);
+
+      if (event.button === 2) {
         return;
       }
-      target.t = clamp(Number(percentInput.value) / 100, 0, 1);
-      const [r, g, b] = hexToRgb(colorInput.value, [target.r, target.g, target.b]);
-      target.r = r;
-      target.g = g;
-      target.b = b;
-      target.a = transparentInput.checked ? 0 : 1;
-      appData.defaults.colorMapOverrides[cmapName] = sortStops(targetStops);
-      syncColorSettingsControls();
-      saveDefaultsToStorage();
-      requestDraw();
-      commitCurrentStateToHistory();
+
+      if (event.pointerType !== "mouse") {
+        window.clearTimeout(gradientLongPressTimer);
+        gradientLongPressTimer = window.setTimeout(() => {
+          removeStopById(cmapName, stop.id);
+        }, 450);
+      }
+
+      if (handle.setPointerCapture) {
+        handle.setPointerCapture(event.pointerId);
+      }
+      gradientDragState = {
+        pointerId: event.pointerId,
+        stopId: stop.id,
+        mapName: cmapName,
+        didDrag: false,
+      };
+    });
+
+    handle.addEventListener("pointermove", (event) => {
+      if (!gradientDragState || gradientDragState.pointerId !== event.pointerId) {
+        return;
+      }
+
+      event.preventDefault();
+      const rect = gradientBarEl.getBoundingClientRect();
+      const ratio = clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
+      const snapped = gradientEditorSnapEnabled || event.shiftKey
+        ? Math.round(ratio * 4) / 4
+        : ratio;
+      gradientDragState.didDrag = true;
+      handle.style.left = `${(snapped * 100).toFixed(3)}%`;
+      window.clearTimeout(gradientLongPressTimer);
+      gradientPointerMovePending = { mapName: cmapName, stopId: stop.id, t: snapped };
+      if (gradientPointerMoveRaf) {
+        return;
+      }
+      gradientPointerMoveRaf = window.requestAnimationFrame(() => {
+        gradientPointerMoveRaf = null;
+        if (!gradientPointerMovePending) {
+          return;
+        }
+        const pending = gradientPointerMovePending;
+        gradientPointerMovePending = null;
+        updateStopPosition(pending.mapName, pending.stopId, pending.t, { persist: false, commitHistory: false, refreshEditor: false });
+      });
+    });
+
+    const endDrag = (event) => {
+      if (!gradientDragState || gradientDragState.pointerId !== event.pointerId) {
+        return;
+      }
+      window.clearTimeout(gradientLongPressTimer);
+      if (handle.releasePointerCapture && handle.hasPointerCapture && handle.hasPointerCapture(event.pointerId)) {
+        handle.releasePointerCapture(event.pointerId);
+      }
+      const { mapName, stopId } = gradientDragState;
+      gradientDragState = null;
+      if (gradientPointerMovePending && gradientPointerMovePending.stopId === stopId) {
+        const pending = gradientPointerMovePending;
+        gradientPointerMovePending = null;
+        updateStopPosition(pending.mapName, pending.stopId, pending.t, { persist: false, commitHistory: false, refreshEditor: false });
+      }
+      const stopsAfter = getEditableStopsForMap(mapName);
+      applyStopsChange(mapName, stopsAfter, { persist: true, commitHistory: true, refreshEditor: true });
     };
 
-    positionInput.addEventListener("input", () => {
-      percentInput.value = positionInput.value;
-      update();
-    });
-    percentInput.addEventListener("input", () => {
-      const clamped = String(Math.round(clamp(Number(percentInput.value), 0, 100)));
-      percentInput.value = clamped;
-      positionInput.value = clamped;
-      update();
-    });
-    colorInput.addEventListener("input", update);
-    transparentInput.addEventListener("change", update);
-    removeBtn.addEventListener("click", () => {
-      const targetStops = getEditableStopsForMap(cmapName);
-      targetStops.splice(index, 1);
-      appData.defaults.colorMapOverrides[cmapName] = sortStops(targetStops);
-      syncColorSettingsControls();
-      saveDefaultsToStorage();
-      requestDraw();
-      commitCurrentStateToHistory();
+    handle.addEventListener("pointerup", endDrag);
+    handle.addEventListener("pointercancel", endDrag);
+    handle.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      gradientEditorSelectedStopId = stop.id;
+      removeStopById(cmapName, stop.id);
     });
 
-    row.append(positionWrap, percentInput, colorInput, transparentLabel, removeBtn);
-    existingMapStopsEl.append(row);
+    gradientBarEl.append(handle);
+  }
+}
+
+function renderSelectedStopDetails(cmapName) {
+  if (!stopDetailsEl) {
+    return;
+  }
+
+  const stops = getEditableStopsForMap(cmapName);
+  const selected = findStopById(stops, gradientEditorSelectedStopId) || stops[0];
+  if (!selected) {
+    stopDetailsEl.textContent = "No stops.";
+    return;
+  }
+  gradientEditorSelectedStopId = selected.id;
+
+  stopDetailsEl.innerHTML = "";
+  const detailsGrid = document.createElement("div");
+  detailsGrid.className = "stopDetailsGrid";
+
+  const positionField = document.createElement("label");
+  const positionLabel = document.createElement("span");
+  positionLabel.className = "rangeFieldLabel";
+  positionLabel.textContent = "Position %";
+  const positionInput = document.createElement("input");
+  positionInput.className = "stopPosInput";
+  positionInput.type = "number";
+  positionInput.min = "0";
+  positionInput.max = "100";
+  positionInput.step = "0.1";
+  positionInput.value = String((selected.t * 100).toFixed(1));
+  positionField.append(positionLabel, positionInput);
+
+  const colorBtn = document.createElement("button");
+  colorBtn.type = "button";
+  colorBtn.className = "stopActionBtn";
+  colorBtn.textContent = "Color";
+  colorBtn.style.background = rgbToHex(selected.r, selected.g, selected.b);
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "stopActionBtn";
+  removeBtn.textContent = "Remove";
+  removeBtn.disabled = stops.length <= 2;
+
+  detailsGrid.append(positionField, colorBtn, removeBtn);
+
+  const toggleRow = document.createElement("div");
+  toggleRow.className = "stopToggleRow";
+
+  const transparentLabel = document.createElement("label");
+  transparentLabel.className = "snapToggle";
+  const transparentInput = document.createElement("input");
+  transparentInput.type = "checkbox";
+  transparentInput.checked = selected.a <= 0.001;
+  transparentLabel.append(transparentInput, document.createTextNode("Transparent"));
+
+  const snapLabel = document.createElement("label");
+  snapLabel.className = "snapToggle";
+  const snapInput = document.createElement("input");
+  snapInput.type = "checkbox";
+  snapInput.checked = gradientEditorSnapEnabled;
+  snapLabel.append(snapInput, document.createTextNode("Snap (0/25/50/75/100)"));
+
+  toggleRow.append(transparentLabel, snapLabel);
+  stopDetailsEl.append(detailsGrid, toggleRow);
+
+  positionInput.addEventListener("input", () => {
+    const raw = Number(positionInput.value);
+    if (!Number.isFinite(raw)) {
+      return;
+    }
+    const normalized = clamp(raw / 100, 0, 1);
+    updateStopPosition(cmapName, selected.id, normalized, { persist: true, commitHistory: true });
+  });
+
+  colorBtn.addEventListener("click", () => {
+    if (!stopColorPickerInputEl) {
+      return;
+    }
+    stopColorPickerInputEl.value = rgbToHex(selected.r, selected.g, selected.b);
+    stopColorPickerInputEl.click();
+  });
+
+  removeBtn.addEventListener("click", () => removeStopById(cmapName, selected.id));
+
+  transparentInput.addEventListener("change", () => {
+    updateSelectedStopDetails(cmapName, (stop) => ({ ...stop, a: transparentInput.checked ? 0 : 1 }));
+  });
+
+  snapInput.addEventListener("change", () => {
+    gradientEditorSnapEnabled = snapInput.checked;
+  });
+}
+
+function attachGradientBarHandlers() {
+  if (!gradientBarEl) {
+    return;
+  }
+
+  gradientBarEl.addEventListener("dblclick", (event) => {
+    const cmapName = getCurrentGradientEditorMapName();
+    const rect = gradientBarEl.getBoundingClientRect();
+    const t = clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
+    const snapped = gradientEditorSnapEnabled || event.shiftKey ? Math.round(t * 4) / 4 : t;
+    addStopAt(cmapName, snapped, { openColorPicker: true });
+  });
+
+  gradientBarEl.addEventListener("pointerdown", (event) => {
+    if (event.target !== gradientBarEl) {
+      return;
+    }
+
+    const now = performance.now();
+    const delta = now - gradientLastBarTap.timestamp;
+    const isNear = Math.abs(event.clientX - gradientLastBarTap.x) < 24;
+    if (delta < 340 && isNear) {
+      const rect = gradientBarEl.getBoundingClientRect();
+      const t = clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
+      const snapped = gradientEditorSnapEnabled ? Math.round(t * 4) / 4 : t;
+      addStopAt(getCurrentGradientEditorMapName(), snapped, { openColorPicker: true });
+      gradientLastBarTap = { timestamp: 0, x: 0 };
+      return;
+    }
+
+    gradientLastBarTap = { timestamp: now, x: event.clientX };
+  });
+
+  stopColorPickerInputEl?.addEventListener("input", () => {
+    const cmapName = getCurrentGradientEditorMapName();
+    const [r, g, b] = hexToRgb(stopColorPickerInputEl.value, [255, 255, 255]);
+    updateSelectedStopDetails(cmapName, (stop) => ({ ...stop, r, g, b }));
   });
 }
 
@@ -1289,7 +1583,9 @@ function syncColorSettingsControls() {
   ensureColorSettingsDefaults();
   applyUiThemeFromUserSettings();
 
-  if (globalBgColorInputEl) globalBgColorInputEl.value = getBackgroundColorHex();
+  if (globalBgColorInputEl) {
+    globalBgColorInputEl.value = getBackgroundColorHex();
+  }
   if (existingMapSelectEl && existingMapSelectEl.options.length === 0) {
     const allMaps = [USER_MAP_NAME, ...appData.colormaps];
     for (const cmapName of allMaps) {
@@ -1304,11 +1600,14 @@ function syncColorSettingsControls() {
     existingMapSelectEl.value = USER_MAP_NAME;
   }
 
-  const selectedMap = existingMapSelectEl?.value || USER_MAP_NAME;
-  if (existingMapGradientEl) {
-    existingMapGradientEl.style.background = buildColorMapGradient(selectedMap);
+  const selectedMap = getCurrentGradientEditorMapName();
+  const stops = getEditableStopsForMap(selectedMap);
+  if (!findStopById(stops, gradientEditorSelectedStopId)) {
+    gradientEditorSelectedStopId = stops[0]?.id || null;
   }
-  renderExistingMapStopsEditor(selectedMap);
+
+  renderGradientBarEditor(selectedMap);
+  renderSelectedStopDetails(selectedMap);
 }
 
 function syncDetailedSettingsControls() {
@@ -3770,6 +4069,8 @@ function registerHandlers() {
   settingsTabDetailedEl?.addEventListener("click", () => setSettingsTab("detailed"));
   settingsTabColorsEl?.addEventListener("click", () => setSettingsTab("colors"));
 
+  attachGradientBarHandlers();
+
   globalBgColorInputEl?.addEventListener("input", () => {
     appData.defaults.canvasBackground = globalBgColorInputEl.value;
     syncColorSettingsControls();
@@ -3777,17 +4078,9 @@ function registerHandlers() {
     requestDraw();
     commitCurrentStateToHistory();
   });
-  existingMapSelectEl?.addEventListener("change", syncColorSettingsControls);
-  existingMapAddStopBtnEl?.addEventListener("click", () => {
-    const mapName = existingMapSelectEl?.value || USER_MAP_NAME;
-    const stops = getEditableStopsForMap(mapName);
-    const mid = sampleStops(stops, 0.5);
-    stops.push({ t: 0.5, r: Math.round(mid[0]), g: Math.round(mid[1]), b: Math.round(mid[2]), a: mid[3] });
-    appData.defaults.colorMapOverrides[mapName] = sortStops(stops);
+  existingMapSelectEl?.addEventListener("change", () => {
+    gradientEditorSelectedStopId = null;
     syncColorSettingsControls();
-    saveDefaultsToStorage();
-    requestDraw();
-    commitCurrentStateToHistory();
   });
 
   existingMapResetBtnEl?.addEventListener("click", () => {
