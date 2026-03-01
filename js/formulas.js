@@ -68,7 +68,7 @@ export const VARIANTS = [
   { id:"chip", name:"Chip (Peters)", desc:"x' = y − sgn(x)·cos((ln|bx−c|)^2)·atan((ln|bx−c|)^2), y' = a − x",
     step:(x,y,a,b,g,d)=>{ const s=x>0?1:(x<0?-1:0); const ln=Math.log(Math.abs(b*x-d)+1e-12); const t=ln*ln; const k=Math.cos(t)*Math.atan(t); return [ y - s*k, a - x ]; } },
 
-  { id:"pickover_clifford", disabled:false, name:"Pickover/Clifford", desc:"x' = sin(by) + d·sin(bx), y' = sin(ax) + c·sin(ay) (scaled)",
+  { id:"pickover_ord", disabled:false, name:"Pickover/ord", desc:"x' = sin(by) + d·sin(bx), y' = sin(ax) + c·sin(ay) (scaled)",
     step:(x,y,a,b,g,d)=>{ const S=20; return [ S*(Math.sin(b*y) + g*Math.sin(b*x)), S*(Math.sin(a*x) + d*Math.sin(a*y)) ]; } },
 
   { id:"peter_de_jong", name:"Peter de Jong", desc:"x' = sin(a·y) − cos(b·x), y' = sin(c·x) − cos(d·y)",
@@ -186,7 +186,7 @@ export const FORMULA_DEFAULT_PRESETS = {
   threeply: { a: 0.2850, b: 0.0000, c: 0.0000, d: 2.8500 },
   quadrup2: { a: -2.0100, b: 0.0000, c: 0.5550, d: 0.0000 },
   chip: { a: 0.0000, b: -0.0600, c: -0.0100, d: 0.0000 },
-  pickover_clifford: {a: -1.4, b: 1.6,  c: 1.0,  d: 0.7},
+  pickover_clifford: {a: 0.0240, b: 0.2280,  c: -0.4560,  d: 0.2520},
   peter_de_jong: {a: 1.4,  b: -2.3, c: 2.4,  d: -2.1},
   clifford: {a: -1.4, b: 1.6,  c: 1.0,  d: 0.7},
   fractal_dream: {a: -1.4, b: 1.6, c: 1.0, d: 0.7},
@@ -230,7 +230,7 @@ export const FORMULA_DEFAULT_SEEDS = {
   threeply: { x: 0.0, y: 0.0 },
   quadrup2: { x: 0.0, y: 0.0 },
   chip: { x: 0.0, y: 0.0 },
-  pickover_clifford: { x: 0.0, y: 0.0 },
+  pickover_clifford: { x: 0.1, y: 0.1 },
   peter_de_jong: {x: 0.1, y: 0.1},
   clifford: {x: 0.1, y: 0.1},
   fractal_dream: {x: 0.1, y: 0.1},
