@@ -68,7 +68,7 @@ export const VARIANTS = [
   { id:"chip", name:"Chip (Peters)", desc:"x' = y − sgn(x)·cos((ln|bx−c|)^2)·atan((ln|bx−c|)^2), y' = a − x",
     step:(x,y,a,b,g,d)=>{ const s=x>0?1:(x<0?-1:0); const ln=Math.log(Math.abs(b*x-d)+1e-12); const t=ln*ln; const k=Math.cos(t)*Math.atan(t); return [ y - s*k, a - x ]; } },
 
-  { id:"pickover_ord", disabled:false, name:"Pickover/ord", desc:"x' = sin(by) + d·sin(bx), y' = sin(ax) + c·sin(ay) (scaled)",
+  { id:"pickover_Clifford", disabled:false, name:"Pickover/Clifford", desc:"x' = sin(by) + d·sin(bx), y' = sin(ax) + c·sin(ay) (scaled)",
     step:(x,y,a,b,g,d)=>{ const S=20; return [ S*(Math.sin(b*y) + g*Math.sin(b*x)), S*(Math.sin(a*x) + d*Math.sin(a*y)) ]; } },
 
   { id:"peter_de_jong", name:"Peter de Jong", desc:"x' = sin(a·y) − cos(b·x), y' = sin(c·x) − cos(d·y)",
