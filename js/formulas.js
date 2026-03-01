@@ -190,7 +190,7 @@ export const FORMULA_DEFAULT_PRESETS = {
   peter_de_jong: {a: 1.4,  b: -2.3, c: 2.4,  d: -2.1},
   clifford: {a: -1.4, b: 1.6,  c: 1.0,  d: 0.7},
   fractal_dream: {a: -1.4, b: 1.6, c: 1.0, d: 0.7},
-  tinkerbell: {a: 0.9,  b: -0.6, c: 2.0,  d: 0.5},
+  tinkerbell: {a: 0.9,  b: -0.6013, c: 2.0,  d: 0.5},
   henon: {a: 1.4,  b: 0.3,  c: 0.0,  d: 0.0},
   lozi: {a: 1.7,  b: 0.5,  c: 0.0,  d: 0.0},
   ikeda: {a: 0.4,  b: 0.9,  c: 0.0,  d: 6.0},
