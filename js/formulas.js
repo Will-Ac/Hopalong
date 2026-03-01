@@ -234,7 +234,7 @@ export const FORMULA_DEFAULT_SEEDS = {
   peter_de_jong: {x: 0.1, y: 0.1},
   clifford: {x: 0.1, y: 0.1},
   fractal_dream: {x: 0.1, y: 0.1},
-  tinkerbell: {x: 0.0, y: 0.0},
+  tinkerbell: {x: 0.01, y: 0.01},
   henon: {x: 0.1, y: 0.0},
   lozi: {x: 0.1, y: 0.0},
   ikeda: {x: 0.0, y: 0.0},
