@@ -2795,12 +2795,34 @@ function drawManualParamOverlay(meta) {
     ctx.restore();
   };
 
+  const drawOutlinedTextClamped = (text, preferredX, preferredY) => {
+    const metrics = ctx.measureText(text);
+    const textWidth = metrics.width;
+    const textAscent = metrics.actualBoundingBoxAscent || axisNameFontPx * 0.8;
+    const textDescent = metrics.actualBoundingBoxDescent || axisNameFontPx * 0.2;
+    const edgePadding = 8;
+    const minX = edgePadding;
+    const maxX = Math.max(minX, view.width - edgePadding - textWidth);
+    const minY = edgePadding + textAscent;
+    const maxY = Math.max(minY, view.height - edgePadding - textDescent);
+
+    drawOutlinedText(text, clamp(preferredX, minX, maxX), clamp(preferredY, minY, maxY));
+  };
+
   ctx.font = `${axisNameFontPx}px system-ui, sans-serif`;
   if (manYControl) {
-    drawOutlinedText(`${manYControl.label}=0`, view.width - axisNameFontPx * 1.2, Math.max(axisNameFontPx + 4, paramAxisY - labelGap));
+    drawOutlinedTextClamped(
+      `${manYControl.label}=0`,
+      view.width - axisNameFontPx * 1.2,
+      Math.max(axisNameFontPx + 4, paramAxisY - labelGap),
+    );
   }
   if (manXControl) {
-    drawOutlinedText(`${manXControl.label}=0`, Math.min(view.width - axisNameFontPx * 2.8, paramAxisX + labelGap), axisNameFontPx + 4);
+    drawOutlinedTextClamped(
+      `${manXControl.label}=0`,
+      Math.min(view.width - axisNameFontPx * 2.8, paramAxisX + labelGap),
+      axisNameFontPx + 4,
+    );
   }
 
   ctx.restore();
