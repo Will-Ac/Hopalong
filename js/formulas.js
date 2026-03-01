@@ -71,8 +71,8 @@ export const VARIANTS = [
   { id:"pickover_clifford", disabled:false, name:"Pickover/Clifford", desc:"x' = sin(by) + d·sin(bx), y' = sin(ax) + c·sin(ay) (scaled)",
     step:(x,y,a,b,g,d)=>{ const S=20; return [ S*(Math.sin(b*y) + g*Math.sin(b*x)), S*(Math.sin(a*x) + d*Math.sin(a*y)) ]; } },
 
-  { id:"peter_de_jong", name:"Peter de Jong", desc:"x' = sin(y·a) − cos(x·b), y' = sin(x·c) − cos(y·d)",
-    step:(x,y,a,b,c,d)=>[ Math.sin(y*a)-Math.cos(x*b), Math.sin(x*c)-Math.cos(y*d) ] },
+  { id:"peter_de_jong", name:"Peter de Jong", desc:"x' = sin(a·y) − cos(b·x), y' = sin(c·x) − cos(d·y)",
+    step:(x,y,a,b,c,d)=>[ Math.sin(a*y)-Math.cos(b*x), Math.sin(c*x)-Math.cos(d*y) ] },
 
   { id:"clifford", name:"Clifford (Pickover)", desc:"x' = sin(a·y) + c·cos(a·x), y' = sin(b·x) + d·cos(b·y)",
     step:(x,y,a,b,c,d)=>[ Math.sin(a*y)+c*Math.cos(a*x), Math.sin(b*x)+d*Math.cos(b*y) ] },
@@ -98,8 +98,8 @@ export const VARIANTS = [
   { id:"popcorn", name:"Popcorn", desc:"x' = x − a·sin(y + tan(3y)) + c, y' = y − b·sin(x + tan(3x)) + d",
     step:(x,y,a,b,c,d)=>{ const safeTan=(v)=>{ const t=Math.tan(v); return Number.isFinite(t)?Math.max(-10,Math.min(10,t)):0; }; return [ x - a*Math.sin(y + safeTan(3*y)) + c, y - b*Math.sin(x + safeTan(3*x)) + d ]; } },
 
-  { id:"bedhead", name:"Bedhead", desc:"x' = sin(xy/b)·y + cos(a·x−y), y' = x + sin(y)/b",
-    step:(x,y,a,b,c,d)=>{ const safeB=Math.abs(b)<1e-9?(b<0?-1e-9:1e-9):b; return [Math.sin((x*y)/safeB)*y + Math.cos(a*x-y), x + Math.sin(y)/safeB]; } },
+  { id:"bedhead", name:"Bedhead", desc:"x' = sin(xy/b)·y + cos(ax−y) + d, y' = x + sin(y)/c",
+    step:(x,y,a,b,c,d)=>{ const safeB=Math.abs(b)<1e-9?(b<0?-1e-9:1e-9):b; const safeC=Math.abs(c)<1e-9?(c<0?-1e-9:1e-9):c; return [Math.sin((x*y)/safeB)*y + Math.cos(a*x-y) + d, x + Math.sin(y)/safeC]; } },
 
   { id:"jason_rampe_1", name:"Jason Rampe 1", desc:"x' = cos(y·b) + c·sin(x·b), y' = cos(x·a) + d·sin(y·a)",
     step:(x,y,a,b,c,d)=>[ Math.cos(y*b) + c*Math.sin(x*b), Math.cos(x*a) + d*Math.sin(y*a) ] },
@@ -113,8 +113,8 @@ export const VARIANTS = [
   { id:"johnny_svensson", name:"Johnny Svensson", desc:"x' = d·sin(x·a) − sin(y·b), y' = c·cos(x·a) + cos(y·b)",
     step:(x,y,a,b,c,d)=>[ d*Math.sin(x*a) - Math.sin(y*b), c*Math.cos(x*a) + Math.cos(y*b) ] },
 
-  { id:"gumowski_mira", name:"Gumowski–Mira", desc:"t = x; w = a·x + (1−a)·(2x²/(1+x²)); x' = b·y + w; y' = w − t",
-    step:(x,y,a,b,c,d)=>{ const t=x; const w=a*x + (1-a)*((2*x*x)/(1+x*x)); return [b*y + w, w - t]; } },
+  { id:"gumowski_mira", name:"Gumowski–Mira", desc:"f(u)=c·u+2(1−c)u²/(1+u²); x'=y+a(1−by²)y+f(x), y'=-x+d·f(x')",
+    step:(x,y,a,b,c,d)=>{ const f=(u)=>c*u + (2*(1-c)*u*u)/(1+u*u); const x1=y + a*(1-b*y*y)*y + f(x); return [x1, -x + d*f(x1)]; } },
 
   { id:"shifted_hopalong", name:"Shifted Hopalong", desc:"xShift=x+c; x' = y − sgn(xShift)·sqrt(|b·xShift−a|), y' = a − xShift + d",
     step:(x,y,a,b,c,d)=>{ const xShift=x+c; const sign=xShift>=0?1:-1; return [y - sign*Math.sqrt(Math.abs(b*xShift-a)), a-xShift+d]; } }
@@ -152,8 +152,8 @@ export const FORMULA_RANGES_RAW = {
   ikeda: { a: [0.0, 1.5], b: [0.5, 0.99], c: [-1.0, 1.0], d: [0.0, 10.0] },
   gingerbread: { a: [-2.0, 2.0], b: [0.4, 1.6], c: [0.8, 1.3], d: [-1.0, 1.0] },
   popcorn: { a: [0.001, 0.06], b: [0.001, 0.06], c: [-0.5, 0.5], d: [-0.5, 0.5] },
-  bedhead: { a: [-1.0, 1.0], b: [-1.0, 1.0], c: [0.0, 0.0], d: [0.0, 0.0] },
-  gumowski_mira: { a: [-1.0, 1.0], b: [-1.0, 1.0], c: [0.0, 0.0], d: [0.0, 0.0] },
+  bedhead: { a: [-1.2, 1.2], b: [0.2, 2.0], c: [0.2, 2.0], d: [-0.8, 0.8] },
+  gumowski_mira: { a: [-0.05, 0.05], b: [-1.0, 1.0], c: [0.0, 1.0], d: [0.3, 1.0] },
   jason_rampe_1: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-3.0, 3.0], d: [-3.0, 3.0] },
   jason_rampe_2: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-3.0, 3.0], d: [-3.0, 3.0] },
   jason_rampe_3: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-3.0, 3.0], d: [-3.0, 3.0] },
@@ -196,8 +196,8 @@ export const FORMULA_DEFAULT_PRESETS = {
   ikeda: {a: 0.4,  b: 0.9,  c: 0.0,  d: 6.0},
   gingerbread: {a: 1.2,  b: 1.0,  c: 1.0,  d: 0.0},
   popcorn: {a: 0.03, b: 0.03, c: 0.0,  d: 0.0},
-  bedhead: {a: 0.65, b: 0.73, c: 0.0,  d: 0.0},
-  gumowski_mira: {a: 0.01, b: -0.7, c: 0.0, d: 0.0},
+  bedhead: {a: 0.65, b: 0.73, c: 1.1,  d: 0.1},
+  gumowski_mira: {a: 0.01, b: -0.7, c: 0.05, d: 0.7},
   jason_rampe_1: {a: -1.4, b: 1.6, c: 1.0, d: 0.7},
   jason_rampe_2: {a: -1.4, b: 1.6, c: 1.0, d: 0.7},
   jason_rampe_3: {a: -1.4, b: 1.6, c: 1.0, d: 0.7},
