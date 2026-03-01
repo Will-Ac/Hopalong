@@ -51,10 +51,9 @@ const infoDensityGammaEl = document.getElementById("infoDensityGamma");
 const infoHybridBlendEl = document.getElementById("infoHybridBlend");
 const detailSeedXInputEl = document.getElementById("detailSeedXInput");
 const detailSeedYInputEl = document.getElementById("detailSeedYInput");
-const userBgColorInputEl = document.getElementById("userBgColor");
+const globalBgColorInputEl = document.getElementById("globalBgColor");
 const userDrawColorAInputEl = document.getElementById("userDrawColorA");
 const userDrawColorBInputEl = document.getElementById("userDrawColorB");
-const userUiTextColorInputEl = document.getElementById("userUiTextColor");
 const userMapResetBtnEl = document.getElementById("userMapResetBtn");
 const userMapPreviewEl = document.getElementById("userMapPreview");
 const userMapPreviewBarEl = document.getElementById("userMapPreviewBar");
@@ -126,11 +125,11 @@ const RENDER_COLOR_MODE_SET = new Set(Object.values(RENDER_COLOR_MODES));
 
 const USER_MAP_NAME = "User defined";
 const USER_MAP_DEFAULT = {
-  background: "#05070c",
   drawA: "#35b4ff",
   drawB: "#ff6a8f",
-  uiText: "#a6afbb",
 };
+
+const GLOBAL_BACKGROUND_DEFAULT = "#05070c";
 
 const ctx = canvas.getContext("2d", { alpha: false });
 let appData = null;
@@ -357,18 +356,29 @@ function getUserMapStops() {
   ];
 }
 
-function getBackgroundColorRgb() {
-  const bg = appData?.defaults?.userMap?.background || USER_MAP_DEFAULT.background;
-  return hexToRgb(bg, [5, 7, 12]);
+function getBackgroundColorHex() {
+  return String(appData?.defaults?.canvasBackground || GLOBAL_BACKGROUND_DEFAULT);
 }
 
-function getUiTextColorHex() {
-  return appData?.defaults?.userMap?.uiText || USER_MAP_DEFAULT.uiText;
+function getBackgroundColorRgb() {
+  return hexToRgb(getBackgroundColorHex(), [5, 7, 12]);
+}
+
+function getAutoNeutralUiTextColorHex() {
+  const [r, g, b] = getBackgroundColorRgb();
+  const srgb = [r, g, b].map((channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+
+  // Keep UI color neutral and unobtrusive while maintaining readable contrast.
+  return luminance > 0.56 ? "#4a525f" : "#a2acb8";
 }
 
 function applyUiThemeFromUserSettings() {
   const root = document.documentElement;
-  const [r, g, b] = hexToRgb(getUiTextColorHex(), [148, 154, 164]);
+  const [r, g, b] = hexToRgb(getAutoNeutralUiTextColorHex(), [148, 154, 164]);
   root.style.setProperty("--ui-gray-rgb", `${r}, ${g}, ${b}`);
   root.style.setProperty("--text", `rgb(${r}, ${g}, ${b})`);
 }
@@ -1167,10 +1177,13 @@ function ensureColorSettingsDefaults() {
   if (!appData.defaults.userMap || typeof appData.defaults.userMap !== "object") {
     appData.defaults.userMap = { ...USER_MAP_DEFAULT };
   }
-  appData.defaults.userMap.background = String(appData.defaults.userMap.background || USER_MAP_DEFAULT.background);
   appData.defaults.userMap.drawA = String(appData.defaults.userMap.drawA || USER_MAP_DEFAULT.drawA);
   appData.defaults.userMap.drawB = String(appData.defaults.userMap.drawB || USER_MAP_DEFAULT.drawB);
-  appData.defaults.userMap.uiText = String(appData.defaults.userMap.uiText || USER_MAP_DEFAULT.uiText);
+
+  if (typeof appData.defaults.canvasBackground !== "string" || !appData.defaults.canvasBackground) {
+    const migratedBackground = appData.defaults.userMap.background;
+    appData.defaults.canvasBackground = String(migratedBackground || GLOBAL_BACKGROUND_DEFAULT);
+  }
 
   if (!appData.defaults.colorMapOverrides || typeof appData.defaults.colorMapOverrides !== "object") {
     appData.defaults.colorMapOverrides = {};
@@ -1183,9 +1196,9 @@ function syncUserMapPreview() {
   }
 
   const userMap = appData.defaults.userMap;
-  userMapPreviewEl.style.background = userMap.background;
+  userMapPreviewEl.style.background = getBackgroundColorHex();
   userMapPreviewBarEl.style.background = `linear-gradient(90deg, ${userMap.drawA}, ${userMap.drawB})`;
-  userMapPreviewTextEl.style.color = userMap.uiText;
+  userMapPreviewTextEl.style.color = getAutoNeutralUiTextColorHex();
 }
 
 function renderExistingMapStopsEditor(cmapName) {
@@ -1287,10 +1300,9 @@ function syncColorSettingsControls() {
   ensureColorSettingsDefaults();
   applyUiThemeFromUserSettings();
 
-  if (userBgColorInputEl) userBgColorInputEl.value = appData.defaults.userMap.background;
+  if (globalBgColorInputEl) globalBgColorInputEl.value = getBackgroundColorHex();
   if (userDrawColorAInputEl) userDrawColorAInputEl.value = appData.defaults.userMap.drawA;
   if (userDrawColorBInputEl) userDrawColorBInputEl.value = appData.defaults.userMap.drawB;
-  if (userUiTextColorInputEl) userUiTextColorInputEl.value = appData.defaults.userMap.uiText;
   syncUserMapPreview();
 
   if (existingMapSelectEl && existingMapSelectEl.options.length === 0) {
@@ -3784,13 +3796,19 @@ function registerHandlers() {
     commitCurrentStateToHistory();
   };
 
-  userBgColorInputEl?.addEventListener("input", () => updateUserMapSetting("background", userBgColorInputEl.value));
+  globalBgColorInputEl?.addEventListener("input", () => {
+    appData.defaults.canvasBackground = globalBgColorInputEl.value;
+    syncColorSettingsControls();
+    saveDefaultsToStorage();
+    requestDraw();
+    commitCurrentStateToHistory();
+  });
   userDrawColorAInputEl?.addEventListener("input", () => updateUserMapSetting("drawA", userDrawColorAInputEl.value));
   userDrawColorBInputEl?.addEventListener("input", () => updateUserMapSetting("drawB", userDrawColorBInputEl.value));
-  userUiTextColorInputEl?.addEventListener("input", () => updateUserMapSetting("uiText", userUiTextColorInputEl.value));
 
   userMapResetBtnEl?.addEventListener("click", () => {
     appData.defaults.userMap = { ...USER_MAP_DEFAULT };
+    appData.defaults.canvasBackground = GLOBAL_BACKGROUND_DEFAULT;
     syncColorSettingsControls();
     saveDefaultsToStorage();
     requestDraw();

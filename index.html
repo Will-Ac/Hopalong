@@ -170,7 +170,8 @@
         -webkit-overflow-scrolling: touch;
         border-radius: 10px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.15);
-        background: rgba(8, 10, 15, 0.9);
+        background: rgba(20, 28, 42, 0.64);
+        backdrop-filter: blur(8px);
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
         padding: 10px;
@@ -910,18 +911,24 @@ Scale</button>
 
         <div id="colorsTabPanel" class="rangesEditorBody settingsTabPanel is-hidden">
           <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Global background (all maps)</span></div>
+            <div class="colorUserGrid">
+              <label class="rangeField"><span class="rangeFieldLabel">Background</span><input id="globalBgColor" type="color" value="#05070c" /></label>
+            </div>
+            <p class="colorHelperText">UI text color is chosen automatically for contrast and stays neutral.</p>
+          </div>
+
+          <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">User defined map (shown first)</span></div>
             <div class="colorUserGrid">
-              <label class="rangeField"><span class="rangeFieldLabel">Background</span><input id="userBgColor" type="color" value="#05070c" /></label>
               <label class="rangeField"><span class="rangeFieldLabel">Draw color 1</span><input id="userDrawColorA" type="color" value="#35b4ff" /></label>
               <label class="rangeField"><span class="rangeFieldLabel">Draw color 2</span><input id="userDrawColorB" type="color" value="#ff6a8f" /></label>
-              <label class="rangeField"><span class="rangeFieldLabel">UI and text color</span><input id="userUiTextColor" type="color" value="#a6afbb" /></label>
             </div>
             <div id="userMapPreview" class="userMapPreviewBox">
               <div id="userMapPreviewBar" class="userMapPreviewBar"></div>
-              <div id="userMapPreviewText" class="userMapPreviewText">Sample UI text and controls</div>
+              <div id="userMapPreviewText" class="userMapPreviewText">Sample UI text and controls (auto)</div>
             </div>
-            <button id="userMapResetBtn" class="rangesActionBtn" type="button">Reset user map</button>
+            <button id="userMapResetBtn" class="rangesActionBtn" type="button">Reset color settings</button>
           </div>
 
           <div class="perfSettingCard">

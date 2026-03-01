@@ -21,10 +21,9 @@
   "renderDensityGamma": 0.6,
   "renderHybridBlend": 0.3,
   "userMap": {
-    "background": "#05070c",
     "drawA": "#35b4ff",
-    "drawB": "#ff6a8f",
-    "uiText": "#a6afbb"
+    "drawB": "#ff6a8f"
   },
-  "colorMapOverrides": {}
+  "colorMapOverrides": {},
+  "canvasBackground": "#05070c"
 }
