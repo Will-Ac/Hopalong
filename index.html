@@ -171,9 +171,8 @@
         border-radius: 10px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.15);
         background: rgba(20, 28, 42, 0.64);
-        backdrop-filter: blur(8px);
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(7px);
+        -webkit-backdrop-filter: blur(7px);
         padding: 10px;
       }
       #rangesEditorPanel.is-hidden {
@@ -342,23 +341,6 @@
         display: grid;
         gap: 8px;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-      .userMapPreviewBox {
-        margin-top: 10px;
-        border: 1px solid rgba(var(--ui-gray-rgb), 0.2);
-        border-radius: 10px;
-        padding: 10px;
-      }
-      .userMapPreviewBar {
-        height: 22px;
-        border-radius: 7px;
-        border: 1px solid rgba(var(--ui-gray-rgb), 0.25);
-      }
-      .userMapPreviewText {
-        margin-top: 10px;
-        border: 1px dashed rgba(var(--ui-gray-rgb), 0.3);
-        border-radius: 8px;
-        padding: 8px;
       }
       .colorSettingsGradient {
         margin-top: 8px;
@@ -918,21 +900,9 @@ Scale</button>
             <p class="colorHelperText">UI text color is chosen automatically for contrast and stays neutral.</p>
           </div>
 
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">User defined map (shown first)</span></div>
-            <div class="colorUserGrid">
-              <label class="rangeField"><span class="rangeFieldLabel">Draw color 1</span><input id="userDrawColorA" type="color" value="#35b4ff" /></label>
-              <label class="rangeField"><span class="rangeFieldLabel">Draw color 2</span><input id="userDrawColorB" type="color" value="#ff6a8f" /></label>
-            </div>
-            <div id="userMapPreview" class="userMapPreviewBox">
-              <div id="userMapPreviewBar" class="userMapPreviewBar"></div>
-              <div id="userMapPreviewText" class="userMapPreviewText">Sample UI text and controls (auto)</div>
-            </div>
-            <button id="userMapResetBtn" class="rangesActionBtn" type="button">Reset color settings</button>
-          </div>
 
           <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Existing map editor</span></div>
+            <div class="perfSettingHead"><span class="perfSettingLabel">Map editor (includes User defined)</span></div>
             <label>
               <span class="rangeFieldLabel">Map</span>
               <select id="existingMapSelect" class="perfSelect" aria-label="Map to edit"></select>

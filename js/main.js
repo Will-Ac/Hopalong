@@ -1,4 +1,4 @@
-import { ColorMapNames, sampleColorMap } from "./colormaps.js";
+import { ColorMapNames, sampleColorMap, getColorMapStops } from "./colormaps.js";
 import { renderFrame, getParamsForFormula } from "./renderer.js";
 import { FORMULA_METADATA, FORMULA_RANGES_RAW, FORMULA_DEFAULT_PRESETS, FORMULA_DEFAULT_SEEDS } from "./formulas.js";
 
@@ -52,12 +52,6 @@ const infoHybridBlendEl = document.getElementById("infoHybridBlend");
 const detailSeedXInputEl = document.getElementById("detailSeedXInput");
 const detailSeedYInputEl = document.getElementById("detailSeedYInput");
 const globalBgColorInputEl = document.getElementById("globalBgColor");
-const userDrawColorAInputEl = document.getElementById("userDrawColorA");
-const userDrawColorBInputEl = document.getElementById("userDrawColorB");
-const userMapResetBtnEl = document.getElementById("userMapResetBtn");
-const userMapPreviewEl = document.getElementById("userMapPreview");
-const userMapPreviewBarEl = document.getElementById("userMapPreviewBar");
-const userMapPreviewTextEl = document.getElementById("userMapPreviewText");
 const existingMapSelectEl = document.getElementById("existingMapSelect");
 const existingMapGradientEl = document.getElementById("existingMapGradient");
 const existingMapStopsEl = document.getElementById("existingMapStops");
@@ -124,10 +118,10 @@ const RENDER_COLOR_MODES = {
 const RENDER_COLOR_MODE_SET = new Set(Object.values(RENDER_COLOR_MODES));
 
 const USER_MAP_NAME = "User defined";
-const USER_MAP_DEFAULT = {
-  drawA: "#35b4ff",
-  drawB: "#ff6a8f",
-};
+const USER_MAP_DEFAULT_STOPS = [
+  { t: 0, r: 53, g: 180, b: 255, a: 1 },
+  { t: 1, r: 255, g: 106, b: 143, a: 1 },
+];
 
 const GLOBAL_BACKGROUND_DEFAULT = "#05070c";
 
@@ -328,14 +322,23 @@ function buildGradientFromStops(stops) {
 }
 
 function getBuiltInStopsForMap(cmapName) {
-  const stops = [];
+  if (cmapName === USER_MAP_NAME) {
+    return USER_MAP_DEFAULT_STOPS.map((stop) => ({ ...stop }));
+  }
+
+  const defined = getColorMapStops(cmapName);
+  if (Array.isArray(defined) && defined.length >= 2) {
+    return defined;
+  }
+
+  const sampledStops = [];
   const samples = 8;
   for (let i = 0; i <= samples; i += 1) {
     const t = i / samples;
     const [r, g, b] = sampleColorMap(cmapName, t);
-    stops.push({ t, r, g, b, a: 1 });
+    sampledStops.push({ t, r, g, b, a: 1 });
   }
-  return stops;
+  return sampledStops;
 }
 
 function getEditableStopsForMap(cmapName) {
@@ -344,16 +347,6 @@ function getEditableStopsForMap(cmapName) {
     return sortStops(overrides.map((stop) => normalizeEditableStop(stop)));
   }
   return getBuiltInStopsForMap(cmapName);
-}
-
-function getUserMapStops() {
-  const userMap = appData?.defaults?.userMap || USER_MAP_DEFAULT;
-  const a = hexToRgb(userMap.drawA, [53, 180, 255]);
-  const b = hexToRgb(userMap.drawB, [255, 106, 143]);
-  return [
-    { t: 0, r: a[0], g: a[1], b: a[2], a: 1 },
-    { t: 1, r: b[0], g: b[1], b: b[2], a: 1 },
-  ];
 }
 
 function getBackgroundColorHex() {
@@ -384,11 +377,16 @@ function applyUiThemeFromUserSettings() {
 }
 
 function getColorOverrideStopsForCurrentMap() {
-  if (appData?.defaults?.cmapName === USER_MAP_NAME) {
-    return getUserMapStops();
+  const current = appData?.defaults?.cmapName;
+  if (!current) {
+    return null;
   }
 
-  const overrides = appData?.defaults?.colorMapOverrides?.[appData?.defaults?.cmapName];
+  if (current === USER_MAP_NAME) {
+    return getEditableStopsForMap(USER_MAP_NAME);
+  }
+
+  const overrides = appData?.defaults?.colorMapOverrides?.[current];
   if (Array.isArray(overrides) && overrides.length >= 2) {
     return sortStops(overrides.map((stop) => normalizeEditableStop(stop)));
   }
@@ -733,13 +731,9 @@ function resolveInitialColorMap() {
 }
 
 function buildColorMapGradient(cmapName) {
-  if (cmapName === USER_MAP_NAME) {
-    return buildGradientFromStops(getUserMapStops());
-  }
-
   const overrideStops = appData?.defaults?.colorMapOverrides?.[cmapName];
-  if (Array.isArray(overrideStops) && overrideStops.length >= 2) {
-    return buildGradientFromStops(sortStops(overrideStops.map((stop) => normalizeEditableStop(stop))));
+  if (cmapName === USER_MAP_NAME || (Array.isArray(overrideStops) && overrideStops.length >= 2)) {
+    return buildGradientFromStops(getEditableStopsForMap(cmapName));
   }
 
   const stops = [];
@@ -865,7 +859,8 @@ function collectUiTextLines() {
   }
   if (appData?.colormaps?.length) {
     lines.push(clampLabel(USER_MAP_NAME));
-    for (const cmapName of appData.colormaps) {
+    const allMaps = [USER_MAP_NAME, ...appData.colormaps];
+    for (const cmapName of allMaps) {
       lines.push(clampLabel(cmapName || ""));
     }
   }
@@ -1174,31 +1169,25 @@ function setSettingsTab(tabKey) {
 }
 
 function ensureColorSettingsDefaults() {
-  if (!appData.defaults.userMap || typeof appData.defaults.userMap !== "object") {
-    appData.defaults.userMap = { ...USER_MAP_DEFAULT };
-  }
-  appData.defaults.userMap.drawA = String(appData.defaults.userMap.drawA || USER_MAP_DEFAULT.drawA);
-  appData.defaults.userMap.drawB = String(appData.defaults.userMap.drawB || USER_MAP_DEFAULT.drawB);
-
-  if (typeof appData.defaults.canvasBackground !== "string" || !appData.defaults.canvasBackground) {
-    const migratedBackground = appData.defaults.userMap.background;
-    appData.defaults.canvasBackground = String(migratedBackground || GLOBAL_BACKGROUND_DEFAULT);
-  }
-
   if (!appData.defaults.colorMapOverrides || typeof appData.defaults.colorMapOverrides !== "object") {
     appData.defaults.colorMapOverrides = {};
   }
-}
 
-function syncUserMapPreview() {
-  if (!userMapPreviewEl || !userMapPreviewBarEl || !userMapPreviewTextEl) {
-    return;
+  if (typeof appData.defaults.canvasBackground !== "string" || !appData.defaults.canvasBackground) {
+    const migratedBackground = appData.defaults?.userMap?.background;
+    appData.defaults.canvasBackground = String(migratedBackground || GLOBAL_BACKGROUND_DEFAULT);
   }
 
-  const userMap = appData.defaults.userMap;
-  userMapPreviewEl.style.background = getBackgroundColorHex();
-  userMapPreviewBarEl.style.background = `linear-gradient(90deg, ${userMap.drawA}, ${userMap.drawB})`;
-  userMapPreviewTextEl.style.color = getAutoNeutralUiTextColorHex();
+  const legacyDrawA = appData.defaults?.userMap?.drawA;
+  const legacyDrawB = appData.defaults?.userMap?.drawB;
+  if (!Array.isArray(appData.defaults.colorMapOverrides[USER_MAP_NAME]) && legacyDrawA && legacyDrawB) {
+    const [ar, ag, ab] = hexToRgb(legacyDrawA, [53, 180, 255]);
+    const [br, bg, bb] = hexToRgb(legacyDrawB, [255, 106, 143]);
+    appData.defaults.colorMapOverrides[USER_MAP_NAME] = [
+      { t: 0, r: ar, g: ag, b: ab, a: 1 },
+      { t: 1, r: br, g: bg, b: bb, a: 1 },
+    ];
+  }
 }
 
 function renderExistingMapStopsEditor(cmapName) {
@@ -1301,12 +1290,9 @@ function syncColorSettingsControls() {
   applyUiThemeFromUserSettings();
 
   if (globalBgColorInputEl) globalBgColorInputEl.value = getBackgroundColorHex();
-  if (userDrawColorAInputEl) userDrawColorAInputEl.value = appData.defaults.userMap.drawA;
-  if (userDrawColorBInputEl) userDrawColorBInputEl.value = appData.defaults.userMap.drawB;
-  syncUserMapPreview();
-
   if (existingMapSelectEl && existingMapSelectEl.options.length === 0) {
-    for (const cmapName of appData.colormaps) {
+    const allMaps = [USER_MAP_NAME, ...appData.colormaps];
+    for (const cmapName of allMaps) {
       const option = document.createElement("option");
       option.value = cmapName;
       option.textContent = cmapName;
@@ -1315,10 +1301,10 @@ function syncColorSettingsControls() {
   }
 
   if (existingMapSelectEl && !existingMapSelectEl.value) {
-    existingMapSelectEl.value = appData.colormaps[0];
+    existingMapSelectEl.value = USER_MAP_NAME;
   }
 
-  const selectedMap = existingMapSelectEl?.value || appData.colormaps[0];
+  const selectedMap = existingMapSelectEl?.value || USER_MAP_NAME;
   if (existingMapGradientEl) {
     existingMapGradientEl.style.background = buildColorMapGradient(selectedMap);
   }
@@ -1937,7 +1923,6 @@ function captureCurrentState() {
     formulaSeeds: JSON.parse(JSON.stringify(appData.defaults.formulaSeeds || {})),
     formulaParamDefaultsByFormula: JSON.parse(JSON.stringify(appData.defaults.formulaParamDefaultsByFormula || {})),
     colorMapOverrides: JSON.parse(JSON.stringify(appData.defaults.colorMapOverrides || {})),
-    userMap: JSON.parse(JSON.stringify(appData.defaults.userMap || USER_MAP_DEFAULT)),
   };
 }
 
@@ -1997,9 +1982,6 @@ function applyState(state) {
   }
   if (state.colorMapOverrides && typeof state.colorMapOverrides === "object") {
     appData.defaults.colorMapOverrides = JSON.parse(JSON.stringify(state.colorMapOverrides));
-  }
-  if (state.userMap && typeof state.userMap === "object") {
-    appData.defaults.userMap = JSON.parse(JSON.stringify(state.userMap));
   }
   ensureColorSettingsDefaults();
   applyUiThemeFromUserSettings();
@@ -3788,14 +3770,6 @@ function registerHandlers() {
   settingsTabDetailedEl?.addEventListener("click", () => setSettingsTab("detailed"));
   settingsTabColorsEl?.addEventListener("click", () => setSettingsTab("colors"));
 
-  const updateUserMapSetting = (key, value) => {
-    appData.defaults.userMap[key] = value;
-    syncColorSettingsControls();
-    saveDefaultsToStorage();
-    requestDraw();
-    commitCurrentStateToHistory();
-  };
-
   globalBgColorInputEl?.addEventListener("input", () => {
     appData.defaults.canvasBackground = globalBgColorInputEl.value;
     syncColorSettingsControls();
@@ -3803,21 +3777,9 @@ function registerHandlers() {
     requestDraw();
     commitCurrentStateToHistory();
   });
-  userDrawColorAInputEl?.addEventListener("input", () => updateUserMapSetting("drawA", userDrawColorAInputEl.value));
-  userDrawColorBInputEl?.addEventListener("input", () => updateUserMapSetting("drawB", userDrawColorBInputEl.value));
-
-  userMapResetBtnEl?.addEventListener("click", () => {
-    appData.defaults.userMap = { ...USER_MAP_DEFAULT };
-    appData.defaults.canvasBackground = GLOBAL_BACKGROUND_DEFAULT;
-    syncColorSettingsControls();
-    saveDefaultsToStorage();
-    requestDraw();
-    commitCurrentStateToHistory();
-  });
-
   existingMapSelectEl?.addEventListener("change", syncColorSettingsControls);
   existingMapAddStopBtnEl?.addEventListener("click", () => {
-    const mapName = existingMapSelectEl?.value || appData.colormaps[0];
+    const mapName = existingMapSelectEl?.value || USER_MAP_NAME;
     const stops = getEditableStopsForMap(mapName);
     const mid = sampleStops(stops, 0.5);
     stops.push({ t: 0.5, r: Math.round(mid[0]), g: Math.round(mid[1]), b: Math.round(mid[2]), a: mid[3] });
@@ -3829,7 +3791,7 @@ function registerHandlers() {
   });
 
   existingMapResetBtnEl?.addEventListener("click", () => {
-    const mapName = existingMapSelectEl?.value || appData.colormaps[0];
+    const mapName = existingMapSelectEl?.value || USER_MAP_NAME;
     delete appData.defaults.colorMapOverrides[mapName];
     syncColorSettingsControls();
     saveDefaultsToStorage();
@@ -4011,9 +3973,6 @@ async function loadData() {
   }
   if (!data.defaults.colorMapOverrides || typeof data.defaults.colorMapOverrides !== "object") {
     data.defaults.colorMapOverrides = {};
-  }
-  if (!data.defaults.userMap || typeof data.defaults.userMap !== "object") {
-    data.defaults.userMap = { ...USER_MAP_DEFAULT };
   }
 
   data.formulas = FORMULA_METADATA.map((formula) => ({ ...formula }));

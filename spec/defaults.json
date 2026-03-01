@@ -19,10 +19,6 @@
   "renderLogStrength": 9,
   "renderDensityGamma": 0.6,
   "renderHybridBlend": 0.3,
-  "userMap": {
-    "drawA": "#35b4ff",
-    "drawB": "#ff6a8f"
-  },
   "colorMapOverrides": {},
   "canvasBackground": "#05070c"
 }
