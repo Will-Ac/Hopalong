@@ -17,13 +17,9 @@ const rangesEditorPanelEl = document.getElementById("rangesEditorPanel");
 const rangesEditorCloseEl = document.getElementById("rangesEditorClose");
 const formulaSettingsPanelEl = document.getElementById("formulaSettingsPanel");
 const formulaSettingsCloseEl = document.getElementById("formulaSettingsClose");
-const rangesFormulaSelectEl = document.getElementById("rangesFormulaSelect");
 const rangesFormulaLineXEl = document.getElementById("rangesFormulaLineX");
 const rangesFormulaLineYEl = document.getElementById("rangesFormulaLineY");
 const rangesEditorWarningEl = document.getElementById("rangesEditorWarning");
-const rangesApplyBtnEl = document.getElementById("rangesApplyBtn");
-const rangesDefaultsBtnEl = document.getElementById("rangesDefaultsBtn");
-const rangesResetAllBtnEl = document.getElementById("rangesResetAllBtn");
 const settingsTabColorEl = document.getElementById("settingsTabColor");
 const settingsTabGeneralEl = document.getElementById("settingsTabGeneral");
 const colorTabPanelEl = document.getElementById("colorTabPanel");
@@ -393,25 +389,24 @@ function renderFormulaDetail(formulaId) {
   }
 
   const formula = findFormulaMeta(formulaId);
+  const xEquation = String(formula?.detailX || "").trim();
+  const yEquation = String(formula?.detailY || "").trim();
+
+  if (xEquation && yEquation) {
+    rangesFormulaLineXEl.textContent = xEquation;
+    rangesFormulaLineYEl.textContent = yEquation;
+    return;
+  }
+
   const desc = String(formula?.desc || "").trim();
   if (!desc) {
-    rangesFormulaLineXEl.textContent = "x' = --";
-    rangesFormulaLineYEl.textContent = "y' = --";
+    rangesFormulaLineXEl.textContent = "x_next = --";
+    rangesFormulaLineYEl.textContent = "y_next = --";
     return;
   }
 
-  const splitToken = ", y'";
-  const splitIndex = desc.indexOf(splitToken);
-  if (splitIndex > -1) {
-    const xLine = desc.slice(0, splitIndex).trim();
-    const yLine = `y'${desc.slice(splitIndex + splitToken.length)}`.trim();
-    rangesFormulaLineXEl.textContent = xLine;
-    rangesFormulaLineYEl.textContent = yLine;
-    return;
-  }
-
-  rangesFormulaLineXEl.textContent = desc;
-  rangesFormulaLineYEl.textContent = "y' = --";
+  rangesFormulaLineXEl.textContent = `x_next = ${desc}`;
+  rangesFormulaLineYEl.textContent = "y_next = --";
 }
 
 function getDerivedParams() {
@@ -791,21 +786,7 @@ function setRangesEditorWarning(message = "") {
 }
 
 function getSelectedRangesEditorFormulaId() {
-  return rangesFormulaSelectEl?.value || rangesEditorFormulaId || currentFormulaId;
-}
-
-function populateRangeEditorFormulaOptions() {
-  if (!rangesFormulaSelectEl || !appData) {
-    return;
-  }
-
-  rangesFormulaSelectEl.innerHTML = "";
-  for (const formula of appData.formulas) {
-    const option = document.createElement("option");
-    option.value = formula.id;
-    option.textContent = formula.name || formula.id;
-    rangesFormulaSelectEl.append(option);
-  }
+  return rangesEditorFormulaId || currentFormulaId;
 }
 
 function loadFormulaRangesIntoEditor(formulaId) {
@@ -821,9 +802,6 @@ function loadFormulaRangesIntoEditor(formulaId) {
     field.max.value = String(ranges[key][1]);
   }
   rangesEditorFormulaId = formulaId;
-  if (rangesFormulaSelectEl) {
-    rangesFormulaSelectEl.value = formulaId;
-  }
   setRangesEditorWarning("");
   renderFormulaDetail(formulaId);
   syncSeedEditorInputs(formulaId);
@@ -3502,14 +3480,16 @@ function registerHandlers() {
   });
   rangesEditorCloseEl?.addEventListener("click", closeRangesEditor);
   formulaSettingsCloseEl?.addEventListener("click", closeFormulaSettingsPanel);
-  rangesFormulaSelectEl?.addEventListener("change", () => {
-    loadFormulaRangesIntoEditor(rangesFormulaSelectEl.value);
-  });
-  rangesApplyBtnEl?.addEventListener("click", applyRangesOverrideFromEditor);
-  rangesDefaultsBtnEl?.addEventListener("click", () => {
-    resetFormulaDefaults(getSelectedRangesEditorFormulaId());
-  });
-  rangesResetAllBtnEl?.addEventListener("click", resetAllRangeOverrides);
+
+  const rangeEditorInputs = [
+    ...Object.values(rangeInputMap).flatMap((fieldGroup) => [fieldGroup.min, fieldGroup.value, fieldGroup.max]),
+    detailSeedXInputEl,
+    detailSeedYInputEl,
+  ].filter(Boolean);
+
+  for (const inputEl of rangeEditorInputs) {
+    inputEl.addEventListener("change", applyRangesOverrideFromEditor);
+  }
   settingsTabColorEl?.addEventListener("click", () => setSettingsTab("color"));
   settingsTabGeneralEl?.addEventListener("click", () => setSettingsTab("general"));
 
@@ -3724,7 +3704,6 @@ async function bootstrap() {
     appData.defaults.cmapName = resolveInitialColorMap();
     const loadedSharedState = applySharedStateFromHash();
     configureNameBoxWidths();
-    populateRangeEditorFormulaOptions();
     updateCurrentPickerSelection();
     refreshParamButtons();
     syncSeedEditorInputs(currentFormulaId);
