@@ -3,6 +3,19 @@
 
 const PARAM_KEYS = ["a", "b", "c", "d"];
 
+function inferUsedParams(formula) {
+  const discovered = new Set();
+  const stepSource = String(formula.step || "");
+  for (const match of stepSource.matchAll(/p\.([A-Za-z_][A-Za-z0-9_]*)/g)) {
+    if (match[1]) {
+      discovered.add(match[1]);
+    }
+  }
+  const core = PARAM_KEYS.filter((key) => discovered.has(key));
+  const extras = [...discovered].filter((key) => !PARAM_KEYS.includes(key)).sort();
+  return [...core, ...extras];
+}
+
 export const FORMULA_DEFS = [
   {
     id: "classic_sqrt",
@@ -571,6 +584,8 @@ export const FORMULA_DEFS = [
     id: "bedhead",
     name: "Bedhead",
     desc: "bedhead",
+    detailX: "x_next = sin(x*y/b)*y+cos(a*x-y)",
+    detailY: "y_next = x+sin(y)/b",
     params: PARAM_KEYS,
     ranges: { a: [-1.2, 1.2], b: [0.2, 2.0], c: [0.2, 2.0], d: [-0.8, 0.8] },
     defaults: { a: 0.65, b: 0.73, c: 1.1, d: 0.1 },
@@ -654,6 +669,8 @@ export const FORMULA_DEFS = [
     id: "shifted_hopalong",
     name: "Shifted Hopalong",
     desc: "shifted hop",
+    detailX: "x_next = y-1-sqrt(abs(b*x-1-c))*sign(x-1)",
+    detailY: "y_next = a-x-1",
     params: PARAM_KEYS,
     ranges: {
       a: [-2.0, 10.0],
@@ -695,10 +712,13 @@ export const FORMULA_DEFAULT_SEEDS = Object.fromEntries(
   FORMULA_DEFS.map((formula) => [formula.id, formula.seed]),
 );
 
-export const FORMULA_METADATA = FORMULA_DEFS.map(({ id, name, desc }) => ({
-  id,
-  name,
-  desc,
+export const FORMULA_METADATA = FORMULA_DEFS.map((formula) => ({
+  id: formula.id,
+  name: formula.name,
+  desc: formula.desc,
+  detailX: formula.detailX || "",
+  detailY: formula.detailY || "",
+  usedParams: inferUsedParams(formula),
 }));
 
 export function getVariantById(id) {
