@@ -5,6 +5,11 @@ import { FORMULA_METADATA, FORMULA_RANGES_RAW, FORMULA_DEFAULT_PRESETS, FORMULA_
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
 
+const URL_FLAGS = new URLSearchParams(window.location.search);
+const WORKER_RENDER_FLAG = URL_FLAGS.get("renderPath") === "worker" || URL_FLAGS.get("worker") === "1";
+const RUN_RENDER_BENCHMARK = URL_FLAGS.get("benchmark") === "1";
+
+
 const canvas = document.getElementById("c");
 const toastEl = document.getElementById("toast");
 const formulaBtn = document.getElementById("formulaBtn");
@@ -121,6 +126,14 @@ let lastDrawTimestamp = 0;
 let fpsEstimate = 0;
 let drawScheduled = false;
 let drawDirty = false;
+let drawToken = 0;
+let activeRenderPath = WORKER_RENDER_FLAG ? "worker" : "main";
+let renderPathOverride = null;
+let workerRenderer = null;
+let workerMessageId = 0;
+const workerPendingById = new Map();
+const renderCompleteListeners = new Set();
+
 let toastTimer = null;
 let lastComputedUiMetrics = { fontSize: null, tileSize: null };
 let lastSizingViewport = { width: 0, height: 0 };
@@ -227,6 +240,68 @@ function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   }
 
   return `${normalized.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
+}
+
+function getRenderPath() {
+  return renderPathOverride || activeRenderPath;
+}
+
+function getRenderPayload(didResize) {
+  const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
+  return {
+    formulaId: currentFormulaId,
+    cmapName: appData.defaults.cmapName,
+    params: getDerivedParams(),
+    iterations: didResize ? Math.max(10000, Math.round(iterationSetting * 0.6)) : iterationSetting,
+    burn: burnSetting,
+    scaleMode: getScaleMode(),
+    fixedView,
+    seed: getSeedForFormula(currentFormulaId),
+    renderColoring: getRenderColoringOptions(),
+  };
+}
+
+function notifyRenderComplete(payload) {
+  for (const listener of renderCompleteListeners) {
+    listener(payload);
+  }
+}
+
+function ensureWorkerRenderer() {
+  if (workerRenderer) return workerRenderer;
+  workerRenderer = new Worker(new URL("./renderWorker.js", import.meta.url), { type: "module" });
+  workerRenderer.onmessage = (event) => {
+    const { id, width, height, pixels, world, view, renderMs } = event.data || {};
+    const pending = workerPendingById.get(id);
+    if (!pending) return;
+    workerPendingById.delete(id);
+    const image = new ImageData(new Uint8ClampedArray(pixels), width, height);
+    pending.resolve({ image, world, view, renderMs });
+  };
+  workerRenderer.onerror = (error) => {
+    for (const pending of workerPendingById.values()) {
+      pending.reject(error);
+    }
+    workerPendingById.clear();
+  };
+  return workerRenderer;
+}
+
+function renderViaWorker(payload) {
+  return new Promise((resolve, reject) => {
+    const worker = ensureWorkerRenderer();
+    const id = ++workerMessageId;
+    workerPendingById.set(id, { resolve, reject });
+    worker.postMessage({
+      id,
+      payload: {
+        ...payload,
+        width: canvas.width,
+        height: canvas.height,
+      },
+    });
+  });
 }
 
 function requestDraw() {
@@ -2985,31 +3060,7 @@ function drawDebugOverlay(meta) {
   ].join("\n");
 }
 
-function draw() {
-  if (!appData || !currentFormulaId) {
-    return;
-  }
-
-  const startedAt = performance.now();
-  const didResize = resizeCanvas();
-  const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
-  const iterations = iterationSetting;
-  const frameMeta = renderFrame({
-    ctx,
-    canvas,
-    formulaId: currentFormulaId,
-    cmapName: appData.defaults.cmapName,
-    params: getDerivedParams(),
-    iterations: didResize ? Math.max(10000, Math.round(iterations * 0.6)) : iterations,
-    burn: burnSetting,
-    scaleMode: getScaleMode(),
-    fixedView,
-    seed: getSeedForFormula(currentFormulaId),
-    renderColoring: getRenderColoringOptions(),
-  });
-
-  const now = performance.now();
+function finalizeDraw({ frameMeta, startedAt, now, iterations, renderPath }) {
   const delta = lastDrawTimestamp > 0 ? now - lastDrawTimestamp : 0;
   if (delta > 0) {
     const instantFps = 1000 / delta;
@@ -3020,7 +3071,8 @@ function draw() {
   lastRenderMeta = {
     ...frameMeta,
     iterations,
-    renderMs: now - startedAt,
+    renderMs: frameMeta.renderMs ?? (now - startedAt),
+    renderPath,
   };
 
   drawDebugOverlay(lastRenderMeta);
@@ -3029,7 +3081,65 @@ function draw() {
   updateQuickSliderReadout();
   syncDetailedSettingsControls();
   layoutFloatingActions();
+  notifyRenderComplete({
+    renderPath,
+    renderMs: lastRenderMeta.renderMs,
+    inputToVisualDelayMs: now - startedAt,
+    meta: lastRenderMeta,
+  });
+}
 
+function draw() {
+  if (!appData || !currentFormulaId) {
+    return;
+  }
+
+  const startedAt = performance.now();
+  const didResize = resizeCanvas();
+  const payload = getRenderPayload(didResize);
+  const iterations = payload.iterations;
+  const drawId = ++drawToken;
+  const renderPath = getRenderPath();
+
+  if (renderPath === "worker") {
+    renderViaWorker(payload)
+      .then((frame) => {
+        if (drawId !== drawToken) return;
+        ctx.putImageData(frame.image, 0, 0);
+        const now = performance.now();
+        finalizeDraw({
+          frameMeta: { world: frame.world, view: frame.view, renderMs: frame.renderMs },
+          startedAt,
+          now,
+          iterations,
+          renderPath,
+        });
+      })
+      .catch((error) => {
+        console.warn("Worker render failed; falling back to main thread.", error);
+        activeRenderPath = "main";
+        requestDraw();
+      });
+    return;
+  }
+
+  const mainStartedAt = performance.now();
+  const frameMeta = renderFrame({
+    ctx,
+    canvas,
+    ...payload,
+  });
+  const now = performance.now();
+  finalizeDraw({
+    frameMeta: {
+      ...frameMeta,
+      renderMs: now - mainStartedAt,
+    },
+    startedAt,
+    now,
+    iterations,
+    renderPath,
+  });
 }
 
 function formatScreenshotTimestamp(date) {
@@ -3567,6 +3677,116 @@ function registerHandlers() {
   );
 }
 
+function summarizeMetrics(series) {
+  const sum = series.reduce((acc, value) => acc + value, 0);
+  return series.length > 0 ? sum / series.length : 0;
+}
+
+async function measureInteractionForPath(path, sliderKey = "alpha", steps = 8) {
+  const original = appData.defaults.sliders[sliderKey];
+  const previousOverride = renderPathOverride;
+  renderPathOverride = path;
+  const delays = [];
+  const fpsReadings = [];
+  const droppedFrames = [];
+  const totalRenderMs = [];
+  const firstFrameDelays = [];
+
+  for (let stepIndex = 0; stepIndex < steps; stepIndex += 1) {
+    const delayPromise = new Promise((resolve) => {
+      const monitor = {
+        startedAt: performance.now(),
+        lastTs: performance.now(),
+        frameCount: 0,
+        dropped: 0,
+      };
+      let rafId = 0;
+      const track = () => {
+        const now = performance.now();
+        monitor.frameCount += 1;
+        if (now - monitor.lastTs > 20) {
+          monitor.dropped += 1;
+        }
+        monitor.lastTs = now;
+        rafId = window.requestAnimationFrame(track);
+      };
+
+      const listener = (result) => {
+        if (result.renderPath !== path) return;
+        window.cancelAnimationFrame(rafId);
+        renderCompleteListeners.delete(listener);
+        const elapsed = performance.now() - monitor.startedAt;
+        const fps = monitor.frameCount > 0 ? (monitor.frameCount * 1000) / Math.max(1, elapsed) : 0;
+        resolve({ delay: result.inputToVisualDelayMs, renderMs: result.renderMs, fps, dropped: monitor.dropped });
+      };
+
+      renderCompleteListeners.add(listener);
+      rafId = window.requestAnimationFrame(track);
+
+      const nextValue = clamp(original + (stepIndex + 1) * 1.25, sliderControls[sliderKey].min, sliderControls[sliderKey].max);
+      appData.defaults.sliders[sliderKey] = nextValue;
+      requestDraw();
+    });
+
+    const step = await delayPromise;
+    delays.push(step.delay);
+    totalRenderMs.push(step.renderMs);
+    fpsReadings.push(step.fps);
+    droppedFrames.push(step.dropped);
+    if (stepIndex === 0) {
+      firstFrameDelays.push(step.delay);
+    }
+  }
+
+  appData.defaults.sliders[sliderKey] = original;
+  requestDraw();
+  renderPathOverride = previousOverride;
+
+  return {
+    path,
+    averageDelayMs: summarizeMetrics(delays),
+    averageFps: summarizeMetrics(fpsReadings),
+    averageDroppedFrames: summarizeMetrics(droppedFrames),
+    averageRenderCompletionMs: summarizeMetrics(totalRenderMs),
+    firstUpdatedFrameMs: summarizeMetrics(firstFrameDelays),
+  };
+}
+
+function decideWorkerPriority(mainMetrics, workerMetrics) {
+  const delayGain = mainMetrics.averageDelayMs - workerMetrics.averageDelayMs;
+  const delayGainRatio = mainMetrics.averageDelayMs > 0 ? delayGain / mainMetrics.averageDelayMs : 0;
+  const renderOverheadRatio = mainMetrics.averageRenderCompletionMs > 0
+    ? (workerMetrics.averageRenderCompletionMs - mainMetrics.averageRenderCompletionMs) / mainMetrics.averageRenderCompletionMs
+    : 0;
+  const fpsDelta = workerMetrics.averageFps - mainMetrics.averageFps;
+
+  const shouldPrioritizeWorker = delayGainRatio >= 0.25 && renderOverheadRatio <= 0.2 && fpsDelta >= -5;
+  return {
+    shouldPrioritizeWorker,
+    delayGainRatio,
+    renderOverheadRatio,
+    fpsDelta,
+  };
+}
+
+async function runWorkerBenchmark() {
+  renderPathOverride = null;
+  const mainMetrics = await measureInteractionForPath("main");
+  const workerMetrics = await measureInteractionForPath("worker");
+  const decision = decideWorkerPriority(mainMetrics, workerMetrics);
+
+  console.table([mainMetrics, workerMetrics]);
+  console.info("Worker prototype benchmark decision", decision);
+
+  const summary = decision.shouldPrioritizeWorker
+    ? "Worker path improves interaction latency enough to prioritize."
+    : "Worker path does not currently beat main-thread rendering with acceptable overhead.";
+  showToast(summary);
+
+  window.__HOPALONG_RENDER_BENCHMARK__ = { mainMetrics, workerMetrics, decision };
+  return window.__HOPALONG_RENDER_BENCHMARK__;
+}
+
 async function fetchJson(path) {
   const response = await fetch(path, { cache: "no-store" });
   if (!response.ok) {
@@ -3685,9 +3905,17 @@ async function bootstrap() {
     registerHandlers();
     maybeShowLandscapeHint();
     commitCurrentStateToHistory();
+    showToast(activeRenderPath === "worker" ? "Worker render prototype enabled." : "Main-thread render path enabled.");
     requestDraw();
     const formula = appData.formulas.find((item) => item.id === currentFormulaId);
     showToast(loadedSharedState ? "Loaded shared state" : `Loaded ${formula?.name || currentFormulaId}. Slice 2.1 controls ready.`);
+    if (RUN_RENDER_BENCHMARK) {
+      window.setTimeout(() => {
+        runWorkerBenchmark().catch((error) => {
+          console.error("Render benchmark failed.", error);
+        });
+      }, 150);
+    }
   } catch (error) {
     console.error(error);
     showToast(`Startup failed: ${error.message}`);

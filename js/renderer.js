@@ -69,16 +69,13 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {} }) {
+export function renderToPixelBuffer({ width, height, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {} }) {
   const step = formulaStepById.get(formulaId);
   if (!step) {
     throw new Error(`Unknown formula id: ${formulaId}`);
   }
 
-  const width = canvas.width;
-  const height = canvas.height;
-  const image = ctx.createImageData(width, height);
-  const pixels = image.data;
+  const pixels = new Uint8ClampedArray(width * height * 4);
 
   for (let i = 0; i < pixels.length; i += 4) {
     pixels[i] = 5;
@@ -131,8 +128,8 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   }
 
   if (sampleCount === 0) {
-    ctx.putImageData(image, 0, 0);
     return {
+      pixels,
       world: {
         minX: -1,
         maxX: 1,
@@ -311,6 +308,7 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   ctx.putImageData(image, 0, 0);
 
   return {
+    pixels,
     world: {
       minX: worldMinX,
       maxX: worldMaxX,
@@ -327,5 +325,28 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
       scaleX: (width - 1) / worldSpanX,
       scaleY: (height - 1) / worldSpanY,
     },
+  };
+}
+
+export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {} }) {
+  const frame = renderToPixelBuffer({
+    width: canvas.width,
+    height: canvas.height,
+    formulaId,
+    cmapName,
+    params,
+    iterations,
+    burn,
+    scaleMode,
+    fixedView,
+    worldOverride,
+    seed,
+    renderColoring,
+  });
+  const image = new ImageData(frame.pixels, canvas.width, canvas.height);
+  ctx.putImageData(image, 0, 0);
+  return {
+    world: frame.world,
+    view: frame.view,
   };
 }
