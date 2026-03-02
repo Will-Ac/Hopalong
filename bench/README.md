@@ -1,43 +1,45 @@
 # Offline Benchmark Harness
 
-This folder provides an offline browser benchmark to compare render speed strategies.
+This benchmark page is designed to run from **GitHub Pages** (no local dev setup required).
 
 ## What it measures
-For each of 10 formulas (from simple to complex), it benchmarks these variants:
+For each of 10 formulas (simple to complex), it benchmarks:
 
-1. `compute_baseline_wrapper` - baseline wrapper call shape (matches app style).
+1. `compute_baseline_wrapper` - baseline wrapper call shape.
 2. `compute_direct_formula` - direct formula function call.
 3. `compute_specialized` - scalar-specialized step switch.
 4. `project_hits_streaming` - compute + projection + hit accumulation.
 5. `project_draw_putimagedata` - full compute + projection + pixel buffer + `putImageData`.
 
-Each test can run at 10,000,000 iterations with configurable warmup and measured repeats.
+Default target is 10,000,000 iterations per test.
 
-## Run locally/offline
-From the repository root:
+## Run it from GitHub Pages (recommended)
+1. Push your branch to GitHub and merge into your Pages branch (usually `main`).
+2. In your repository, open **Settings → Pages**.
+3. Set source to your deploy branch (usually `main`) and folder to **`/ (root)`**.
+4. Wait until GitHub says Pages is deployed.
+5. Open this URL pattern:
+   - `https://<your-github-username>.github.io/<your-repo-name>/bench/`
 
-```bash
-python3 -m http.server 8080
-```
+Example:
+- `https://jane-doe.github.io/Hopalong/bench/`
 
-Then open:
+## How to run (simple)
+1. Open the benchmark page URL.
+2. Leave defaults (or set your own values).
+3. Click **Run Benchmark**.
+4. Wait for status to show **Done**.
+5. Click **Download JSON**.
+6. Upload `benchmark-results.json` to Codex and ask for optimization recommendations.
 
-- `http://127.0.0.1:8080/bench/`
+## Output files
+After a run, you can download:
 
-No internet access is required after local files are served.
+- `benchmark-results.json` (best for Codex analysis)
+- `benchmark-results.csv`
+- `benchmark-results.md`
 
-## Output
-After completion, results are shown in:
-
-- On-page table
-- Browser console via `console.table`
-- Downloadable JSON (`benchmark-results.json`) for Codex upload/analysis
-- Downloadable CSV (`benchmark-results.csv`)
-- Downloadable Markdown table (`benchmark-results.md`)
-
-## How to interpret
-- **Lower ms is faster.**
-- **Higher Iter/s is faster.**
-- **Speedup vs Baseline** > `1.0x` means improvement over the baseline wrapper for the same formula.
-
-Use the highest repeat counts your machine can tolerate for stable, decision-quality data.
+## How to read results
+- **Lower ms = faster**.
+- **Higher Iter/s = faster**.
+- **Speedup vs Baseline > 1.0x** means that variant is faster than baseline for that formula.

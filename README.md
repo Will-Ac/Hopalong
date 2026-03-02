@@ -62,14 +62,21 @@ Example pattern:
 
 Also, every behavior change must be mirrored in the spec files under `spec/` before merge.
 
-## Offline render benchmark
+## Offline render benchmark (run from GitHub Pages)
 
-An offline benchmarking harness is available in `bench/` to compare hot-loop and draw-path performance across 10 formulas and multiple optimization variants.
+A benchmarking harness is available in `bench/` to compare render speed across 10 formulas and multiple optimization variants.
 
-Quick start:
+### Easiest non-dev way to run it
+1. Make sure this branch is pushed and merged into your Pages branch (usually `main`).
+2. In your GitHub repo, open **Settings → Pages**.
+3. Set **Source** to your deploy branch (usually `main`) and **/ (root)** folder.
+4. Wait for GitHub Pages to finish deploying.
+5. Open your benchmark at:
+   - `https://<your-github-username>.github.io/<your-repo-name>/bench/`
 
-```bash
-python3 -m http.server 8080
-```
+Example:
+- `https://jane-doe.github.io/Hopalong/bench/`
 
-Open `http://127.0.0.1:8080/bench/` and run the benchmark. See `bench/README.md` for details.
+Once open, click **Run Benchmark**. When done, click **Download JSON** and upload that file to Codex for analysis.
+
+See `bench/README.md` for full step-by-step details.
