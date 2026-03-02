@@ -188,6 +188,20 @@ const ZOOM_DEADBAND_PX = 2.5 * DPR;
 const ZOOM_RATIO_MIN = 0.002;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
+const BENCH_FORMULA_IDS = ["classic_sqrt", "pickover_clifford", "ikeda", "popcorn", "gumowski_mira"];
+const BENCH_RUNS_PER_CASE = 10;
+const BENCH_CANVAS_WIDTH = 960;
+const BENCH_CANVAS_HEIGHT = 540;
+const BENCH_ITERATIONS = 120000;
+const BENCH_BURN = 120;
+const BENCH_SEED = Object.freeze({ x: 0.1234, y: -0.9876 });
+const BENCH_SLIDER_DEFAULTS = Object.freeze({ alpha: 50, beta: 50, delta: 50, gamma: 50 });
+const BENCH_RENDER_COLORING = Object.freeze({
+  mode: "iteration_order",
+  logStrength: 9,
+  densityGamma: 0.6,
+  hybridBlend: 0.3,
+});
 
 const sliderKeyByParamKey = {
   a: "alpha",
@@ -219,6 +233,209 @@ let fixedView = {
 };
 let sharedParamsOverride = null;
 let sharedParamsFormulaId = null;
+
+function median(values) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return 0;
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) * 0.5 : sorted[mid];
+}
+
+function percentile(values, ratio) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return 0;
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const clampedRatio = clamp(ratio, 0, 1);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(clampedRatio * sorted.length) - 1));
+  return sorted[index];
+}
+
+function roundBenchValue(value) {
+  return Number(Number(value).toFixed(3));
+}
+
+function isDevBenchmarkEnabled() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("bench") === "1";
+}
+
+function exposeBenchmarkRunner() {
+  window.runHopalongBenchmark = runBenchmarkSuite;
+}
+
+function renderBenchmarkResults(result) {
+  const existing = document.getElementById("benchmarkResultsOverlay");
+  if (existing) {
+    existing.remove();
+  }
+
+  const overlay = document.createElement("div");
+  overlay.id = "benchmarkResultsOverlay";
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.zIndex = "99999";
+  overlay.style.background = "rgba(0, 0, 0, 0.88)";
+  overlay.style.color = "#d6e3ff";
+  overlay.style.padding = "16px";
+  overlay.style.display = "flex";
+  overlay.style.flexDirection = "column";
+  overlay.style.gap = "10px";
+
+  const title = document.createElement("div");
+  title.textContent = "Hopalong benchmark results";
+  title.style.font = "600 16px system-ui, sans-serif";
+
+  const hint = document.createElement("div");
+  hint.textContent = "Copy this JSON for comparison. Close to return to the app.";
+  hint.style.font = "13px system-ui, sans-serif";
+  hint.style.opacity = "0.85";
+
+  const actions = document.createElement("div");
+  actions.style.display = "flex";
+  actions.style.gap = "8px";
+
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.textContent = "Copy JSON";
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.textContent = "Close";
+
+  const pre = document.createElement("pre");
+  pre.style.margin = "0";
+  pre.style.padding = "12px";
+  pre.style.background = "#0b1220";
+  pre.style.border = "1px solid #263347";
+  pre.style.borderRadius = "8px";
+  pre.style.overflow = "auto";
+  pre.style.flex = "1";
+  pre.style.whiteSpace = "pre";
+  pre.style.font = "12px ui-monospace, SFMono-Regular, Menlo, monospace";
+
+  const jsonText = JSON.stringify(result, null, 2);
+  pre.textContent = jsonText;
+
+  copyBtn.addEventListener("click", async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(jsonText);
+        showToast("Benchmark JSON copied.");
+      } else {
+        showToast("Clipboard unavailable. Select and copy the JSON manually.");
+      }
+    } catch (error) {
+      console.error(error);
+      showToast("Clipboard copy failed. Select and copy the JSON manually.");
+    }
+  });
+
+  closeBtn.addEventListener("click", () => overlay.remove());
+
+  actions.append(copyBtn, closeBtn);
+  overlay.append(title, hint, actions, pre);
+  document.body.append(overlay);
+}
+
+function runBenchmarkSuite() {
+  if (!appData) {
+    throw new Error("Benchmark requested before app data was loaded.");
+  }
+
+  const benchCanvas = document.createElement("canvas");
+  benchCanvas.width = BENCH_CANVAS_WIDTH;
+  benchCanvas.height = BENCH_CANVAS_HEIGHT;
+  const benchCtx = benchCanvas.getContext("2d", { alpha: false });
+  if (!benchCtx) {
+    throw new Error("Benchmark context unavailable.");
+  }
+
+  const cases = [];
+  for (const formulaId of BENCH_FORMULA_IDS) {
+    const rangesForFormula = builtInFormulaRanges[formulaId] || FORMULA_RANGES_RAW[formulaId] || null;
+    const params = getParamsForFormula({ rangesForFormula, sliderDefaults: BENCH_SLIDER_DEFAULTS });
+    const runs = [];
+
+    for (let runIndex = 0; runIndex < BENCH_RUNS_PER_CASE; runIndex += 1) {
+      const frameMeta = renderFrame({
+        ctx: benchCtx,
+        canvas: benchCanvas,
+        formulaId,
+        cmapName: appData.defaults.cmapName,
+        params,
+        iterations: BENCH_ITERATIONS,
+        burn: BENCH_BURN,
+        scaleMode: "auto",
+        seed: BENCH_SEED,
+        renderColoring: BENCH_RENDER_COLORING,
+        timingProbe: { enabled: true },
+      });
+
+      runs.push({
+        runIndex,
+        formulaSetupMs: Number(frameMeta?.profiling?.formulaSetupMs) || 0,
+        burnMs: Number(frameMeta?.profiling?.burnMs) || 0,
+        totalMs: Number(frameMeta?.profiling?.totalMs) || 0,
+        iterationMs: Number(frameMeta?.profiling?.iterationMs) || 0,
+        boundsMappingMs: Number(frameMeta?.profiling?.boundsMappingMs) || 0,
+        pixelWriteMs: Number(frameMeta?.profiling?.pixelWriteMs) || 0,
+        sampleCount: Number(frameMeta?.profiling?.samples) || 0,
+      });
+    }
+
+    const measuredRuns = runs.slice(1);
+    const frameMsValues = measuredRuns.map((run) => run.totalMs);
+    const throughputValues = measuredRuns.map((run) => {
+      const safeMs = Math.max(0.001, run.iterationMs);
+      return (run.sampleCount * 1000) / safeMs;
+    });
+
+    cases.push({
+      formulaId,
+      warmup: {
+        msFrame: roundBenchValue(runs[0]?.totalMs || 0),
+      },
+      runsMeasured: measuredRuns.length,
+      medianMsFrame: roundBenchValue(median(frameMsValues)),
+      p95MsFrame: roundBenchValue(percentile(frameMsValues, 0.95)),
+      iterationsPerSec: roundBenchValue(median(throughputValues)),
+      timingBreakdownMedianMs: {
+        formulaSetup: roundBenchValue(median(measuredRuns.map((run) => Number(run.formulaSetupMs) || 0))),
+        burn: roundBenchValue(median(measuredRuns.map((run) => Number(run.burnMs) || 0))),
+        iterate: roundBenchValue(median(measuredRuns.map((run) => Number(run.iterationMs) || 0))),
+        boundsMap: roundBenchValue(median(measuredRuns.map((run) => Number(run.boundsMappingMs) || 0))),
+        pixelWrite: roundBenchValue(median(measuredRuns.map((run) => Number(run.pixelWriteMs) || 0))),
+      },
+    });
+  }
+
+  const result = {
+    benchmark: "hopalong-render",
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    config: {
+      canvas: { width: BENCH_CANVAS_WIDTH, height: BENCH_CANVAS_HEIGHT },
+      runsPerCase: BENCH_RUNS_PER_CASE,
+      discardWarmupRuns: 1,
+      iterations: BENCH_ITERATIONS,
+      burn: BENCH_BURN,
+      seed: BENCH_SEED,
+      renderColoring: BENCH_RENDER_COLORING,
+      sliderDefaults: BENCH_SLIDER_DEFAULTS,
+      formulaIds: BENCH_FORMULA_IDS,
+    },
+    cases,
+  };
+
+  console.log("HOPALONG_BENCHMARK_JSON_START");
+  console.log(JSON.stringify(result, null, 2));
+  console.log("HOPALONG_BENCHMARK_JSON_END");
+  renderBenchmarkResults(result);
+  return result;
+}
 
 function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   const normalized = String(text ?? "").trim();
@@ -3683,11 +3900,17 @@ async function bootstrap() {
     saveDefaultsToStorage();
 
     registerHandlers();
+    exposeBenchmarkRunner();
     maybeShowLandscapeHint();
     commitCurrentStateToHistory();
     requestDraw();
+    let startupMessage = loadedSharedState ? "Loaded shared state" : null;
+    if (isDevBenchmarkEnabled()) {
+      const benchResult = runBenchmarkSuite();
+      startupMessage = `Benchmark complete (${benchResult.cases.length} cases). Results shown on screen.`;
+    }
     const formula = appData.formulas.find((item) => item.id === currentFormulaId);
-    showToast(loadedSharedState ? "Loaded shared state" : `Loaded ${formula?.name || currentFormulaId}. Slice 2.1 controls ready.`);
+    showToast(startupMessage || `Loaded ${formula?.name || currentFormulaId}. Slice 2.1 controls ready.`);
   } catch (error) {
     console.error(error);
     showToast(`Startup failed: ${error.message}`);
