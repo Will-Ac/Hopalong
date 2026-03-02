@@ -293,6 +293,9 @@
       .formulaParamHead {
         opacity: 0.85;
       }
+      .formulaParamHead span {
+        text-align: center;
+      }
       .formulaParamKey {
         text-transform: lowercase;
       }
@@ -309,12 +312,17 @@
         opacity: 0.7;
       }
       .seedGrid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        display: grid;
+        grid-template-columns: 34px repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        align-items: start;
       }
       .seedGrid .rangeFieldLabel,
       .seedGrid .rangeInput {
         text-align: center;
       }
+      .seedFieldX { grid-column: 2; }
+      .seedFieldY { grid-column: 3; }
       .rangeActions {
         display: grid;
         grid-template-columns: 34px repeat(3, minmax(0, 1fr));
@@ -892,8 +900,8 @@ Scale</button>
             <div id="extraFormulaParams"></div>
           </div>
           <div class="rangeGrid rangeGridTight seedGrid">
-            <label class="rangeField"><span class="rangeFieldLabel">x seed</span><input id="detailSeedXInput" class="rangeInput" type="number" step="0.0001" /></label>
-            <label class="rangeField"><span class="rangeFieldLabel">y seed</span><input id="detailSeedYInput" class="rangeInput" type="number" step="0.0001" /></label>
+            <label class="rangeField seedFieldX"><span class="rangeFieldLabel">x seed</span><input id="detailSeedXInput" class="rangeInput" type="number" step="0.0001" /></label>
+            <label class="rangeField seedFieldY"><span class="rangeFieldLabel">y seed</span><input id="detailSeedYInput" class="rangeInput" type="number" step="0.0001" /></label>
           </div>
           <div class="rangeActions">
             <button id="formulaSettingsApply" class="rangeActionBtn" type="button">Apply</button>
