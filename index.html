@@ -157,7 +157,8 @@
         padding: 0;
       }
 
-      #rangesEditorPanel {
+      #rangesEditorPanel,
+      #formulaSettingsPanel {
         position: absolute;
         top: calc(84px + env(safe-area-inset-top));
         right: max(8px, env(safe-area-inset-right));
@@ -175,7 +176,8 @@
         -webkit-backdrop-filter: blur(6px);
         padding: 10px;
       }
-      #rangesEditorPanel.is-hidden {
+      #rangesEditorPanel.is-hidden,
+      #formulaSettingsPanel.is-hidden {
         display: none;
       }
       .rangesEditorHead {
@@ -217,6 +219,21 @@
       }
       .settingsTabPanel.is-hidden {
         display: none;
+      }
+      .inlineSettingsRow {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .tileGearBtn {
+        min-width: 32px;
+        min-height: 32px;
+        border-radius: 8px;
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.2);
+        background: rgba(var(--ui-gray-rgb), 0.08);
+        color: var(--text);
+        font-size: 16px;
+        line-height: 1;
       }
       #rangesFormulaSelect,
       .rangeInput {
@@ -711,7 +728,8 @@
       }
 
       @media (max-width: 900px) {
-        #rangesEditorPanel {
+        #rangesEditorPanel,
+        #formulaSettingsPanel {
           top: auto;
           right: max(6px, env(safe-area-inset-right));
           left: max(6px, env(safe-area-inset-left));
@@ -739,14 +757,78 @@
 Scale</button>
         <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
-      <aside id="rangesEditorPanel" class="is-hidden" aria-label="Formula ranges editor">
+      <aside id="rangesEditorPanel" class="is-hidden" aria-label="Settings editor">
         <div class="rangesEditorHead">
-          <strong>Ranges editor</strong>
+          <strong>Settings</strong>
           <button id="rangesEditorClose" type="button" aria-label="Close ranges editor">✕</button>
         </div>
         <div class="rangesEditorTabs">
-          <button id="settingsTabRanges" class="rangesTabBtn is-active" type="button">Formula defaults</button>
-          <button id="settingsTabDetailed" class="rangesTabBtn" type="button">Detailed settings</button>
+          <button id="settingsTabColor" class="rangesTabBtn is-active" type="button">Color</button>
+          <button id="settingsTabGeneral" class="rangesTabBtn" type="button">General</button>
+        </div>
+        <div id="colorTabPanel" class="rangesEditorBody settingsTabPanel">
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Coloring mode</span><button id="infoColorMode" class="perfInfoBtn" type="button">i</button></div>
+            <select id="detailColorModeSelect" class="perfSelect" aria-label="Coloring mode">
+              <option value="iteration_order">Iteration order</option>
+              <option value="hit_density_linear">Hit density (linear)</option>
+              <option value="hit_density_log">Hit density (log)</option>
+              <option value="hit_density_gamma">Hit density (gamma)</option>
+              <option value="hit_density_percentile">Hit density (percentile)</option>
+              <option value="hybrid_density_age">Hybrid (density + recency)</option>
+            </select>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Log strength</span><button id="infoLogStrength" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfControlRow">
+              <input id="detailLogStrengthRange" class="perfRangeInput" type="range" min="0.5" max="30" step="0.1" />
+              <div id="detailLogStrengthFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Gamma</span><button id="infoDensityGamma" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfControlRow">
+              <input id="detailDensityGammaRange" class="perfRangeInput" type="range" min="0.2" max="2" step="0.01" />
+              <div id="detailDensityGammaFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Hybrid age blend</span><button id="infoHybridBlend" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfControlRow">
+              <input id="detailHybridBlendRange" class="perfRangeInput" type="range" min="0" max="1" step="0.01" />
+              <div id="detailHybridBlendFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+        </div>
+        <div id="generalTabPanel" class="rangesEditorBody settingsTabPanel is-hidden">
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Max random iterations</span><button id="infoMaxRandomIters" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfControlRow">
+              <input id="detailMaxRandomItersRange" class="perfRangeInput" type="range" min="1000" max="10000000" step="100" />
+              <div id="detailMaxRandomItersFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Burn-in steps</span><button id="infoBurn" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfControlRow">
+              <input id="detailBurnRange" class="perfRangeInput" type="range" min="0" max="5000" step="1" />
+              <div id="detailBurnFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Debug overlay</span><button id="infoDebug" class="perfInfoBtn" type="button">i</button></div>
+            <label class="modeOption"><input id="detailDebugToggle" type="checkbox" /> Show debug overlays and diagnostics</label>
+          </div>
+        </div>
+        <div id="settingsInfoPopup" class="is-hidden" role="dialog" aria-live="polite">
+          <div id="settingsInfoText"></div>
+        </div>
+      </aside>
+
+      <aside id="formulaSettingsPanel" class="is-hidden" aria-label="Formula defaults editor">
+        <div class="rangesEditorHead">
+          <strong>Formula defaults</strong>
+          <button id="formulaSettingsClose" type="button" aria-label="Close formula settings">✕</button>
         </div>
         <div id="rangesTabPanel" class="rangesEditorBody settingsTabPanel">
           <label>
@@ -780,61 +862,6 @@ Scale</button>
             <button id="rangesApplyBtn" class="rangesActionBtn" type="button">Apply</button>
             <button id="rangesDefaultsBtn" class="rangesActionBtn" type="button">Reset this formula</button>
             <button id="rangesResetAllBtn" class="rangesActionBtn" type="button">Reset all</button>
-          </div>
-        </div>
-        <div id="detailedTabPanel" class="rangesEditorBody settingsTabPanel is-hidden">
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Max random iterations</span><button id="infoMaxRandomIters" class="perfInfoBtn" type="button">i</button></div>
-            <div class="perfControlRow">
-              <input id="detailMaxRandomItersRange" class="perfRangeInput" type="range" min="1000" max="10000000" step="100" />
-              <div id="detailMaxRandomItersFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Burn-in steps</span><button id="infoBurn" class="perfInfoBtn" type="button">i</button></div>
-            <div class="perfControlRow">
-              <input id="detailBurnRange" class="perfRangeInput" type="range" min="0" max="5000" step="1" />
-              <div id="detailBurnFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Debug overlay</span><button id="infoDebug" class="perfInfoBtn" type="button">i</button></div>
-            <label class="modeOption"><input id="detailDebugToggle" type="checkbox" /> Show debug overlays and diagnostics</label>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Coloring mode</span><button id="infoColorMode" class="perfInfoBtn" type="button">i</button></div>
-            <select id="detailColorModeSelect" class="perfSelect" aria-label="Coloring mode">
-              <option value="iteration_order">Iteration order</option>
-              <option value="hit_density_linear">Hit density (linear)</option>
-              <option value="hit_density_log">Hit density (log)</option>
-              <option value="hit_density_gamma">Hit density (gamma)</option>
-              <option value="hit_density_percentile">Hit density (percentile)</option>
-              <option value="hybrid_density_age">Hybrid (density + recency)</option>
-            </select>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Log strength</span><button id="infoLogStrength" class="perfInfoBtn" type="button">i</button></div>
-            <div class="perfControlRow">
-              <input id="detailLogStrengthRange" class="perfRangeInput" type="range" min="0.5" max="30" step="0.1" />
-              <div id="detailLogStrengthFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Gamma</span><button id="infoDensityGamma" class="perfInfoBtn" type="button">i</button></div>
-            <div class="perfControlRow">
-              <input id="detailDensityGammaRange" class="perfRangeInput" type="range" min="0.2" max="2" step="0.01" />
-              <div id="detailDensityGammaFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Hybrid age blend</span><button id="infoHybridBlend" class="perfInfoBtn" type="button">i</button></div>
-            <div class="perfControlRow">
-              <input id="detailHybridBlendRange" class="perfRangeInput" type="range" min="0" max="1" step="0.01" />
-              <div id="detailHybridBlendFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div id="settingsInfoPopup" class="is-hidden" role="dialog" aria-live="polite">
-            <div id="settingsInfoText"></div>
           </div>
         </div>
       </aside>
@@ -874,7 +901,10 @@ Scale</button>
         <div id="paramRow">
           <div class="poItem poName">
             <span class="poLabel">Formula</span>
-            <button id="formulaBtn" class="poBtn" type="button">--</button>
+            <div class="inlineSettingsRow">
+              <button id="formulaBtn" class="poBtn" type="button">--</button>
+              <button id="formulaSettingsBtn" class="tileGearBtn" type="button" aria-label="Open formula defaults">⚙</button>
+            </div>
           </div>
 
           <div class="poItem poName">

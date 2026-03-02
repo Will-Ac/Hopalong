@@ -15,6 +15,9 @@ const debugPanelEl = document.getElementById("debugPanel");
 const rangesEditorToggleEl = document.getElementById("rangesEditorToggle");
 const rangesEditorPanelEl = document.getElementById("rangesEditorPanel");
 const rangesEditorCloseEl = document.getElementById("rangesEditorClose");
+const formulaSettingsPanelEl = document.getElementById("formulaSettingsPanel");
+const formulaSettingsCloseEl = document.getElementById("formulaSettingsClose");
+const formulaSettingsBtn = document.getElementById("formulaSettingsBtn");
 const rangesFormulaSelectEl = document.getElementById("rangesFormulaSelect");
 const rangesFormulaLineXEl = document.getElementById("rangesFormulaLineX");
 const rangesFormulaLineYEl = document.getElementById("rangesFormulaLineY");
@@ -22,10 +25,10 @@ const rangesEditorWarningEl = document.getElementById("rangesEditorWarning");
 const rangesApplyBtnEl = document.getElementById("rangesApplyBtn");
 const rangesDefaultsBtnEl = document.getElementById("rangesDefaultsBtn");
 const rangesResetAllBtnEl = document.getElementById("rangesResetAllBtn");
-const settingsTabRangesEl = document.getElementById("settingsTabRanges");
-const settingsTabDetailedEl = document.getElementById("settingsTabDetailed");
-const rangesTabPanelEl = document.getElementById("rangesTabPanel");
-const detailedTabPanelEl = document.getElementById("detailedTabPanel");
+const settingsTabColorEl = document.getElementById("settingsTabColor");
+const settingsTabGeneralEl = document.getElementById("settingsTabGeneral");
+const colorTabPanelEl = document.getElementById("colorTabPanel");
+const generalTabPanelEl = document.getElementById("generalTabPanel");
 const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomItersRange");
 const detailMaxRandomItersFormattedEl = document.getElementById("detailMaxRandomItersFormatted");
 const detailBurnRangeEl = document.getElementById("detailBurnRange");
@@ -986,13 +989,11 @@ function openRangesEditor() {
     return;
   }
 
+  closeFormulaSettingsPanel();
   rangesEditorPanelEl.classList.remove("is-hidden");
-  setSettingsTab("ranges");
+  setSettingsTab("color");
   syncDetailedSettingsControls();
   hideSettingsInfo();
-  const formulaId = getSelectedRangesEditorFormulaId();
-  loadFormulaRangesIntoEditor(formulaId);
-  syncSeedEditorInputs(formulaId);
 }
 
 function closeRangesEditor() {
@@ -1000,12 +1001,28 @@ function closeRangesEditor() {
   hideSettingsInfo();
 }
 
+function openFormulaSettingsPanel() {
+  if (!formulaSettingsPanelEl) {
+    return;
+  }
+
+  closeRangesEditor();
+  formulaSettingsPanelEl.classList.remove("is-hidden");
+  const formulaId = getSelectedRangesEditorFormulaId();
+  loadFormulaRangesIntoEditor(formulaId);
+  syncSeedEditorInputs(formulaId);
+}
+
+function closeFormulaSettingsPanel() {
+  formulaSettingsPanelEl?.classList.add("is-hidden");
+}
+
 function setSettingsTab(tabKey) {
-  const showRanges = tabKey !== "detailed";
-  settingsTabRangesEl?.classList.toggle("is-active", showRanges);
-  settingsTabDetailedEl?.classList.toggle("is-active", !showRanges);
-  rangesTabPanelEl?.classList.toggle("is-hidden", !showRanges);
-  detailedTabPanelEl?.classList.toggle("is-hidden", showRanges);
+  const showColor = tabKey !== "general";
+  settingsTabColorEl?.classList.toggle("is-active", showColor);
+  settingsTabGeneralEl?.classList.toggle("is-active", !showColor);
+  colorTabPanelEl?.classList.toggle("is-hidden", !showColor);
+  generalTabPanelEl?.classList.toggle("is-hidden", showColor);
 }
 
 function syncDetailedSettingsControls() {
@@ -1082,7 +1099,10 @@ function showSettingsInfo(message, anchorEl = null) {
   const panelRect = rangesEditorPanelEl?.getBoundingClientRect();
   const anchorRect = anchorEl?.getBoundingClientRect();
   if (panelRect && anchorRect) {
-    const left = Math.max(8, Math.min(panelRect.width - 290, anchorRect.left - panelRect.left - 240));
+    const anchorInColorTab = Boolean(colorTabPanelEl && anchorEl && colorTabPanelEl.contains(anchorEl));
+    const left = anchorInColorTab
+      ? 8
+      : Math.max(8, Math.min(panelRect.width - 290, anchorRect.left - panelRect.left - 240));
     const top = Math.max(8, Math.min(panelRect.height - 120, anchorRect.top - panelRect.top + 28));
     settingsInfoPopupEl.style.left = `${left}px`;
     settingsInfoPopupEl.style.top = `${top}px`;
@@ -1737,7 +1757,7 @@ function isEventInsideInteractiveUi(eventTarget) {
     return false;
   }
 
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #debugToggleDock, #floatingActions, #rangesEditorPanel, #rangesEditorToggle"));
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #debugToggleDock, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #rangesEditorToggle"));
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -3466,6 +3486,14 @@ function registerHandlers() {
     }
   });
   rangesEditorCloseEl?.addEventListener("click", closeRangesEditor);
+  formulaSettingsBtn?.addEventListener("click", () => {
+    if (formulaSettingsPanelEl?.classList.contains("is-hidden")) {
+      openFormulaSettingsPanel();
+    } else {
+      closeFormulaSettingsPanel();
+    }
+  });
+  formulaSettingsCloseEl?.addEventListener("click", closeFormulaSettingsPanel);
   rangesFormulaSelectEl?.addEventListener("change", () => {
     loadFormulaRangesIntoEditor(rangesFormulaSelectEl.value);
   });
@@ -3474,8 +3502,8 @@ function registerHandlers() {
     resetFormulaDefaults(getSelectedRangesEditorFormulaId());
   });
   rangesResetAllBtnEl?.addEventListener("click", resetAllRangeOverrides);
-  settingsTabRangesEl?.addEventListener("click", () => setSettingsTab("ranges"));
-  settingsTabDetailedEl?.addEventListener("click", () => setSettingsTab("detailed"));
+  settingsTabColorEl?.addEventListener("click", () => setSettingsTab("color"));
+  settingsTabGeneralEl?.addEventListener("click", () => setSettingsTab("general"));
 
   detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
   detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
