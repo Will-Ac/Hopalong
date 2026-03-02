@@ -61,11 +61,15 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 
   const ranges = rangesForFormula || fallbackRanges;
+  const readSlider = (key, fallbackKey) => {
+    if (Number.isFinite(sliderDefaults?.[key])) return sliderDefaults[key];
+    return sliderDefaults?.[fallbackKey];
+  };
   return {
-    a: mapNormalized(sliderDefaults.alpha, ranges.a[0], ranges.a[1]),
-    b: mapNormalized(sliderDefaults.beta, ranges.b[0], ranges.b[1]),
-    c: mapNormalized(sliderDefaults.delta, ranges.c[0], ranges.c[1]),
-    d: mapNormalized(sliderDefaults.gamma, ranges.d[0], ranges.d[1]),
+    a: mapNormalized(readSlider("a", "alpha"), ranges.a[0], ranges.a[1]),
+    b: mapNormalized(readSlider("b", "beta"), ranges.b[0], ranges.b[1]),
+    c: mapNormalized(readSlider("c", "delta"), ranges.c[0], ranges.c[1]),
+    d: mapNormalized(readSlider("d", "gamma"), ranges.d[0], ranges.d[1]),
   };
 }
 

@@ -83,10 +83,10 @@ const randomModeBtn = document.getElementById("randomModeBtn");
 const randomModeTile = document.getElementById("randomModeTile");
 
 const sliderControls = {
-  alpha: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
-  beta: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
-  delta: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
-  gamma: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
+  a: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
+  b: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
+  c: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
+  d: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 10000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
   burn: { button: null, label: "Burn", paramKey: "burn", min: 0, max: 5000, sliderStep: 1, stepSize: 1, displayDp: 0 },
 };
@@ -145,10 +145,10 @@ const MOD_AXIS_ELIGIBLE_KEYS = new Set(["a", "b", "c", "d"]);
 const paramTileTargets = {
   formula: { button: formulaBtn, modeKey: "formula", shortTap: () => openPicker("formula", formulaBtn) },
   cmap: { button: cmapBtn, modeKey: "cmap", shortTap: () => openPicker("cmap", cmapBtn) },
-  alpha: { button: sliderControls.alpha.button, modeKey: sliderControls.alpha.paramKey, shortTap: () => openQuickSlider("alpha") },
-  beta: { button: sliderControls.beta.button, modeKey: sliderControls.beta.paramKey, shortTap: () => openQuickSlider("beta") },
-  delta: { button: sliderControls.delta.button, modeKey: sliderControls.delta.paramKey, shortTap: () => openQuickSlider("delta") },
-  gamma: { button: sliderControls.gamma.button, modeKey: sliderControls.gamma.paramKey, shortTap: () => openQuickSlider("gamma") },
+  a: { button: sliderControls.a.button, modeKey: sliderControls.a.paramKey, shortTap: () => openQuickSlider("a") },
+  b: { button: sliderControls.b.button, modeKey: sliderControls.b.paramKey, shortTap: () => openQuickSlider("b") },
+  c: { button: sliderControls.c.button, modeKey: sliderControls.c.paramKey, shortTap: () => openQuickSlider("c") },
+  d: { button: sliderControls.d.button, modeKey: sliderControls.d.paramKey, shortTap: () => openQuickSlider("d") },
   iters: { button: sliderControls.iters.button, modeKey: sliderControls.iters.paramKey, shortTap: () => openQuickSlider("iters") },
 };
 
@@ -189,11 +189,29 @@ const ZOOM_RATIO_MIN = 0.002;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
 
+const LEGACY_SLIDER_KEY_MAP = {
+  alpha: "a",
+  beta: "b",
+  delta: "c",
+  gamma: "d",
+};
+
+function migrateLegacySliderKeys(sliders) {
+  const next = { ...(sliders || {}) };
+  for (const [legacyKey, currentKey] of Object.entries(LEGACY_SLIDER_KEY_MAP)) {
+    if (!Number.isFinite(next[currentKey]) && Number.isFinite(next[legacyKey])) {
+      next[currentKey] = Number(next[legacyKey]);
+    }
+    delete next[legacyKey];
+  }
+  return next;
+}
+
 const sliderKeyByParamKey = {
-  a: "alpha",
-  b: "beta",
-  c: "delta",
-  d: "gamma",
+  a: "a",
+  b: "b",
+  c: "c",
+  d: "d",
   iters: "iters",
   burn: "burn",
 };
@@ -344,7 +362,7 @@ function applyFormulaPresetToSliders(formulaId) {
   }
 
   const range = getRangeValuesForFormula(formulaId);
-  const keyToSlider = { a: "alpha", b: "beta", c: "delta", d: "gamma" };
+  const keyToSlider = { a: "a", b: "b", c: "c", d: "d" };
 
   for (const [paramKey, sliderKey] of Object.entries(keyToSlider)) {
     if (!Object.prototype.hasOwnProperty.call(preset, paramKey)) {
@@ -817,7 +835,7 @@ function remapSliderToPreserveParams(formulaId, nextRange) {
   clearSharedParamsOverride();
 
   const previousRange = getRangeValuesForFormula(formulaId);
-  const keysToSliders = { a: "alpha", b: "beta", c: "delta", d: "gamma" };
+  const keysToSliders = { a: "a", b: "b", c: "c", d: "d" };
 
   for (const key of RANGE_KEYS) {
     const sliderKey = keysToSliders[key];
@@ -1556,10 +1574,10 @@ function loadDefaultsFromStorage() {
     appData.defaults = {
       ...appData.defaults,
       ...parsed,
-      sliders: {
+      sliders: migrateLegacySliderKeys({
         ...(appData.defaults.sliders || {}),
         ...(parsed.sliders || {}),
-      },
+      }),
       rangesOverridesByFormula: {
         ...(appData.defaults.rangesOverridesByFormula || {}),
         ...(parsed.rangesOverridesByFormula || {}),
@@ -3583,9 +3601,9 @@ async function loadData() {
     data.defaults.debug = false;
   }
 
-  data.defaults.sliders = {
+  data.defaults.sliders = migrateLegacySliderKeys({
     ...(data.defaults.sliders || {}),
-  };
+  });
 
   if (typeof data.defaults.sliders.iters !== "number") {
     data.defaults.sliders.iters = 200000;
