@@ -1,5 +1,5 @@
 import { ColorMapNames, sampleColorMap } from "./colormaps.js";
-import { renderFrame, getParamsForFormula } from "./renderer.js";
+import { benchmarkStepCallOverhead, renderFrame, getParamsForFormula } from "./renderer.js";
 import { FORMULA_METADATA, FORMULA_RANGES_RAW, FORMULA_DEFAULT_PRESETS, FORMULA_DEFAULT_SEEDS } from "./formulas.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
@@ -49,6 +49,8 @@ const infoDensityGammaEl = document.getElementById("infoDensityGamma");
 const infoHybridBlendEl = document.getElementById("infoHybridBlend");
 const detailSeedXInputEl = document.getElementById("detailSeedXInput");
 const detailSeedYInputEl = document.getElementById("detailSeedYInput");
+const detailBenchIterationsInputEl = document.getElementById("detailBenchIterationsInput");
+const runStepBenchmarkBtnEl = document.getElementById("runStepBenchmarkBtn");
 
 const rangeInputMap = {
   a: { min: document.getElementById("rangeAmin"), value: document.getElementById("rangeAdefault"), max: document.getElementById("rangeAmax") },
@@ -3175,8 +3177,8 @@ function drawScreenshotOverlay(targetCtx, width, height) {
   targetCtx.restore();
 }
 
-async function saveBlobToDevice(blob, filename) {
-  const file = new File([blob], filename, { type: "image/png" });
+async function saveBlobToDevice(blob, filename, mimeType = "application/octet-stream") {
+  const file = new File([blob], filename, { type: mimeType });
   if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
     await navigator.share({ files: [file], title: filename });
     return;
@@ -3190,6 +3192,55 @@ async function saveBlobToDevice(blob, filename) {
   downloadAnchor.click();
   downloadAnchor.remove();
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+}
+
+function getStepBenchmarkIterationsFromUi() {
+  const raw = Number(detailBenchIterationsInputEl?.value);
+  if (!Number.isFinite(raw)) {
+    return 1_000_000;
+  }
+  return Math.max(1_000, Math.min(10_000_000, Math.floor(raw)));
+}
+
+function buildBenchmarkFilename() {
+  return `hopalong-step-call-overhead-${formatScreenshotTimestamp(new Date())}.json`;
+}
+
+async function runStepCallBenchmarkAndDownload() {
+  if (!runStepBenchmarkBtnEl) {
+    return;
+  }
+
+  const iterations = getStepBenchmarkIterationsFromUi();
+  runStepBenchmarkBtnEl.disabled = true;
+  const originalLabel = runStepBenchmarkBtnEl.textContent;
+  runStepBenchmarkBtnEl.textContent = "Running...";
+  showToast(`Running A/B benchmark (${iterations.toLocaleString()} iterations/formula)...`);
+
+  try {
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    const results = benchmarkStepCallOverhead({
+      iterations,
+      paramsByFormulaId: FORMULA_DEFAULT_PRESETS,
+      seedByFormulaId: FORMULA_DEFAULT_SEEDS,
+    });
+    const payload = {
+      benchmarkType: "step_call_overhead_ab",
+      generatedAt: new Date().toISOString(),
+      iterations,
+      formulasBenchmarked: results.length,
+      results,
+    };
+    const jsonBlob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    await saveBlobToDevice(jsonBlob, buildBenchmarkFilename(), "application/json");
+    showToast("Benchmark complete. JSON saved to your device.");
+  } catch (error) {
+    console.error(error);
+    showToast(`Benchmark failed: ${error?.message || "Unknown error"}`);
+  } finally {
+    runStepBenchmarkBtnEl.disabled = false;
+    runStepBenchmarkBtnEl.textContent = originalLabel;
+  }
 }
 
 function getExportWorldFromLiveMeta(exportWidth, exportHeight) {
@@ -3274,7 +3325,7 @@ async function captureScreenshot(includeOverlay) {
   }
 
   const filename = `hopalong-${includeOverlay ? "overlay" : "clean"}-${formatScreenshotTimestamp(new Date())}.png`;
-  await saveBlobToDevice(blob, filename);
+  await saveBlobToDevice(blob, filename, "image/png");
   showToast(includeOverlay ? "Saved screenshot with parameter overlay." : "Saved clean screenshot.");
 }
 
@@ -3496,6 +3547,9 @@ function registerHandlers() {
     showSettingsInfo("Hybrid age blend mixes density color with recency color. Increase to make newer orbit paths more visible.", event.currentTarget);
   });
   settingsInfoPopupEl?.addEventListener("click", hideSettingsInfo);
+  runStepBenchmarkBtnEl?.addEventListener("click", () => {
+    runStepCallBenchmarkAndDownload();
+  });
 
   canvas.style.touchAction = "none";
   canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: false });

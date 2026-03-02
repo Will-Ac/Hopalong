@@ -62,24 +62,17 @@ Example pattern:
 
 Also, every behavior change must be mirrored in the spec files under `spec/` before merge.
 
-## How to run the A/B step-call overhead benchmark (simple)
-This benchmark isolates only the `step(...)` function call overhead.
+## How to run the A/B step-call overhead benchmark (no terminal)
+If you only use GitHub Pages, you can run and save the benchmark directly from the web page.
 
-1. Open a terminal in the repo root.
-2. Run:
+1. Open the Hopalong app from your GitHub Pages URL.
+2. Open **Settings** (⚙), then open the **Detailed settings** tab.
+3. In **Step-call A/B benchmark**:
+   - keep the default `1000000` iterations (or enter a different value),
+   - tap **Run + Download JSON**.
+4. Wait for completion. Your browser will save a JSON file like:
+   - `hopalong-step-call-overhead-YYYYMMDD-HHMMSS.json`
 
-```bash
-node js/run_step_call_benchmark.mjs
-```
+That JSON contains per-formula A/B metrics (total ms, ns/iteration, delta %).
 
-That command will:
-- run **1,000,000 step calls per formula**,
-- compare Variant A (adapter alloc) vs Variant B (no alloc),
-- save JSON results to:
-
-`data/step_call_overhead_benchmark.json`
-
-### Optional: custom iteration count and output file
-```bash
-node js/run_step_call_benchmark.mjs 2000000 data/my_step_benchmark.json
-```
+> Tip: If your browser prompts between **Share** or **Download**, either choice is fine.
