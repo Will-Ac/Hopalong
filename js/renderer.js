@@ -96,7 +96,7 @@ export function benchmarkStepCallOverhead({
 
     const variantA = benchmarkStepVariant(stepVariantA, { iterations: benchIterations, seedX, seedY, a, b, c, d });
     const variantB = benchmarkStepVariant(stepVariantB, { iterations: benchIterations, seedX, seedY, a, b, c, d });
-    const deltaPct = variantB.totalMs > 0 ? ((variantA.totalMs - variantB.totalMs) / variantB.totalMs) * 100 : 0;
+    const deltaPct = variantA.totalMs > 0 ? ((variantA.totalMs - variantB.totalMs) / variantA.totalMs) * 100 : 0;
 
     return {
       formulaId,
@@ -112,7 +112,7 @@ export function benchmarkStepCallOverhead({
         totalMs: variantB.totalMs,
         nsPerIteration: variantB.nsPerIteration,
       },
-      deltaPct,
+      deltaPct, // Positive means Variant B is faster than Variant A.
       checksum: {
         variantA: variantA.checksum,
         variantB: variantB.checksum,

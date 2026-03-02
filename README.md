@@ -61,3 +61,25 @@ Example pattern:
 - `slice-2.1-abcd-actual-values-hold-step`
 
 Also, every behavior change must be mirrored in the spec files under `spec/` before merge.
+
+## How to run the A/B step-call overhead benchmark (simple)
+This benchmark isolates only the `step(...)` function call overhead.
+
+1. Open a terminal in the repo root.
+2. Run:
+
+```bash
+node js/run_step_call_benchmark.mjs
+```
+
+That command will:
+- run **1,000,000 step calls per formula**,
+- compare Variant A (adapter alloc) vs Variant B (no alloc),
+- save JSON results to:
+
+`data/step_call_overhead_benchmark.json`
+
+### Optional: custom iteration count and output file
+```bash
+node js/run_step_call_benchmark.mjs 2000000 data/my_step_benchmark.json
+```

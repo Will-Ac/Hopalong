@@ -120,11 +120,13 @@ const FORMULA_DEFS = [
     stepNoAlloc:(x,y,a,b,c,d)=>{ const xShift=x+c; const sign=xShift>=0?1:-1; return [y - sign*Math.sqrt(Math.abs(b*xShift-a)), a-xShift+d]; } }
 ];
 
-export const VARIANTS = FORMULA_DEFS.map((formulaDef) => ({
-  ...formulaDef,
+export const VARIANTS = FORMULA_DEFS.map(({ id, name, desc, stepNoAlloc }) => ({
+  id,
+  name,
+  desc,
   step: (x, y, a, b, c, d) => {
     const params = { a, b, c, d };
-    return formulaDef.stepNoAlloc(x, y, params.a, params.b, params.c, params.d);
+    return stepNoAlloc(x, y, params.a, params.b, params.c, params.d);
   },
 }));
 
