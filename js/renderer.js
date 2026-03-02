@@ -49,7 +49,128 @@ const LUT_SIZE = 2048;
 
 const ESCAPE_ABS_BOUND = 1e6;
 
-const formulaStepById = new Map(VARIANTS.map((formula) => [formula.id, formula.step]));
+const formulaById = new Map(VARIANTS.map((formula) => [formula.id, formula]));
+
+function getStepFunction(formula, params, benchmarkMode = "baseline") {
+  if (benchmarkMode === "precompute" && typeof formula.prepare === "function") {
+    const preparedStep = formula.prepare(params);
+    if (typeof preparedStep === "function") {
+      return preparedStep;
+    }
+  }
+
+  return (x, y) => formula.step(x, y, params.a, params.b, params.c, params.d);
+}
+
+function collectOrbit({ step, iterations, burn, seed }) {
+  let x = Number(seed?.x);
+  let y = Number(seed?.y);
+  if (!Number.isFinite(x)) x = 0;
+  if (!Number.isFinite(y)) y = 0;
+  const burnSteps = clamp(burn ?? 120, 0, 5000);
+  for (let i = 0; i < burnSteps; i += 1) {
+    [x, y] = step(x, y);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
+      x = 0;
+      y = 0;
+      break;
+    }
+  }
+
+  const xs = new Float32Array(iterations);
+  const ys = new Float32Array(iterations);
+  let sampleCount = 0;
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i < iterations; i += 1) {
+    [x, y] = step(x, y);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
+      break;
+    }
+
+    xs[sampleCount] = x;
+    ys[sampleCount] = y;
+    sampleCount += 1;
+
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+
+  return { xs, ys, sampleCount, minX, maxX, minY, maxY };
+}
+
+function computePercentile(values, percentile) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((percentile / 100) * sorted.length) - 1));
+  return sorted[index];
+}
+
+export function benchmarkFormulaThroughput({ formulaId, params, iterations = 120000, burn = 120, repeats = 30, sampleIterations = 2048, seed = { x: 0, y: 0 } }) {
+  const formula = formulaById.get(formulaId);
+  if (!formula) {
+    throw new Error(`Unknown formula id: ${formulaId}`);
+  }
+
+  const benchmarkModes = ["baseline", "precompute"];
+  const runsByMode = new Map();
+
+  for (const mode of benchmarkModes) {
+    const step = getStepFunction(formula, params, mode);
+    const runMs = [];
+    for (let i = 0; i < repeats; i += 1) {
+      const start = performance.now();
+      collectOrbit({ step, iterations, burn, seed });
+      runMs.push(performance.now() - start);
+    }
+    runsByMode.set(mode, runMs);
+  }
+
+  const baselineStep = getStepFunction(formula, params, "baseline");
+  const precomputeStep = getStepFunction(formula, params, "precompute");
+  const baselineSample = collectOrbit({ step: baselineStep, iterations: sampleIterations, burn, seed });
+  const precomputeSample = collectOrbit({ step: precomputeStep, iterations: sampleIterations, burn, seed });
+
+  const sampleCount = Math.min(baselineSample.sampleCount, precomputeSample.sampleCount);
+  let equal = baselineSample.sampleCount === precomputeSample.sampleCount;
+  for (let i = 0; i < sampleCount && equal; i += 1) {
+    equal = baselineSample.xs[i] === precomputeSample.xs[i] && baselineSample.ys[i] === precomputeSample.ys[i];
+  }
+
+  const summary = {};
+  for (const mode of benchmarkModes) {
+    const runMs = runsByMode.get(mode) || [];
+    const medianMs = computePercentile(runMs, 50);
+    const p95Ms = computePercentile(runMs, 95);
+    summary[mode] = {
+      runMs,
+      medianMs,
+      p95Ms,
+      medianIterationsPerSecond: medianMs > 0 ? (iterations / medianMs) * 1000 : 0,
+      p95IterationsPerSecond: p95Ms > 0 ? (iterations / p95Ms) * 1000 : 0,
+    };
+  }
+
+  return {
+    formulaId,
+    repeats,
+    iterations,
+    burn,
+    sampleIterations,
+    equality: {
+      matches: equal,
+      sampleCount,
+      baselineSampleCount: baselineSample.sampleCount,
+      precomputeSampleCount: precomputeSample.sampleCount,
+    },
+    summary,
+  };
+}
 
 
 export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
@@ -69,11 +190,12 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {} }) {
-  const step = formulaStepById.get(formulaId);
-  if (!step) {
+export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {}, benchmarkMode = "baseline" }) {
+  const formula = formulaById.get(formulaId);
+  if (!formula) {
     throw new Error(`Unknown formula id: ${formulaId}`);
   }
+  const step = getStepFunction(formula, params, benchmarkMode);
 
   const width = canvas.width;
   const height = canvas.height;
@@ -92,43 +214,12 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   const densityGamma = Number(renderColoring?.densityGamma) || 0.6;
   const hybridBlend = clamp01(Number(renderColoring?.hybridBlend) || 0.3);
 
-  let x = Number(seed?.x);
-  let y = Number(seed?.y);
-  if (!Number.isFinite(x)) x = 0;
-  if (!Number.isFinite(y)) y = 0;
-  const burnSteps = clamp(burn ?? 120, 0, 5000);
-  for (let i = 0; i < burnSteps; i += 1) {
-    [x, y] = step(x, y, params.a, params.b, params.c, params.d);
-    if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
-      x = 0;
-      y = 0;
-      break;
-    }
-  }
-
-  const xs = new Float32Array(iterations);
-  const ys = new Float32Array(iterations);
-  let sampleCount = 0;
-  let minX = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-
-  for (let i = 0; i < iterations; i += 1) {
-    [x, y] = step(x, y, params.a, params.b, params.c, params.d);
-    if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
-      break;
-    }
-
-    xs[sampleCount] = x;
-    ys[sampleCount] = y;
-    sampleCount += 1;
-
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-  }
+  const { xs, ys, sampleCount, minX, maxX, minY, maxY } = collectOrbit({
+    step,
+    iterations,
+    burn,
+    seed,
+  });
 
   if (sampleCount === 0) {
     ctx.putImageData(image, 0, 0);

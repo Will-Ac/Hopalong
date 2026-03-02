@@ -57,9 +57,21 @@ export const VARIANTS = [
     step:(x,y,a,b,g,d)=>{ const s=x>0?1:(x<0?-1:0); return [ y + s*Math.sqrt(Math.abs(b*x-d)), a - x ]; } },
 
   { id:"sinusoidal_hopalong", name:"Sinusoidal Hopalong", desc:"x' = y + sin(bx − c), y' = a − x",
+    prepare:({a,b,c,d})=>{
+      return (x,y)=>[ y + Math.sin(b*x - d), a - x ];
+    },
     step:(x,y,a,b,g,d)=>{ return [ y + Math.sin(b*x - d), a - x ]; } },
 
   { id:"threeply", name:"Threeply (Peters)", desc:"x' = y − sgn(x)·|sin(x)cos(b) + d − x·sin(a+b+d)|, y' = a − x",
+    prepare:({a,b,c,d})=>{
+      const cosB = Math.cos(b);
+      const sinABG = Math.sin(a + b + c);
+      return (x,y)=>{
+        const s=x>0?1:(x<0?-1:0);
+        const t = Math.sin(x)*cosB + c - x*sinABG;
+        return [ y - s*Math.abs(t), a - x ];
+      };
+    },
     step:(x,y,a,b,g,d)=>{ const s=x>0?1:(x<0?-1:0); const t = Math.sin(x)*Math.cos(b) + g - x*Math.sin(a+b+g); return [ y - s*Math.abs(t), a - x ]; } },
 
   { id:"quadrup2", name:"Quadrup-2 (Peters)", desc:"x' = y − sgn(x)·sin(ln|bx−c|)·atan((ln|cx−b|)^2), y' = a − x",
@@ -69,9 +81,16 @@ export const VARIANTS = [
     step:(x,y,a,b,g,d)=>{ const s=x>0?1:(x<0?-1:0); const ln=Math.log(Math.abs(b*x-d)+1e-12); const t=ln*ln; const k=Math.cos(t)*Math.atan(t); return [ y - s*k, a - x ]; } },
 
   { id:"pickover_Clifford", disabled:false, name:"Pickover/Clifford", desc:"x' = sin(by) + d·sin(bx), y' = sin(ax) + c·sin(ay) (scaled)",
+    prepare:({a,b,c,d})=>{
+      const S = 20;
+      return (x,y)=>[ S*(Math.sin(b*y) + c*Math.sin(b*x)), S*(Math.sin(a*x) + d*Math.sin(a*y)) ];
+    },
     step:(x,y,a,b,g,d)=>{ const S=20; return [ S*(Math.sin(b*y) + g*Math.sin(b*x)), S*(Math.sin(a*x) + d*Math.sin(a*y)) ]; } },
 
   { id:"peter_de_jong", name:"Peter de Jong", desc:"x' = sin(a·y) − cos(b·x), y' = sin(c·x) − cos(d·y)",
+    prepare:({a,b,c,d})=>{
+      return (x,y)=>[ Math.sin(a*y)-Math.cos(b*x), Math.sin(c*x)-Math.cos(d*y) ];
+    },
     step:(x,y,a,b,c,d)=>[ Math.sin(a*y)-Math.cos(b*x), Math.sin(c*x)-Math.cos(d*y) ] },
 
   { id:"clifford", name:"Clifford (Pickover)", desc:"x' = sin(a·y) + c·cos(a·x), y' = sin(b·x) + d·cos(b·y)",
