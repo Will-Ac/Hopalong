@@ -1872,7 +1872,7 @@ function isEventInsideInteractiveUi(eventTarget) {
     return false;
   }
 
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #debugToggleDock, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #rangesEditorToggle"));
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #debugToggleDock, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #colorSettingsPanel, #rangesEditorToggle"));
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -2396,6 +2396,23 @@ function layoutFormulaSettingsPanel() {
   formulaSettingsPanelEl.style.right = "auto";
 }
 
+
+function layoutColorSettingsPanel() {
+  if (!colorSettingsPanelEl || colorSettingsPanelEl.classList.contains("is-hidden")) {
+    return;
+  }
+
+  const margin = 8;
+  const viewportWidth = window.innerWidth;
+  const pickerRect = pickerPanel?.getBoundingClientRect();
+  const panelWidth = colorSettingsPanelEl.getBoundingClientRect().width || Math.min(380, viewportWidth - margin * 2);
+  const targetLeft = pickerRect
+    ? Math.max(margin, pickerRect.left - panelWidth - 8)
+    : margin;
+  colorSettingsPanelEl.style.left = `${Math.round(Math.min(targetLeft, viewportWidth - panelWidth - margin))}px`;
+  colorSettingsPanelEl.style.right = "auto";
+}
+
 function renderFormulaPicker() {
   pickerTitle.textContent = "Select formula";
   pickerList.innerHTML = "";
@@ -2593,7 +2610,7 @@ function openColorSettingsPanel(cmapName) {
   colorSettingsPreviewEl.style.background = buildColorMapGradient(cmapName);
   colorSettingsPanelEl.classList.remove("is-hidden");
   renderColorStopsEditor();
-  layoutFormulaSettingsPanel();
+  layoutColorSettingsPanel();
 }
 
 function closeColorSettingsPanel() {
@@ -3881,6 +3898,7 @@ function registerHandlers() {
         layoutPickerPanel();
       }
       layoutFormulaSettingsPanel();
+      layoutColorSettingsPanel();
       layoutFloatingActions();
       requestDraw();
     },
@@ -3896,6 +3914,7 @@ function registerHandlers() {
         layoutPickerPanel();
       }
       layoutFormulaSettingsPanel();
+      layoutColorSettingsPanel();
       layoutFloatingActions();
       requestDraw();
     },

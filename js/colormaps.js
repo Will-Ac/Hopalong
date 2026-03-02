@@ -182,6 +182,26 @@ function sanitizeStops(stops) {
   return normalized;
 }
 
+
+function buildFallbackStops(name) {
+  const fn =
+    ColorMaps[name]
+    || ColorMapLookup.get(normalizeColorMapName(name))
+    || ColorMaps[ColorMapNames[0]];
+  if (!fn) {
+    return null;
+  }
+
+  const steps = 5;
+  const stops = [];
+  for (let index = 0; index < steps; index += 1) {
+    const position = index / (steps - 1);
+    const [r, g, b] = fn(position);
+    stops.push([position, r, g, b, 1]);
+  }
+  return stops;
+}
+
 export function getColorMapStops(name) {
   const mappedName = normalizeColorMapName(name);
   const fromRuntime = runtimeColorMapStops.get(mappedName);
@@ -189,15 +209,18 @@ export function getColorMapStops(name) {
     return fromRuntime.map((stop) => [...stop]);
   }
 
-  const base = EDITABLE_COLOR_MAP_STOPS[name];
-  return base ? base.map((stop) => [...stop]) : null;
+  const canonicalName = Object.keys(EDITABLE_COLOR_MAP_STOPS).find((entry) => normalizeColorMapName(entry) === mappedName);
+  const base = canonicalName ? EDITABLE_COLOR_MAP_STOPS[canonicalName] : null;
+  if (base) {
+    return base.map((stop) => [...stop]);
+  }
+
+  const fallback = buildFallbackStops(name);
+  return fallback ? fallback.map((stop) => [...stop]) : null;
 }
 
 export function setColorMapStops(name, stops) {
   const mappedName = normalizeColorMapName(name);
-  if (!EDITABLE_COLOR_MAP_STOPS[name]) {
-    return;
-  }
   if (!stops) {
     runtimeColorMapStops.delete(mappedName);
     return;
