@@ -2,15 +2,15 @@
   "cmapName": "Turbo",
   "scaleMode": "auto",
   "sliders": {
-    "alpha": 50.0,
-    "beta": 50.0,
-    "gamma": 50.0,
-    "delta": 50.0,
+    "a": 50.0,
+    "b": 50.0,
+    "c": 50.0,
+    "d": 50.0,
     "iters": 200000.0,
     "burn": 120.0
   },
   "notes": [
-    "alpha/beta/gamma/delta defaults are slider positions (0\u2013100).",
+    "a/b/c/d defaults are slider positions (0\u2013100).",
     "Actual a/b/c/d values must be derived from slider position using formula-specific ranges.",
     "debug controls whether the debug axis/tick/info overlay is shown."
   ],
