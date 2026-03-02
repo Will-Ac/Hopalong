@@ -17,7 +17,6 @@ const rangesEditorPanelEl = document.getElementById("rangesEditorPanel");
 const rangesEditorCloseEl = document.getElementById("rangesEditorClose");
 const formulaSettingsPanelEl = document.getElementById("formulaSettingsPanel");
 const formulaSettingsCloseEl = document.getElementById("formulaSettingsClose");
-const formulaSettingsBtn = document.getElementById("formulaSettingsBtn");
 const rangesFormulaSelectEl = document.getElementById("rangesFormulaSelect");
 const rangesFormulaLineXEl = document.getElementById("rangesFormulaLineX");
 const rangesFormulaLineYEl = document.getElementById("rangesFormulaLineY");
@@ -1001,16 +1000,17 @@ function closeRangesEditor() {
   hideSettingsInfo();
 }
 
-function openFormulaSettingsPanel() {
+function openFormulaSettingsPanel(formulaId = null) {
   if (!formulaSettingsPanelEl) {
     return;
   }
 
   closeRangesEditor();
+  closePicker();
   formulaSettingsPanelEl.classList.remove("is-hidden");
-  const formulaId = getSelectedRangesEditorFormulaId();
-  loadFormulaRangesIntoEditor(formulaId);
-  syncSeedEditorInputs(formulaId);
+  const targetFormulaId = formulaId || getSelectedRangesEditorFormulaId();
+  loadFormulaRangesIntoEditor(targetFormulaId);
+  syncSeedEditorInputs(targetFormulaId);
 }
 
 function closeFormulaSettingsPanel() {
@@ -2266,6 +2266,9 @@ function renderFormulaPicker() {
   pickerList.innerHTML = "";
 
   for (const formula of appData.formulas) {
+    const rowWrap = document.createElement("div");
+    rowWrap.className = "pickerOptionRow";
+
     const button = document.createElement("button");
     button.type = "button";
     button.className = "pickerOption";
@@ -2301,7 +2304,19 @@ function renderFormulaPicker() {
       // Keep picker open so users can live-preview multiple options before closing.
     });
 
-    pickerList.append(button);
+    const settingsButton = document.createElement("button");
+    settingsButton.type = "button";
+    settingsButton.className = "formulaPickerSettingsBtn";
+    settingsButton.setAttribute("aria-label", `Edit defaults for ${formula.name || formula.id}`);
+    settingsButton.textContent = "⚙";
+    settingsButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openFormulaSettingsPanel(formula.id);
+    });
+
+    rowWrap.append(button, settingsButton);
+    pickerList.append(rowWrap);
   }
 }
 
@@ -3486,13 +3501,6 @@ function registerHandlers() {
     }
   });
   rangesEditorCloseEl?.addEventListener("click", closeRangesEditor);
-  formulaSettingsBtn?.addEventListener("click", () => {
-    if (formulaSettingsPanelEl?.classList.contains("is-hidden")) {
-      openFormulaSettingsPanel();
-    } else {
-      closeFormulaSettingsPanel();
-    }
-  });
   formulaSettingsCloseEl?.addEventListener("click", closeFormulaSettingsPanel);
   rangesFormulaSelectEl?.addEventListener("change", () => {
     loadFormulaRangesIntoEditor(rangesFormulaSelectEl.value);
