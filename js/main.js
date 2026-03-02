@@ -3488,7 +3488,7 @@ async function endCameraPress(event) {
 }
 
 function registerHandlers() {
-  pickerClose.addEventListener("click", () => closePicker({ force: true }));
+  pickerClose.addEventListener("click", () => closePicker());
   pickerBackdrop.addEventListener("click", () => closePicker());
   debugBugBtn?.addEventListener("click", () => {
     appData.defaults.debug = !Boolean(appData.defaults.debug);
