@@ -1,5 +1,5 @@
 import { sampleColorMap } from "./colormaps.js";
-import { VARIANTS } from "./formulas.js";
+import { FORMULA_STEP_NO_ALLOC_BY_ID, VARIANTS } from "./formulas.js";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -50,6 +50,76 @@ const LUT_SIZE = 2048;
 const ESCAPE_ABS_BOUND = 1e6;
 
 const formulaStepById = new Map(VARIANTS.map((formula) => [formula.id, formula.step]));
+
+function benchmarkStepVariant(step, { iterations, seedX, seedY, a, b, c, d }) {
+  let x = seedX;
+  let y = seedY;
+  let checksum = 0;
+  const startedAt = performance.now();
+
+  for (let i = 0; i < iterations; i += 1) {
+    [x, y] = step(x, y, a, b, c, d);
+    checksum += x + y;
+  }
+
+  const totalMs = performance.now() - startedAt;
+  return {
+    totalMs,
+    nsPerIteration: (totalMs * 1e6) / Math.max(1, iterations),
+    checksum,
+  };
+}
+
+export function benchmarkStepCallOverhead({
+  iterations = 1_000_000,
+  paramsByFormulaId = {},
+  seedByFormulaId = {},
+} = {}) {
+  const benchIterations = Math.max(1, Math.floor(Number(iterations) || 1_000_000));
+
+  return VARIANTS.map((formula) => {
+    const formulaId = formula.id;
+    const stepVariantA = formulaStepById.get(formulaId);
+    const stepVariantB = FORMULA_STEP_NO_ALLOC_BY_ID.get(formulaId);
+    if (!stepVariantA || !stepVariantB) {
+      throw new Error(`Missing step function for formula id: ${formulaId}`);
+    }
+
+    const params = paramsByFormulaId[formulaId] || {};
+    const seed = seedByFormulaId[formulaId] || {};
+    const a = Number.isFinite(params.a) ? params.a : 1;
+    const b = Number.isFinite(params.b) ? params.b : 1;
+    const c = Number.isFinite(params.c) ? params.c : 0;
+    const d = Number.isFinite(params.d) ? params.d : 0;
+    const seedX = Number.isFinite(seed.x) ? seed.x : 0;
+    const seedY = Number.isFinite(seed.y) ? seed.y : 0;
+
+    const variantA = benchmarkStepVariant(stepVariantA, { iterations: benchIterations, seedX, seedY, a, b, c, d });
+    const variantB = benchmarkStepVariant(stepVariantB, { iterations: benchIterations, seedX, seedY, a, b, c, d });
+    const deltaPct = variantB.totalMs > 0 ? ((variantA.totalMs - variantB.totalMs) / variantB.totalMs) * 100 : 0;
+
+    return {
+      formulaId,
+      formulaName: formula.name,
+      iterations: benchIterations,
+      variantA: {
+        label: "A (adapter alloc)",
+        totalMs: variantA.totalMs,
+        nsPerIteration: variantA.nsPerIteration,
+      },
+      variantB: {
+        label: "B (no alloc)",
+        totalMs: variantB.totalMs,
+        nsPerIteration: variantB.nsPerIteration,
+      },
+      deltaPct,
+      checksum: {
+        variantA: variantA.checksum,
+        variantB: variantB.checksum,
+      },
+    };
+  });
+}
 
 
 export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
