@@ -69,10 +69,29 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {} }) {
+export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {}, timingProbe = null }) {
+  const profilingEnabled = Boolean(timingProbe?.enabled);
+  const profilingStart = profilingEnabled ? performance.now() : 0;
+  const profile = profilingEnabled
+    ? {
+      formulaSetupMs: 0,
+      burnMs: 0,
+      iterationMs: 0,
+      boundsMappingMs: 0,
+      pixelWriteMs: 0,
+      totalMs: 0,
+      samples: 0,
+    }
+    : null;
+
+  const formulaSetupStart = profilingEnabled ? performance.now() : 0;
   const step = formulaStepById.get(formulaId);
   if (!step) {
     throw new Error(`Unknown formula id: ${formulaId}`);
+  }
+
+  if (profilingEnabled) {
+    profile.formulaSetupMs = performance.now() - formulaSetupStart;
   }
 
   const width = canvas.width;
@@ -96,6 +115,7 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   let y = Number(seed?.y);
   if (!Number.isFinite(x)) x = 0;
   if (!Number.isFinite(y)) y = 0;
+  const burnStart = profilingEnabled ? performance.now() : 0;
   const burnSteps = clamp(burn ?? 120, 0, 5000);
   for (let i = 0; i < burnSteps; i += 1) {
     [x, y] = step(x, y, params.a, params.b, params.c, params.d);
@@ -104,6 +124,9 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
       y = 0;
       break;
     }
+  }
+  if (profilingEnabled) {
+    profile.burnMs = performance.now() - burnStart;
   }
 
   const xs = new Float32Array(iterations);
@@ -114,6 +137,7 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   let minY = Number.POSITIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
 
+  const iterationStart = profilingEnabled ? performance.now() : 0;
   for (let i = 0; i < iterations; i += 1) {
     [x, y] = step(x, y, params.a, params.b, params.c, params.d);
     if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
@@ -129,9 +153,16 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     if (y < minY) minY = y;
     if (y > maxY) maxY = y;
   }
+  if (profilingEnabled) {
+    profile.iterationMs = performance.now() - iterationStart;
+    profile.samples = sampleCount;
+  }
 
   if (sampleCount === 0) {
     ctx.putImageData(image, 0, 0);
+    if (profilingEnabled) {
+      profile.totalMs = performance.now() - profilingStart;
+    }
     return {
       world: {
         minX: -1,
@@ -149,9 +180,11 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
         scaleX: (width - 1) / 2,
         scaleY: (height - 1) / 2,
       },
+      profiling: profile,
     };
   }
 
+  const boundsMappingStart = profilingEnabled ? performance.now() : 0;
   let worldMinX;
   let worldMaxX;
   let worldMinY;
@@ -202,7 +235,11 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     worldSpanX = Math.max(worldMaxX - worldMinX, 1e-6);
     worldSpanY = Math.max(worldMaxY - worldMinY, 1e-6);
   }
+  if (profilingEnabled) {
+    profile.boundsMappingMs = performance.now() - boundsMappingStart;
+  }
 
+  const pixelWriteStart = profilingEnabled ? performance.now() : 0;
   const colorLut = new Uint8Array(LUT_SIZE * 3);
 
   for (let lutIndex = 0; lutIndex < LUT_SIZE; lutIndex += 1) {
@@ -309,6 +346,10 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   }
 
   ctx.putImageData(image, 0, 0);
+  if (profilingEnabled) {
+    profile.pixelWriteMs = performance.now() - pixelWriteStart;
+    profile.totalMs = performance.now() - profilingStart;
+  }
 
   return {
     world: {
@@ -327,5 +368,6 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
       scaleX: (width - 1) / worldSpanX,
       scaleY: (height - 1) / worldSpanY,
     },
+    profiling: profile,
   };
 }
