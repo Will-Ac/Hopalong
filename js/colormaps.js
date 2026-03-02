@@ -2,6 +2,7 @@
 // Returns RGB arrays [r,g,b] with components 0-255.
 
 function clamp01(x) { return x < 0 ? 0 : (x > 1 ? 1 : x); }
+function clamp(x, min, max) { return Math.max(min, Math.min(max, x)); }
 function lerp(a, b, t) { return a + (b - a) * t; }
 function lerp3(c1, c2, t) { return [lerp(c1[0], c2[0], t), lerp(c1[1], c2[1], t), lerp(c1[2], c2[2], t)]; }
 function fromStops(stops, t) {
@@ -15,6 +16,24 @@ function fromStops(stops, t) {
     }
   }
   return stops[stops.length - 1][1];
+}
+
+function fromStopsRgba(stops, t) {
+  t = clamp01(t);
+  for (let i = 0; i < stops.length - 1; i += 1) {
+    const a = stops[i];
+    const b = stops[i + 1];
+    if (t >= a[0] && t <= b[0]) {
+      const u = (t - a[0]) / (b[0] - a[0] || 1);
+      return [
+        lerp(a[1], b[1], u),
+        lerp(a[2], b[2], u),
+        lerp(a[3], b[3], u),
+        lerp(a[4], b[4], u),
+      ];
+    }
+  }
+  return stops[stops.length - 1].slice(1);
 }
 
 function hexToRgb(hex) {
@@ -132,6 +151,81 @@ export const ColorMaps = {
   }),
 };
 
+export const EDITABLE_COLOR_MAP_STOPS = {
+  Turbo: [[0.00, 48, 18, 59, 1], [0.10, 50, 44, 125, 1], [0.20, 32, 96, 189, 1], [0.30, 41, 158, 179, 1], [0.40, 93, 201, 99, 1], [0.50, 177, 222, 44, 1], [0.60, 236, 199, 24, 1], [0.70, 250, 144, 25, 1], [0.80, 243, 85, 38, 1], [0.90, 206, 41, 57, 1], [1.00, 122, 4, 3, 1]],
+  Viridis: [[0, 68, 1, 84, 1], [0.25, 59, 82, 139, 1], [0.5, 33, 145, 140, 1], [0.75, 94, 201, 98, 1], [1, 253, 231, 37, 1]],
+  Magma: [[0, 0, 0, 4, 1], [0.25, 78, 18, 123, 1], [0.5, 182, 54, 121, 1], [0.75, 251, 136, 97, 1], [1, 252, 253, 191, 1]],
+  Ocean: [[0, 0, 0, 0, 1], [0.25, 0, 20, 70, 1], [0.5, 0, 90, 160, 1], [0.75, 40, 180, 220, 1], [1, 220, 250, 255, 1]],
+  "H&E": [[0, 20, 10, 30, 1], [0.20, 60, 40, 120, 1], [0.45, 190, 90, 180, 1], [0.70, 245, 170, 210, 1], [1, 255, 245, 250, 1]],
+  Giemsa: [[0, 10, 8, 30, 1], [0.25, 30, 60, 140, 1], [0.50, 80, 140, 170, 1], [0.75, 210, 180, 120, 1], [1, 250, 245, 220, 1]],
+};
+
+const runtimeColorMapStops = new Map();
+
+function sanitizeStops(stops) {
+  if (!Array.isArray(stops) || stops.length < 2) {
+    return null;
+  }
+  const normalized = stops
+    .map((stop) => {
+      const position = clamp01(Number(stop?.[0]));
+      const r = clamp(Math.round(Number(stop?.[1]) || 0), 0, 255);
+      const g = clamp(Math.round(Number(stop?.[2]) || 0), 0, 255);
+      const b = clamp(Math.round(Number(stop?.[3]) || 0), 0, 255);
+      const a = clamp01(Number(stop?.[4]) || 0);
+      return [position, r, g, b, a];
+    })
+    .sort((a, b) => a[0] - b[0]);
+
+  normalized[0][0] = 0;
+  normalized[normalized.length - 1][0] = 1;
+  return normalized;
+}
+
+export function getColorMapStops(name) {
+  const mappedName = normalizeColorMapName(name);
+  const fromRuntime = runtimeColorMapStops.get(mappedName);
+  if (fromRuntime) {
+    return fromRuntime.map((stop) => [...stop]);
+  }
+
+  const base = EDITABLE_COLOR_MAP_STOPS[name];
+  return base ? base.map((stop) => [...stop]) : null;
+}
+
+export function setColorMapStops(name, stops) {
+  const mappedName = normalizeColorMapName(name);
+  if (!EDITABLE_COLOR_MAP_STOPS[name]) {
+    return;
+  }
+  if (!stops) {
+    runtimeColorMapStops.delete(mappedName);
+    return;
+  }
+  const sanitized = sanitizeStops(stops);
+  if (sanitized) {
+    runtimeColorMapStops.set(mappedName, sanitized);
+  }
+}
+
+export function getColorMapStopOverrides() {
+  const entries = {};
+  for (const [name, stops] of runtimeColorMapStops.entries()) {
+    entries[name] = stops.map((stop) => [...stop]);
+  }
+  return entries;
+}
+
+export function setColorMapStopOverrides(overrides) {
+  runtimeColorMapStops.clear();
+  for (const [name, stops] of Object.entries(overrides || {})) {
+    const sanitized = sanitizeStops(stops);
+    if (sanitized) {
+      runtimeColorMapStops.set(normalizeColorMapName(name), sanitized);
+    }
+  }
+}
+
 ColorMaps.ice_cyan_white = ColorMaps["Ice → Cyan → White"];
 ColorMaps.white_indigo = ColorMaps["White → Indigo"];
 ColorMaps.sand_coral_rose = ColorMaps["Sand → Coral → Rose"];
@@ -149,7 +243,16 @@ for (const [name, fn] of Object.entries(ColorMaps)) {
 
 export const ColorMapNames = Object.keys(ColorMaps).filter((name) => !name.includes("_"));
 
-export function sampleColorMap(name, t) {
+export function sampleColorMap(name, t, background = [5, 7, 12]) {
+  const runtimeStops = getColorMapStops(name);
+  if (runtimeStops) {
+    const [r, g, b, a] = fromStopsRgba(runtimeStops, t);
+    return [
+      Math.round(background[0] + (r - background[0]) * a),
+      Math.round(background[1] + (g - background[1]) * a),
+      Math.round(background[2] + (b - background[2]) * a),
+    ];
+  }
   const fn =
     ColorMaps[name]
     || ColorMapLookup.get(normalizeColorMapName(name))

@@ -73,7 +73,7 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {} }) {
+export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {}, backgroundColor = [5, 7, 12] }) {
   const step = formulaStepById.get(formulaId);
   if (!step) {
     throw new Error(`Unknown formula id: ${formulaId}`);
@@ -85,9 +85,9 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   const pixels = image.data;
 
   for (let i = 0; i < pixels.length; i += 4) {
-    pixels[i] = 5;
-    pixels[i + 1] = 7;
-    pixels[i + 2] = 12;
+    pixels[i] = backgroundColor[0];
+    pixels[i + 1] = backgroundColor[1];
+    pixels[i + 2] = backgroundColor[2];
     pixels[i + 3] = 255;
   }
 
@@ -211,7 +211,7 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
 
   for (let lutIndex = 0; lutIndex < LUT_SIZE; lutIndex += 1) {
     const t = lutIndex / (LUT_SIZE - 1);
-    const [r, g, b] = sampleColorMap(cmapName, t);
+    const [r, g, b] = sampleColorMap(cmapName, t, backgroundColor);
     const colorOffset = lutIndex * 3;
     colorLut[colorOffset] = r;
     colorLut[colorOffset + 1] = g;

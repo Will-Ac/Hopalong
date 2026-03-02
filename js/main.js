@@ -1,4 +1,4 @@
-import { ColorMapNames, sampleColorMap } from "./colormaps.js";
+import { ColorMapNames, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
 import { renderFrame, getParamsForFormula } from "./renderer.js";
 import { FORMULA_METADATA, FORMULA_RANGES_RAW, FORMULA_DEFAULT_PRESETS, FORMULA_DEFAULT_SEEDS } from "./formulas.js";
 
@@ -40,6 +40,16 @@ const detailDensityGammaRangeEl = document.getElementById("detailDensityGammaRan
 const detailDensityGammaFormattedEl = document.getElementById("detailDensityGammaFormatted");
 const detailHybridBlendRangeEl = document.getElementById("detailHybridBlendRange");
 const detailHybridBlendFormattedEl = document.getElementById("detailHybridBlendFormatted");
+const detailBackgroundColorEl = document.getElementById("detailBackgroundColor");
+const detailBackgroundColorValueEl = document.getElementById("detailBackgroundColorValue");
+const colorSettingsPanelEl = document.getElementById("colorSettingsPanel");
+const colorSettingsCloseEl = document.getElementById("colorSettingsClose");
+const colorSettingsNameEl = document.getElementById("colorSettingsName");
+const colorSettingsPreviewEl = document.getElementById("colorSettingsPreview");
+const colorStopsListEl = document.getElementById("colorStopsList");
+const addColorStopBtnEl = document.getElementById("addColorStopBtn");
+const colorSettingsBackgroundColorEl = document.getElementById("colorSettingsBackgroundColor");
+const colorSettingsBackgroundColorValueEl = document.getElementById("colorSettingsBackgroundColorValue");
 const settingsInfoTextEl = document.getElementById("settingsInfoText");
 const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
 const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
@@ -117,6 +127,7 @@ let appData = null;
 let currentFormulaId = null;
 let activeSliderKey = null;
 let activePicker = null;
+let activeColorSettingsMap = null;
 let activePickerTrigger = null;
 let holdInterval = null;
 let lastRenderMeta = null;
@@ -604,12 +615,38 @@ function resolveInitialColorMap() {
   return names.has(appData.defaults.cmapName) ? appData.defaults.cmapName : appData.colormaps[0];
 }
 
+
+function rgbToHex(rgb) {
+  return `#${rgb.map((value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function hexToRgb(hex) {
+  const clean = String(hex || "").replace("#", "");
+  if (clean.length !== 6) {
+    return [5, 7, 12];
+  }
+  return [
+    Number.parseInt(clean.slice(0, 2), 16),
+    Number.parseInt(clean.slice(2, 4), 16),
+    Number.parseInt(clean.slice(4, 6), 16),
+  ];
+}
+
+function applyBackgroundTheme() {
+  const bg = appData?.defaults?.backgroundColor || "#05070c";
+  document.body.style.background = bg;
+  const [r, g, b] = hexToRgb(bg);
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  const isLight = luminance > 0.52;
+  document.documentElement.style.setProperty("--ui-gray-rgb", isLight ? "44, 50, 60" : "148, 154, 164");
+  document.documentElement.style.setProperty("--panel-bg", isLight ? "rgba(255,255,255,0.28)" : "rgba(12, 14, 20, 0.26)");
+}
 function buildColorMapGradient(cmapName) {
   const stops = [];
   const count = 9;
   for (let index = 0; index < count; index += 1) {
     const t = index / (count - 1);
-    const [r, g, b] = sampleColorMap(cmapName, t);
+    const [r, g, b] = sampleColorMap(cmapName, t, hexToRgb(appData?.defaults?.backgroundColor || "#05070c"));
     stops.push(`rgb(${r}, ${g}, ${b}) ${Math.round(t * 100)}%`);
   }
 
@@ -1103,6 +1140,10 @@ function syncDetailedSettingsControls() {
   if (detailDensityGammaFormattedEl) detailDensityGammaFormattedEl.textContent = formatNumberForUi(appData.defaults.renderDensityGamma, 2);
   if (detailHybridBlendRangeEl) detailHybridBlendRangeEl.value = String(appData.defaults.renderHybridBlend);
   if (detailHybridBlendFormattedEl) detailHybridBlendFormattedEl.textContent = formatNumberForUi(appData.defaults.renderHybridBlend, 2);
+  if (detailBackgroundColorEl) detailBackgroundColorEl.value = appData.defaults.backgroundColor || "#05070c";
+  if (detailBackgroundColorValueEl) detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor || "#05070c";
+  if (colorSettingsBackgroundColorEl) colorSettingsBackgroundColorEl.value = appData.defaults.backgroundColor || "#05070c";
+  if (colorSettingsBackgroundColorValueEl) colorSettingsBackgroundColorValueEl.textContent = appData.defaults.backgroundColor || "#05070c";
 }
 
 function applyDetailedSliderValue(sliderKey, nextValue) {
@@ -1636,6 +1677,7 @@ function saveDefaultsToStorage() {
   }
 
   try {
+    appData.defaults.colorMapStopOverrides = getColorMapStopOverrides();
     window.localStorage.setItem(APP_DEFAULTS_STORAGE_KEY, JSON.stringify(appData.defaults));
   } catch (error) {
     console.warn("Could not save defaults.", error);
@@ -1669,6 +1711,10 @@ function loadDefaultsFromStorage() {
         ...(appData.defaults.formulaSeeds || {}),
         ...(parsed.formulaSeeds || {}),
       },
+      colorMapStopOverrides: {
+        ...(appData.defaults.colorMapStopOverrides || {}),
+        ...(parsed.colorMapStopOverrides || {}),
+      },
       formulaParamDefaultsByFormula: {
         ...(appData.defaults.formulaParamDefaultsByFormula || {}),
         ...(parsed.formulaParamDefaultsByFormula || {}),
@@ -1689,6 +1735,8 @@ function captureCurrentState() {
     renderLogStrength: appData.defaults.renderLogStrength,
     renderDensityGamma: appData.defaults.renderDensityGamma,
     renderHybridBlend: appData.defaults.renderHybridBlend,
+    backgroundColor: appData.defaults.backgroundColor,
+    colorMapStopOverrides: JSON.parse(JSON.stringify(appData.defaults.colorMapStopOverrides || {})),
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
     fixedView: { ...fixedView },
     viewport: {
@@ -1747,6 +1795,10 @@ function applyState(state) {
   appData.defaults.renderLogStrength = clamp(Number(state.renderLogStrength ?? appData.defaults.renderLogStrength), 0.5, 30);
   appData.defaults.renderDensityGamma = clamp(Number(state.renderDensityGamma ?? appData.defaults.renderDensityGamma), 0.2, 2);
   appData.defaults.renderHybridBlend = clamp(Number(state.renderHybridBlend ?? appData.defaults.renderHybridBlend), 0, 1);
+  appData.defaults.backgroundColor = state.backgroundColor || appData.defaults.backgroundColor;
+  appData.defaults.colorMapStopOverrides = JSON.parse(JSON.stringify(state.colorMapStopOverrides || appData.defaults.colorMapStopOverrides || {}));
+  setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
+  applyBackgroundTheme();
   normalizeSliderDefaults();
   if (state.rangesOverridesByFormula && typeof state.rangesOverridesByFormula === "object") {
     appData.defaults.rangesOverridesByFormula = JSON.parse(JSON.stringify(state.rangesOverridesByFormula));
@@ -2296,7 +2348,7 @@ function alignQuickSliderAboveBottomBar() {
 }
 
 function closePicker({ force = false } = {}) {
-  if (!force && !formulaSettingsPanelEl?.classList.contains("is-hidden")) {
+  if (!force && (!formulaSettingsPanelEl?.classList.contains("is-hidden") || !colorSettingsPanelEl?.classList.contains("is-hidden"))) {
     return;
   }
 
@@ -2446,10 +2498,109 @@ function renderColorMapPicker() {
       // Keep picker open so users can live-preview multiple options before closing.
     });
 
-    pickerList.append(button);
+    const settingsButton = document.createElement("button");
+    settingsButton.type = "button";
+    settingsButton.className = "colorPickerSettingsBtn";
+    settingsButton.textContent = "⚙";
+    settingsButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openColorSettingsPanel(cmapName);
+    });
+
+    const rowWrap = document.createElement("div");
+    rowWrap.className = "pickerOptionRow";
+    rowWrap.append(button, settingsButton);
+    pickerList.append(rowWrap);
   }
 }
 
+
+function renderColorStopsEditor() {
+  if (!colorStopsListEl || !activeColorSettingsMap) return;
+  const stops = getColorMapStops(activeColorSettingsMap) || [];
+  colorStopsListEl.innerHTML = "";
+  stops.forEach((stop, index) => {
+    const card = document.createElement("div");
+    card.className = "colorStopCard";
+    const colorRow = document.createElement("div");
+    colorRow.className = "stopRow";
+    const label = document.createElement("span");
+    label.textContent = `Stop ${index + 1}`;
+    const colorInput = document.createElement("input");
+    colorInput.type = "color";
+    colorInput.value = rgbToHex(stop.slice(1, 4));
+    const transparentBtn = document.createElement("button");
+    transparentBtn.type = "button";
+    transparentBtn.className = "rangeActionBtn";
+    transparentBtn.innerHTML = stop[4] <= 0.001 ? '<span class="transparentSwatch"></span>' : 'Transparent';
+    colorRow.append(label, colorInput, transparentBtn);
+
+    const posInput = document.createElement("input");
+    posInput.type = "range";
+    posInput.min = "0";
+    posInput.max = "1";
+    posInput.step = "0.01";
+    posInput.value = String(stop[0]);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "rangeActionBtn";
+    removeBtn.textContent = "Remove";
+
+    colorInput.addEventListener("input", () => {
+      const [r, g, b] = hexToRgb(colorInput.value);
+      const next = getColorMapStops(activeColorSettingsMap) || [];
+      next[index] = [next[index][0], r, g, b, next[index][4] > 0 ? next[index][4] : 1];
+      setColorMapStops(activeColorSettingsMap, next);
+      colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+      requestDraw();
+    });
+    transparentBtn.addEventListener("click", () => {
+      const next = getColorMapStops(activeColorSettingsMap) || [];
+      next[index][4] = next[index][4] > 0 ? 0 : 1;
+      setColorMapStops(activeColorSettingsMap, next);
+      renderColorStopsEditor();
+      colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+      requestDraw();
+    });
+    posInput.addEventListener("input", () => {
+      const next = getColorMapStops(activeColorSettingsMap) || [];
+      next[index][0] = Number(posInput.value);
+      setColorMapStops(activeColorSettingsMap, next);
+      renderColorStopsEditor();
+      colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+      requestDraw();
+    });
+    removeBtn.addEventListener("click", () => {
+      const next = getColorMapStops(activeColorSettingsMap) || [];
+      if (next.length <= 2) return;
+      next.splice(index, 1);
+      setColorMapStops(activeColorSettingsMap, next);
+      renderColorStopsEditor();
+      colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+      requestDraw();
+    });
+
+    card.append(colorRow, posInput, removeBtn);
+    colorStopsListEl.append(card);
+  });
+}
+
+function openColorSettingsPanel(cmapName) {
+  activeColorSettingsMap = cmapName;
+  colorSettingsNameEl.textContent = cmapName;
+  colorSettingsPreviewEl.style.background = buildColorMapGradient(cmapName);
+  colorSettingsPanelEl.classList.remove("is-hidden");
+  renderColorStopsEditor();
+  layoutFormulaSettingsPanel();
+}
+
+function closeColorSettingsPanel() {
+  activeColorSettingsMap = null;
+  colorSettingsPanelEl?.classList.add("is-hidden");
+  saveDefaultsToStorage();
+}
 function openPicker(kind, triggerEl) {
   activePicker = kind;
   activePickerTrigger = triggerEl;
@@ -3152,6 +3303,7 @@ function draw() {
     fixedView,
     seed: getSeedForFormula(currentFormulaId),
     renderColoring: getRenderColoringOptions(),
+    backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
   });
 
   const now = performance.now();
@@ -3407,6 +3559,7 @@ async function captureScreenshot(includeOverlay) {
     worldOverride: exportWorld,
     seed: getSeedForFormula(currentFormulaId),
     renderColoring: getRenderColoringOptions(),
+    backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
   });
 
   if (includeOverlay) {
@@ -3618,6 +3771,43 @@ function registerHandlers() {
   detailDensityGammaRangeEl?.addEventListener("input", () => applyRenderColorParam("renderDensityGamma", detailDensityGammaRangeEl.value, 0.2, 2, 2));
   detailHybridBlendRangeEl?.addEventListener("input", () => applyRenderColorParam("renderHybridBlend", detailHybridBlendRangeEl.value, 0, 1, 2));
 
+  detailBackgroundColorEl?.addEventListener("input", (event) => {
+    appData.defaults.backgroundColor = event.target.value;
+    detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor;
+    if (colorSettingsBackgroundColorEl) colorSettingsBackgroundColorEl.value = appData.defaults.backgroundColor;
+    if (colorSettingsBackgroundColorValueEl) colorSettingsBackgroundColorValueEl.textContent = appData.defaults.backgroundColor;
+    applyBackgroundTheme();
+    requestDraw();
+    saveDefaultsToStorage();
+  });
+
+  colorSettingsBackgroundColorEl?.addEventListener("input", (event) => {
+    appData.defaults.backgroundColor = event.target.value;
+    colorSettingsBackgroundColorValueEl.textContent = appData.defaults.backgroundColor;
+    if (detailBackgroundColorEl) detailBackgroundColorEl.value = appData.defaults.backgroundColor;
+    if (detailBackgroundColorValueEl) detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor;
+    applyBackgroundTheme();
+    if (activeColorSettingsMap) colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+    requestDraw();
+    saveDefaultsToStorage();
+  });
+
+  addColorStopBtnEl?.addEventListener("click", () => {
+    if (!activeColorSettingsMap) return;
+    const next = getColorMapStops(activeColorSettingsMap) || [];
+    if (!next.length) return;
+    const insertAt = Math.floor(next.length / 2);
+    const left = next[Math.max(0, insertAt - 1)] || next[0];
+    const right = next[Math.min(next.length - 1, insertAt)] || next[next.length - 1];
+    next.splice(insertAt, 0, [(left[0] + right[0]) * 0.5, right[1], right[2], right[3], right[4]]);
+    setColorMapStops(activeColorSettingsMap, next);
+    renderColorStopsEditor();
+    colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+    requestDraw();
+  });
+
+  colorSettingsCloseEl?.addEventListener("click", closeColorSettingsPanel);
+
   infoMaxRandomItersEl?.addEventListener("click", (event) => {
     showSettingsInfo("Max random iterations limits the upper bound for randomization of iteration count.", event.currentTarget);
   });
@@ -3800,6 +3990,10 @@ async function bootstrap() {
     builtInFormulaRanges = appData.formula_ranges_raw || {};
     loadDefaultsFromStorage();
     normalizeSliderDefaults();
+    appData.defaults.backgroundColor = typeof appData.defaults.backgroundColor === "string" ? appData.defaults.backgroundColor : "#05070c";
+    appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
+    setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
+    applyBackgroundTheme();
 
     appData.defaults.formulaSeeds = normalizeFormulaSeeds(appData.defaults.formulaSeeds, appData.formulas);
 
