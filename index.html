@@ -269,6 +269,33 @@
         opacity: 0.9;
         overflow-wrap: anywhere;
       }
+      #formulaSettingsPanel {
+        right: auto;
+        left: max(8px, env(safe-area-inset-left));
+        z-index: 42;
+      }
+      .formulaNameTitle {
+        margin: 0;
+        font-size: calc(var(--ui-font-size) + 1px);
+        font-weight: 800;
+      }
+      .formulaParamTable {
+        display: grid;
+        gap: 6px;
+      }
+      .formulaParamHead,
+      .formulaParamRow {
+        display: grid;
+        grid-template-columns: 34px repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        align-items: center;
+      }
+      .formulaParamHead {
+        opacity: 0.85;
+      }
+      .formulaParamKey {
+        text-transform: lowercase;
+      }
       .rangeField {
         display: grid;
         gap: 4px;
@@ -276,6 +303,23 @@
       .rangeFieldLabel {
         font-size: var(--ui-font-size);
         opacity: 0.85;
+      }
+      .rangeInput.is-na {
+        text-align: center;
+        opacity: 0.7;
+      }
+      .rangeActions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+      .rangeActionBtn {
+        min-height: 32px;
+        border-radius: 8px;
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.2);
+        background: rgba(var(--ui-gray-rgb), 0.08);
+        color: var(--text);
+        padding: 0 10px;
       }
       #rangesEditorWarning {
         min-height: 18px;
@@ -530,6 +574,9 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+      }
+      .poBtn.is-na {
+        opacity: 0.7;
       }
       .poItem.poName {
         min-width: 0;
@@ -817,31 +864,30 @@ Scale</button>
 
       <aside id="formulaSettingsPanel" class="is-hidden" aria-label="Formula defaults editor">
         <div class="rangesEditorHead">
-          <strong>Formula defaults</strong>
+          <strong id="rangesFormulaName" class="formulaNameTitle">Formula</strong>
           <button id="formulaSettingsClose" type="button" aria-label="Close formula settings">✕</button>
         </div>
         <div id="rangesTabPanel" class="rangesEditorBody settingsTabPanel">
           <div id="rangesFormulaDetail" class="formulaDetailBox" aria-live="polite">
-            <p id="rangesFormulaLineX" class="formulaDetailLine">x' = --</p>
-            <p id="rangesFormulaLineY" class="formulaDetailLine">y' = --</p>
+            <p id="rangesFormulaLineX" class="formulaDetailLine">x_next = --</p>
+            <p id="rangesFormulaLineY" class="formulaDetailLine">y_next = --</p>
           </div>
-          <div class="rangeGrid">
-            <label class="rangeField"><span class="rangeFieldLabel">a min</span><input id="rangeAmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
-            <label class="rangeField"><span class="rangeFieldLabel">a default</span><input id="rangeAdefault" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
-            <label class="rangeField"><span class="rangeFieldLabel">a max</span><input id="rangeAmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
-            <label class="rangeField"><span class="rangeFieldLabel">b min</span><input id="rangeBmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
-            <label class="rangeField"><span class="rangeFieldLabel">b default</span><input id="rangeBdefault" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
-            <label class="rangeField"><span class="rangeFieldLabel">b max</span><input id="rangeBmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
-            <label class="rangeField"><span class="rangeFieldLabel">c min</span><input id="rangeCmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
-            <label class="rangeField"><span class="rangeFieldLabel">c default</span><input id="rangeCdefault" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
-            <label class="rangeField"><span class="rangeFieldLabel">c max</span><input id="rangeCmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
-            <label class="rangeField"><span class="rangeFieldLabel">d min</span><input id="rangeDmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
-            <label class="rangeField"><span class="rangeFieldLabel">d default</span><input id="rangeDdefault" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
-            <label class="rangeField"><span class="rangeFieldLabel">d max</span><input id="rangeDmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></label>
+          <div class="formulaParamTable">
+            <div class="formulaParamHead"><span></span><span>min</span><span>default</span><span>max</span></div>
+            <div class="formulaParamRow"><span class="formulaParamKey">a</span><input id="rangeAmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /><input id="rangeAdefault" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /><input id="rangeAmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></div>
+            <div class="formulaParamRow"><span class="formulaParamKey">b</span><input id="rangeBmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /><input id="rangeBdefault" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /><input id="rangeBmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></div>
+            <div class="formulaParamRow"><span class="formulaParamKey">c</span><input id="rangeCmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /><input id="rangeCdefault" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /><input id="rangeCmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></div>
+            <div class="formulaParamRow"><span class="formulaParamKey">d</span><input id="rangeDmin" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /><input id="rangeDdefault" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /><input id="rangeDmax" class="rangeInput" type="number" min="-1000000" max="1000000" step="any" /></div>
+            <div id="extraFormulaParams"></div>
           </div>
           <div class="rangeGrid rangeGridTight">
             <label class="rangeField"><span class="rangeFieldLabel">x seed</span><input id="detailSeedXInput" class="rangeInput" type="number" step="0.0001" /></label>
             <label class="rangeField"><span class="rangeFieldLabel">y seed</span><input id="detailSeedYInput" class="rangeInput" type="number" step="0.0001" /></label>
+          </div>
+          <div class="rangeActions">
+            <button id="formulaSettingsApply" class="rangeActionBtn" type="button">Apply</button>
+            <button id="formulaSettingsReset" class="rangeActionBtn" type="button">Reset Defaults</button>
+            <button id="formulaSettingsCloseBottom" class="rangeActionBtn" type="button">Close</button>
           </div>
           <p id="rangesEditorWarning" aria-live="polite"></p>
         </div>

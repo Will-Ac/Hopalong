@@ -17,9 +17,13 @@ const rangesEditorPanelEl = document.getElementById("rangesEditorPanel");
 const rangesEditorCloseEl = document.getElementById("rangesEditorClose");
 const formulaSettingsPanelEl = document.getElementById("formulaSettingsPanel");
 const formulaSettingsCloseEl = document.getElementById("formulaSettingsClose");
+const formulaSettingsCloseBottomEl = document.getElementById("formulaSettingsCloseBottom");
 const rangesFormulaLineXEl = document.getElementById("rangesFormulaLineX");
 const rangesFormulaLineYEl = document.getElementById("rangesFormulaLineY");
+const rangesFormulaNameEl = document.getElementById("rangesFormulaName");
 const rangesEditorWarningEl = document.getElementById("rangesEditorWarning");
+const formulaSettingsApplyEl = document.getElementById("formulaSettingsApply");
+const formulaSettingsResetEl = document.getElementById("formulaSettingsReset");
 const settingsTabColorEl = document.getElementById("settingsTabColor");
 const settingsTabGeneralEl = document.getElementById("settingsTabGeneral");
 const colorTabPanelEl = document.getElementById("colorTabPanel");
@@ -47,6 +51,7 @@ const infoDensityGammaEl = document.getElementById("infoDensityGamma");
 const infoHybridBlendEl = document.getElementById("infoHybridBlend");
 const detailSeedXInputEl = document.getElementById("detailSeedXInput");
 const detailSeedYInputEl = document.getElementById("detailSeedYInput");
+const extraFormulaParamsEl = document.getElementById("extraFormulaParams");
 
 const rangeInputMap = {
   a: { min: document.getElementById("rangeAmin"), value: document.getElementById("rangeAdefault"), max: document.getElementById("rangeAmax") },
@@ -383,6 +388,25 @@ function findFormulaMeta(formulaId) {
   return appData?.formulas?.find((formula) => formula.id === formulaId) || null;
 }
 
+function getFormulaUsedParams(formulaId) {
+  const formula = findFormulaMeta(formulaId);
+  if (!formula || !Array.isArray(formula.usedParams)) {
+    return ["a", "b", "c", "d"];
+  }
+  return formula.usedParams;
+}
+
+function isFormulaParamUsed(formulaId, paramKey) {
+  return getFormulaUsedParams(formulaId).includes(paramKey);
+}
+
+function isSliderKeyAvailable(sliderKey) {
+  if (!["a", "b", "c", "d"].includes(sliderKey)) {
+    return true;
+  }
+  return isFormulaParamUsed(currentFormulaId, sliderKey);
+}
+
 function renderFormulaDetail(formulaId) {
   if (!rangesFormulaLineXEl || !rangesFormulaLineYEl) {
     return;
@@ -630,9 +654,14 @@ function formatControlValue(control, value) {
 
 function refreshParamButtons() {
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
-    if (control.button) {
-      control.button.textContent = formatControlValue(control, getControlValue(sliderKey));
+    if (!control.button) {
+      continue;
     }
+
+    const isUnusedParam = ["a", "b", "c", "d"].includes(sliderKey) && !isSliderKeyAvailable(sliderKey);
+    control.button.disabled = Boolean(isUnusedParam);
+    control.button.classList.toggle("is-na", Boolean(isUnusedParam));
+    control.button.textContent = isUnusedParam ? "-" : formatControlValue(control, getControlValue(sliderKey));
   }
 
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
@@ -792,14 +821,59 @@ function getSelectedRangesEditorFormulaId() {
 function loadFormulaRangesIntoEditor(formulaId) {
   const ranges = getRangeValuesForFormula(formulaId);
   const presetValues = appData?.defaults?.formulaParamDefaultsByFormula?.[formulaId] || FORMULA_DEFAULT_PRESETS[formulaId] || {};
+  const formula = findFormulaMeta(formulaId);
+  if (rangesFormulaNameEl) {
+    rangesFormulaNameEl.textContent = formula?.name || formulaId || "Formula";
+  }
+  if (extraFormulaParamsEl) {
+    extraFormulaParamsEl.innerHTML = "";
+  }
   for (const key of RANGE_KEYS) {
     const field = rangeInputMap[key];
     if (!field) {
       continue;
     }
+
+    const isUsed = isFormulaParamUsed(formulaId, key);
+    for (const inputEl of [field.min, field.value, field.max]) {
+      if (!inputEl) {
+        continue;
+      }
+      inputEl.disabled = !isUsed;
+      inputEl.classList.toggle("is-na", !isUsed);
+    }
+
+    if (!isUsed) {
+      field.min.value = "-";
+      field.value.value = "-";
+      field.max.value = "-";
+      continue;
+    }
+
     field.min.value = String(ranges[key][0]);
     field.value.value = String(Number.isFinite(Number(presetValues[key])) ? Number(presetValues[key]) : "");
     field.max.value = String(ranges[key][1]);
+  }
+
+  const extraParamKeys = getFormulaUsedParams(formulaId)
+    .filter((key) => !RANGE_KEYS.includes(key));
+  if (extraFormulaParamsEl && extraParamKeys.length > 0) {
+    for (const key of extraParamKeys) {
+      const row = document.createElement("div");
+      row.className = "formulaParamRow";
+      const label = document.createElement("span");
+      label.className = "formulaParamKey";
+      label.textContent = key;
+      row.append(label);
+      for (let index = 0; index < 3; index += 1) {
+        const input = document.createElement("input");
+        input.className = "rangeInput is-na";
+        input.value = "-";
+        input.disabled = true;
+        row.append(input);
+      }
+      extraFormulaParamsEl.append(row);
+    }
   }
   rangesEditorFormulaId = formulaId;
   setRangesEditorWarning("");
@@ -832,11 +906,22 @@ function remapSliderToPreserveParams(formulaId, nextRange) {
   }
 }
 
-function readRangeEditorDraft() {
+function readRangeEditorDraft(formulaId) {
   const nextRanges = {};
   const nextDefaults = {};
+  const currentRanges = getRangeValuesForFormula(formulaId);
+  const currentDefaults = appData?.defaults?.formulaParamDefaultsByFormula?.[formulaId] || FORMULA_DEFAULT_PRESETS[formulaId] || {};
   for (const key of RANGE_KEYS) {
     const field = rangeInputMap[key];
+    const isUsed = isFormulaParamUsed(formulaId, key);
+    if (!isUsed) {
+      nextRanges[key] = currentRanges[key];
+      if (Object.prototype.hasOwnProperty.call(currentDefaults, key)) {
+        nextDefaults[key] = Number(currentDefaults[key]);
+      }
+      continue;
+    }
+
     const minValue = Number(field?.min?.value);
     const defaultValueRaw = String(field?.value?.value ?? "").trim();
     const maxValue = Number(field?.max?.value);
@@ -879,7 +964,7 @@ function readSeedEditorDraft(formulaId) {
 
 function applyRangesOverrideFromEditor() {
   const formulaId = getSelectedRangesEditorFormulaId();
-  const rangeDraft = readRangeEditorDraft();
+  const rangeDraft = readRangeEditorDraft(formulaId);
   if (rangeDraft.error) {
     setRangesEditorWarning(rangeDraft.error);
     return;
@@ -984,11 +1069,11 @@ function openFormulaSettingsPanel(formulaId = null) {
   }
 
   closeRangesEditor();
-  closePicker();
   formulaSettingsPanelEl.classList.remove("is-hidden");
   const targetFormulaId = formulaId || getSelectedRangesEditorFormulaId();
   loadFormulaRangesIntoEditor(targetFormulaId);
   syncSeedEditorInputs(targetFormulaId);
+  layoutFormulaSettingsPanel();
 }
 
 function closeFormulaSettingsPanel() {
@@ -2210,7 +2295,11 @@ function alignQuickSliderAboveBottomBar() {
   quickSliderEl.style.bottom = `${overlayHeight + 6}px`;
 }
 
-function closePicker() {
+function closePicker({ force = false } = {}) {
+  if (!force && !formulaSettingsPanelEl?.classList.contains("is-hidden")) {
+    return;
+  }
+
   activePicker = null;
   activePickerTrigger = null;
   pickerOverlay.classList.remove("is-open");
@@ -2237,6 +2326,22 @@ function layoutPickerPanel() {
   pickerPanel.style.width = `${Math.min(320, viewportWidth - margin * 2)}px`;
   pickerPanel.style.left = `${margin}px`;
   pickerPanel.style.transform = "none";
+}
+
+function layoutFormulaSettingsPanel() {
+  if (!formulaSettingsPanelEl || formulaSettingsPanelEl.classList.contains("is-hidden")) {
+    return;
+  }
+
+  const margin = 8;
+  const viewportWidth = window.innerWidth;
+  const pickerRect = pickerPanel?.getBoundingClientRect();
+  const panelWidth = formulaSettingsPanelEl.getBoundingClientRect().width || Math.min(380, viewportWidth - margin * 2);
+  const targetLeft = pickerRect
+    ? Math.max(margin, pickerRect.left - panelWidth - 8)
+    : margin;
+  formulaSettingsPanelEl.style.left = `${Math.round(Math.min(targetLeft, viewportWidth - panelWidth - margin))}px`;
+  formulaSettingsPanelEl.style.right = "auto";
 }
 
 function renderFormulaPicker() {
@@ -2276,6 +2381,10 @@ function renderFormulaPicker() {
         applyParamLockState("formula", "fix");
       }
       updateCurrentPickerSelection();
+      if (!formulaSettingsPanelEl?.classList.contains("is-hidden")) {
+        loadFormulaRangesIntoEditor(currentFormulaId);
+        layoutFormulaSettingsPanel();
+      }
       saveDefaultsToStorage();
       requestDraw();
       commitCurrentStateToHistory();
@@ -2387,6 +2496,11 @@ function applySliderValue(nextValue, { commitHistory = true } = {}) {
 }
 
 function openQuickSlider(sliderKey) {
+  if (!isSliderKeyAvailable(sliderKey)) {
+    showToast(`${sliderKey} is not used by this formula.`);
+    return;
+  }
+
   activeSliderKey = sliderKey;
   quickSliderOverlay.classList.add("is-open");
   quickSliderOverlay.setAttribute("aria-hidden", "false");
@@ -2452,7 +2566,7 @@ function toggleFixRandMode(modeKey) {
 
 function applySwipeModeForTile(targetKey, deltaX, deltaY) {
   const modeKey = paramTileTargets[targetKey]?.modeKey;
-  if (!modeKey || !MOD_AXIS_ELIGIBLE_KEYS.has(modeKey)) {
+  if (!modeKey || !MOD_AXIS_ELIGIBLE_KEYS.has(modeKey) || !isFormulaParamUsed(currentFormulaId, modeKey)) {
     return false;
   }
 
@@ -3374,8 +3488,8 @@ async function endCameraPress(event) {
 }
 
 function registerHandlers() {
-  pickerClose.addEventListener("click", closePicker);
-  pickerBackdrop.addEventListener("click", closePicker);
+  pickerClose.addEventListener("click", () => closePicker({ force: true }));
+  pickerBackdrop.addEventListener("click", () => closePicker());
   debugBugBtn?.addEventListener("click", () => {
     appData.defaults.debug = !Boolean(appData.defaults.debug);
     syncDebugToggleUi();
@@ -3480,16 +3594,12 @@ function registerHandlers() {
   });
   rangesEditorCloseEl?.addEventListener("click", closeRangesEditor);
   formulaSettingsCloseEl?.addEventListener("click", closeFormulaSettingsPanel);
+  formulaSettingsCloseBottomEl?.addEventListener("click", closeFormulaSettingsPanel);
 
-  const rangeEditorInputs = [
-    ...Object.values(rangeInputMap).flatMap((fieldGroup) => [fieldGroup.min, fieldGroup.value, fieldGroup.max]),
-    detailSeedXInputEl,
-    detailSeedYInputEl,
-  ].filter(Boolean);
-
-  for (const inputEl of rangeEditorInputs) {
-    inputEl.addEventListener("change", applyRangesOverrideFromEditor);
-  }
+  formulaSettingsApplyEl?.addEventListener("click", applyRangesOverrideFromEditor);
+  formulaSettingsResetEl?.addEventListener("click", () => {
+    resetFormulaDefaults(getSelectedRangesEditorFormulaId());
+  });
   settingsTabColorEl?.addEventListener("click", () => setSettingsTab("color"));
   settingsTabGeneralEl?.addEventListener("click", () => setSettingsTab("general"));
 
@@ -3580,6 +3690,7 @@ function registerHandlers() {
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }
+      layoutFormulaSettingsPanel();
       layoutFloatingActions();
       requestDraw();
     },
@@ -3594,6 +3705,7 @@ function registerHandlers() {
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }
+      layoutFormulaSettingsPanel();
       layoutFloatingActions();
       requestDraw();
     },

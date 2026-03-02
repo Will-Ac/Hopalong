@@ -3,6 +3,19 @@
 
 const PARAM_KEYS = ["a", "b", "c", "d"];
 
+function inferUsedParams(formula) {
+  const discovered = new Set();
+  const stepSource = String(formula.step || "");
+  for (const match of stepSource.matchAll(/p\.([A-Za-z_][A-Za-z0-9_]*)/g)) {
+    if (match[1]) {
+      discovered.add(match[1]);
+    }
+  }
+  const core = PARAM_KEYS.filter((key) => discovered.has(key));
+  const extras = [...discovered].filter((key) => !PARAM_KEYS.includes(key)).sort();
+  return [...core, ...extras];
+}
+
 export const FORMULA_DEFS = [
   {
     id: "classic_sqrt",
@@ -699,12 +712,13 @@ export const FORMULA_DEFAULT_SEEDS = Object.fromEntries(
   FORMULA_DEFS.map((formula) => [formula.id, formula.seed]),
 );
 
-export const FORMULA_METADATA = FORMULA_DEFS.map(({ id, name, desc, detailX, detailY }) => ({
-  id,
-  name,
-  desc,
-  detailX: detailX || "",
-  detailY: detailY || "",
+export const FORMULA_METADATA = FORMULA_DEFS.map((formula) => ({
+  id: formula.id,
+  name: formula.name,
+  desc: formula.desc,
+  detailX: formula.detailX || "",
+  detailY: formula.detailY || "",
+  usedParams: inferUsedParams(formula),
 }));
 
 export function getVariantById(id) {
