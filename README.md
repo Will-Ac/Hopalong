@@ -61,3 +61,15 @@ Example pattern:
 - `slice-2.1-abcd-actual-values-hold-step`
 
 Also, every behavior change must be mirrored in the spec files under `spec/` before merge.
+
+## Offline render benchmark
+
+An offline benchmarking harness is available in `bench/` to compare hot-loop and draw-path performance across 10 formulas and multiple optimization variants.
+
+Quick start:
+
+```bash
+python3 -m http.server 8080
+```
+
+Open `http://127.0.0.1:8080/bench/` and run the benchmark. See `bench/README.md` for details.
