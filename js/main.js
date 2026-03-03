@@ -3365,6 +3365,9 @@ function drawInterestOverlay(meta) {
   if (!appData?.defaults?.interestOverlayEnabled) {
     return;
   }
+  if (!shouldShowManualOverlay()) {
+    return;
+  }
   const currentConfig = buildInterestScanSignature();
   if (!currentConfig) {
     return;
