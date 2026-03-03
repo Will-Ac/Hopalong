@@ -691,6 +691,204 @@ export const FORMULA_DEFS = [
   },
 ];
 
+export const FORMULA_UI_EQUATIONS = {
+  classic_sqrt: {
+    name: "Classic (sqrt)",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|)",
+    yNew: "y_new = a - x",
+  },
+  sqrt_plus_gamma_y: {
+    name: "Classic + dy",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * y",
+    yNew: "y_new = a - x",
+  },
+  sqrt_plus_gamma_x: {
+    name: "Classic + dx",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * x",
+    yNew: "y_new = a - x",
+  },
+  mix_inside: {
+    name: "sqrt inside",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - c|) + d * y",
+    yNew: "y_new = a - x",
+  },
+  trig_kick_x: {
+    name: "Trig kick X",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * sin(x)",
+    yNew: "y_new = a - x",
+  },
+  damped: {
+    name: "Damped",
+    xNew: "x_new = (y - sign(x) * sqrt(|b * x - d|)) * (1 - min(0.95, |c|))",
+    yNew: "y_new = a - x",
+  },
+  y_feedback: {
+    name: "Y feedback",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|)",
+    yNew: "y_new = a - x + c * y",
+  },
+  trig_kick_y: {
+    name: "Trig kick Y",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * sin(y)",
+    yNew: "y_new = a - x",
+  },
+  classic_plus_yy: {
+    name: "Classic + y^2",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * y * y",
+    yNew: "y_new = a - x",
+  },
+  cos_xy_kick: {
+    name: "cos(x+y) kick",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * cos(x + y)",
+    yNew: "y_new = a - x",
+  },
+  inside_sin_y: {
+    name: "Inside sin(y)",
+    xNew: "x_new = y - sign(x) * sqrt(|b * (x + c * sin(y)) - d|)",
+    yNew: "y_new = a - x",
+  },
+  inside_cos_x: {
+    name: "Inside cos(x)",
+    xNew: "x_new = y - sign(x) * sqrt(|b * (x + c * cos(x)) - d|)",
+    yNew: "y_new = a - x",
+  },
+  softsign_kick: {
+    name: "Softsign kick",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * (x / (1 + |x|))",
+    yNew: "y_new = a - x",
+  },
+  tanh_kick: {
+    name: "Tanh kick",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * tanh(x)",
+    yNew: "y_new = a - x",
+  },
+  sign_xy: {
+    name: "sign(x*y)",
+    xNew: "x_new = y - sign(x*y) * sqrt(|b * x - d|)",
+    yNew: "y_new = a - x",
+  },
+  double_root: {
+    name: "Double root",
+    xNew: "x_new = y - sign(x) * (sqrt(|b * x - d|) + c * sqrt(|b * y - d|))",
+    yNew: "y_new = a - x",
+  },
+  xy_coupling: {
+    name: "x*y coupling",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * ((x * y) / 50)",
+    yNew: "y_new = a - x",
+  },
+  positive_hopalong: {
+    name: "Positive Hopalong",
+    xNew: "x_new = y + sign(x) * sqrt(|b * x - d|)",
+    yNew: "y_new = a - x",
+  },
+  sinusoidal_hopalong: {
+    name: "Threeply (abs kick)",
+    xNew: "x_new = y - sign(x) * |sin(x) * cos(b) + c - x * sin(a + b + c)|",
+    yNew: "y_new = a - x",
+  },
+  threeply: {
+    name: "Threeply",
+    xNew: "x_new = y - sign(x) * |sin(x) * cos(b) + c - x * sin(a + b + c)|",
+    yNew: "y_new = a - x",
+  },
+  quadrup2: {
+    name: "Quadrup-2",
+    xNew: "x_new = y - sign(x) * (sin(log(|b * x - d| + 1e-12)) * atan(log(|d * x - b| + 1e-12) * log(|d * x - b| + 1e-12)))",
+    yNew: "y_new = a - x",
+  },
+  chip: {
+    name: "Chip",
+    xNew: "x_new = y - sign(x) * (cos((log(|b * x - d| + 1e-12) * log(|b * x - d| + 1e-12))) * atan((log(|b * x - d| + 1e-12) * log(|b * x - d| + 1e-12))))",
+    yNew: "y_new = a - x",
+  },
+  pickover_clifford: {
+    name: "Pickover/Clifford",
+    xNew: "x_new = 20.0 * (sin(b * y) + c * sin(b * x))",
+    yNew: "y_new = 20.0 * (sin(a * x) + d * sin(a * y))",
+  },
+  peter_de_jong: {
+    name: "Ikeda (named “Peter de Jong” in file)",
+    xNew: "x_new = a + b * (x * cos(c - d / (1 + (x * x + y * y))) - y * sin(c - d / (1 + (x * x + y * y))))",
+    yNew: "y_new = b * (x * sin(c - d / (1 + (x * x + y * y))) + y * cos(c - d / (1 + (x * x + y * y))))",
+  },
+  clifford: {
+    name: "Clifford",
+    xNew: "x_new = sin(a * y) + c * cos(a * x)",
+    yNew: "y_new = sin(b * x) + d * cos(b * y)",
+  },
+  fractal_dream: {
+    name: "Fractal Dream",
+    xNew: "x_new = sin(b * y) + c * sin(b * x)",
+    yNew: "y_new = sin(a * x) + d * sin(a * y)",
+  },
+  tinkerbell: {
+    name: "Tinkerbell",
+    xNew: "x_new = x * x - y * y + a * x + b * y",
+    yNew: "y_new = 2 * x * y + c * x + d * y",
+  },
+  henon: {
+    name: "Henon",
+    xNew: "x_new = 1 - a * x * x + y + c",
+    yNew: "y_new = b * x + d",
+  },
+  lozi: {
+    name: "Lozi",
+    xNew: "x_new = 1 - a * |x| + y + c",
+    yNew: "y_new = b * x + d",
+  },
+  ikeda: {
+    name: "Ikeda",
+    xNew: "x_new = a + b * (x * cos(c - d / (1 + (x * x + y * y))) - y * sin(c - d / (1 + (x * x + y * y))))",
+    yNew: "y_new = b * (x * sin(c - d / (1 + (x * x + y * y))) + y * cos(c - d / (1 + (x * x + y * y))))",
+  },
+  gingerbread: {
+    name: "Gingerbread",
+    xNew: "x_new = a - y + b * |x|",
+    yNew: "y_new = c * x + d",
+  },
+  popcorn: {
+    name: "Popcorn",
+    xNew: "safeTan(u) = (isFinite(tan(u)) ? max(-10, min(10, tan(u))) : 0); x_new = x - a * sin(y + (isFinite(tan(3 * y)) ? max(-10, min(10, tan(3 * y))) : 0)) + c",
+    yNew: "safeTan(u) = (isFinite(tan(u)) ? max(-10, min(10, tan(u))) : 0); y_new = y - b * sin(x + (isFinite(tan(3 * x)) ? max(-10, min(10, tan(3 * x))) : 0)) + d",
+  },
+  bedhead: {
+    name: "Bedhead",
+    xNew: "x_new = sin((x * y) / (|b| < 1e-9 ? (b < 0 ? -1e-9 : 1e-9) : b)) * y + cos(a * x - y) + d",
+    yNew: "y_new = x + sin(y) / (|c| < 1e-9 ? (c < 0 ? -1e-9 : 1e-9) : c)",
+  },
+  jason_rampe_1: {
+    name: "Jason Rampe 1",
+    xNew: "x_new = cos(y * b) + c * sin(x * b)",
+    yNew: "y_new = cos(x * a) + d * sin(y * a)",
+  },
+  jason_rampe_2: {
+    name: "Jason Rampe 2",
+    xNew: "x_new = cos(y * b) + c * cos(x * b)",
+    yNew: "y_new = cos(x * a) + d * cos(y * a)",
+  },
+  jason_rampe_3: {
+    name: "Jason Rampe 3",
+    xNew: "x_new = sin(y * b) + c * cos(x * b)",
+    yNew: "y_new = cos(x * a) + d * sin(y * a)",
+  },
+  johnny_svensson: {
+    name: "Johnny Svensson",
+    xNew: "x_new = d * sin(x * a) - sin(y * b)",
+    yNew: "y_new = c * cos(x * a) + cos(y * b)",
+  },
+  gumowski_mira: {
+    name: "Gumowski–Mira",
+    xNew: "x_new = (y + a * (1 - b * y * y) * y + (c * (x) + (2 * (1 - c) * (x) * (x)) / (1 + (x) * (x))))",
+    yNew: "y_new = -x + d * (c * ((y + a * (1 - b * y * y) * y + (c * (x) + (2 * (1 - c) * (x) * (x)) / (1 + (x) * (x))))) + (2 * (1 - c) * ((y + a * (1 - b * y * y) * y + (c * (x) + (2 * (1 - c) * (x) * (x)) / (1 + (x) * (x))))) * ((y + a * (1 - b * y * y) * y + (c * (x) + (2 * (1 - c) * (x) * (x)) / (1 + (x) * (x)))))) / (1 + ((y + a * (1 - b * y * y) * y + (c * (x) + (2 * (1 - c) * (x) * (x)) / (1 + (x) * (x))))) * ((y + a * (1 - b * y * y) * y + (c * (x) + (2 * (1 - c) * (x) * (x)) / (1 + (x) * (x)))))))",
+  },
+  shifted_hopalong: {
+    name: "Shifted Hopalong",
+    xNew: "x_new = y - sign(x + c) * sqrt(|b * (x + c) - a|)",
+    yNew: "y_new = a - (x + c) + d",
+  },
+};
+
 const FORMULA_BY_ID = new Map(
   FORMULA_DEFS.map((formula) => [formula.id, formula]),
 );
