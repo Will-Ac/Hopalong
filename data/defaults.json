@@ -24,7 +24,11 @@
   "colorMapStopOverrides": {},
   "overlayAlpha": 0.9,
   "interestOverlayEnabled": false,
-  "interestGridSize": 12,
+  "interestGridSize": 24,
   "interestThreshold": 0.5,
-  "interestScanIterations": 1200
+  "interestScanIterations": 1200,
+  "interestWeightCoverage": 0.35,
+  "interestWeightComplexity": 0.35,
+  "interestWeightBoundedness": 0.3,
+  "interestWeightLinePenalty": 0.35
 }

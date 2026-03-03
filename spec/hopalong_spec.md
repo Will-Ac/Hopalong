@@ -156,9 +156,11 @@ Split into modules (even if bundled later):
 
 ## 12) Interest overlay (new)
 
-- Add optional "interest map" scanning while a one-finger modulation gesture is active.
-- During modulation, scan a configurable grid of parameter samples and compute an interest score per cell.
+- Add optional "interest map" scanning tied to the currently assigned ManX/ManY modulation plane.
+- When enabled and at least one parameter is assigned to ManX/ManY, scan a configurable grid of parameter samples and compute an interest score per cell.
+- Keep the overlay visible after scan completion; do not rescan unless non-plane inputs change (formula, seeds, non-modulated params, scan config).
 - Interest scoring should prefer bounded, spatially rich patterns and suppress degenerate outcomes (dot/line/blank).
+- Provide user-adjustable relative weights for scoring factors (coverage, complexity, boundedness, line-penalty).
 - Draw a translucent grayscale grid overlay on top of the rendered image, where brighter cells indicate higher interest.
 - Add settings in the General tab for:
   - Grid size

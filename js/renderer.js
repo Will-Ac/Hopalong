@@ -58,7 +58,14 @@ function safeRatio(numerator, denominator, fallback = 0) {
   return numerator / denominator;
 }
 
-export function scoreOrbitInterest({ formulaId, params, iterations = 1200, burn = 120, seed = null }) {
+export function scoreOrbitInterest({
+  formulaId,
+  params,
+  iterations = 1200,
+  burn = 120,
+  seed = null,
+  weights = {},
+}) {
   const step = formulaStepById.get(formulaId);
   if (!step) {
     return 0;
@@ -174,11 +181,19 @@ export function scoreOrbitInterest({ formulaId, params, iterations = 1200, burn 
   const tinyPatternPenalty = activeBins <= 2 ? 0.5 : 0;
 
   const boundedScore = clamp01((boundedness - 0.2) / 0.8);
+  const coverageWeight = Math.max(0, Number(weights.coverage) || 0.35);
+  const complexityWeight = Math.max(0, Number(weights.complexity) || 0.35);
+  const boundednessWeight = Math.max(0, Number(weights.boundedness) || 0.3);
+  const linePenaltyWeight = Math.max(0, Number(weights.linePenalty) || 0.35);
+  const totalPositiveWeight = Math.max(1e-9, coverageWeight + complexityWeight + boundednessWeight);
+  const weightedPositive = (
+    coverageWeight * coverageScore
+    + complexityWeight * complexityScore
+    + boundednessWeight * boundedScore
+  ) / totalPositiveWeight;
   const interest = clamp01(
-    0.35 * coverageScore
-      + 0.35 * complexityScore
-      + 0.3 * boundedScore
-      - 0.35 * linePenalty
+    weightedPositive
+      - linePenaltyWeight * linePenalty
       - tinyPatternPenalty,
   );
   return interest;

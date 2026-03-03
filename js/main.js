@@ -57,6 +57,14 @@ const detailInterestThresholdFormattedEl = document.getElementById("detailIntere
 const detailInterestScanIterationsRangeEl = document.getElementById("detailInterestScanIterationsRange");
 const detailInterestScanIterationsFormattedEl = document.getElementById("detailInterestScanIterationsFormatted");
 const detailInterestOverlayToggleEl = document.getElementById("detailInterestOverlayToggle");
+const detailInterestWeightCoverageRangeEl = document.getElementById("detailInterestWeightCoverageRange");
+const detailInterestWeightCoverageFormattedEl = document.getElementById("detailInterestWeightCoverageFormatted");
+const detailInterestWeightComplexityRangeEl = document.getElementById("detailInterestWeightComplexityRange");
+const detailInterestWeightComplexityFormattedEl = document.getElementById("detailInterestWeightComplexityFormatted");
+const detailInterestWeightBoundednessRangeEl = document.getElementById("detailInterestWeightBoundednessRange");
+const detailInterestWeightBoundednessFormattedEl = document.getElementById("detailInterestWeightBoundednessFormatted");
+const detailInterestWeightLinePenaltyRangeEl = document.getElementById("detailInterestWeightLinePenaltyRange");
+const detailInterestWeightLinePenaltyFormattedEl = document.getElementById("detailInterestWeightLinePenaltyFormatted");
 const colorSettingsPanelEl = document.getElementById("colorSettingsPanel");
 const colorSettingsCloseEl = document.getElementById("colorSettingsClose");
 const colorSettingsNameEl = document.getElementById("colorSettingsName");
@@ -228,8 +236,8 @@ const ZOOM_DEADBAND_PX = 2.5 * DPR;
 const ZOOM_RATIO_MIN = 0.002;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
-const INTEREST_GRID_MIN = 4;
-const INTEREST_GRID_MAX = 36;
+const INTEREST_GRID_MIN = 12;
+const INTEREST_GRID_MAX = 80;
 const INTEREST_SCAN_MIN = 120;
 const INTEREST_SCAN_MAX = 20000;
 
@@ -1176,6 +1184,23 @@ function syncDetailedSettingsControls() {
   if (detailInterestScanIterationsRangeEl) detailInterestScanIterationsRangeEl.value = String(appData.defaults.interestScanIterations);
   if (detailInterestScanIterationsFormattedEl) detailInterestScanIterationsFormattedEl.textContent = formatNumberForUi(appData.defaults.interestScanIterations, 0);
   if (detailInterestOverlayToggleEl) detailInterestOverlayToggleEl.checked = Boolean(appData.defaults.interestOverlayEnabled);
+  if (detailInterestWeightCoverageRangeEl) detailInterestWeightCoverageRangeEl.value = String(appData.defaults.interestWeightCoverage);
+  if (detailInterestWeightCoverageFormattedEl) detailInterestWeightCoverageFormattedEl.textContent = formatNumberForUi(appData.defaults.interestWeightCoverage, 2);
+  if (detailInterestWeightComplexityRangeEl) detailInterestWeightComplexityRangeEl.value = String(appData.defaults.interestWeightComplexity);
+  if (detailInterestWeightComplexityFormattedEl) detailInterestWeightComplexityFormattedEl.textContent = formatNumberForUi(appData.defaults.interestWeightComplexity, 2);
+  if (detailInterestWeightBoundednessRangeEl) detailInterestWeightBoundednessRangeEl.value = String(appData.defaults.interestWeightBoundedness);
+  if (detailInterestWeightBoundednessFormattedEl) detailInterestWeightBoundednessFormattedEl.textContent = formatNumberForUi(appData.defaults.interestWeightBoundedness, 2);
+  if (detailInterestWeightLinePenaltyRangeEl) detailInterestWeightLinePenaltyRangeEl.value = String(appData.defaults.interestWeightLinePenalty);
+  if (detailInterestWeightLinePenaltyFormattedEl) detailInterestWeightLinePenaltyFormattedEl.textContent = formatNumberForUi(appData.defaults.interestWeightLinePenalty, 2);
+}
+
+function getInterestWeights() {
+  return {
+    coverage: clamp(Number(appData.defaults.interestWeightCoverage), 0, 2),
+    complexity: clamp(Number(appData.defaults.interestWeightComplexity), 0, 2),
+    boundedness: clamp(Number(appData.defaults.interestWeightBoundedness), 0, 2),
+    linePenalty: clamp(Number(appData.defaults.interestWeightLinePenalty), 0, 2),
+  };
 }
 
 function invalidateInterestScan(shouldClearScores = false) {
@@ -1200,7 +1225,9 @@ function applyInterestSettings(key, nextValue, min, max, digits = 0) {
   appData.defaults[key] = Math.round(numeric * factor) / factor;
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
-  invalidateInterestScan(true);
+  if (key !== "interestThreshold") {
+    invalidateInterestScan(true);
+  }
   requestDraw();
 }
 
@@ -3099,19 +3126,23 @@ function buildInterestScanSignature() {
   }
 
   const axisXKey = manX || manY;
-  const axisYKey = manY || manX;
+  const axisYKey = manY || (["a", "b", "c", "d"].find((key) => key !== axisXKey) || axisXKey);
   const axisXControl = getControlForSlider(axisXKey);
   const axisYControl = getControlForSlider(axisYKey);
   const axisXRange = getRangeForControl(axisXControl) || DEFAULT_PARAM_RANGES.a;
   const axisYRange = getRangeForControl(axisYControl) || DEFAULT_PARAM_RANGES.b;
   const params = getDerivedParams();
+  const staticParams = { ...params };
+  delete staticParams[axisXKey];
+  delete staticParams[axisYKey];
   const seed = getSeedForFormula(currentFormulaId);
   const gridSize = Math.round(appData.defaults.interestGridSize);
   const scanIterations = Math.round(appData.defaults.interestScanIterations);
   const burn = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
+  const weights = getInterestWeights();
   const signature = JSON.stringify({
     formulaId: currentFormulaId,
-    params,
+    staticParams,
     seed,
     axisXKey,
     axisYKey,
@@ -3120,6 +3151,7 @@ function buildInterestScanSignature() {
     gridSize,
     scanIterations,
     burn,
+    weights,
   });
 
   return {
@@ -3133,6 +3165,8 @@ function buildInterestScanSignature() {
     gridSize,
     scanIterations,
     burn,
+    staticParams,
+    weights,
   };
 }
 
@@ -3179,7 +3213,7 @@ function maybeStartInterestScan() {
       const row = Math.floor(index / config.gridSize);
       const col = index % config.gridSize;
       const scanParams = {
-        ...config.params,
+        ...config.staticParams,
         [config.axisXKey]: mapGridCellToParamValue(col, config.gridSize, config.axisXRange, false),
         [config.axisYKey]: mapGridCellToParamValue(row, config.gridSize, config.axisYRange, true),
       };
@@ -3189,6 +3223,7 @@ function maybeStartInterestScan() {
         iterations: config.scanIterations,
         burn: config.burn,
         seed: config.seed,
+        weights: config.weights,
       });
       interestOverlayState.scannedCells += 1;
     }
@@ -4044,6 +4079,10 @@ function registerHandlers() {
   detailInterestGridSizeRangeEl?.addEventListener("input", () => applyInterestSettings("interestGridSize", detailInterestGridSizeRangeEl.value, INTEREST_GRID_MIN, INTEREST_GRID_MAX, 0));
   detailInterestThresholdRangeEl?.addEventListener("input", () => applyInterestSettings("interestThreshold", detailInterestThresholdRangeEl.value, 0, 1, 2));
   detailInterestScanIterationsRangeEl?.addEventListener("input", () => applyInterestSettings("interestScanIterations", detailInterestScanIterationsRangeEl.value, INTEREST_SCAN_MIN, INTEREST_SCAN_MAX, 0));
+  detailInterestWeightCoverageRangeEl?.addEventListener("input", () => applyInterestSettings("interestWeightCoverage", detailInterestWeightCoverageRangeEl.value, 0, 2, 2));
+  detailInterestWeightComplexityRangeEl?.addEventListener("input", () => applyInterestSettings("interestWeightComplexity", detailInterestWeightComplexityRangeEl.value, 0, 2, 2));
+  detailInterestWeightBoundednessRangeEl?.addEventListener("input", () => applyInterestSettings("interestWeightBoundedness", detailInterestWeightBoundednessRangeEl.value, 0, 2, 2));
+  detailInterestWeightLinePenaltyRangeEl?.addEventListener("input", () => applyInterestSettings("interestWeightLinePenalty", detailInterestWeightLinePenaltyRangeEl.value, 0, 2, 2));
   detailInterestOverlayToggleEl?.addEventListener("change", () => {
     appData.defaults.interestOverlayEnabled = Boolean(detailInterestOverlayToggleEl.checked);
     if (!appData.defaults.interestOverlayEnabled) {
@@ -4233,13 +4272,25 @@ async function loadData() {
     data.defaults.interestOverlayEnabled = false;
   }
   if (typeof data.defaults.interestGridSize !== "number") {
-    data.defaults.interestGridSize = 12;
+    data.defaults.interestGridSize = 24;
   }
   if (typeof data.defaults.interestThreshold !== "number") {
     data.defaults.interestThreshold = 0.5;
   }
   if (typeof data.defaults.interestScanIterations !== "number") {
     data.defaults.interestScanIterations = 1200;
+  }
+  if (typeof data.defaults.interestWeightCoverage !== "number") {
+    data.defaults.interestWeightCoverage = 0.35;
+  }
+  if (typeof data.defaults.interestWeightComplexity !== "number") {
+    data.defaults.interestWeightComplexity = 0.35;
+  }
+  if (typeof data.defaults.interestWeightBoundedness !== "number") {
+    data.defaults.interestWeightBoundedness = 0.3;
+  }
+  if (typeof data.defaults.interestWeightLinePenalty !== "number") {
+    data.defaults.interestWeightLinePenalty = 0.35;
   }
 
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
@@ -4252,6 +4303,10 @@ async function loadData() {
   data.defaults.interestGridSize = Math.round(clamp(data.defaults.interestGridSize, INTEREST_GRID_MIN, INTEREST_GRID_MAX));
   data.defaults.interestThreshold = clamp(data.defaults.interestThreshold, 0, 1);
   data.defaults.interestScanIterations = Math.round(clamp(data.defaults.interestScanIterations, INTEREST_SCAN_MIN, INTEREST_SCAN_MAX));
+  data.defaults.interestWeightCoverage = clamp(data.defaults.interestWeightCoverage, 0, 2);
+  data.defaults.interestWeightComplexity = clamp(data.defaults.interestWeightComplexity, 0, 2);
+  data.defaults.interestWeightBoundedness = clamp(data.defaults.interestWeightBoundedness, 0, 2);
+  data.defaults.interestWeightLinePenalty = clamp(data.defaults.interestWeightLinePenalty, 0, 2);
 
   if (data.defaults.scaleMode !== "fixed") {
     data.defaults.scaleMode = "auto";
@@ -4295,9 +4350,13 @@ async function bootstrap() {
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
     appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.9), 0.1, 1);
     appData.defaults.interestOverlayEnabled = Boolean(appData.defaults.interestOverlayEnabled);
-    appData.defaults.interestGridSize = Math.round(clamp(Number(appData.defaults.interestGridSize ?? 12), INTEREST_GRID_MIN, INTEREST_GRID_MAX));
+    appData.defaults.interestGridSize = Math.round(clamp(Number(appData.defaults.interestGridSize ?? 24), INTEREST_GRID_MIN, INTEREST_GRID_MAX));
     appData.defaults.interestThreshold = clamp(Number(appData.defaults.interestThreshold ?? 0.5), 0, 1);
     appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? 1200), INTEREST_SCAN_MIN, INTEREST_SCAN_MAX));
+    appData.defaults.interestWeightCoverage = clamp(Number(appData.defaults.interestWeightCoverage ?? 0.35), 0, 2);
+    appData.defaults.interestWeightComplexity = clamp(Number(appData.defaults.interestWeightComplexity ?? 0.35), 0, 2);
+    appData.defaults.interestWeightBoundedness = clamp(Number(appData.defaults.interestWeightBoundedness ?? 0.3), 0, 2);
+    appData.defaults.interestWeightLinePenalty = clamp(Number(appData.defaults.interestWeightLinePenalty ?? 0.35), 0, 2);
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
     applyBackgroundTheme();
     applyDialogTransparency();
