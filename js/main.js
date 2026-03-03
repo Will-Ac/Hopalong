@@ -52,6 +52,9 @@ const colorStopsListEl = document.getElementById("colorStopsList");
 const addColorStopBtnEl = document.getElementById("addColorStopBtn");
 const colorSettingsBackgroundColorEl = document.getElementById("colorSettingsBackgroundColor");
 const colorSettingsBackgroundColorValueEl = document.getElementById("colorSettingsBackgroundColorValue");
+const colorStopPopupEl = document.getElementById("colorStopPopup");
+const colorStopPopupColorEl = document.getElementById("colorStopPopupColor");
+const colorStopPopupTransparentEl = document.getElementById("colorStopPopupTransparent");
 const settingsInfoTextEl = document.getElementById("settingsInfoText");
 const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
 const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
@@ -130,6 +133,7 @@ let currentFormulaId = null;
 let activeSliderKey = null;
 let activePicker = null;
 let activeColorSettingsMap = null;
+let activeColorStopIndex = null;
 let activePickerTrigger = null;
 let holdInterval = null;
 let lastRenderMeta = null;
@@ -2554,6 +2558,47 @@ function renderColorMapPicker() {
 }
 
 
+
+function closeColorStopPopup() {
+  activeColorStopIndex = null;
+  colorStopPopupEl?.classList.add("is-hidden");
+}
+
+function openColorStopPopup(index, anchorEl) {
+  if (!activeColorSettingsMap || !colorStopPopupEl || !colorStopPopupColorEl || !colorStopPopupTransparentEl) return;
+  const stops = getColorMapStops(activeColorSettingsMap) || [];
+  const stop = stops[index];
+  if (!stop) return;
+
+  activeColorStopIndex = index;
+  colorStopPopupColorEl.value = rgbToHex(stop.slice(1, 4));
+  colorStopPopupTransparentEl.checked = stop[4] <= 0.001;
+
+  const rect = anchorEl.getBoundingClientRect();
+  const popupWidth = 220;
+  const left = Math.max(8, Math.min(window.innerWidth - popupWidth - 8, rect.left));
+  const top = Math.min(window.innerHeight - 120, rect.bottom + 6);
+  colorStopPopupEl.style.left = `${left}px`;
+  colorStopPopupEl.style.top = `${top}px`;
+  colorStopPopupEl.classList.remove("is-hidden");
+}
+
+function applyColorStopPopupChanges() {
+  if (!activeColorSettingsMap || activeColorStopIndex === null) return;
+  const next = getColorMapStops(activeColorSettingsMap) || [];
+  const stop = next[activeColorStopIndex];
+  if (!stop) return;
+  const [r, g, b] = hexToRgb(colorStopPopupColorEl.value);
+  stop[1] = r;
+  stop[2] = g;
+  stop[3] = b;
+  stop[4] = colorStopPopupTransparentEl.checked ? 0 : 1;
+  setColorMapStops(activeColorSettingsMap, next);
+  renderColorStopsEditor();
+  colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+  requestDraw();
+}
+
 function renderColorStopsEditor() {
   if (!colorStopsListEl || !activeColorSettingsMap) return;
   const stops = getColorMapStops(activeColorSettingsMap) || [];
@@ -2565,15 +2610,19 @@ function renderColorStopsEditor() {
     colorRow.className = "stopRow";
     const label = document.createElement("span");
     label.textContent = `Stop ${index + 1}`;
-    const colorInput = document.createElement("input");
-    colorInput.type = "color";
-    colorInput.className = "colorStopColorInput";
-    colorInput.value = rgbToHex(stop.slice(1, 4));
-    const transparentBtn = document.createElement("button");
-    transparentBtn.type = "button";
-    transparentBtn.className = "rangeActionBtn";
-    transparentBtn.innerHTML = stop[4] <= 0.001 ? '<span class="transparentSwatch"></span>' : 'Transparent';
-    colorRow.append(label, colorInput, transparentBtn);
+
+    const colorTile = document.createElement("button");
+    colorTile.type = "button";
+    colorTile.className = "colorStopTile";
+    colorTile.style.background = `rgb(${stop[1]}, ${stop[2]}, ${stop[3]})`;
+    colorTile.classList.toggle("is-transparent", stop[4] <= 0.001);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "rangeActionBtn";
+    removeBtn.textContent = "Remove";
+
+    colorRow.append(label, colorTile, removeBtn);
 
     const posInput = document.createElement("input");
     posInput.type = "range";
@@ -2582,26 +2631,9 @@ function renderColorStopsEditor() {
     posInput.step = "0.01";
     posInput.value = String(stop[0]);
 
-    const removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "rangeActionBtn";
-    removeBtn.textContent = "Remove";
-
-    colorInput.addEventListener("input", () => {
-      const [r, g, b] = hexToRgb(colorInput.value);
-      const next = getColorMapStops(activeColorSettingsMap) || [];
-      next[index] = [next[index][0], r, g, b, next[index][4] > 0 ? next[index][4] : 1];
-      setColorMapStops(activeColorSettingsMap, next);
-      colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
-      requestDraw();
-    });
-    transparentBtn.addEventListener("click", () => {
-      const next = getColorMapStops(activeColorSettingsMap) || [];
-      next[index][4] = next[index][4] > 0 ? 0 : 1;
-      setColorMapStops(activeColorSettingsMap, next);
-      renderColorStopsEditor();
-      colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
-      requestDraw();
+    colorTile.addEventListener("click", (event) => {
+      event.preventDefault();
+      openColorStopPopup(index, colorTile);
     });
     posInput.addEventListener("input", () => {
       const next = getColorMapStops(activeColorSettingsMap) || [];
@@ -2621,7 +2653,7 @@ function renderColorStopsEditor() {
       requestDraw();
     });
 
-    card.append(colorRow, posInput, removeBtn);
+    card.append(colorRow, posInput);
     colorStopsListEl.append(card);
   });
 }
@@ -2631,6 +2663,7 @@ function openColorSettingsPanel(cmapName) {
   colorSettingsNameEl.textContent = cmapName;
   colorSettingsPreviewEl.style.background = buildColorMapGradient(cmapName);
   colorSettingsPanelEl.classList.remove("is-hidden");
+  closeColorStopPopup();
   renderColorStopsEditor();
   layoutColorSettingsPanel();
 }
@@ -2638,6 +2671,7 @@ function openColorSettingsPanel(cmapName) {
 function closeColorSettingsPanel() {
   activeColorSettingsMap = null;
   colorSettingsPanelEl?.classList.add("is-hidden");
+  closeColorStopPopup();
   saveDefaultsToStorage();
 }
 function openPicker(kind, triggerEl) {
@@ -3847,6 +3881,18 @@ function registerHandlers() {
   });
 
   colorSettingsCloseEl?.addEventListener("click", closeColorSettingsPanel);
+
+  colorStopPopupColorEl?.addEventListener("input", applyColorStopPopupChanges);
+  colorStopPopupTransparentEl?.addEventListener("change", applyColorStopPopupChanges);
+  window.addEventListener("pointerdown", (event) => {
+    if (!colorStopPopupEl || colorStopPopupEl.classList.contains("is-hidden")) {
+      return;
+    }
+    if (event.target.closest("#colorStopPopup, .colorStopTile")) {
+      return;
+    }
+    closeColorStopPopup();
+  }, { passive: true });
 
   infoMaxRandomItersEl?.addEventListener("click", (event) => {
     showSettingsInfo("Max random iterations limits the upper bound for randomization of iteration count.", event.currentTarget);
