@@ -259,12 +259,9 @@
       .colorSettingsBody { display: grid; gap: 10px; }
       .colorPreviewWide { height: 18px; border-radius: 999px; border: 1px solid rgba(var(--ui-gray-rgb),0.25); width: 100%; }
       .colorStopCard { border:1px solid rgba(var(--ui-gray-rgb),0.2); border-radius:8px; padding:8px; display:grid; gap:6px; }
-      .stopRow { display:grid; grid-template-columns: 1fr auto auto; gap:8px; align-items:center; }
+      .stopRow { display:grid; grid-template-columns: 1fr auto auto auto; gap:8px; align-items:center; }
       .colorStopTile { width:34px; height:34px; border-radius:8px; border:1px solid rgba(var(--ui-gray-rgb),0.35); background:#fff; position:relative; }
       .colorStopTile.is-transparent::after { content:""; position:absolute; left:-1px; top:16px; width:calc(100% + 2px); height:2px; background:#d00; transform:rotate(-35deg); transform-origin:center; }
-      #colorStopPopup { position: fixed; z-index: 46; min-width: 220px; border-radius: 8px; border:1px solid rgba(var(--ui-gray-rgb),0.25); background: rgba(8, 10, 15, var(--dialog-alpha)); padding:10px; display:grid; gap:8px; }
-      #colorStopPopup.is-hidden { display:none; }
-      .colorStopPopupRow { display:flex; align-items:center; justify-content:space-between; gap:10px; }
 
 
       .rangeInput {
@@ -1002,15 +999,6 @@ Scale</button>
           <button id="addColorStopBtn" class="rangeActionBtn" type="button">Add stop</button>
         </div>
       </aside>
-
-      <div id="colorStopPopup" class="is-hidden" role="dialog" aria-label="Color stop chooser">
-        <div class="colorStopPopupRow">
-          <span>Stop color</span>
-          <input id="colorStopPopupColor" class="perfRangeInput" type="color" aria-label="Stop color" />
-        </div>
-        <label class="colorStopPopupRow"><span>Transparent</span><input id="colorStopPopupTransparent" type="checkbox" /></label>
-      </div>
-
       <div id="quickSliderOverlay" aria-hidden="true">
         <div id="quickSliderBackdrop"></div>
         <div id="quickSlider">
