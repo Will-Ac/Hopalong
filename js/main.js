@@ -1,5 +1,5 @@
 import { ColorMapNames, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
-import { renderFrame, getParamsForFormula } from "./renderer.js";
+import { renderFrame, getParamsForFormula, scoreOrbitInterest } from "./renderer.js";
 import {
   FORMULA_METADATA,
   FORMULA_RANGES_RAW,
@@ -50,6 +50,13 @@ const detailHybridBlendRangeEl = document.getElementById("detailHybridBlendRange
 const detailHybridBlendFormattedEl = document.getElementById("detailHybridBlendFormatted");
 const detailBackgroundColorEl = document.getElementById("detailBackgroundColor");
 const detailBackgroundColorValueEl = document.getElementById("detailBackgroundColorValue");
+const detailInterestGridSizeRangeEl = document.getElementById("detailInterestGridSizeRange");
+const detailInterestGridSizeFormattedEl = document.getElementById("detailInterestGridSizeFormatted");
+const detailInterestThresholdRangeEl = document.getElementById("detailInterestThresholdRange");
+const detailInterestThresholdFormattedEl = document.getElementById("detailInterestThresholdFormatted");
+const detailInterestScanIterationsRangeEl = document.getElementById("detailInterestScanIterationsRange");
+const detailInterestScanIterationsFormattedEl = document.getElementById("detailInterestScanIterationsFormatted");
+const detailInterestOverlayToggleEl = document.getElementById("detailInterestOverlayToggle");
 const colorSettingsPanelEl = document.getElementById("colorSettingsPanel");
 const colorSettingsCloseEl = document.getElementById("colorSettingsClose");
 const colorSettingsNameEl = document.getElementById("colorSettingsName");
@@ -184,6 +191,18 @@ let paramModes = {};
 let lastParamTap = { targetKey: null, timestamp: 0 };
 let pendingTileTapTimer = null;
 let randomAllNextMode = "rand";
+let interestScanTimer = null;
+const interestOverlayState = {
+  signature: null,
+  axisXKey: "a",
+  axisYKey: "b",
+  gridSize: 0,
+  scores: null,
+  scannedCells: 0,
+  totalCells: 0,
+  running: false,
+  token: 0,
+};
 const paramPressState = {
   pointerId: null,
   targetKey: null,
@@ -209,6 +228,10 @@ const ZOOM_DEADBAND_PX = 2.5 * DPR;
 const ZOOM_RATIO_MIN = 0.002;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
+const INTEREST_GRID_MIN = 4;
+const INTEREST_GRID_MAX = 36;
+const INTEREST_SCAN_MIN = 120;
+const INTEREST_SCAN_MAX = 20000;
 
 const LEGACY_SLIDER_KEY_MAP = {
   alpha: "a",
@@ -1146,6 +1169,39 @@ function syncDetailedSettingsControls() {
   if (detailHybridBlendFormattedEl) detailHybridBlendFormattedEl.textContent = formatNumberForUi(appData.defaults.renderHybridBlend, 2);
   if (detailBackgroundColorEl) detailBackgroundColorEl.value = appData.defaults.backgroundColor || "#05070c";
   if (detailBackgroundColorValueEl) detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor || "#05070c";
+  if (detailInterestGridSizeRangeEl) detailInterestGridSizeRangeEl.value = String(appData.defaults.interestGridSize);
+  if (detailInterestGridSizeFormattedEl) detailInterestGridSizeFormattedEl.textContent = formatNumberForUi(appData.defaults.interestGridSize, 0);
+  if (detailInterestThresholdRangeEl) detailInterestThresholdRangeEl.value = String(appData.defaults.interestThreshold);
+  if (detailInterestThresholdFormattedEl) detailInterestThresholdFormattedEl.textContent = formatNumberForUi(appData.defaults.interestThreshold, 2);
+  if (detailInterestScanIterationsRangeEl) detailInterestScanIterationsRangeEl.value = String(appData.defaults.interestScanIterations);
+  if (detailInterestScanIterationsFormattedEl) detailInterestScanIterationsFormattedEl.textContent = formatNumberForUi(appData.defaults.interestScanIterations, 0);
+  if (detailInterestOverlayToggleEl) detailInterestOverlayToggleEl.checked = Boolean(appData.defaults.interestOverlayEnabled);
+}
+
+function invalidateInterestScan(shouldClearScores = false) {
+  interestOverlayState.token += 1;
+  interestOverlayState.running = false;
+  interestOverlayState.signature = null;
+  if (interestScanTimer) {
+    window.clearTimeout(interestScanTimer);
+    interestScanTimer = null;
+  }
+  if (shouldClearScores) {
+    interestOverlayState.scores = null;
+    interestOverlayState.gridSize = 0;
+    interestOverlayState.scannedCells = 0;
+    interestOverlayState.totalCells = 0;
+  }
+}
+
+function applyInterestSettings(key, nextValue, min, max, digits = 0) {
+  const numeric = clamp(Number(nextValue), min, max);
+  const factor = 10 ** digits;
+  appData.defaults[key] = Math.round(numeric * factor) / factor;
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  invalidateInterestScan(true);
+  requestDraw();
 }
 
 function applyDetailedSliderValue(sliderKey, nextValue) {
@@ -2293,6 +2349,7 @@ function clearPointerState(pointerId) {
     lastPointerPosition = null;
     isManualModulating = false;
     clearTwoFingerGesture();
+    invalidateInterestScan(false);
     requestDraw();
     return;
   }
@@ -3030,6 +3087,151 @@ function shouldShowManualOverlay() {
   return interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0 && isManualModulating;
 }
 
+function mapGridCellToParamValue(index, size, range, invert = false) {
+  const t = (index + 0.5) / Math.max(1, size);
+  const valueT = invert ? 1 - t : t;
+  return range[0] + (range[1] - range[0]) * valueT;
+}
+
+function buildInterestScanSignature() {
+  const { manX, manY } = getManualAxisTargets();
+  const axisXKey = manX || "a";
+  const axisYKey = manY || (axisXKey === "a" ? "b" : "a");
+  const axisXControl = getControlForSlider(axisXKey);
+  const axisYControl = getControlForSlider(axisYKey);
+  const axisXRange = getRangeForControl(axisXControl) || DEFAULT_PARAM_RANGES.a;
+  const axisYRange = getRangeForControl(axisYControl) || DEFAULT_PARAM_RANGES.b;
+  const params = getDerivedParams();
+  const seed = getSeedForFormula(currentFormulaId);
+  const gridSize = Math.round(appData.defaults.interestGridSize);
+  const scanIterations = Math.round(appData.defaults.interestScanIterations);
+  const burn = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
+  const signature = JSON.stringify({
+    formulaId: currentFormulaId,
+    params,
+    seed,
+    axisXKey,
+    axisYKey,
+    axisXRange,
+    axisYRange,
+    gridSize,
+    scanIterations,
+    burn,
+  });
+
+  return {
+    signature,
+    params,
+    seed,
+    axisXKey,
+    axisYKey,
+    axisXRange,
+    axisYRange,
+    gridSize,
+    scanIterations,
+    burn,
+  };
+}
+
+function maybeStartInterestScan() {
+  if (!appData?.defaults?.interestOverlayEnabled) {
+    return;
+  }
+  if (interactionState !== INTERACTION_STATE.MOD_1 || activePointers.size === 0) {
+    return;
+  }
+
+  const config = buildInterestScanSignature();
+  if (interestOverlayState.running && interestOverlayState.signature === config.signature) {
+    return;
+  }
+  if (!interestOverlayState.running && interestOverlayState.signature === config.signature && interestOverlayState.scores) {
+    return;
+  }
+
+  invalidateInterestScan(false);
+  const scanToken = interestOverlayState.token;
+  const totalCells = config.gridSize * config.gridSize;
+  const scores = new Float32Array(totalCells);
+  interestOverlayState.running = true;
+  interestOverlayState.signature = config.signature;
+  interestOverlayState.axisXKey = config.axisXKey;
+  interestOverlayState.axisYKey = config.axisYKey;
+  interestOverlayState.gridSize = config.gridSize;
+  interestOverlayState.totalCells = totalCells;
+  interestOverlayState.scannedCells = 0;
+  interestOverlayState.scores = scores;
+
+  const processBatch = () => {
+    if (scanToken !== interestOverlayState.token) {
+      return;
+    }
+
+    const started = performance.now();
+    while (interestOverlayState.scannedCells < totalCells && (performance.now() - started) < 10) {
+      const index = interestOverlayState.scannedCells;
+      const row = Math.floor(index / config.gridSize);
+      const col = index % config.gridSize;
+      const scanParams = {
+        ...config.params,
+        [config.axisXKey]: mapGridCellToParamValue(col, config.gridSize, config.axisXRange, false),
+        [config.axisYKey]: mapGridCellToParamValue(row, config.gridSize, config.axisYRange, true),
+      };
+      scores[index] = scoreOrbitInterest({
+        formulaId: currentFormulaId,
+        params: scanParams,
+        iterations: config.scanIterations,
+        burn: config.burn,
+        seed: config.seed,
+      });
+      interestOverlayState.scannedCells += 1;
+    }
+
+    requestDraw();
+
+    if (interestOverlayState.scannedCells >= totalCells) {
+      interestOverlayState.running = false;
+      interestScanTimer = null;
+      return;
+    }
+    interestScanTimer = window.setTimeout(processBatch, 0);
+  };
+
+  interestScanTimer = window.setTimeout(processBatch, 0);
+}
+
+function drawInterestOverlay(meta) {
+  if (!appData?.defaults?.interestOverlayEnabled) {
+    return;
+  }
+  const currentConfig = buildInterestScanSignature();
+  if (interestOverlayState.signature !== currentConfig.signature || !interestOverlayState.scores || interestOverlayState.gridSize <= 0) {
+    return;
+  }
+
+  const threshold = clamp(Number(appData.defaults.interestThreshold), 0, 1);
+  const { view } = meta;
+  const size = interestOverlayState.gridSize;
+  const cellWidth = view.width / size;
+  const cellHeight = view.height / size;
+
+  ctx.save();
+  for (let row = 0; row < size; row += 1) {
+    for (let col = 0; col < size; col += 1) {
+      const index = row * size + col;
+      const score = clamp(Number(interestOverlayState.scores[index]), 0, 1);
+      if (score < threshold) {
+        continue;
+      }
+      const shade = Math.round(255 * score);
+      const alpha = 0.12 + score * 0.32;
+      ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, ${alpha})`;
+      ctx.fillRect(col * cellWidth, row * cellHeight, cellWidth, cellHeight);
+    }
+  }
+  ctx.restore();
+}
+
 function drawManualParamOverlay(meta) {
   if (!meta || !shouldShowManualOverlay()) {
     return;
@@ -3376,6 +3578,8 @@ function draw() {
     renderMs: now - startedAt,
   };
 
+  maybeStartInterestScan();
+  drawInterestOverlay(lastRenderMeta);
   drawDebugOverlay(lastRenderMeta);
   drawManualParamOverlay(lastRenderMeta);
   refreshParamButtons();
@@ -3828,6 +4032,18 @@ function registerHandlers() {
   detailDensityGammaRangeEl?.addEventListener("input", () => applyRenderColorParam("renderDensityGamma", detailDensityGammaRangeEl.value, 0.2, 2, 2));
   detailHybridBlendRangeEl?.addEventListener("input", () => applyRenderColorParam("renderHybridBlend", detailHybridBlendRangeEl.value, 0, 1, 2));
 
+  detailInterestGridSizeRangeEl?.addEventListener("input", () => applyInterestSettings("interestGridSize", detailInterestGridSizeRangeEl.value, INTEREST_GRID_MIN, INTEREST_GRID_MAX, 0));
+  detailInterestThresholdRangeEl?.addEventListener("input", () => applyInterestSettings("interestThreshold", detailInterestThresholdRangeEl.value, 0, 1, 2));
+  detailInterestScanIterationsRangeEl?.addEventListener("input", () => applyInterestSettings("interestScanIterations", detailInterestScanIterationsRangeEl.value, INTEREST_SCAN_MIN, INTEREST_SCAN_MAX, 0));
+  detailInterestOverlayToggleEl?.addEventListener("change", () => {
+    appData.defaults.interestOverlayEnabled = Boolean(detailInterestOverlayToggleEl.checked);
+    if (!appData.defaults.interestOverlayEnabled) {
+      invalidateInterestScan(true);
+    }
+    saveDefaultsToStorage();
+    requestDraw();
+  });
+
   detailBackgroundColorEl?.addEventListener("input", (event) => {
     appData.defaults.backgroundColor = event.target.value;
     detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor;
@@ -4004,6 +4220,18 @@ async function loadData() {
   if (typeof data.defaults.overlayAlpha !== "number") {
     data.defaults.overlayAlpha = 0.9;
   }
+  if (typeof data.defaults.interestOverlayEnabled !== "boolean") {
+    data.defaults.interestOverlayEnabled = false;
+  }
+  if (typeof data.defaults.interestGridSize !== "number") {
+    data.defaults.interestGridSize = 12;
+  }
+  if (typeof data.defaults.interestThreshold !== "number") {
+    data.defaults.interestThreshold = 0.5;
+  }
+  if (typeof data.defaults.interestScanIterations !== "number") {
+    data.defaults.interestScanIterations = 1200;
+  }
 
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
@@ -4012,6 +4240,9 @@ async function loadData() {
   data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
   data.defaults.renderHybridBlend = clamp(data.defaults.renderHybridBlend, 0, 1);
   data.defaults.overlayAlpha = clamp(data.defaults.overlayAlpha, 0.1, 1);
+  data.defaults.interestGridSize = Math.round(clamp(data.defaults.interestGridSize, INTEREST_GRID_MIN, INTEREST_GRID_MAX));
+  data.defaults.interestThreshold = clamp(data.defaults.interestThreshold, 0, 1);
+  data.defaults.interestScanIterations = Math.round(clamp(data.defaults.interestScanIterations, INTEREST_SCAN_MIN, INTEREST_SCAN_MAX));
 
   if (data.defaults.scaleMode !== "fixed") {
     data.defaults.scaleMode = "auto";
@@ -4054,6 +4285,10 @@ async function bootstrap() {
     appData.defaults.backgroundColor = typeof appData.defaults.backgroundColor === "string" ? appData.defaults.backgroundColor : "#05070c";
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
     appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.9), 0.1, 1);
+    appData.defaults.interestOverlayEnabled = Boolean(appData.defaults.interestOverlayEnabled);
+    appData.defaults.interestGridSize = Math.round(clamp(Number(appData.defaults.interestGridSize ?? 12), INTEREST_GRID_MIN, INTEREST_GRID_MAX));
+    appData.defaults.interestThreshold = clamp(Number(appData.defaults.interestThreshold ?? 0.5), 0, 1);
+    appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? 1200), INTEREST_SCAN_MIN, INTEREST_SCAN_MAX));
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
     applyBackgroundTheme();
     applyDialogTransparency();

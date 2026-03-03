@@ -153,3 +153,15 @@ Split into modules (even if bundled later):
   - center point of the visible range
   - FPS
 - When debug is `Off`, hide axes/ticks/readout details and show a short `Debug off` message.
+
+## 12) Interest overlay (new)
+
+- Add optional "interest map" scanning while a one-finger modulation gesture is active.
+- During modulation, scan a configurable grid of parameter samples and compute an interest score per cell.
+- Interest scoring should prefer bounded, spatially rich patterns and suppress degenerate outcomes (dot/line/blank).
+- Draw a translucent grayscale grid overlay on top of the rendered image, where brighter cells indicate higher interest.
+- Add settings in the General tab for:
+  - Grid size
+  - Interest threshold
+  - Scan iterations per cell
+  - Overlay enable/disable toggle

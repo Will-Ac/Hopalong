@@ -950,6 +950,31 @@ Scale</button>
             <div class="perfSettingHead"><span class="perfSettingLabel">Debug overlay</span><button id="infoDebug" class="perfInfoBtn" type="button">i</button></div>
             <label class="modeOption"><input id="detailDebugToggle" type="checkbox" /> Show debug overlays and diagnostics</label>
           </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Interest grid size</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestGridSizeRange" class="perfRangeInput" type="range" min="4" max="36" step="1" />
+              <div id="detailInterestGridSizeFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Interest threshold</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestThresholdRange" class="perfRangeInput" type="range" min="0" max="1" step="0.01" />
+              <div id="detailInterestThresholdFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Scan iterations per cell</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestScanIterationsRange" class="perfRangeInput" type="range" min="120" max="20000" step="40" />
+              <div id="detailInterestScanIterationsFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Interest overlay</span></div>
+            <label class="modeOption"><input id="detailInterestOverlayToggle" type="checkbox" /> Show translucent interest map while modulating</label>
+          </div>
         </div>
         <div id="settingsInfoPopup" class="is-hidden" role="dialog" aria-live="polite">
           <div id="settingsInfoText"></div>
