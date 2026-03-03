@@ -2546,6 +2546,7 @@ function renderColorStopsEditor() {
     label.textContent = `Stop ${index + 1}`;
     const colorInput = document.createElement("input");
     colorInput.type = "color";
+    colorInput.className = "colorStopColorInput";
     colorInput.value = rgbToHex(stop.slice(1, 4));
     const transparentBtn = document.createElement("button");
     transparentBtn.type = "button";

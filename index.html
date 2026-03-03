@@ -184,8 +184,9 @@
       }
 
       #formulaSettingsPanel,
+      #rangesEditorPanel,
       #colorSettingsPanel {
-        z-index: 41;
+        z-index: 42;
       }
       .rangesEditorHead {
         display: flex;
@@ -258,8 +259,8 @@
       .colorPreviewWide { height: 18px; border-radius: 999px; border: 1px solid rgba(var(--ui-gray-rgb),0.25); width: 100%; }
       .colorStopCard { border:1px solid rgba(var(--ui-gray-rgb),0.2); border-radius:8px; padding:8px; display:grid; gap:6px; }
       .stopRow { display:grid; grid-template-columns: auto 1fr auto; gap:8px; align-items:center; }
-      .transparentSwatch { width:18px; height:18px; border-radius:50%; border:1px solid #fff; background:#fff; position:relative; }
-      .transparentSwatch::after { content:""; position:absolute; left:0; top:8px; width:100%; height:2px; background:#d00; transform:rotate(-35deg); transform-origin:center; }
+      .transparentSwatch { width:18px; height:18px; border-radius:5px; border:1px solid rgba(var(--ui-gray-rgb),0.35); background:#fff; position:relative; }
+      .transparentSwatch::after { content:""; position:absolute; left:-1px; top:8px; width:calc(100% + 2px); height:2px; background:#d00; transform:rotate(-35deg); transform-origin:center; }
 
       .rangeInput {
         width: 100%;
@@ -395,6 +396,33 @@
       }
       .perfRangeInput {
         width: 100%;
+      }
+
+      input[type="color"].perfRangeInput,
+      .colorStopColorInput {
+        width: 34px;
+        height: 34px;
+        min-width: 34px;
+        padding: 0;
+        border-radius: 8px;
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.24);
+        background: rgba(0, 0, 0, 0.18);
+        overflow: hidden;
+        cursor: pointer;
+      }
+      input[type="color"].perfRangeInput::-webkit-color-swatch-wrapper,
+      .colorStopColorInput::-webkit-color-swatch-wrapper {
+        padding: 0;
+      }
+      input[type="color"].perfRangeInput::-webkit-color-swatch,
+      .colorStopColorInput::-webkit-color-swatch {
+        border: 0;
+        border-radius: 7px;
+      }
+      input[type="color"].perfRangeInput::-moz-color-swatch,
+      .colorStopColorInput::-moz-color-swatch {
+        border: 0;
+        border-radius: 7px;
       }
       .perfSelect {
         width: 100%;
