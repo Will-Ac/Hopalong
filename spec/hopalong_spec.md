@@ -171,6 +171,9 @@ Split into modules (even if bundled later):
 - When enabled and at least one parameter is assigned to ManX/ManY, scan a configurable grid of parameter samples and compute an interest score per cell.
 - Keep the overlay visible after scan completion; do not rescan unless non-plane inputs change (formula, seeds, non-modulated params, scan config).
 - Interest scoring should prefer bounded, spatially rich patterns and suppress degenerate outcomes (dot/line/blank).
+- Scoring uses a two-stage strategy:
+  - Stage 1 disqualifies likely low-interest cases (escape/divergence, very sparse occupancy, strong line dominance, very low path diversity).
+  - Stage 2 ranks survivors by weighted coverage/complexity/boundedness minus line penalties.
 - Provide user-adjustable relative weights for scoring factors (coverage, complexity, boundedness, line-penalty).
 - Draw a translucent grayscale grid overlay on top of the rendered image, where brighter cells indicate higher interest.
 - Add settings in the General tab for:

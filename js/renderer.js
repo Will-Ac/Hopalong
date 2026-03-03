@@ -91,6 +91,7 @@ export function scoreOrbitInterest({
   const xs = new Float64Array(totalIterations);
   const ys = new Float64Array(totalIterations);
   let sampleCount = 0;
+  let escaped = false;
   let minX = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
@@ -104,6 +105,7 @@ export function scoreOrbitInterest({
   for (let i = 0; i < totalIterations; i += 1) {
     [x, y] = step(x, y, params.a, params.b, params.c, params.d);
     if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
+      escaped = true;
       break;
     }
 
@@ -127,7 +129,7 @@ export function scoreOrbitInterest({
   }
 
   const boundedness = clamp01(sampleCount / totalIterations);
-  if (sampleCount < 16) {
+  if (sampleCount < 16 || boundedness < 0.9) {
     return 0;
   }
 
@@ -136,7 +138,11 @@ export function scoreOrbitInterest({
   const spanX = Math.max(maxX - minX, 1e-9);
   const spanY = Math.max(maxY - minY, 1e-9);
   const binHits = new Uint16Array(totalBins);
+  const rowHits = new Uint32Array(binsPerAxis);
+  const colHits = new Uint32Array(binsPerAxis);
+  const edgeSet = new Set();
   let activeBins = 0;
+  let prevBin = -1;
 
   for (let i = 0; i < sampleCount; i += 1) {
     const nx = clamp01((xs[i] - minX) / spanX);
@@ -150,10 +156,28 @@ export function scoreOrbitInterest({
     if (binHits[idx] < 65535) {
       binHits[idx] += 1;
     }
+    rowHits[row] += 1;
+    colHits[col] += 1;
+    if (prevBin >= 0) {
+      edgeSet.add((prevBin << 9) | idx);
+    }
+    prevBin = idx;
   }
 
+  const maxRowRatio = Math.max(...rowHits) / Math.max(1, sampleCount);
+  const maxColRatio = Math.max(...colHits) / Math.max(1, sampleCount);
+  const lineDominance = Math.max(maxRowRatio, maxColRatio);
+  const edgeDiversity = edgeSet.size / Math.max(1, sampleCount - 1);
+
+  // Option B stage 1: disqualify obvious low-interest outcomes.
+  // These gates target exactly the classes the user marked as "not interesting".
+  if (escaped) return 0;
+  if (activeBins < 12) return 0;
+  if (lineDominance > 0.64) return 0;
+  if (edgeDiversity < 0.045) return 0;
+
   const coverage = safeRatio(activeBins, totalBins, 0);
-  const targetCoverage = 0.18;
+  const targetCoverage = 0.22;
   const coverageScore = clamp01(1 - Math.abs(coverage - targetCoverage) / targetCoverage);
 
   let entropy = 0;
@@ -166,7 +190,8 @@ export function scoreOrbitInterest({
     }
   }
   const maxEntropy = Math.log(Math.max(2, activeBins));
-  const complexityScore = clamp01(safeRatio(entropy, maxEntropy, 0));
+  const entropyScore = clamp01(safeRatio(entropy, maxEntropy, 0));
+  const complexityScore = clamp01(entropyScore * 0.72 + clamp01(edgeDiversity / 0.22) * 0.28);
 
   const varianceX = safeRatio(m2x, Math.max(1, sampleCount - 1), 0);
   const varianceY = safeRatio(m2y, Math.max(1, sampleCount - 1), 0);
@@ -177,10 +202,11 @@ export function scoreOrbitInterest({
   const lambdaMax = Math.max((trace + disc) * 0.5, 1e-9);
   const lambdaMin = Math.max((trace - disc) * 0.5, 1e-9);
   const anisotropy = lambdaMax / lambdaMin;
-  const linePenalty = clamp01((anisotropy - 3) / 24);
+  const anisotropyPenalty = clamp01((anisotropy - 3) / 24);
+  const linePenalty = clamp01(anisotropyPenalty * 0.45 + clamp01((lineDominance - 0.28) / 0.5) * 0.55);
   const tinyPatternPenalty = activeBins <= 2 ? 0.5 : 0;
 
-  const boundedScore = clamp01((boundedness - 0.2) / 0.8);
+  const boundedScore = clamp01((boundedness - 0.92) / 0.08);
   const coverageWeight = Math.max(0, Number(weights.coverage) || 0.35);
   const complexityWeight = Math.max(0, Number(weights.complexity) || 0.35);
   const boundednessWeight = Math.max(0, Number(weights.boundedness) || 0.3);
