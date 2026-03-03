@@ -16,6 +16,7 @@
         --tile-size: 42px;
         --ui-font-size: 14px;
         --ui-font-weight: 600;
+        --dialog-alpha: 0.9;
       }
       *, *::before, *::after {
         box-sizing: border-box;
@@ -172,7 +173,7 @@
         -webkit-overflow-scrolling: touch;
         border-radius: 10px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.15);
-        background: rgba(8, 10, 15, 0.9);
+        background: rgba(8, 10, 15, var(--dialog-alpha));
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
         padding: 10px;
@@ -429,7 +430,7 @@
         min-height: 32px;
         border-radius: 6px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.24);
-        background: rgba(0, 0, 0, 0.24);
+        background: rgba(8, 10, 15, var(--dialog-alpha));
         color: var(--text);
         font-size: var(--ui-font-size);
         padding: 4px 8px;
@@ -671,7 +672,7 @@
         width: min(648px, calc(100vw - 12px));
         top: calc(58px + env(safe-area-inset-top));
         bottom: calc(98px + env(safe-area-inset-bottom));
-        background: rgba(0, 0, 0, 0.24);
+        background: rgba(8, 10, 15, var(--dialog-alpha));
         border: 1px solid var(--panel-border);
         border-radius: 10px;
         display: flex;
@@ -930,6 +931,13 @@ Scale</button>
             <div class="perfControlRow">
               <input id="detailBurnRange" class="perfRangeInput" type="range" min="0" max="5000" step="1" />
               <div id="detailBurnFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Dialog transparency</span></div>
+            <div class="perfControlRow">
+              <input id="detailOverlayAlphaRange" class="perfRangeInput" type="range" min="0.1" max="1" step="0.01" />
+              <div id="detailOverlayAlphaFormatted" class="perfFormattedValue">--</div>
             </div>
           </div>
           <div class="perfSettingCard">

@@ -21,5 +21,6 @@
   "renderDensityGamma": 0.6,
   "renderHybridBlend": 0.3,
   "backgroundColor": "#05070c",
-  "colorMapStopOverrides": {}
+  "colorMapStopOverrides": {},
+  "overlayAlpha": 0.9
 }

@@ -32,6 +32,8 @@ const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomIter
 const detailMaxRandomItersFormattedEl = document.getElementById("detailMaxRandomItersFormatted");
 const detailBurnRangeEl = document.getElementById("detailBurnRange");
 const detailBurnFormattedEl = document.getElementById("detailBurnFormatted");
+const detailOverlayAlphaRangeEl = document.getElementById("detailOverlayAlphaRange");
+const detailOverlayAlphaFormattedEl = document.getElementById("detailOverlayAlphaFormatted");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const detailColorModeSelectEl = document.getElementById("detailColorModeSelect");
 const detailLogStrengthRangeEl = document.getElementById("detailLogStrengthRange");
@@ -641,6 +643,11 @@ function applyBackgroundTheme() {
   document.documentElement.style.setProperty("--ui-gray-rgb", isLight ? "44, 50, 60" : "148, 154, 164");
   document.documentElement.style.setProperty("--panel-bg", isLight ? "rgba(255,255,255,0.28)" : "rgba(12, 14, 20, 0.26)");
 }
+
+function applyDialogTransparency() {
+  const alpha = clamp(Number(appData?.defaults?.overlayAlpha), 0.1, 1);
+  document.documentElement.style.setProperty("--dialog-alpha", String(alpha));
+}
 function buildColorMapGradient(cmapName) {
   const stops = [];
   const count = 9;
@@ -1133,6 +1140,8 @@ function syncDetailedSettingsControls() {
   if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
   if (detailBurnFormattedEl) detailBurnFormattedEl.textContent = formatNumberForUi(burnValue, 0);
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
+  if (detailOverlayAlphaRangeEl) detailOverlayAlphaRangeEl.value = String(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1));
+  if (detailOverlayAlphaFormattedEl) detailOverlayAlphaFormattedEl.textContent = formatNumberForUi(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1), 2);
   if (detailColorModeSelectEl) detailColorModeSelectEl.value = appData.defaults.renderColorMode;
   if (detailLogStrengthRangeEl) detailLogStrengthRangeEl.value = String(appData.defaults.renderLogStrength);
   if (detailLogStrengthFormattedEl) detailLogStrengthFormattedEl.textContent = formatNumberForUi(appData.defaults.renderLogStrength, 1);
@@ -1183,6 +1192,15 @@ function applyRenderColorParam(key, nextValue, min, max, digits) {
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
+  commitCurrentStateToHistory();
+}
+
+
+function applyOverlayTransparency(nextValue) {
+  appData.defaults.overlayAlpha = clamp(Number(nextValue), 0.1, 1);
+  applyDialogTransparency();
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
   commitCurrentStateToHistory();
 }
 
@@ -1735,6 +1753,7 @@ function captureCurrentState() {
     renderLogStrength: appData.defaults.renderLogStrength,
     renderDensityGamma: appData.defaults.renderDensityGamma,
     renderHybridBlend: appData.defaults.renderHybridBlend,
+    overlayAlpha: appData.defaults.overlayAlpha,
     backgroundColor: appData.defaults.backgroundColor,
     colorMapStopOverrides: JSON.parse(JSON.stringify(appData.defaults.colorMapStopOverrides || {})),
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
@@ -1795,10 +1814,12 @@ function applyState(state) {
   appData.defaults.renderLogStrength = clamp(Number(state.renderLogStrength ?? appData.defaults.renderLogStrength), 0.5, 30);
   appData.defaults.renderDensityGamma = clamp(Number(state.renderDensityGamma ?? appData.defaults.renderDensityGamma), 0.2, 2);
   appData.defaults.renderHybridBlend = clamp(Number(state.renderHybridBlend ?? appData.defaults.renderHybridBlend), 0, 1);
+  appData.defaults.overlayAlpha = clamp(Number(state.overlayAlpha ?? appData.defaults.overlayAlpha), 0.1, 1);
   appData.defaults.backgroundColor = state.backgroundColor || appData.defaults.backgroundColor;
   appData.defaults.colorMapStopOverrides = JSON.parse(JSON.stringify(state.colorMapStopOverrides || appData.defaults.colorMapStopOverrides || {}));
   setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
   applyBackgroundTheme();
+  applyDialogTransparency();
   normalizeSliderDefaults();
   if (state.rangesOverridesByFormula && typeof state.rangesOverridesByFormula === "object") {
     appData.defaults.rangesOverridesByFormula = JSON.parse(JSON.stringify(state.rangesOverridesByFormula));
@@ -3776,6 +3797,7 @@ function registerHandlers() {
 
   detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
   detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
+  detailOverlayAlphaRangeEl?.addEventListener("input", () => applyOverlayTransparency(detailOverlayAlphaRangeEl.value));
 
   detailDebugToggleEl?.addEventListener("change", () => {
     appData.defaults.debug = Boolean(detailDebugToggleEl.checked);
@@ -3964,6 +3986,9 @@ async function loadData() {
   if (typeof data.defaults.renderHybridBlend !== "number") {
     data.defaults.renderHybridBlend = 0.3;
   }
+  if (typeof data.defaults.overlayAlpha !== "number") {
+    data.defaults.overlayAlpha = 0.9;
+  }
 
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
@@ -3971,6 +3996,7 @@ async function loadData() {
   data.defaults.renderLogStrength = clamp(data.defaults.renderLogStrength, 0.5, 30);
   data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
   data.defaults.renderHybridBlend = clamp(data.defaults.renderHybridBlend, 0, 1);
+  data.defaults.overlayAlpha = clamp(data.defaults.overlayAlpha, 0.1, 1);
 
   if (data.defaults.scaleMode !== "fixed") {
     data.defaults.scaleMode = "auto";
@@ -4012,8 +4038,10 @@ async function bootstrap() {
     normalizeSliderDefaults();
     appData.defaults.backgroundColor = typeof appData.defaults.backgroundColor === "string" ? appData.defaults.backgroundColor : "#05070c";
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
+    appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.9), 0.1, 1);
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
     applyBackgroundTheme();
+    applyDialogTransparency();
 
     appData.defaults.formulaSeeds = normalizeFormulaSeeds(appData.defaults.formulaSeeds, appData.formulas);
 
