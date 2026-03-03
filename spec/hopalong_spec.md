@@ -40,6 +40,10 @@ Tools area (`.poTools`):
 
 ### 2.4 Quick slider + state picker popovers
 - Quick slider panel: `#quickSlider` with `#qsRange`, `#qsLabel`, `#qsValue`, `#qsClose`.
+- Iteration quick slider includes play/stop button `#qsIterPlay`:
+  - Default mode is stop (manual iterations from slider value).
+  - Press play to auto-advance iterations in +1,000,000 steps.
+  - While playing, slider input is suppressed and current iteration value is shown centered over the slider track.
 - State picker panel: `#statePicker` with radios for `rand|fix|many|manx`.
 
 ### 2.5 Menu (long-press)

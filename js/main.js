@@ -100,6 +100,8 @@ const qsValue = document.getElementById("qsValue");
 const qsRange = document.getElementById("qsRange");
 const qsMinus = document.getElementById("qsMinus");
 const qsPlus = document.getElementById("qsPlus");
+const qsIterPlay = document.getElementById("qsIterPlay");
+const qsRangeCenterValue = document.getElementById("qsRangeCenterValue");
 const qsClose = document.getElementById("qsClose");
 
 const pickerOverlay = document.getElementById("pickerOverlay");
@@ -241,6 +243,8 @@ const KEYBOARD_MOD_REPEAT_MS = 50;
 const KEYBOARD_MOD_ACCEL_THRESHOLDS_MS = [3000, 6000, 9000];
 const KEYBOARD_MOD_ACCEL_MULTIPLIERS = [1, 2, 4, 8];
 const KEYBOARD_BASE_DELTA = 1;
+const ITERATION_AUTOPLAY_STEP = 1000000;
+const ITERATION_AUTOPLAY_TICK_MS = 140;
 const INTEREST_GRID_MIN = 12;
 const INTEREST_GRID_MAX = 80;
 const INTEREST_SCAN_MIN = 120;
@@ -294,6 +298,10 @@ let fixedView = {
 };
 let sharedParamsOverride = null;
 let sharedParamsFormulaId = null;
+const iterationAutoPlayState = {
+  active: false,
+  timerId: null,
+};
 const keyboardModulationState = {
   activeByKey: new Map(),
   intervalId: null,
@@ -2565,6 +2573,7 @@ function closeQuickSlider() {
   activeSliderKey = null;
   quickSliderOverlay.classList.remove("is-open");
   quickSliderOverlay.setAttribute("aria-hidden", "true");
+  quickSliderEl?.classList.remove("is-iters-playing");
 }
 
 function alignQuickSliderAboveBottomBar() {
@@ -2888,6 +2897,78 @@ function updateQuickSliderReadout() {
   const actualValue = getActiveActualValue();
   qsLabel.textContent = control.label;
   qsValue.textContent = formatControlValue(control, actualValue);
+  if (qsRangeCenterValue && activeSliderKey === "iters") {
+    qsRangeCenterValue.textContent = formatNumberForUi(Math.round(appData.defaults.sliders.iters), 0);
+  }
+}
+
+function clearIterationAutoPlayTimer() {
+  if (iterationAutoPlayState.timerId !== null) {
+    window.clearTimeout(iterationAutoPlayState.timerId);
+    iterationAutoPlayState.timerId = null;
+  }
+}
+
+function syncIterationPlayUi() {
+  const isItersSlider = activeSliderKey === "iters";
+  const isPlaying = isItersSlider && iterationAutoPlayState.active;
+
+  qsIterPlay?.classList.toggle("is-hidden", !isItersSlider);
+  if (qsIterPlay) {
+    qsIterPlay.textContent = isPlaying ? "■" : "▶";
+    qsIterPlay.setAttribute("aria-label", isPlaying ? "Stop iteration auto-play" : "Start iteration auto-play");
+    qsIterPlay.title = isPlaying ? "Stop" : "Play";
+  }
+
+  if (qsRange) qsRange.disabled = isPlaying;
+  if (qsMinus) qsMinus.disabled = isPlaying;
+  if (qsPlus) qsPlus.disabled = isPlaying;
+  quickSliderEl?.classList.toggle("is-iters-playing", isPlaying);
+}
+
+function stopIterationAutoPlay({ preserveValue = true, keepUi = false } = {}) {
+  iterationAutoPlayState.active = false;
+  clearIterationAutoPlayTimer();
+  if (!preserveValue) {
+    appData.defaults.sliders.iters = clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
+  }
+  if (!keepUi) {
+    syncIterationPlayUi();
+  }
+}
+
+function tickIterationAutoPlay() {
+  if (!iterationAutoPlayState.active) {
+    return;
+  }
+
+  const current = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const next = current + ITERATION_AUTOPLAY_STEP;
+  if (next > sliderControls.iters.max) {
+    applySliderValue(sliderControls.iters.max, { commitHistory: true });
+    stopIterationAutoPlay();
+    showToast("Iteration auto-play stopped at max slider range.");
+    return;
+  }
+
+  applySliderValue(next, { commitHistory: false });
+  iterationAutoPlayState.timerId = window.setTimeout(tickIterationAutoPlay, ITERATION_AUTOPLAY_TICK_MS);
+}
+
+function toggleIterationAutoPlay() {
+  if (activeSliderKey !== "iters") {
+    return;
+  }
+
+  if (iterationAutoPlayState.active) {
+    stopIterationAutoPlay();
+    commitCurrentStateToHistory();
+    return;
+  }
+
+  iterationAutoPlayState.active = true;
+  syncIterationPlayUi();
+  tickIterationAutoPlay();
 }
 
 function applySliderValue(nextValue, { commitHistory = true } = {}) {
@@ -2916,6 +2997,10 @@ function openQuickSlider(sliderKey) {
     return;
   }
 
+  if (sliderKey !== "iters") {
+    stopIterationAutoPlay({ keepUi: true });
+  }
+
   activeSliderKey = sliderKey;
   quickSliderOverlay.classList.add("is-open");
   quickSliderOverlay.setAttribute("aria-hidden", "false");
@@ -2926,6 +3011,7 @@ function openQuickSlider(sliderKey) {
   qsRange.max = String(control.max);
   qsRange.step = String(control.sliderStep);
   syncQuickSliderPosition();
+  syncIterationPlayUi();
 }
 
 function onParamPointerDown(event, targetKey) {
@@ -4127,6 +4213,12 @@ function registerHandlers() {
   });
   qsRange.addEventListener("change", () => {
     commitCurrentStateToHistory();
+  });
+
+  qsIterPlay?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleIterationAutoPlay();
   });
 
   setupStepHold(qsMinus, -1);
