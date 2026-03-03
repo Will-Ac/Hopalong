@@ -2721,6 +2721,10 @@ function onParamPointerDown(event, targetKey) {
     return;
   }
 
+  if (event.currentTarget?.setPointerCapture) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
   paramPressState.pointerId = event.pointerId;
   paramPressState.targetKey = targetKey;
   paramPressState.startX = event.clientX;
@@ -2787,6 +2791,10 @@ function applySwipeModeForTile(targetKey, deltaX, deltaY) {
 function onParamPointerEnd(event) {
   if (paramPressState.pointerId !== event.pointerId) {
     return;
+  }
+
+  if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
+    event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
   const targetKey = paramPressState.targetKey;
