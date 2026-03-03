@@ -3228,7 +3228,9 @@ function getParamPixelVertical(value, range, spanPx, fallbackPx) {
 }
 
 function shouldShowManualOverlay() {
-  return interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0 && isManualModulating;
+  const pointerDriven = interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0 && isManualModulating;
+  const keyboardDriven = keyboardModulationState.activeByKey.size > 0;
+  return pointerDriven || keyboardDriven;
 }
 
 function mapGridCellToParamValue(index, size, range, invert = false) {
