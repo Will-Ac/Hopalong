@@ -245,6 +245,7 @@ const KEYBOARD_MOD_ACCEL_MULTIPLIERS = [1, 2, 4, 8];
 const KEYBOARD_BASE_DELTA = 1;
 const ITERATION_AUTOPLAY_STEP = 1000000;
 const ITERATION_AUTOPLAY_TICK_MS = 140;
+const ITERATION_AUTOPLAY_MAX = 10000000000;
 const INTEREST_GRID_MIN = 12;
 const INTEREST_GRID_MAX = 80;
 const INTEREST_SCAN_MIN = 120;
@@ -507,7 +508,7 @@ function clearSharedParamsOverride() {
 
 function buildSharePayload() {
   const params = getDerivedParams();
-  const iterations = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const iterations = getIterationValueForRender();
   const view = fixedView || {};
   const paramText = `${params.a},${params.b},${params.c},${params.d}`;
   const viewText = `${view.offsetX ?? 0},${view.offsetY ?? 0},${view.zoom ?? 1}`;
@@ -584,7 +585,7 @@ function applySharedStateFromHash() {
 
     currentFormulaId = formulaId;
     appData.defaults.cmapName = cmapName;
-    appData.defaults.sliders.iters = Math.round(clamp(iterations, sliderControls.iters.min, sliderControls.iters.max));
+    appData.defaults.sliders.iters = getIterationValueForRender(iterations);
     fixedView = {
       offsetX: vValues[0],
       offsetY: vValues[1],
@@ -711,12 +712,17 @@ function getActiveActualValue() {
   return getControlValue(activeSliderKey);
 }
 
+function getIterationValueForRender(rawValue = appData.defaults.sliders.iters) {
+  return Math.round(clamp(Number(rawValue), sliderControls.iters.min, ITERATION_AUTOPLAY_MAX));
+}
+
 function normalizeSliderDefaults() {
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
     const rawValue = Number(appData.defaults.sliders?.[sliderKey]);
     const fallbackValue = sliderKey === "burn" ? 120 : (sliderKey === "iters" ? 200000 : 50);
     const safeValue = Number.isFinite(rawValue) ? rawValue : fallbackValue;
-    const clampedValue = clamp(safeValue, control.min, control.max);
+    const maxValue = sliderKey === "iters" ? ITERATION_AUTOPLAY_MAX : control.max;
+    const clampedValue = clamp(safeValue, control.min, maxValue);
     appData.defaults.sliders[sliderKey] = (sliderKey === "iters" || sliderKey === "burn") ? Math.round(clampedValue) : clampedValue;
   }
 }
@@ -2930,7 +2936,7 @@ function stopIterationAutoPlay({ preserveValue = true, keepUi = false } = {}) {
   iterationAutoPlayState.active = false;
   clearIterationAutoPlayTimer();
   if (!preserveValue) {
-    appData.defaults.sliders.iters = clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
+    appData.defaults.sliders.iters = getIterationValueForRender();
   }
   if (!keepUi) {
     syncIterationPlayUi();
@@ -2942,16 +2948,22 @@ function tickIterationAutoPlay() {
     return;
   }
 
-  const current = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  const next = current + ITERATION_AUTOPLAY_STEP;
-  if (next > sliderControls.iters.max) {
-    applySliderValue(sliderControls.iters.max, { commitHistory: true });
+  const current = getIterationValueForRender();
+  const next = Math.min(ITERATION_AUTOPLAY_MAX, current + ITERATION_AUTOPLAY_STEP);
+  appData.defaults.sliders.iters = next;
+  saveDefaultsToStorage();
+  if (activeSliderKey === "iters") {
+    qsRange.value = String(clamp(next, sliderControls.iters.min, sliderControls.iters.max));
+  }
+  updateQuickSliderReadout();
+  requestDraw();
+
+  if (next >= ITERATION_AUTOPLAY_MAX) {
     stopIterationAutoPlay();
-    showToast("Iteration auto-play stopped at max slider range.");
+    showToast("Iteration auto-play reached 10 billion and stopped.");
+    commitCurrentStateToHistory();
     return;
   }
-
-  applySliderValue(next, { commitHistory: false });
   iterationAutoPlayState.timerId = window.setTimeout(tickIterationAutoPlay, ITERATION_AUTOPLAY_TICK_MS);
 }
 
@@ -3818,7 +3830,7 @@ function draw() {
 
   const startedAt = performance.now();
   const didResize = resizeCanvas();
-  const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const iterationSetting = getIterationValueForRender();
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const iterations = iterationSetting;
   const frameMeta = renderFrame({
@@ -3965,7 +3977,7 @@ function getExportSizePx(liveCanvas) {
 function buildScreenshotOverlayLines() {
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   const params = getDerivedParams();
-  const iterValue = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const iterValue = getIterationValueForRender();
   return `${formula?.name || currentFormulaId} | ${appData.defaults.cmapName} | a ${formatNumberForUi(params.a, 4)} | b ${formatNumberForUi(params.b, 4)} | c ${formatNumberForUi(params.c, 4)} | d ${formatNumberForUi(params.d, 4)} | iter ${formatNumberForUi(iterValue, 0)}`;
 }
 
@@ -4074,7 +4086,7 @@ async function captureScreenshot(includeOverlay) {
     throw new Error("Screenshot export context unavailable.");
   }
 
-  const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const iterationSetting = getIterationValueForRender();
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const scaleMode = getScaleMode();
 
@@ -4536,7 +4548,7 @@ async function loadData() {
     data.defaults.interestWeightLinePenalty = 0.35;
   }
 
-  data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
+  data.defaults.sliders.iters = getIterationValueForRender(data.defaults.sliders.iters);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
   data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   data.defaults.renderLogStrength = clamp(data.defaults.renderLogStrength, 0.5, 30);
