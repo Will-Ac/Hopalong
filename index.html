@@ -261,7 +261,11 @@
       .colorStopCard { border:1px solid rgba(var(--ui-gray-rgb),0.2); border-radius:8px; padding:8px; display:grid; gap:6px; }
       .stopRow { display:grid; grid-template-columns: 1fr auto auto auto; gap:8px; align-items:center; }
       .colorStopTile { width:34px; height:34px; border-radius:8px; border:1px solid rgba(var(--ui-gray-rgb),0.35); background:#fff; position:relative; }
-      .colorStopTile.is-transparent::after { content:""; position:absolute; left:-1px; top:16px; width:calc(100% + 2px); height:2px; background:#d00; transform:rotate(-35deg); transform-origin:center; }
+      .colorStopTile.is-transparent::before,
+      .colorStopTile.is-transparent::after { content:""; position:absolute; left:-1px; top:16px; width:calc(100% + 2px); height:2px; background:#d00; transform-origin:center; }
+      .colorStopTile.is-transparent::before { transform:rotate(-35deg); }
+      .colorStopTile.is-transparent::after { transform:rotate(35deg); }
+      .colorStopActions { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; }
 
 
       .rangeInput {
@@ -988,15 +992,11 @@ Scale</button>
         </div>
         <div class="colorSettingsBody">
           <div id="colorSettingsPreview" class="colorPreviewWide"></div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Background color</span></div>
-            <div class="perfControlRow">
-              <input id="colorSettingsBackgroundColor" class="perfRangeInput" type="color" aria-label="Background color" />
-              <div id="colorSettingsBackgroundColorValue" class="perfFormattedValue">#05070c</div>
-            </div>
-          </div>
           <div id="colorStopsList"></div>
-          <button id="addColorStopBtn" class="rangeActionBtn" type="button">Add stop</button>
+          <div class="colorStopActions">
+            <button id="addColorStopBtn" class="rangeActionBtn" type="button">Add stop</button>
+            <button id="resetColorStopsBtn" class="rangeActionBtn" type="button">Reset map</button>
+          </div>
         </div>
       </aside>
       <div id="quickSliderOverlay" aria-hidden="true">

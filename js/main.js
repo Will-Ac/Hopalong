@@ -50,8 +50,7 @@ const colorSettingsNameEl = document.getElementById("colorSettingsName");
 const colorSettingsPreviewEl = document.getElementById("colorSettingsPreview");
 const colorStopsListEl = document.getElementById("colorStopsList");
 const addColorStopBtnEl = document.getElementById("addColorStopBtn");
-const colorSettingsBackgroundColorEl = document.getElementById("colorSettingsBackgroundColor");
-const colorSettingsBackgroundColorValueEl = document.getElementById("colorSettingsBackgroundColorValue");
+const resetColorStopsBtnEl = document.getElementById("resetColorStopsBtn");
 const settingsInfoTextEl = document.getElementById("settingsInfoText");
 const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
 const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
@@ -1151,8 +1150,6 @@ function syncDetailedSettingsControls() {
   if (detailHybridBlendFormattedEl) detailHybridBlendFormattedEl.textContent = formatNumberForUi(appData.defaults.renderHybridBlend, 2);
   if (detailBackgroundColorEl) detailBackgroundColorEl.value = appData.defaults.backgroundColor || "#05070c";
   if (detailBackgroundColorValueEl) detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor || "#05070c";
-  if (colorSettingsBackgroundColorEl) colorSettingsBackgroundColorEl.value = appData.defaults.backgroundColor || "#05070c";
-  if (colorSettingsBackgroundColorValueEl) colorSettingsBackgroundColorValueEl.textContent = appData.defaults.backgroundColor || "#05070c";
 }
 
 function applyDetailedSliderValue(sliderKey, nextValue) {
@@ -3830,23 +3827,12 @@ function registerHandlers() {
   detailBackgroundColorEl?.addEventListener("input", (event) => {
     appData.defaults.backgroundColor = event.target.value;
     detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor;
-    if (colorSettingsBackgroundColorEl) colorSettingsBackgroundColorEl.value = appData.defaults.backgroundColor;
-    if (colorSettingsBackgroundColorValueEl) colorSettingsBackgroundColorValueEl.textContent = appData.defaults.backgroundColor;
     applyBackgroundTheme();
     requestDraw();
     saveDefaultsToStorage();
   });
 
-  colorSettingsBackgroundColorEl?.addEventListener("input", (event) => {
-    appData.defaults.backgroundColor = event.target.value;
-    colorSettingsBackgroundColorValueEl.textContent = appData.defaults.backgroundColor;
-    if (detailBackgroundColorEl) detailBackgroundColorEl.value = appData.defaults.backgroundColor;
-    if (detailBackgroundColorValueEl) detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor;
-    applyBackgroundTheme();
-    if (activeColorSettingsMap) colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
-    requestDraw();
-    saveDefaultsToStorage();
-  });
+
 
   addColorStopBtnEl?.addEventListener("click", () => {
     if (!activeColorSettingsMap) return;
@@ -3860,6 +3846,15 @@ function registerHandlers() {
     renderColorStopsEditor();
     colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
     requestDraw();
+  });
+
+  resetColorStopsBtnEl?.addEventListener("click", () => {
+    if (!activeColorSettingsMap) return;
+    setColorMapStops(activeColorSettingsMap, null);
+    renderColorStopsEditor();
+    colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+    requestDraw();
+    saveDefaultsToStorage();
   });
 
   colorSettingsCloseEl?.addEventListener("click", closeColorSettingsPanel);
