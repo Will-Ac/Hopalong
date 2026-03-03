@@ -2349,7 +2349,6 @@ function clearPointerState(pointerId) {
     lastPointerPosition = null;
     isManualModulating = false;
     clearTwoFingerGesture();
-    invalidateInterestScan(false);
     requestDraw();
     return;
   }
@@ -3095,8 +3094,12 @@ function mapGridCellToParamValue(index, size, range, invert = false) {
 
 function buildInterestScanSignature() {
   const { manX, manY } = getManualAxisTargets();
-  const axisXKey = manX || "a";
-  const axisYKey = manY || (axisXKey === "a" ? "b" : "a");
+  if (!manX && !manY) {
+    return null;
+  }
+
+  const axisXKey = manX || manY;
+  const axisYKey = manY || manX;
   const axisXControl = getControlForSlider(axisXKey);
   const axisYControl = getControlForSlider(axisYKey);
   const axisXRange = getRangeForControl(axisXControl) || DEFAULT_PARAM_RANGES.a;
@@ -3135,13 +3138,16 @@ function buildInterestScanSignature() {
 
 function maybeStartInterestScan() {
   if (!appData?.defaults?.interestOverlayEnabled) {
-    return;
-  }
-  if (interactionState !== INTERACTION_STATE.MOD_1 || activePointers.size === 0) {
+    invalidateInterestScan(true);
     return;
   }
 
   const config = buildInterestScanSignature();
+  if (!config) {
+    invalidateInterestScan(true);
+    return;
+  }
+
   if (interestOverlayState.running && interestOverlayState.signature === config.signature) {
     return;
   }
@@ -3205,6 +3211,9 @@ function drawInterestOverlay(meta) {
     return;
   }
   const currentConfig = buildInterestScanSignature();
+  if (!currentConfig) {
+    return;
+  }
   if (interestOverlayState.signature !== currentConfig.signature || !interestOverlayState.scores || interestOverlayState.gridSize <= 0) {
     return;
   }
