@@ -1,6 +1,12 @@
 import { ColorMapNames, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
 import { renderFrame, getParamsForFormula } from "./renderer.js";
-import { FORMULA_METADATA, FORMULA_RANGES_RAW, FORMULA_DEFAULT_PRESETS, FORMULA_DEFAULT_SEEDS } from "./formulas.js";
+import {
+  FORMULA_METADATA,
+  FORMULA_RANGES_RAW,
+  FORMULA_DEFAULT_PRESETS,
+  FORMULA_DEFAULT_SEEDS,
+  FORMULA_UI_EQUATIONS,
+} from "./formulas.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
@@ -425,24 +431,14 @@ function renderFormulaDetail(formulaId) {
   }
 
   const formula = findFormulaMeta(formulaId);
-  const xEquation = String(formula?.detailX || "").trim();
-  const yEquation = String(formula?.detailY || "").trim();
+  const ui = FORMULA_UI_EQUATIONS[formulaId] || null;
 
-  if (xEquation && yEquation) {
-    rangesFormulaLineXEl.textContent = xEquation;
-    rangesFormulaLineYEl.textContent = yEquation;
-    return;
+  if (rangesFormulaNameEl) {
+    rangesFormulaNameEl.textContent = ui?.name || formula?.name || formulaId || "Formula";
   }
 
-  const desc = String(formula?.desc || "").trim();
-  if (!desc) {
-    rangesFormulaLineXEl.textContent = "x_next = --";
-    rangesFormulaLineYEl.textContent = "y_next = --";
-    return;
-  }
-
-  rangesFormulaLineXEl.textContent = `x_next = ${desc}`;
-  rangesFormulaLineYEl.textContent = "y_next = --";
+  rangesFormulaLineXEl.textContent = String(ui?.xNew || "x_new = --").trim();
+  rangesFormulaLineYEl.textContent = String(ui?.yNew || "y_new = --").trim();
 }
 
 function getDerivedParams() {

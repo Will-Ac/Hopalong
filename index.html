@@ -289,14 +289,15 @@
       .formulaDetailBox {
         border: 1px solid rgba(var(--ui-gray-rgb), 0.14);
         border-radius: 8px;
-        padding: 7px;
+        padding: 6px;
         background: rgba(var(--ui-gray-rgb), 0.05);
         display: grid;
         gap: 4px;
       }
       .formulaDetailLine {
         margin: 0;
-        font-size: var(--ui-font-size);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: calc(var(--ui-font-size) - 1px);
         line-height: 1.35;
         opacity: 0.9;
         overflow-wrap: anywhere;
