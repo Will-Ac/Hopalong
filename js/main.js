@@ -210,6 +210,7 @@ const interestOverlayState = {
   totalCells: 0,
   running: false,
   token: 0,
+  lastProgressToastAt: 0,
 };
 const paramPressState = {
   pointerId: null,
@@ -1215,6 +1216,7 @@ function invalidateInterestScan(shouldClearScores = false) {
   interestOverlayState.token += 1;
   interestOverlayState.running = false;
   interestOverlayState.signature = null;
+  interestOverlayState.lastProgressToastAt = 0;
   if (interestScanTimer) {
     window.clearTimeout(interestScanTimer);
     interestScanTimer = null;
@@ -1225,6 +1227,19 @@ function invalidateInterestScan(shouldClearScores = false) {
     interestOverlayState.scannedCells = 0;
     interestOverlayState.totalCells = 0;
   }
+}
+
+function maybeShowOverlayProgressToast(force = false) {
+  if (!interestOverlayState.totalCells || !interestOverlayState.running) {
+    return;
+  }
+  const now = performance.now();
+  if (!force && now - interestOverlayState.lastProgressToastAt < 220) {
+    return;
+  }
+  interestOverlayState.lastProgressToastAt = now;
+  const done = Math.min(interestOverlayState.scannedCells, interestOverlayState.totalCells);
+  showToast(`updating overlay ${done} / ${interestOverlayState.totalCells}`);
 }
 
 function applyInterestSettings(key, nextValue, min, max, digits = 0) {
@@ -3321,6 +3336,8 @@ function maybeStartInterestScan() {
   interestOverlayState.totalCells = totalCells;
   interestOverlayState.scannedCells = 0;
   interestOverlayState.scores = scores;
+  interestOverlayState.lastProgressToastAt = 0;
+  maybeShowOverlayProgressToast(true);
 
   const processBatch = () => {
     if (scanToken !== interestOverlayState.token) {
@@ -3349,10 +3366,12 @@ function maybeStartInterestScan() {
     }
 
     requestDraw();
+    maybeShowOverlayProgressToast();
 
     if (interestOverlayState.scannedCells >= totalCells) {
       interestOverlayState.running = false;
       interestScanTimer = null;
+      showToast(`updating overlay ${totalCells} / ${totalCells}`);
       return;
     }
     interestScanTimer = window.setTimeout(processBatch, 0);
