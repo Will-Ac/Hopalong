@@ -236,6 +236,10 @@ const ZOOM_DEADBAND_PX = 2.5 * DPR;
 const ZOOM_RATIO_MIN = 0.002;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
+const KEYBOARD_MOD_REPEAT_MS = 50;
+const KEYBOARD_MOD_ACCEL_THRESHOLDS_MS = [3000, 6000, 9000];
+const KEYBOARD_MOD_ACCEL_MULTIPLIERS = [1, 2, 4, 8];
+const KEYBOARD_BASE_DELTA = 1;
 const INTEREST_GRID_MIN = 12;
 const INTEREST_GRID_MAX = 80;
 const INTEREST_SCAN_MIN = 120;
@@ -289,6 +293,10 @@ let fixedView = {
 };
 let sharedParamsOverride = null;
 let sharedParamsFormulaId = null;
+const keyboardModulationState = {
+  activeByKey: new Map(),
+  intervalId: null,
+};
 
 function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   const normalized = String(text ?? "").trim();
@@ -2068,6 +2076,116 @@ function applyManualModulation(deltaX, deltaY) {
 
   requestDraw();
   return true;
+}
+
+function getKeyboardSpeedMultiplier(elapsedMs) {
+  if (elapsedMs >= KEYBOARD_MOD_ACCEL_THRESHOLDS_MS[2]) return KEYBOARD_MOD_ACCEL_MULTIPLIERS[3];
+  if (elapsedMs >= KEYBOARD_MOD_ACCEL_THRESHOLDS_MS[1]) return KEYBOARD_MOD_ACCEL_MULTIPLIERS[2];
+  if (elapsedMs >= KEYBOARD_MOD_ACCEL_THRESHOLDS_MS[0]) return KEYBOARD_MOD_ACCEL_MULTIPLIERS[1];
+  return KEYBOARD_MOD_ACCEL_MULTIPLIERS[0];
+}
+
+function shouldIgnoreKeyboardModulation(event) {
+  const target = event?.target;
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+}
+
+function stopKeyboardModulationLoop() {
+  if (keyboardModulationState.intervalId !== null) {
+    window.clearInterval(keyboardModulationState.intervalId);
+    keyboardModulationState.intervalId = null;
+  }
+}
+
+function clearKeyboardModulationState() {
+  keyboardModulationState.activeByKey.clear();
+  stopKeyboardModulationLoop();
+}
+
+function tickKeyboardModulation() {
+  if (!keyboardModulationState.activeByKey.size) {
+    stopKeyboardModulationLoop();
+    return;
+  }
+
+  const { manX, manY } = getManualAxisTargets();
+  if (!manX && !manY) {
+    return;
+  }
+
+  const now = performance.now();
+  let deltaX = 0;
+  let deltaY = 0;
+
+  for (const [key, state] of keyboardModulationState.activeByKey.entries()) {
+    const elapsed = now - state.startedAt;
+    const multiplier = getKeyboardSpeedMultiplier(elapsed);
+    if (multiplier !== state.lastMultiplier) {
+      state.lastMultiplier = multiplier;
+      const targetParam = key === "ArrowLeft" || key === "ArrowRight" ? manX : manY;
+      if (targetParam) {
+        const sign = key === "ArrowRight" || key === "ArrowUp" ? "+" : "-";
+        showToast(`${sign}${targetParam} adjustment ${multiplier}X`);
+      }
+    }
+
+    const scaledDelta = KEYBOARD_BASE_DELTA * multiplier;
+    if (key === "ArrowLeft" && manX) deltaX -= scaledDelta;
+    if (key === "ArrowRight" && manX) deltaX += scaledDelta;
+    if (key === "ArrowUp" && manY) deltaY -= scaledDelta;
+    if (key === "ArrowDown" && manY) deltaY += scaledDelta;
+  }
+
+  if (deltaX !== 0 || deltaY !== 0) {
+    applyManualModulation(deltaX, deltaY);
+  }
+}
+
+function startKeyboardModulation(key) {
+  if (!keyboardModulationState.activeByKey.has(key)) {
+    keyboardModulationState.activeByKey.set(key, {
+      startedAt: performance.now(),
+      lastMultiplier: 0,
+    });
+  }
+
+  if (keyboardModulationState.intervalId === null) {
+    tickKeyboardModulation();
+    keyboardModulationState.intervalId = window.setInterval(tickKeyboardModulation, KEYBOARD_MOD_REPEAT_MS);
+  }
+}
+
+function handleKeyboardModulationKeyDown(event) {
+  if (!appData || shouldIgnoreKeyboardModulation(event)) {
+    return;
+  }
+
+  const key = event.key;
+  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key)) {
+    return;
+  }
+
+  event.preventDefault();
+  if (event.repeat) {
+    return;
+  }
+
+  startKeyboardModulation(key);
+}
+
+function handleKeyboardModulationKeyUp(event) {
+  const key = event.key;
+  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key)) {
+    return;
+  }
+
+  keyboardModulationState.activeByKey.delete(key);
+  if (!keyboardModulationState.activeByKey.size) {
+    stopKeyboardModulationLoop();
+  }
 }
 
 function syncQuickSliderPosition() {
@@ -4157,6 +4275,15 @@ function registerHandlers() {
   canvas.addEventListener("pointercancel", onCanvasPointerUp, { passive: false });
   canvas.addEventListener("wheel", onCanvasWheel, { passive: false });
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+
+  window.addEventListener("keydown", handleKeyboardModulationKeyDown, { passive: false });
+  window.addEventListener("keyup", handleKeyboardModulationKeyUp, { passive: true });
+  window.addEventListener("blur", clearKeyboardModulationState, { passive: true });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") {
+      clearKeyboardModulationState();
+    }
+  }, { passive: true });
 
   window.addEventListener("pointerdown", (event) => {
     if (isEventInsideInteractiveUi(event.target)) {

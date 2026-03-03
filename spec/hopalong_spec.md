@@ -89,6 +89,17 @@ Pointer-tracked gestures (`pointerdown/move/up`):
   - In ALL mode, near-constant distance => midpoint drag pans.
 - Wheel zoom on desktop (`wheel` event) zooms about cursor point.
 
+### 4.3 Keyboard modulation (new)
+- Arrow keys provide an additional way to drive assigned ManX/ManY parameters.
+  - Left/Right adjust ManX negative/positive.
+  - Up/Down adjust ManY positive/negative.
+- Hold-to-accelerate profile:
+  - 0-3s: 1x
+  - 3-6s: 2x
+  - 6-9s: 4x
+  - 9s+: 8x
+- On speed tier changes, show toast feedback in the format `+a adjustment 4X` or `-b adjustment 8X`.
+
 ## 5) Rendering & history
 
 Key behaviors:
