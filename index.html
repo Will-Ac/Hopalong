@@ -16,6 +16,7 @@
         --tile-size: 42px;
         --ui-font-size: 14px;
         --ui-font-weight: 600;
+        --dialog-alpha: 0.9;
       }
       *, *::before, *::after {
         box-sizing: border-box;
@@ -158,7 +159,8 @@
       }
 
       #rangesEditorPanel,
-      #formulaSettingsPanel {
+      #formulaSettingsPanel,
+      #colorSettingsPanel {
         position: absolute;
         top: calc(84px + env(safe-area-inset-top));
         right: max(8px, env(safe-area-inset-right));
@@ -171,14 +173,21 @@
         -webkit-overflow-scrolling: touch;
         border-radius: 10px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.15);
-        background: rgba(8, 10, 15, 0.9);
+        background: rgba(8, 10, 15, var(--dialog-alpha));
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
         padding: 10px;
       }
       #rangesEditorPanel.is-hidden,
-      #formulaSettingsPanel.is-hidden {
+      #formulaSettingsPanel.is-hidden,
+      #colorSettingsPanel.is-hidden {
         display: none;
+      }
+
+      #formulaSettingsPanel,
+      #rangesEditorPanel,
+      #colorSettingsPanel {
+        z-index: 42;
       }
       .rangesEditorHead {
         display: flex;
@@ -236,6 +245,29 @@
         font-size: var(--ui-font-size);
         line-height: 1;
       }
+      
+      .colorPickerSettingsBtn {
+        min-width: 34px;
+        min-height: 34px;
+        border-radius: 10px;
+        border: 2px solid var(--param-outline);
+        background: var(--panel-bg);
+        color: var(--text);
+        font-size: var(--ui-font-size);
+        line-height: 1;
+      }
+      .colorSettingsBody { display: grid; gap: 10px; }
+      .colorPreviewWide { height: 18px; border-radius: 999px; border: 1px solid rgba(var(--ui-gray-rgb),0.25); width: 100%; }
+      .colorStopCard { border:1px solid rgba(var(--ui-gray-rgb),0.2); border-radius:8px; padding:8px; display:grid; gap:6px; }
+      .stopRow { display:grid; grid-template-columns: 1fr auto auto auto; gap:8px; align-items:center; }
+      .colorStopTile { width:34px; height:34px; border-radius:8px; border:1px solid rgba(var(--ui-gray-rgb),0.35); background:#fff; position:relative; }
+      .colorStopTile.is-transparent::before,
+      .colorStopTile.is-transparent::after { content:""; position:absolute; left:-1px; top:16px; width:calc(100% + 2px); height:2px; background:#d00; transform-origin:center; }
+      .colorStopTile.is-transparent::before { transform:rotate(-35deg); }
+      .colorStopTile.is-transparent::after { transform:rotate(35deg); }
+      .colorStopActions { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; }
+
+
       .rangeInput {
         width: 100%;
         min-height: 32px;
@@ -371,12 +403,39 @@
       .perfRangeInput {
         width: 100%;
       }
+
+      input[type="color"].perfRangeInput,
+      .colorStopColorInput {
+        width: 34px;
+        height: 34px;
+        min-width: 34px;
+        padding: 0;
+        border-radius: 8px;
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.24);
+        background: rgba(0, 0, 0, 0.18);
+        overflow: hidden;
+        cursor: pointer;
+      }
+      input[type="color"].perfRangeInput::-webkit-color-swatch-wrapper,
+      .colorStopColorInput::-webkit-color-swatch-wrapper {
+        padding: 0;
+      }
+      input[type="color"].perfRangeInput::-webkit-color-swatch,
+      .colorStopColorInput::-webkit-color-swatch {
+        border: 0;
+        border-radius: 7px;
+      }
+      input[type="color"].perfRangeInput::-moz-color-swatch,
+      .colorStopColorInput::-moz-color-swatch {
+        border: 0;
+        border-radius: 7px;
+      }
       .perfSelect {
         width: 100%;
         min-height: 32px;
         border-radius: 6px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.24);
-        background: rgba(0, 0, 0, 0.24);
+        background: rgba(8, 10, 15, var(--dialog-alpha));
         color: var(--text);
         font-size: var(--ui-font-size);
         padding: 4px 8px;
@@ -618,7 +677,7 @@
         width: min(648px, calc(100vw - 12px));
         top: calc(58px + env(safe-area-inset-top));
         bottom: calc(98px + env(safe-area-inset-bottom));
-        background: rgba(0, 0, 0, 0.24);
+        background: rgba(8, 10, 15, var(--dialog-alpha));
         border: 1px solid var(--panel-border);
         border-radius: 10px;
         display: flex;
@@ -785,7 +844,8 @@
 
       @media (max-width: 900px) {
         #rangesEditorPanel,
-        #formulaSettingsPanel {
+        #formulaSettingsPanel,
+        #colorSettingsPanel {
           top: auto;
           right: max(6px, env(safe-area-inset-right));
           left: max(6px, env(safe-area-inset-left));
@@ -823,6 +883,13 @@ Scale</button>
           <button id="settingsTabGeneral" class="rangesTabBtn" type="button">General</button>
         </div>
         <div id="colorTabPanel" class="rangesEditorBody settingsTabPanel">
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Background color</span></div>
+            <div class="perfControlRow">
+              <input id="detailBackgroundColor" class="perfRangeInput" type="color" aria-label="Background color" />
+              <div id="detailBackgroundColorValue" class="perfFormattedValue">#05070c</div>
+            </div>
+          </div>
           <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Coloring mode</span><button id="infoColorMode" class="perfInfoBtn" type="button">i</button></div>
             <select id="detailColorModeSelect" class="perfSelect" aria-label="Coloring mode">
@@ -872,6 +939,13 @@ Scale</button>
             </div>
           </div>
           <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Dialog transparency</span></div>
+            <div class="perfControlRow">
+              <input id="detailOverlayAlphaRange" class="perfRangeInput" type="range" min="0.1" max="1" step="0.01" />
+              <div id="detailOverlayAlphaFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Debug overlay</span><button id="infoDebug" class="perfInfoBtn" type="button">i</button></div>
             <label class="modeOption"><input id="detailDebugToggle" type="checkbox" /> Show debug overlays and diagnostics</label>
           </div>
@@ -911,7 +985,20 @@ Scale</button>
           <p id="rangesEditorWarning" aria-live="polite"></p>
         </div>
       </aside>
-
+      <aside id="colorSettingsPanel" class="is-hidden" aria-label="Color map editor">
+        <div class="rangesEditorHead">
+          <strong id="colorSettingsName">Color map</strong>
+          <button id="colorSettingsClose" type="button" aria-label="Close color settings">✕</button>
+        </div>
+        <div class="colorSettingsBody">
+          <div id="colorSettingsPreview" class="colorPreviewWide"></div>
+          <div id="colorStopsList"></div>
+          <div class="colorStopActions">
+            <button id="addColorStopBtn" class="rangeActionBtn" type="button">Add stop</button>
+            <button id="resetColorStopsBtn" class="rangeActionBtn" type="button">Reset map</button>
+          </div>
+        </div>
+      </aside>
       <div id="quickSliderOverlay" aria-hidden="true">
         <div id="quickSliderBackdrop"></div>
         <div id="quickSlider">

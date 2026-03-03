@@ -19,5 +19,8 @@
   "renderColorMode": "iteration_order",
   "renderLogStrength": 9,
   "renderDensityGamma": 0.6,
-  "renderHybridBlend": 0.3
+  "renderHybridBlend": 0.3,
+  "backgroundColor": "#05070c",
+  "colorMapStopOverrides": {},
+  "overlayAlpha": 0.9
 }
