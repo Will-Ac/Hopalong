@@ -116,6 +116,7 @@ Key behaviors:
 
 `#poSnap` / `#topSnap` triggers canvas export.
 Requirements:
+- Show toast progress feedback while preparing the screenshot in the format `saving screenshot Ns remaining`, updating once per second with an estimated countdown.
 - Try `canvas.toBlob` first; if blob exists, prefer Web Share (`navigator.canShare` / `navigator.share`) on iOS.
 - Fallback: create object URL + `<a download>` click; if iOS ignores download, navigate same tab so user can save.
 - Fallback of last resort: `canvas.toDataURL('image/png')`.

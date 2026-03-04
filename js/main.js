@@ -308,6 +308,11 @@ const keyboardModulationState = {
   intervalId: null,
 };
 
+const screenshotTimingState = {
+  averageMs: 0,
+  averageWorkUnits: 0,
+};
+
 function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   const normalized = String(text ?? "").trim();
   if (normalized.length <= maxChars) {
@@ -347,6 +352,53 @@ function showToast(message) {
   toastTimer = window.setTimeout(() => {
     toastEl.classList.remove("is-visible");
   }, 5000);
+}
+
+function estimateScreenshotWorkUnits(pxW, pxH, iterations) {
+  const pixelCount = Math.max(1, Number(pxW) * Number(pxH));
+  const iterCount = Math.max(1, getIterationValueForRender(iterations));
+  return (pixelCount * iterCount) / 1e9;
+}
+
+function estimateScreenshotDurationMs(workUnits) {
+  const safeUnits = Math.max(0.0001, Number(workUnits) || 0.0001);
+  if (screenshotTimingState.averageMs > 0 && screenshotTimingState.averageWorkUnits > 0) {
+    const scaled = screenshotTimingState.averageMs * (safeUnits / screenshotTimingState.averageWorkUnits);
+    return clamp(scaled, 800, 45000);
+  }
+  return clamp(700 + safeUnits * 1400, 800, 45000);
+}
+
+function recordScreenshotDuration(actualMs, workUnits) {
+  const safeMs = Math.max(1, Number(actualMs) || 0);
+  const safeUnits = Math.max(0.0001, Number(workUnits) || 0.0001);
+  if (screenshotTimingState.averageMs <= 0 || screenshotTimingState.averageWorkUnits <= 0) {
+    screenshotTimingState.averageMs = safeMs;
+    screenshotTimingState.averageWorkUnits = safeUnits;
+    return;
+  }
+
+  const blend = 0.3;
+  screenshotTimingState.averageMs = screenshotTimingState.averageMs * (1 - blend) + safeMs * blend;
+  screenshotTimingState.averageWorkUnits = screenshotTimingState.averageWorkUnits * (1 - blend) + safeUnits * blend;
+}
+
+function startScreenshotCountdownToast(estimatedMs) {
+  const estimate = Math.max(1000, Math.round(Number(estimatedMs) || 1000));
+  const startedAt = performance.now();
+
+  const update = () => {
+    const elapsed = performance.now() - startedAt;
+    const remainingSeconds = Math.max(1, Math.ceil((estimate - elapsed) / 1000));
+    showToast(`saving screenshot ${remainingSeconds}s remaining`);
+  };
+
+  update();
+  const timerId = window.setInterval(update, 1000);
+
+  return () => {
+    window.clearInterval(timerId);
+  };
 }
 
 function installGlobalZoomBlockers() {
@@ -4089,35 +4141,44 @@ async function captureScreenshot(includeOverlay) {
   const iterationSetting = getIterationValueForRender();
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const scaleMode = getScaleMode();
+  const screenshotWorkUnits = estimateScreenshotWorkUnits(pxW, pxH, iterationSetting);
+  const stopCountdownToast = startScreenshotCountdownToast(estimateScreenshotDurationMs(screenshotWorkUnits));
+  await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+  const renderStartedAt = performance.now();
 
-  renderFrame({
-    ctx: exportCtx,
-    canvas: exportCanvas,
-    formulaId: currentFormulaId,
-    cmapName: appData.defaults.cmapName,
-    params: getDerivedParams(),
-    iterations: iterationSetting,
-    burn: burnSetting,
-    scaleMode,
-    fixedView,
-    worldOverride: exportWorld,
-    seed: getSeedForFormula(currentFormulaId),
-    renderColoring: getRenderColoringOptions(),
-    backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
-  });
+  try {
+    renderFrame({
+      ctx: exportCtx,
+      canvas: exportCanvas,
+      formulaId: currentFormulaId,
+      cmapName: appData.defaults.cmapName,
+      params: getDerivedParams(),
+      iterations: iterationSetting,
+      burn: burnSetting,
+      scaleMode,
+      fixedView,
+      worldOverride: exportWorld,
+      seed: getSeedForFormula(currentFormulaId),
+      renderColoring: getRenderColoringOptions(),
+      backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
+    });
 
-  if (includeOverlay) {
-    drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height);
+    if (includeOverlay) {
+      drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height);
+    }
+
+    const blob = await new Promise((resolve) => exportCanvas.toBlob(resolve, "image/png"));
+    if (!blob) {
+      throw new Error("Screenshot export failed.");
+    }
+
+    const filename = `hopalong-${includeOverlay ? "overlay" : "clean"}-${formatScreenshotTimestamp(new Date())}.png`;
+    await saveBlobToDevice(blob, filename);
+    recordScreenshotDuration(performance.now() - renderStartedAt, screenshotWorkUnits);
+    showToast(includeOverlay ? "Saved screenshot with parameter overlay." : "Saved clean screenshot.");
+  } finally {
+    stopCountdownToast();
   }
-
-  const blob = await new Promise((resolve) => exportCanvas.toBlob(resolve, "image/png"));
-  if (!blob) {
-    throw new Error("Screenshot export failed.");
-  }
-
-  const filename = `hopalong-${includeOverlay ? "overlay" : "clean"}-${formatScreenshotTimestamp(new Date())}.png`;
-  await saveBlobToDevice(blob, filename);
-  showToast(includeOverlay ? "Saved screenshot with parameter overlay." : "Saved clean screenshot.");
 }
 
 function clearCameraPressState() {
