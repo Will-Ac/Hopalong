@@ -44,6 +44,7 @@ Tools area (`.poTools`):
   - Default mode is stop (manual iterations from slider value).
   - Press play to auto-advance iterations in +1,000,000 steps.
   - In play mode, iteration count is allowed to exceed the manual slider max and continues up to 10,000,000,000 before auto-stopping.
+  - While auto-play is running, live on-screen preview rendering is capped for responsiveness so the stop button remains responsive; full requested iterations are still used for screenshot export.
   - While playing, slider input is suppressed and current iteration value is shown centered over the slider track.
 - State picker panel: `#statePicker` with radios for `rand|fix|many|manx`.
 

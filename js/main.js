@@ -246,6 +246,7 @@ const KEYBOARD_BASE_DELTA = 1;
 const ITERATION_AUTOPLAY_STEP = 1000000;
 const ITERATION_AUTOPLAY_TICK_MS = 140;
 const ITERATION_AUTOPLAY_MAX = 10000000000;
+const ITERATION_AUTOPLAY_LIVE_RENDER_CAP = 2000000;
 const INTEREST_GRID_MIN = 12;
 const INTEREST_GRID_MAX = 80;
 const INTEREST_SCAN_MIN = 120;
@@ -3032,6 +3033,7 @@ function toggleIterationAutoPlay() {
 
   iterationAutoPlayState.active = true;
   syncIterationPlayUi();
+  showToast(`Iteration play started. Live preview capped at ${formatNumberForUi(ITERATION_AUTOPLAY_LIVE_RENDER_CAP, 0)} for responsiveness.`);
   tickIterationAutoPlay();
 }
 
@@ -3885,13 +3887,16 @@ function draw() {
   const iterationSetting = getIterationValueForRender();
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const iterations = iterationSetting;
+  const liveRenderIterations = iterationAutoPlayState.active
+    ? Math.min(iterations, ITERATION_AUTOPLAY_LIVE_RENDER_CAP)
+    : iterations;
   const frameMeta = renderFrame({
     ctx,
     canvas,
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
-    iterations: didResize ? Math.max(10000, Math.round(iterations * 0.6)) : iterations,
+    iterations: didResize ? Math.max(10000, Math.round(liveRenderIterations * 0.6)) : liveRenderIterations,
     burn: burnSetting,
     scaleMode: getScaleMode(),
     fixedView,
@@ -3911,6 +3916,7 @@ function draw() {
   lastRenderMeta = {
     ...frameMeta,
     iterations,
+    liveRenderIterations,
     renderMs: now - startedAt,
   };
 
