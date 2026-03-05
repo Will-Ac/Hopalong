@@ -4406,6 +4406,12 @@ async function bootstrap() {
     saveDefaultsToStorage();
 
     registerHandlers();
+    if (typeof window.initHelpUI === "function") {
+      window.initHelpUI({
+        openButtonSelector: "#helpBtn",
+        settingsContainerSelector: "#generalTabPanel",
+      });
+    }
     maybeShowLandscapeHint();
     commitCurrentStateToHistory();
     requestDraw();

@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>Hopalong</title>
+    <link rel="stylesheet" href="./css/help.css" />
     <style>
       :root {
         color-scheme: dark;
@@ -869,10 +870,11 @@
         <p id="debugInfo">Debug off</p>
       </div>
       <div id="topRightActions">
-        <button id="rangesEditorToggle" class="topActionBtn" type="button" aria-label="Open ranges editor">⚙</button>
+        <button id="rangesEditorToggle" class="topActionBtn" type="button" aria-label="Open ranges editor" data-help-id="settings">⚙</button>
         <button id="scaleModeBtn" class="topActionBtn" type="button" aria-label="Toggle scaling mode">Fixed
 Scale</button>
-        <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot" data-help-id="export"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="helpBtn" class="topActionBtn" type="button" aria-label="Help">?</button>
       </div>
       <aside id="rangesEditorPanel" class="is-hidden" aria-label="Settings editor">
         <div class="rangesEditorHead">
@@ -1040,11 +1042,11 @@ Scale</button>
             <button id="qsClose" type="button" aria-label="Close slider">✕</button>
           </div>
           <div class="qsControlRow">
-            <button id="qsMinus" class="qsStepBtn" type="button" aria-label="Decrease value">−</button>
-            <input id="qsRange" type="range" min="0" max="100" step="0.1" />
-            <button id="qsPlus" class="qsStepBtn" type="button" aria-label="Increase value">+</button>
-          </div>
+          <button id="qsMinus" class="qsStepBtn" type="button" aria-label="Decrease value" data-help-id="slider_step">−</button>
+          <input id="qsRange" type="range" min="0" max="100" step="0.1" />
+          <button id="qsPlus" class="qsStepBtn" type="button" aria-label="Increase value" data-help-id="slider_step">+</button>
         </div>
+      </div>
       </div>
 
       <div id="pickerOverlay" aria-hidden="true">
@@ -1096,14 +1098,17 @@ Scale</button>
           </div>
         </div>
         <div id="randomModeTile" class="poItem">
-          <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode">Random
+          <button id="randomModeBtn" type="button" aria-label="Toggle randomise all mode" data-help-id="randomize">Random
 All</button>
         </div>
         </div>
       </div>
+      <div id="helpModalRoot"></div>
     </div>
 
     <script src="./js/vendor/qrcode-generator.js"></script>
     <script type="module" src="./js/main.js"></script>
+    <script src="./js/help_content.js"></script>
+    <script src="./js/help_ui.js"></script>
   </body>
 </html>
