@@ -51,6 +51,180 @@ const ESCAPE_ABS_BOUND = 1e6;
 
 const formulaStepById = new Map(VARIANTS.map((formula) => [formula.id, formula.step]));
 
+function safeRatio(numerator, denominator, fallback = 0) {
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) {
+    return fallback;
+  }
+  return numerator / denominator;
+}
+
+export function scoreOrbitInterest({
+  formulaId,
+  params,
+  iterations = 1200,
+  burn = 120,
+  seed = null,
+  weights = {},
+}) {
+  const step = formulaStepById.get(formulaId);
+  if (!step) {
+    return 0;
+  }
+
+  const totalIterations = Math.max(32, Math.round(Number(iterations) || 1200));
+  const burnSteps = clamp(Math.round(Number(burn) || 0), 0, 5000);
+
+  let x = Number(seed?.x);
+  let y = Number(seed?.y);
+  if (!Number.isFinite(x)) x = 0;
+  if (!Number.isFinite(y)) y = 0;
+
+  for (let i = 0; i < burnSteps; i += 1) {
+    [x, y] = step(x, y, params.a, params.b, params.c, params.d);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
+      x = 0;
+      y = 0;
+      break;
+    }
+  }
+
+  const xs = new Float64Array(totalIterations);
+  const ys = new Float64Array(totalIterations);
+  let sampleCount = 0;
+  let escaped = false;
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let meanX = 0;
+  let meanY = 0;
+  let m2x = 0;
+  let m2y = 0;
+  let covSum = 0;
+
+  for (let i = 0; i < totalIterations; i += 1) {
+    [x, y] = step(x, y, params.a, params.b, params.c, params.d);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
+      escaped = true;
+      break;
+    }
+
+    xs[sampleCount] = x;
+    ys[sampleCount] = y;
+
+    const nextCount = sampleCount + 1;
+    const dx = x - meanX;
+    const dy = y - meanY;
+    meanX += dx / nextCount;
+    meanY += dy / nextCount;
+    m2x += dx * (x - meanX);
+    m2y += dy * (y - meanY);
+    covSum += dx * (y - meanY);
+
+    sampleCount = nextCount;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+
+  const boundedness = clamp01(sampleCount / totalIterations);
+  if (sampleCount < 16 || boundedness < 0.9) {
+    return 0;
+  }
+
+  const binsPerAxis = 20;
+  const totalBins = binsPerAxis * binsPerAxis;
+  const spanX = Math.max(maxX - minX, 1e-9);
+  const spanY = Math.max(maxY - minY, 1e-9);
+  const binHits = new Uint16Array(totalBins);
+  const rowHits = new Uint32Array(binsPerAxis);
+  const colHits = new Uint32Array(binsPerAxis);
+  const edgeSet = new Set();
+  let activeBins = 0;
+  let prevBin = -1;
+
+  for (let i = 0; i < sampleCount; i += 1) {
+    const nx = clamp01((xs[i] - minX) / spanX);
+    const ny = clamp01((ys[i] - minY) / spanY);
+    const col = Math.min(binsPerAxis - 1, Math.floor(nx * binsPerAxis));
+    const row = Math.min(binsPerAxis - 1, Math.floor(ny * binsPerAxis));
+    const idx = row * binsPerAxis + col;
+    if (binHits[idx] === 0) {
+      activeBins += 1;
+    }
+    if (binHits[idx] < 65535) {
+      binHits[idx] += 1;
+    }
+    rowHits[row] += 1;
+    colHits[col] += 1;
+    if (prevBin >= 0) {
+      edgeSet.add((prevBin << 9) | idx);
+    }
+    prevBin = idx;
+  }
+
+  const maxRowRatio = Math.max(...rowHits) / Math.max(1, sampleCount);
+  const maxColRatio = Math.max(...colHits) / Math.max(1, sampleCount);
+  const lineDominance = Math.max(maxRowRatio, maxColRatio);
+  const edgeDiversity = edgeSet.size / Math.max(1, sampleCount - 1);
+
+  // Option B stage 1: disqualify obvious low-interest outcomes.
+  // These gates target exactly the classes the user marked as "not interesting".
+  if (escaped) return 0;
+  if (activeBins < 12) return 0;
+  if (lineDominance > 0.64) return 0;
+  if (edgeDiversity < 0.045) return 0;
+
+  const coverage = safeRatio(activeBins, totalBins, 0);
+  const targetCoverage = 0.22;
+  const coverageScore = clamp01(1 - Math.abs(coverage - targetCoverage) / targetCoverage);
+
+  let entropy = 0;
+  if (activeBins > 1) {
+    for (let i = 0; i < binHits.length; i += 1) {
+      const hits = binHits[i];
+      if (hits <= 0) continue;
+      const p = hits / sampleCount;
+      entropy -= p * Math.log(p);
+    }
+  }
+  const maxEntropy = Math.log(Math.max(2, activeBins));
+  const entropyScore = clamp01(safeRatio(entropy, maxEntropy, 0));
+  const complexityScore = clamp01(entropyScore * 0.72 + clamp01(edgeDiversity / 0.22) * 0.28);
+
+  const varianceX = safeRatio(m2x, Math.max(1, sampleCount - 1), 0);
+  const varianceY = safeRatio(m2y, Math.max(1, sampleCount - 1), 0);
+  const covariance = safeRatio(covSum, Math.max(1, sampleCount - 1), 0);
+  const trace = varianceX + varianceY;
+  const det = varianceX * varianceY - covariance * covariance;
+  const disc = Math.sqrt(Math.max(0, trace * trace - 4 * det));
+  const lambdaMax = Math.max((trace + disc) * 0.5, 1e-9);
+  const lambdaMin = Math.max((trace - disc) * 0.5, 1e-9);
+  const anisotropy = lambdaMax / lambdaMin;
+  const anisotropyPenalty = clamp01((anisotropy - 3) / 24);
+  const linePenalty = clamp01(anisotropyPenalty * 0.45 + clamp01((lineDominance - 0.28) / 0.5) * 0.55);
+  const tinyPatternPenalty = activeBins <= 2 ? 0.5 : 0;
+
+  const boundedScore = clamp01((boundedness - 0.92) / 0.08);
+  const coverageWeight = Math.max(0, Number(weights.coverage) || 0.35);
+  const complexityWeight = Math.max(0, Number(weights.complexity) || 0.35);
+  const boundednessWeight = Math.max(0, Number(weights.boundedness) || 0.3);
+  const linePenaltyWeight = Math.max(0, Number(weights.linePenalty) || 0.35);
+  const totalPositiveWeight = Math.max(1e-9, coverageWeight + complexityWeight + boundednessWeight);
+  const weightedPositive = (
+    coverageWeight * coverageScore
+    + complexityWeight * complexityScore
+    + boundednessWeight * boundedScore
+  ) / totalPositiveWeight;
+  const interest = clamp01(
+    weightedPositive
+      - linePenaltyWeight * linePenalty
+      - tinyPatternPenalty,
+  );
+  return interest;
+}
+
 
 export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   const fallbackRanges = {

@@ -40,6 +40,12 @@ Tools area (`.poTools`):
 
 ### 2.4 Quick slider + state picker popovers
 - Quick slider panel: `#quickSlider` with `#qsRange`, `#qsLabel`, `#qsValue`, `#qsClose`.
+- Iteration quick slider includes play/stop button `#qsIterPlay`:
+  - Default mode is stop (manual iterations from slider value).
+  - Press play to auto-advance iterations in +1,000,000 steps.
+  - In play mode, iteration count is allowed to exceed the manual slider max and continues up to 10,000,000,000 before auto-stopping.
+  - While auto-play is running, live on-screen preview rendering is capped for responsiveness so the stop button remains responsive; full requested iterations are still used for screenshot export.
+  - While playing, slider input is suppressed and current iteration value is shown centered over the slider track.
 - State picker panel: `#statePicker` with radios for `rand|fix|many|manx`.
 
 ### 2.5 Menu (long-press)
@@ -89,6 +95,17 @@ Pointer-tracked gestures (`pointerdown/move/up`):
   - In ALL mode, near-constant distance => midpoint drag pans.
 - Wheel zoom on desktop (`wheel` event) zooms about cursor point.
 
+### 4.3 Keyboard modulation (new)
+- Arrow keys provide an additional way to drive assigned ManX/ManY parameters.
+  - Left/Right adjust ManX negative/positive.
+  - Up/Down adjust ManY positive/negative.
+- Hold-to-accelerate profile:
+  - 0-3s: 1x
+  - 3-6s: 2x
+  - 6-9s: 4x
+  - 9s+: 8x
+- On speed tier changes, show toast feedback in the format `+a adjustment 4X` or `-b adjustment 8X`.
+
 ## 5) Rendering & history
 
 Key behaviors:
@@ -100,6 +117,7 @@ Key behaviors:
 
 `#poSnap` / `#topSnap` triggers canvas export.
 Requirements:
+- Show toast progress feedback while preparing the screenshot in the format `saving screenshot Ns remaining`, updating once per second with an estimated countdown.
 - Try `canvas.toBlob` first; if blob exists, prefer Web Share (`navigator.canShare` / `navigator.share`) on iOS.
 - Fallback: create object URL + `<a download>` click; if iOS ignores download, navigate same tab so user can save.
 - Fallback of last resort: `canvas.toDataURL('image/png')`.
@@ -153,3 +171,20 @@ Split into modules (even if bundled later):
   - center point of the visible range
   - FPS
 - When debug is `Off`, hide axes/ticks/readout details and show a short `Debug off` message.
+
+## 12) Interest overlay (new)
+
+- Add optional "interest map" scanning tied to the currently assigned ManX/ManY modulation plane.
+- When enabled and at least one parameter is assigned to ManX/ManY, scan a configurable grid of parameter samples and compute an interest score per cell.
+- Keep the overlay visible after scan completion; do not rescan unless non-plane inputs change (formula, seeds, non-modulated params, scan config).
+- Interest scoring should prefer bounded, spatially rich patterns and suppress degenerate outcomes (dot/line/blank).
+- Scoring uses a two-stage strategy:
+  - Stage 1 disqualifies likely low-interest cases (escape/divergence, very sparse occupancy, strong line dominance, very low path diversity).
+  - Stage 2 ranks survivors by weighted coverage/complexity/boundedness minus line penalties.
+- Provide user-adjustable relative weights for scoring factors (coverage, complexity, boundedness, line-penalty).
+- Draw a translucent grayscale grid overlay on top of the rendered image, where brighter cells indicate higher interest.
+- Add settings in the General tab for:
+  - Grid size
+  - Interest threshold
+  - Scan iterations per cell
+  - Overlay enable/disable toggle

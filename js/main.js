@@ -1,5 +1,5 @@
 import { ColorMapNames, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
-import { renderFrame, getParamsForFormula } from "./renderer.js";
+import { renderFrame, getParamsForFormula, scoreOrbitInterest } from "./renderer.js";
 import {
   FORMULA_METADATA,
   FORMULA_RANGES_RAW,
@@ -50,6 +50,21 @@ const detailHybridBlendRangeEl = document.getElementById("detailHybridBlendRange
 const detailHybridBlendFormattedEl = document.getElementById("detailHybridBlendFormatted");
 const detailBackgroundColorEl = document.getElementById("detailBackgroundColor");
 const detailBackgroundColorValueEl = document.getElementById("detailBackgroundColorValue");
+const detailInterestGridSizeRangeEl = document.getElementById("detailInterestGridSizeRange");
+const detailInterestGridSizeFormattedEl = document.getElementById("detailInterestGridSizeFormatted");
+const detailInterestThresholdRangeEl = document.getElementById("detailInterestThresholdRange");
+const detailInterestThresholdFormattedEl = document.getElementById("detailInterestThresholdFormatted");
+const detailInterestScanIterationsRangeEl = document.getElementById("detailInterestScanIterationsRange");
+const detailInterestScanIterationsFormattedEl = document.getElementById("detailInterestScanIterationsFormatted");
+const detailInterestOverlayToggleEl = document.getElementById("detailInterestOverlayToggle");
+const detailInterestWeightCoverageRangeEl = document.getElementById("detailInterestWeightCoverageRange");
+const detailInterestWeightCoverageFormattedEl = document.getElementById("detailInterestWeightCoverageFormatted");
+const detailInterestWeightComplexityRangeEl = document.getElementById("detailInterestWeightComplexityRange");
+const detailInterestWeightComplexityFormattedEl = document.getElementById("detailInterestWeightComplexityFormatted");
+const detailInterestWeightBoundednessRangeEl = document.getElementById("detailInterestWeightBoundednessRange");
+const detailInterestWeightBoundednessFormattedEl = document.getElementById("detailInterestWeightBoundednessFormatted");
+const detailInterestWeightLinePenaltyRangeEl = document.getElementById("detailInterestWeightLinePenaltyRange");
+const detailInterestWeightLinePenaltyFormattedEl = document.getElementById("detailInterestWeightLinePenaltyFormatted");
 const colorSettingsPanelEl = document.getElementById("colorSettingsPanel");
 const colorSettingsCloseEl = document.getElementById("colorSettingsClose");
 const colorSettingsNameEl = document.getElementById("colorSettingsName");
@@ -85,6 +100,8 @@ const qsValue = document.getElementById("qsValue");
 const qsRange = document.getElementById("qsRange");
 const qsMinus = document.getElementById("qsMinus");
 const qsPlus = document.getElementById("qsPlus");
+const qsIterPlay = document.getElementById("qsIterPlay");
+const qsRangeCenterValue = document.getElementById("qsRangeCenterValue");
 const qsClose = document.getElementById("qsClose");
 
 const pickerOverlay = document.getElementById("pickerOverlay");
@@ -184,6 +201,19 @@ let paramModes = {};
 let lastParamTap = { targetKey: null, timestamp: 0 };
 let pendingTileTapTimer = null;
 let randomAllNextMode = "rand";
+let interestScanTimer = null;
+const interestOverlayState = {
+  signature: null,
+  axisXKey: "a",
+  axisYKey: "b",
+  gridSize: 0,
+  scores: null,
+  scannedCells: 0,
+  totalCells: 0,
+  running: false,
+  token: 0,
+  lastProgressToastAt: 0,
+};
 const paramPressState = {
   pointerId: null,
   targetKey: null,
@@ -209,6 +239,18 @@ const ZOOM_DEADBAND_PX = 2.5 * DPR;
 const ZOOM_RATIO_MIN = 0.002;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
+const KEYBOARD_MOD_REPEAT_MS = 50;
+const KEYBOARD_MOD_ACCEL_THRESHOLDS_MS = [3000, 6000, 9000];
+const KEYBOARD_MOD_ACCEL_MULTIPLIERS = [1, 2, 4, 8];
+const KEYBOARD_BASE_DELTA = 1;
+const ITERATION_AUTOPLAY_STEP = 1000000;
+const ITERATION_AUTOPLAY_TICK_MS = 140;
+const ITERATION_AUTOPLAY_MAX = 10000000000;
+const ITERATION_AUTOPLAY_LIVE_RENDER_CAP = 2000000;
+const INTEREST_GRID_MIN = 12;
+const INTEREST_GRID_MAX = 80;
+const INTEREST_SCAN_MIN = 120;
+const INTEREST_SCAN_MAX = 20000;
 
 const LEGACY_SLIDER_KEY_MAP = {
   alpha: "a",
@@ -258,6 +300,19 @@ let fixedView = {
 };
 let sharedParamsOverride = null;
 let sharedParamsFormulaId = null;
+const iterationAutoPlayState = {
+  active: false,
+  timerId: null,
+};
+const keyboardModulationState = {
+  activeByKey: new Map(),
+  intervalId: null,
+};
+
+const screenshotTimingState = {
+  averageMs: 0,
+  averageWorkUnits: 0,
+};
 
 function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   const normalized = String(text ?? "").trim();
@@ -298,6 +353,53 @@ function showToast(message) {
   toastTimer = window.setTimeout(() => {
     toastEl.classList.remove("is-visible");
   }, 5000);
+}
+
+function estimateScreenshotWorkUnits(pxW, pxH, iterations) {
+  const pixelCount = Math.max(1, Number(pxW) * Number(pxH));
+  const iterCount = Math.max(1, getIterationValueForRender(iterations));
+  return (pixelCount * iterCount) / 1e9;
+}
+
+function estimateScreenshotDurationMs(workUnits) {
+  const safeUnits = Math.max(0.0001, Number(workUnits) || 0.0001);
+  if (screenshotTimingState.averageMs > 0 && screenshotTimingState.averageWorkUnits > 0) {
+    const scaled = screenshotTimingState.averageMs * (safeUnits / screenshotTimingState.averageWorkUnits);
+    return clamp(scaled, 800, 45000);
+  }
+  return clamp(700 + safeUnits * 1400, 800, 45000);
+}
+
+function recordScreenshotDuration(actualMs, workUnits) {
+  const safeMs = Math.max(1, Number(actualMs) || 0);
+  const safeUnits = Math.max(0.0001, Number(workUnits) || 0.0001);
+  if (screenshotTimingState.averageMs <= 0 || screenshotTimingState.averageWorkUnits <= 0) {
+    screenshotTimingState.averageMs = safeMs;
+    screenshotTimingState.averageWorkUnits = safeUnits;
+    return;
+  }
+
+  const blend = 0.3;
+  screenshotTimingState.averageMs = screenshotTimingState.averageMs * (1 - blend) + safeMs * blend;
+  screenshotTimingState.averageWorkUnits = screenshotTimingState.averageWorkUnits * (1 - blend) + safeUnits * blend;
+}
+
+function startScreenshotCountdownToast(estimatedMs) {
+  const estimate = Math.max(1000, Math.round(Number(estimatedMs) || 1000));
+  const startedAt = performance.now();
+
+  const update = () => {
+    const elapsed = performance.now() - startedAt;
+    const remainingSeconds = Math.max(1, Math.ceil((estimate - elapsed) / 1000));
+    showToast(`saving screenshot ${remainingSeconds}s remaining`);
+  };
+
+  update();
+  const timerId = window.setInterval(update, 1000);
+
+  return () => {
+    window.clearInterval(timerId);
+  };
 }
 
 function installGlobalZoomBlockers() {
@@ -459,7 +561,7 @@ function clearSharedParamsOverride() {
 
 function buildSharePayload() {
   const params = getDerivedParams();
-  const iterations = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const iterations = getIterationValueForRender();
   const view = fixedView || {};
   const paramText = `${params.a},${params.b},${params.c},${params.d}`;
   const viewText = `${view.offsetX ?? 0},${view.offsetY ?? 0},${view.zoom ?? 1}`;
@@ -536,7 +638,7 @@ function applySharedStateFromHash() {
 
     currentFormulaId = formulaId;
     appData.defaults.cmapName = cmapName;
-    appData.defaults.sliders.iters = Math.round(clamp(iterations, sliderControls.iters.min, sliderControls.iters.max));
+    appData.defaults.sliders.iters = getIterationValueForRender(iterations);
     fixedView = {
       offsetX: vValues[0],
       offsetY: vValues[1],
@@ -663,12 +765,17 @@ function getActiveActualValue() {
   return getControlValue(activeSliderKey);
 }
 
+function getIterationValueForRender(rawValue = appData.defaults.sliders.iters) {
+  return Math.round(clamp(Number(rawValue), sliderControls.iters.min, ITERATION_AUTOPLAY_MAX));
+}
+
 function normalizeSliderDefaults() {
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
     const rawValue = Number(appData.defaults.sliders?.[sliderKey]);
     const fallbackValue = sliderKey === "burn" ? 120 : (sliderKey === "iters" ? 200000 : 50);
     const safeValue = Number.isFinite(rawValue) ? rawValue : fallbackValue;
-    const clampedValue = clamp(safeValue, control.min, control.max);
+    const maxValue = sliderKey === "iters" ? ITERATION_AUTOPLAY_MAX : control.max;
+    const clampedValue = clamp(safeValue, control.min, maxValue);
     appData.defaults.sliders[sliderKey] = (sliderKey === "iters" || sliderKey === "burn") ? Math.round(clampedValue) : clampedValue;
   }
 }
@@ -1146,6 +1253,72 @@ function syncDetailedSettingsControls() {
   if (detailHybridBlendFormattedEl) detailHybridBlendFormattedEl.textContent = formatNumberForUi(appData.defaults.renderHybridBlend, 2);
   if (detailBackgroundColorEl) detailBackgroundColorEl.value = appData.defaults.backgroundColor || "#05070c";
   if (detailBackgroundColorValueEl) detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor || "#05070c";
+  if (detailInterestGridSizeRangeEl) detailInterestGridSizeRangeEl.value = String(appData.defaults.interestGridSize);
+  if (detailInterestGridSizeFormattedEl) detailInterestGridSizeFormattedEl.textContent = formatNumberForUi(appData.defaults.interestGridSize, 0);
+  if (detailInterestThresholdRangeEl) detailInterestThresholdRangeEl.value = String(appData.defaults.interestThreshold);
+  if (detailInterestThresholdFormattedEl) detailInterestThresholdFormattedEl.textContent = formatNumberForUi(appData.defaults.interestThreshold, 2);
+  if (detailInterestScanIterationsRangeEl) detailInterestScanIterationsRangeEl.value = String(appData.defaults.interestScanIterations);
+  if (detailInterestScanIterationsFormattedEl) detailInterestScanIterationsFormattedEl.textContent = formatNumberForUi(appData.defaults.interestScanIterations, 0);
+  if (detailInterestOverlayToggleEl) detailInterestOverlayToggleEl.checked = Boolean(appData.defaults.interestOverlayEnabled);
+  if (detailInterestWeightCoverageRangeEl) detailInterestWeightCoverageRangeEl.value = String(appData.defaults.interestWeightCoverage);
+  if (detailInterestWeightCoverageFormattedEl) detailInterestWeightCoverageFormattedEl.textContent = formatNumberForUi(appData.defaults.interestWeightCoverage, 2);
+  if (detailInterestWeightComplexityRangeEl) detailInterestWeightComplexityRangeEl.value = String(appData.defaults.interestWeightComplexity);
+  if (detailInterestWeightComplexityFormattedEl) detailInterestWeightComplexityFormattedEl.textContent = formatNumberForUi(appData.defaults.interestWeightComplexity, 2);
+  if (detailInterestWeightBoundednessRangeEl) detailInterestWeightBoundednessRangeEl.value = String(appData.defaults.interestWeightBoundedness);
+  if (detailInterestWeightBoundednessFormattedEl) detailInterestWeightBoundednessFormattedEl.textContent = formatNumberForUi(appData.defaults.interestWeightBoundedness, 2);
+  if (detailInterestWeightLinePenaltyRangeEl) detailInterestWeightLinePenaltyRangeEl.value = String(appData.defaults.interestWeightLinePenalty);
+  if (detailInterestWeightLinePenaltyFormattedEl) detailInterestWeightLinePenaltyFormattedEl.textContent = formatNumberForUi(appData.defaults.interestWeightLinePenalty, 2);
+}
+
+function getInterestWeights() {
+  return {
+    coverage: clamp(Number(appData.defaults.interestWeightCoverage), 0, 2),
+    complexity: clamp(Number(appData.defaults.interestWeightComplexity), 0, 2),
+    boundedness: clamp(Number(appData.defaults.interestWeightBoundedness), 0, 2),
+    linePenalty: clamp(Number(appData.defaults.interestWeightLinePenalty), 0, 2),
+  };
+}
+
+function invalidateInterestScan(shouldClearScores = false) {
+  interestOverlayState.token += 1;
+  interestOverlayState.running = false;
+  interestOverlayState.signature = null;
+  interestOverlayState.lastProgressToastAt = 0;
+  if (interestScanTimer) {
+    window.clearTimeout(interestScanTimer);
+    interestScanTimer = null;
+  }
+  if (shouldClearScores) {
+    interestOverlayState.scores = null;
+    interestOverlayState.gridSize = 0;
+    interestOverlayState.scannedCells = 0;
+    interestOverlayState.totalCells = 0;
+  }
+}
+
+function maybeShowOverlayProgressToast(force = false) {
+  if (!interestOverlayState.totalCells || !interestOverlayState.running) {
+    return;
+  }
+  const now = performance.now();
+  if (!force && now - interestOverlayState.lastProgressToastAt < 220) {
+    return;
+  }
+  interestOverlayState.lastProgressToastAt = now;
+  const done = Math.min(interestOverlayState.scannedCells, interestOverlayState.totalCells);
+  showToast(`updating overlay ${done} / ${interestOverlayState.totalCells}`);
+}
+
+function applyInterestSettings(key, nextValue, min, max, digits = 0) {
+  const numeric = clamp(Number(nextValue), min, max);
+  const factor = 10 ** digits;
+  appData.defaults[key] = Math.round(numeric * factor) / factor;
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  if (key !== "interestThreshold") {
+    invalidateInterestScan(true);
+  }
+  requestDraw();
 }
 
 function applyDetailedSliderValue(sliderKey, nextValue) {
@@ -1987,6 +2160,116 @@ function applyManualModulation(deltaX, deltaY) {
   return true;
 }
 
+function getKeyboardSpeedMultiplier(elapsedMs) {
+  if (elapsedMs >= KEYBOARD_MOD_ACCEL_THRESHOLDS_MS[2]) return KEYBOARD_MOD_ACCEL_MULTIPLIERS[3];
+  if (elapsedMs >= KEYBOARD_MOD_ACCEL_THRESHOLDS_MS[1]) return KEYBOARD_MOD_ACCEL_MULTIPLIERS[2];
+  if (elapsedMs >= KEYBOARD_MOD_ACCEL_THRESHOLDS_MS[0]) return KEYBOARD_MOD_ACCEL_MULTIPLIERS[1];
+  return KEYBOARD_MOD_ACCEL_MULTIPLIERS[0];
+}
+
+function shouldIgnoreKeyboardModulation(event) {
+  const target = event?.target;
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+}
+
+function stopKeyboardModulationLoop() {
+  if (keyboardModulationState.intervalId !== null) {
+    window.clearInterval(keyboardModulationState.intervalId);
+    keyboardModulationState.intervalId = null;
+  }
+}
+
+function clearKeyboardModulationState() {
+  keyboardModulationState.activeByKey.clear();
+  stopKeyboardModulationLoop();
+}
+
+function tickKeyboardModulation() {
+  if (!keyboardModulationState.activeByKey.size) {
+    stopKeyboardModulationLoop();
+    return;
+  }
+
+  const { manX, manY } = getManualAxisTargets();
+  if (!manX && !manY) {
+    return;
+  }
+
+  const now = performance.now();
+  let deltaX = 0;
+  let deltaY = 0;
+
+  for (const [key, state] of keyboardModulationState.activeByKey.entries()) {
+    const elapsed = now - state.startedAt;
+    const multiplier = getKeyboardSpeedMultiplier(elapsed);
+    if (multiplier !== state.lastMultiplier) {
+      state.lastMultiplier = multiplier;
+      const targetParam = key === "ArrowLeft" || key === "ArrowRight" ? manX : manY;
+      if (targetParam) {
+        const sign = key === "ArrowRight" || key === "ArrowUp" ? "+" : "-";
+        showToast(`${sign}${targetParam} adjustment ${multiplier}X`);
+      }
+    }
+
+    const scaledDelta = KEYBOARD_BASE_DELTA * multiplier;
+    if (key === "ArrowLeft" && manX) deltaX -= scaledDelta;
+    if (key === "ArrowRight" && manX) deltaX += scaledDelta;
+    if (key === "ArrowUp" && manY) deltaY -= scaledDelta;
+    if (key === "ArrowDown" && manY) deltaY += scaledDelta;
+  }
+
+  if (deltaX !== 0 || deltaY !== 0) {
+    applyManualModulation(deltaX, deltaY);
+  }
+}
+
+function startKeyboardModulation(key) {
+  if (!keyboardModulationState.activeByKey.has(key)) {
+    keyboardModulationState.activeByKey.set(key, {
+      startedAt: performance.now(),
+      lastMultiplier: 0,
+    });
+  }
+
+  if (keyboardModulationState.intervalId === null) {
+    tickKeyboardModulation();
+    keyboardModulationState.intervalId = window.setInterval(tickKeyboardModulation, KEYBOARD_MOD_REPEAT_MS);
+  }
+}
+
+function handleKeyboardModulationKeyDown(event) {
+  if (!appData || shouldIgnoreKeyboardModulation(event)) {
+    return;
+  }
+
+  const key = event.key;
+  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key)) {
+    return;
+  }
+
+  event.preventDefault();
+  if (event.repeat) {
+    return;
+  }
+
+  startKeyboardModulation(key);
+}
+
+function handleKeyboardModulationKeyUp(event) {
+  const key = event.key;
+  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key)) {
+    return;
+  }
+
+  keyboardModulationState.activeByKey.delete(key);
+  if (!keyboardModulationState.activeByKey.size) {
+    stopKeyboardModulationLoop();
+  }
+}
+
 function syncQuickSliderPosition() {
   if (!activeSliderKey || !qsRange) {
     return;
@@ -2349,6 +2632,7 @@ function closeQuickSlider() {
   activeSliderKey = null;
   quickSliderOverlay.classList.remove("is-open");
   quickSliderOverlay.setAttribute("aria-hidden", "true");
+  quickSliderEl?.classList.remove("is-iters-playing");
 }
 
 function alignQuickSliderAboveBottomBar() {
@@ -2672,6 +2956,85 @@ function updateQuickSliderReadout() {
   const actualValue = getActiveActualValue();
   qsLabel.textContent = control.label;
   qsValue.textContent = formatControlValue(control, actualValue);
+  if (qsRangeCenterValue && activeSliderKey === "iters") {
+    qsRangeCenterValue.textContent = formatNumberForUi(Math.round(appData.defaults.sliders.iters), 0);
+  }
+}
+
+function clearIterationAutoPlayTimer() {
+  if (iterationAutoPlayState.timerId !== null) {
+    window.clearTimeout(iterationAutoPlayState.timerId);
+    iterationAutoPlayState.timerId = null;
+  }
+}
+
+function syncIterationPlayUi() {
+  const isItersSlider = activeSliderKey === "iters";
+  const isPlaying = isItersSlider && iterationAutoPlayState.active;
+
+  qsIterPlay?.classList.toggle("is-hidden", !isItersSlider);
+  if (qsIterPlay) {
+    qsIterPlay.textContent = isPlaying ? "■" : "▶";
+    qsIterPlay.setAttribute("aria-label", isPlaying ? "Stop iteration auto-play" : "Start iteration auto-play");
+    qsIterPlay.title = isPlaying ? "Stop" : "Play";
+  }
+
+  if (qsRange) qsRange.disabled = isPlaying;
+  if (qsMinus) qsMinus.disabled = isPlaying;
+  if (qsPlus) qsPlus.disabled = isPlaying;
+  quickSliderEl?.classList.toggle("is-iters-playing", isPlaying);
+}
+
+function stopIterationAutoPlay({ preserveValue = true, keepUi = false } = {}) {
+  iterationAutoPlayState.active = false;
+  clearIterationAutoPlayTimer();
+  if (!preserveValue) {
+    appData.defaults.sliders.iters = getIterationValueForRender();
+  }
+  if (!keepUi) {
+    syncIterationPlayUi();
+  }
+}
+
+function tickIterationAutoPlay() {
+  if (!iterationAutoPlayState.active) {
+    return;
+  }
+
+  const current = getIterationValueForRender();
+  const next = Math.min(ITERATION_AUTOPLAY_MAX, current + ITERATION_AUTOPLAY_STEP);
+  appData.defaults.sliders.iters = next;
+  saveDefaultsToStorage();
+  if (activeSliderKey === "iters") {
+    qsRange.value = String(clamp(next, sliderControls.iters.min, sliderControls.iters.max));
+  }
+  updateQuickSliderReadout();
+  requestDraw();
+
+  if (next >= ITERATION_AUTOPLAY_MAX) {
+    stopIterationAutoPlay();
+    showToast("Iteration auto-play reached 10 billion and stopped.");
+    commitCurrentStateToHistory();
+    return;
+  }
+  iterationAutoPlayState.timerId = window.setTimeout(tickIterationAutoPlay, ITERATION_AUTOPLAY_TICK_MS);
+}
+
+function toggleIterationAutoPlay() {
+  if (activeSliderKey !== "iters") {
+    return;
+  }
+
+  if (iterationAutoPlayState.active) {
+    stopIterationAutoPlay();
+    commitCurrentStateToHistory();
+    return;
+  }
+
+  iterationAutoPlayState.active = true;
+  syncIterationPlayUi();
+  showToast(`Iteration play started. Live preview capped at ${formatNumberForUi(ITERATION_AUTOPLAY_LIVE_RENDER_CAP, 0)} for responsiveness.`);
+  tickIterationAutoPlay();
 }
 
 function applySliderValue(nextValue, { commitHistory = true } = {}) {
@@ -2700,6 +3063,10 @@ function openQuickSlider(sliderKey) {
     return;
   }
 
+  if (sliderKey !== "iters") {
+    stopIterationAutoPlay({ keepUi: true });
+  }
+
   activeSliderKey = sliderKey;
   quickSliderOverlay.classList.add("is-open");
   quickSliderOverlay.setAttribute("aria-hidden", "false");
@@ -2710,6 +3077,7 @@ function openQuickSlider(sliderKey) {
   qsRange.max = String(control.max);
   qsRange.step = String(control.sliderStep);
   syncQuickSliderPosition();
+  syncIterationPlayUi();
 }
 
 function onParamPointerDown(event, targetKey) {
@@ -3027,7 +3395,179 @@ function getParamPixelVertical(value, range, spanPx, fallbackPx) {
 }
 
 function shouldShowManualOverlay() {
-  return interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0 && isManualModulating;
+  const pointerDriven = interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0 && isManualModulating;
+  const keyboardDriven = keyboardModulationState.activeByKey.size > 0;
+  return pointerDriven || keyboardDriven;
+}
+
+function mapGridCellToParamValue(index, size, range, invert = false) {
+  const t = (index + 0.5) / Math.max(1, size);
+  const valueT = invert ? 1 - t : t;
+  return range[0] + (range[1] - range[0]) * valueT;
+}
+
+function buildInterestScanSignature() {
+  const { manX, manY } = getManualAxisTargets();
+  if (!manX && !manY) {
+    return null;
+  }
+
+  const axisXKey = manX || manY;
+  const axisYKey = manY || (["a", "b", "c", "d"].find((key) => key !== axisXKey) || axisXKey);
+  const axisXControl = getControlForSlider(axisXKey);
+  const axisYControl = getControlForSlider(axisYKey);
+  const axisXRange = getRangeForControl(axisXControl) || DEFAULT_PARAM_RANGES.a;
+  const axisYRange = getRangeForControl(axisYControl) || DEFAULT_PARAM_RANGES.b;
+  const params = getDerivedParams();
+  const staticParams = { ...params };
+  delete staticParams[axisXKey];
+  delete staticParams[axisYKey];
+  const seed = getSeedForFormula(currentFormulaId);
+  const gridSize = Math.round(appData.defaults.interestGridSize);
+  const scanIterations = Math.round(appData.defaults.interestScanIterations);
+  const burn = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
+  const weights = getInterestWeights();
+  const signature = JSON.stringify({
+    formulaId: currentFormulaId,
+    staticParams,
+    seed,
+    axisXKey,
+    axisYKey,
+    axisXRange,
+    axisYRange,
+    gridSize,
+    scanIterations,
+    burn,
+    weights,
+  });
+
+  return {
+    signature,
+    params,
+    seed,
+    axisXKey,
+    axisYKey,
+    axisXRange,
+    axisYRange,
+    gridSize,
+    scanIterations,
+    burn,
+    staticParams,
+    weights,
+  };
+}
+
+function maybeStartInterestScan() {
+  if (!appData?.defaults?.interestOverlayEnabled) {
+    invalidateInterestScan(true);
+    return;
+  }
+
+  const config = buildInterestScanSignature();
+  if (!config) {
+    invalidateInterestScan(true);
+    return;
+  }
+
+  if (interestOverlayState.running && interestOverlayState.signature === config.signature) {
+    return;
+  }
+  if (!interestOverlayState.running && interestOverlayState.signature === config.signature && interestOverlayState.scores) {
+    return;
+  }
+
+  invalidateInterestScan(false);
+  const scanToken = interestOverlayState.token;
+  const totalCells = config.gridSize * config.gridSize;
+  const scores = new Float32Array(totalCells);
+  interestOverlayState.running = true;
+  interestOverlayState.signature = config.signature;
+  interestOverlayState.axisXKey = config.axisXKey;
+  interestOverlayState.axisYKey = config.axisYKey;
+  interestOverlayState.gridSize = config.gridSize;
+  interestOverlayState.totalCells = totalCells;
+  interestOverlayState.scannedCells = 0;
+  interestOverlayState.scores = scores;
+  interestOverlayState.lastProgressToastAt = 0;
+  maybeShowOverlayProgressToast(true);
+
+  const processBatch = () => {
+    if (scanToken !== interestOverlayState.token) {
+      return;
+    }
+
+    const started = performance.now();
+    while (interestOverlayState.scannedCells < totalCells && (performance.now() - started) < 10) {
+      const index = interestOverlayState.scannedCells;
+      const row = Math.floor(index / config.gridSize);
+      const col = index % config.gridSize;
+      const scanParams = {
+        ...config.staticParams,
+        [config.axisXKey]: mapGridCellToParamValue(col, config.gridSize, config.axisXRange, false),
+        [config.axisYKey]: mapGridCellToParamValue(row, config.gridSize, config.axisYRange, true),
+      };
+      scores[index] = scoreOrbitInterest({
+        formulaId: currentFormulaId,
+        params: scanParams,
+        iterations: config.scanIterations,
+        burn: config.burn,
+        seed: config.seed,
+        weights: config.weights,
+      });
+      interestOverlayState.scannedCells += 1;
+    }
+
+    requestDraw();
+    maybeShowOverlayProgressToast();
+
+    if (interestOverlayState.scannedCells >= totalCells) {
+      interestOverlayState.running = false;
+      interestScanTimer = null;
+      showToast(`updating overlay ${totalCells} / ${totalCells}`);
+      return;
+    }
+    interestScanTimer = window.setTimeout(processBatch, 0);
+  };
+
+  interestScanTimer = window.setTimeout(processBatch, 0);
+}
+
+function drawInterestOverlay(meta) {
+  if (!appData?.defaults?.interestOverlayEnabled) {
+    return;
+  }
+  if (!shouldShowManualOverlay()) {
+    return;
+  }
+  const currentConfig = buildInterestScanSignature();
+  if (!currentConfig) {
+    return;
+  }
+  if (interestOverlayState.signature !== currentConfig.signature || !interestOverlayState.scores || interestOverlayState.gridSize <= 0) {
+    return;
+  }
+
+  const threshold = clamp(Number(appData.defaults.interestThreshold), 0, 1);
+  const { view } = meta;
+  const size = interestOverlayState.gridSize;
+  const cellWidth = view.width / size;
+  const cellHeight = view.height / size;
+
+  ctx.save();
+  for (let row = 0; row < size; row += 1) {
+    for (let col = 0; col < size; col += 1) {
+      const index = row * size + col;
+      const score = clamp(Number(interestOverlayState.scores[index]), 0, 1);
+      if (score < threshold) {
+        continue;
+      }
+      const shade = Math.round(255 * score);
+      const alpha = 0.12 + score * 0.32;
+      ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, ${alpha})`;
+      ctx.fillRect(col * cellWidth, row * cellHeight, cellWidth, cellHeight);
+    }
+  }
+  ctx.restore();
 }
 
 function drawManualParamOverlay(meta) {
@@ -3344,16 +3884,19 @@ function draw() {
 
   const startedAt = performance.now();
   const didResize = resizeCanvas();
-  const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const iterationSetting = getIterationValueForRender();
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const iterations = iterationSetting;
+  const liveRenderIterations = iterationAutoPlayState.active
+    ? Math.min(iterations, ITERATION_AUTOPLAY_LIVE_RENDER_CAP)
+    : iterations;
   const frameMeta = renderFrame({
     ctx,
     canvas,
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
-    iterations: didResize ? Math.max(10000, Math.round(iterations * 0.6)) : iterations,
+    iterations: didResize ? Math.max(10000, Math.round(liveRenderIterations * 0.6)) : liveRenderIterations,
     burn: burnSetting,
     scaleMode: getScaleMode(),
     fixedView,
@@ -3373,9 +3916,12 @@ function draw() {
   lastRenderMeta = {
     ...frameMeta,
     iterations,
+    liveRenderIterations,
     renderMs: now - startedAt,
   };
 
+  maybeStartInterestScan();
+  drawInterestOverlay(lastRenderMeta);
   drawDebugOverlay(lastRenderMeta);
   drawManualParamOverlay(lastRenderMeta);
   refreshParamButtons();
@@ -3489,7 +4035,7 @@ function getExportSizePx(liveCanvas) {
 function buildScreenshotOverlayLines() {
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   const params = getDerivedParams();
-  const iterValue = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const iterValue = getIterationValueForRender();
   return `${formula?.name || currentFormulaId} | ${appData.defaults.cmapName} | a ${formatNumberForUi(params.a, 4)} | b ${formatNumberForUi(params.b, 4)} | c ${formatNumberForUi(params.c, 4)} | d ${formatNumberForUi(params.d, 4)} | iter ${formatNumberForUi(iterValue, 0)}`;
 }
 
@@ -3598,38 +4144,47 @@ async function captureScreenshot(includeOverlay) {
     throw new Error("Screenshot export context unavailable.");
   }
 
-  const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const iterationSetting = getIterationValueForRender();
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const scaleMode = getScaleMode();
+  const screenshotWorkUnits = estimateScreenshotWorkUnits(pxW, pxH, iterationSetting);
+  const stopCountdownToast = startScreenshotCountdownToast(estimateScreenshotDurationMs(screenshotWorkUnits));
+  await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+  const renderStartedAt = performance.now();
 
-  renderFrame({
-    ctx: exportCtx,
-    canvas: exportCanvas,
-    formulaId: currentFormulaId,
-    cmapName: appData.defaults.cmapName,
-    params: getDerivedParams(),
-    iterations: iterationSetting,
-    burn: burnSetting,
-    scaleMode,
-    fixedView,
-    worldOverride: exportWorld,
-    seed: getSeedForFormula(currentFormulaId),
-    renderColoring: getRenderColoringOptions(),
-    backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
-  });
+  try {
+    renderFrame({
+      ctx: exportCtx,
+      canvas: exportCanvas,
+      formulaId: currentFormulaId,
+      cmapName: appData.defaults.cmapName,
+      params: getDerivedParams(),
+      iterations: iterationSetting,
+      burn: burnSetting,
+      scaleMode,
+      fixedView,
+      worldOverride: exportWorld,
+      seed: getSeedForFormula(currentFormulaId),
+      renderColoring: getRenderColoringOptions(),
+      backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
+    });
 
-  if (includeOverlay) {
-    drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height);
+    if (includeOverlay) {
+      drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height);
+    }
+
+    const blob = await new Promise((resolve) => exportCanvas.toBlob(resolve, "image/png"));
+    if (!blob) {
+      throw new Error("Screenshot export failed.");
+    }
+
+    const filename = `hopalong-${includeOverlay ? "overlay" : "clean"}-${formatScreenshotTimestamp(new Date())}.png`;
+    await saveBlobToDevice(blob, filename);
+    recordScreenshotDuration(performance.now() - renderStartedAt, screenshotWorkUnits);
+    showToast(includeOverlay ? "Saved screenshot with parameter overlay." : "Saved clean screenshot.");
+  } finally {
+    stopCountdownToast();
   }
-
-  const blob = await new Promise((resolve) => exportCanvas.toBlob(resolve, "image/png"));
-  if (!blob) {
-    throw new Error("Screenshot export failed.");
-  }
-
-  const filename = `hopalong-${includeOverlay ? "overlay" : "clean"}-${formatScreenshotTimestamp(new Date())}.png`;
-  await saveBlobToDevice(blob, filename);
-  showToast(includeOverlay ? "Saved screenshot with parameter overlay." : "Saved clean screenshot.");
 }
 
 function clearCameraPressState() {
@@ -3739,6 +4294,12 @@ function registerHandlers() {
     commitCurrentStateToHistory();
   });
 
+  qsIterPlay?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleIterationAutoPlay();
+  });
+
   setupStepHold(qsMinus, -1);
   setupStepHold(qsPlus, 1);
 
@@ -3828,6 +4389,22 @@ function registerHandlers() {
   detailDensityGammaRangeEl?.addEventListener("input", () => applyRenderColorParam("renderDensityGamma", detailDensityGammaRangeEl.value, 0.2, 2, 2));
   detailHybridBlendRangeEl?.addEventListener("input", () => applyRenderColorParam("renderHybridBlend", detailHybridBlendRangeEl.value, 0, 1, 2));
 
+  detailInterestGridSizeRangeEl?.addEventListener("input", () => applyInterestSettings("interestGridSize", detailInterestGridSizeRangeEl.value, INTEREST_GRID_MIN, INTEREST_GRID_MAX, 0));
+  detailInterestThresholdRangeEl?.addEventListener("input", () => applyInterestSettings("interestThreshold", detailInterestThresholdRangeEl.value, 0, 1, 2));
+  detailInterestScanIterationsRangeEl?.addEventListener("input", () => applyInterestSettings("interestScanIterations", detailInterestScanIterationsRangeEl.value, INTEREST_SCAN_MIN, INTEREST_SCAN_MAX, 0));
+  detailInterestWeightCoverageRangeEl?.addEventListener("input", () => applyInterestSettings("interestWeightCoverage", detailInterestWeightCoverageRangeEl.value, 0, 2, 2));
+  detailInterestWeightComplexityRangeEl?.addEventListener("input", () => applyInterestSettings("interestWeightComplexity", detailInterestWeightComplexityRangeEl.value, 0, 2, 2));
+  detailInterestWeightBoundednessRangeEl?.addEventListener("input", () => applyInterestSettings("interestWeightBoundedness", detailInterestWeightBoundednessRangeEl.value, 0, 2, 2));
+  detailInterestWeightLinePenaltyRangeEl?.addEventListener("input", () => applyInterestSettings("interestWeightLinePenalty", detailInterestWeightLinePenaltyRangeEl.value, 0, 2, 2));
+  detailInterestOverlayToggleEl?.addEventListener("change", () => {
+    appData.defaults.interestOverlayEnabled = Boolean(detailInterestOverlayToggleEl.checked);
+    if (!appData.defaults.interestOverlayEnabled) {
+      invalidateInterestScan(true);
+    }
+    saveDefaultsToStorage();
+    requestDraw();
+  });
+
   detailBackgroundColorEl?.addEventListener("input", (event) => {
     appData.defaults.backgroundColor = event.target.value;
     detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor;
@@ -3893,6 +4470,15 @@ function registerHandlers() {
   canvas.addEventListener("pointercancel", onCanvasPointerUp, { passive: false });
   canvas.addEventListener("wheel", onCanvasWheel, { passive: false });
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+
+  window.addEventListener("keydown", handleKeyboardModulationKeyDown, { passive: false });
+  window.addEventListener("keyup", handleKeyboardModulationKeyUp, { passive: true });
+  window.addEventListener("blur", clearKeyboardModulationState, { passive: true });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") {
+      clearKeyboardModulationState();
+    }
+  }, { passive: true });
 
   window.addEventListener("pointerdown", (event) => {
     if (isEventInsideInteractiveUi(event.target)) {
@@ -4004,14 +4590,45 @@ async function loadData() {
   if (typeof data.defaults.overlayAlpha !== "number") {
     data.defaults.overlayAlpha = 0.9;
   }
+  if (typeof data.defaults.interestOverlayEnabled !== "boolean") {
+    data.defaults.interestOverlayEnabled = false;
+  }
+  if (typeof data.defaults.interestGridSize !== "number") {
+    data.defaults.interestGridSize = 24;
+  }
+  if (typeof data.defaults.interestThreshold !== "number") {
+    data.defaults.interestThreshold = 0.5;
+  }
+  if (typeof data.defaults.interestScanIterations !== "number") {
+    data.defaults.interestScanIterations = 1200;
+  }
+  if (typeof data.defaults.interestWeightCoverage !== "number") {
+    data.defaults.interestWeightCoverage = 0.35;
+  }
+  if (typeof data.defaults.interestWeightComplexity !== "number") {
+    data.defaults.interestWeightComplexity = 0.35;
+  }
+  if (typeof data.defaults.interestWeightBoundedness !== "number") {
+    data.defaults.interestWeightBoundedness = 0.3;
+  }
+  if (typeof data.defaults.interestWeightLinePenalty !== "number") {
+    data.defaults.interestWeightLinePenalty = 0.35;
+  }
 
-  data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
+  data.defaults.sliders.iters = getIterationValueForRender(data.defaults.sliders.iters);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
   data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   data.defaults.renderLogStrength = clamp(data.defaults.renderLogStrength, 0.5, 30);
   data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
   data.defaults.renderHybridBlend = clamp(data.defaults.renderHybridBlend, 0, 1);
   data.defaults.overlayAlpha = clamp(data.defaults.overlayAlpha, 0.1, 1);
+  data.defaults.interestGridSize = Math.round(clamp(data.defaults.interestGridSize, INTEREST_GRID_MIN, INTEREST_GRID_MAX));
+  data.defaults.interestThreshold = clamp(data.defaults.interestThreshold, 0, 1);
+  data.defaults.interestScanIterations = Math.round(clamp(data.defaults.interestScanIterations, INTEREST_SCAN_MIN, INTEREST_SCAN_MAX));
+  data.defaults.interestWeightCoverage = clamp(data.defaults.interestWeightCoverage, 0, 2);
+  data.defaults.interestWeightComplexity = clamp(data.defaults.interestWeightComplexity, 0, 2);
+  data.defaults.interestWeightBoundedness = clamp(data.defaults.interestWeightBoundedness, 0, 2);
+  data.defaults.interestWeightLinePenalty = clamp(data.defaults.interestWeightLinePenalty, 0, 2);
 
   if (data.defaults.scaleMode !== "fixed") {
     data.defaults.scaleMode = "auto";
@@ -4054,6 +4671,14 @@ async function bootstrap() {
     appData.defaults.backgroundColor = typeof appData.defaults.backgroundColor === "string" ? appData.defaults.backgroundColor : "#05070c";
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
     appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.9), 0.1, 1);
+    appData.defaults.interestOverlayEnabled = Boolean(appData.defaults.interestOverlayEnabled);
+    appData.defaults.interestGridSize = Math.round(clamp(Number(appData.defaults.interestGridSize ?? 24), INTEREST_GRID_MIN, INTEREST_GRID_MAX));
+    appData.defaults.interestThreshold = clamp(Number(appData.defaults.interestThreshold ?? 0.5), 0, 1);
+    appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? 1200), INTEREST_SCAN_MIN, INTEREST_SCAN_MAX));
+    appData.defaults.interestWeightCoverage = clamp(Number(appData.defaults.interestWeightCoverage ?? 0.35), 0, 2);
+    appData.defaults.interestWeightComplexity = clamp(Number(appData.defaults.interestWeightComplexity ?? 0.35), 0, 2);
+    appData.defaults.interestWeightBoundedness = clamp(Number(appData.defaults.interestWeightBoundedness ?? 0.3), 0, 2);
+    appData.defaults.interestWeightLinePenalty = clamp(Number(appData.defaults.interestWeightLinePenalty ?? 0.35), 0, 2);
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
     applyBackgroundTheme();
     applyDialogTransparency();
