@@ -40,6 +40,14 @@ const detailBurnRangeEl = document.getElementById("detailBurnRange");
 const detailBurnFormattedEl = document.getElementById("detailBurnFormatted");
 const detailOverlayAlphaRangeEl = document.getElementById("detailOverlayAlphaRange");
 const detailOverlayAlphaFormattedEl = document.getElementById("detailOverlayAlphaFormatted");
+const holdSpeedRangeEl = document.getElementById("holdSpeedRange");
+const holdSpeedValueEl = document.getElementById("holdSpeedValue");
+const holdRepeatMsRangeEl = document.getElementById("holdRepeatMsRange");
+const holdRepeatMsValueEl = document.getElementById("holdRepeatMsValue");
+const holdAccelStartMsRangeEl = document.getElementById("holdAccelStartMsRange");
+const holdAccelStartMsValueEl = document.getElementById("holdAccelStartMsValue");
+const holdAccelEndMsRangeEl = document.getElementById("holdAccelEndMsRange");
+const holdAccelEndMsValueEl = document.getElementById("holdAccelEndMsValue");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const detailColorModeSelectEl = document.getElementById("detailColorModeSelect");
 const detailLogStrengthRangeEl = document.getElementById("detailLogStrengthRange");
@@ -107,7 +115,7 @@ const sliderControls = {
   b: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   c: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   d: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
-  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 10000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
+  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 100000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
   burn: { button: null, label: "Burn", paramKey: "burn", min: 0, max: 5000, sliderStep: 1, stepSize: 1, displayDp: 0 },
 };
 
@@ -143,13 +151,23 @@ let fpsEstimate = 0;
 let drawScheduled = false;
 let drawDirty = false;
 let toastTimer = null;
+let renderProgressHideTimer = null;
+let renderProgressVisible = false;
 let lastComputedUiMetrics = { fontSize: null, tileSize: null };
 let lastSizingViewport = { width: 0, height: 0 };
 
-const HOLD_REPEAT_MS = 70;
-const HOLD_ACCEL_START_MS = 2000;
-const HOLD_ACCEL_END_MS = 3000;
-const HOLD_MAX_MULTIPLIER = 10;
+const HOLD_REPEAT_MS_DEFAULT = 60;
+const HOLD_REPEAT_MS_MIN = 20;
+const HOLD_REPEAT_MS_MAX = 300;
+const HOLD_ACCEL_START_MS_DEFAULT = 350;
+const HOLD_ACCEL_START_MS_MIN = 0;
+const HOLD_ACCEL_START_MS_MAX = 5000;
+const HOLD_ACCEL_END_MS_DEFAULT = 1400;
+const HOLD_ACCEL_END_MS_MIN = 100;
+const HOLD_ACCEL_END_MS_MAX = 8000;
+const HOLD_MAX_MULTIPLIER = 30;
+const HOLD_SPEED_SCALE_MIN = 0.25;
+const HOLD_SPEED_SCALE_MAX = 50;
 const NAME_MAX_CHARS = 20;
 const CAMERA_LONG_PRESS_MS = 550;
 const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
@@ -184,6 +202,8 @@ let paramModes = {};
 let lastParamTap = { targetKey: null, timestamp: 0 };
 let pendingTileTapTimer = null;
 let randomAllNextMode = "rand";
+let keyHold = { code: null, axis: null, direction: 0, sliderKey: null, interval: null, startMs: 0 };
+let isKeyboardManualModulating = false;
 const paramPressState = {
   pointerId: null,
   targetKey: null,
@@ -291,6 +311,9 @@ function showToast(message) {
     return;
   }
 
+  renderProgressVisible = false;
+  window.clearTimeout(renderProgressHideTimer);
+  renderProgressHideTimer = null;
   window.clearTimeout(toastTimer);
   toastEl.textContent = message;
   toastEl.classList.add("is-visible");
@@ -298,6 +321,36 @@ function showToast(message) {
   toastTimer = window.setTimeout(() => {
     toastEl.classList.remove("is-visible");
   }, 5000);
+}
+
+function hideRenderProgressToast() {
+  if (!toastEl) {
+    return;
+  }
+
+  renderProgressVisible = false;
+  window.clearTimeout(renderProgressHideTimer);
+  renderProgressHideTimer = null;
+  toastEl.classList.remove("is-visible");
+}
+
+function updateRenderProgressToast(percent, isComplete = false) {
+  if (!toastEl) {
+    return;
+  }
+
+  const normalizedPercent = Math.max(0, Math.min(100, Math.round(percent / 5) * 5));
+  window.clearTimeout(renderProgressHideTimer);
+  renderProgressHideTimer = null;
+  toastEl.textContent = `Rendering iterations: ${normalizedPercent}%`;
+  toastEl.classList.add("is-visible");
+  renderProgressVisible = true;
+
+  if (isComplete) {
+    renderProgressHideTimer = window.setTimeout(() => {
+      hideRenderProgressToast();
+    }, 2000);
+  }
 }
 
 function installGlobalZoomBlockers() {
@@ -1119,6 +1172,27 @@ function closeFormulaSettingsPanel() {
   formulaSettingsPanelEl?.classList.add("is-hidden");
 }
 
+
+function getHoldTimingSettings() {
+  const holdRepeatMs = Math.round(clamp(Number(appData?.defaults?.holdRepeatMs ?? HOLD_REPEAT_MS_DEFAULT), HOLD_REPEAT_MS_MIN, HOLD_REPEAT_MS_MAX));
+  const holdAccelStartMs = Math.round(clamp(Number(appData?.defaults?.holdAccelStartMs ?? HOLD_ACCEL_START_MS_DEFAULT), HOLD_ACCEL_START_MS_MIN, HOLD_ACCEL_START_MS_MAX));
+  const holdAccelEndMs = Math.round(clamp(Number(appData?.defaults?.holdAccelEndMs ?? HOLD_ACCEL_END_MS_DEFAULT), HOLD_ACCEL_END_MS_MIN, HOLD_ACCEL_END_MS_MAX));
+  const normalizedAccelEndMs = Math.max(holdAccelStartMs + 1, holdAccelEndMs);
+
+  return { holdRepeatMs, holdAccelStartMs, holdAccelEndMs: normalizedAccelEndMs };
+}
+
+function normalizeHoldTimingDefaults() {
+  if (!appData?.defaults) {
+    return;
+  }
+
+  const { holdRepeatMs, holdAccelStartMs, holdAccelEndMs } = getHoldTimingSettings();
+  appData.defaults.holdRepeatMs = holdRepeatMs;
+  appData.defaults.holdAccelStartMs = holdAccelStartMs;
+  appData.defaults.holdAccelEndMs = holdAccelEndMs;
+}
+
 function setSettingsTab(tabKey) {
   const showColor = tabKey !== "general";
   settingsTabColorEl?.classList.toggle("is-active", showColor);
@@ -1137,6 +1211,16 @@ function syncDetailedSettingsControls() {
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
   if (detailOverlayAlphaRangeEl) detailOverlayAlphaRangeEl.value = String(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1));
   if (detailOverlayAlphaFormattedEl) detailOverlayAlphaFormattedEl.textContent = formatNumberForUi(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1), 2);
+  const holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  const { holdRepeatMs, holdAccelStartMs, holdAccelEndMs } = getHoldTimingSettings();
+  if (holdSpeedRangeEl) holdSpeedRangeEl.value = String(holdSpeedScale);
+  if (holdSpeedValueEl) holdSpeedValueEl.textContent = `Hold speed: ${holdSpeedScale.toFixed(2)}×`;
+  if (holdRepeatMsRangeEl) holdRepeatMsRangeEl.value = String(holdRepeatMs);
+  if (holdRepeatMsValueEl) holdRepeatMsValueEl.textContent = `Repeat interval: ${holdRepeatMs} ms`;
+  if (holdAccelStartMsRangeEl) holdAccelStartMsRangeEl.value = String(holdAccelStartMs);
+  if (holdAccelStartMsValueEl) holdAccelStartMsValueEl.textContent = `Accel start: ${holdAccelStartMs} ms`;
+  if (holdAccelEndMsRangeEl) holdAccelEndMsRangeEl.value = String(holdAccelEndMs);
+  if (holdAccelEndMsValueEl) holdAccelEndMsValueEl.textContent = `Accel end: ${holdAccelEndMs} ms`;
   if (detailColorModeSelectEl) detailColorModeSelectEl.value = appData.defaults.renderColorMode;
   if (detailLogStrengthRangeEl) detailLogStrengthRangeEl.value = String(appData.defaults.renderLogStrength);
   if (detailLogStrengthFormattedEl) detailLogStrengthFormattedEl.textContent = formatNumberForUi(appData.defaults.renderLogStrength, 1);
@@ -1146,6 +1230,33 @@ function syncDetailedSettingsControls() {
   if (detailHybridBlendFormattedEl) detailHybridBlendFormattedEl.textContent = formatNumberForUi(appData.defaults.renderHybridBlend, 2);
   if (detailBackgroundColorEl) detailBackgroundColorEl.value = appData.defaults.backgroundColor || "#05070c";
   if (detailBackgroundColorValueEl) detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor || "#05070c";
+}
+
+function applyHoldSpeedScale(nextValue) {
+  appData.defaults.holdSpeedScale = clamp(Number(nextValue), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  commitCurrentStateToHistory();
+}
+
+function applyHoldTimingSetting(key, nextValue) {
+  if (!appData?.defaults) {
+    return;
+  }
+
+  const numeric = Math.round(Number(nextValue));
+  if (key === "holdRepeatMs") {
+    appData.defaults.holdRepeatMs = clamp(numeric, HOLD_REPEAT_MS_MIN, HOLD_REPEAT_MS_MAX);
+  } else if (key === "holdAccelStartMs") {
+    appData.defaults.holdAccelStartMs = clamp(numeric, HOLD_ACCEL_START_MS_MIN, HOLD_ACCEL_START_MS_MAX);
+  } else if (key === "holdAccelEndMs") {
+    appData.defaults.holdAccelEndMs = clamp(numeric, HOLD_ACCEL_END_MS_MIN, HOLD_ACCEL_END_MS_MAX);
+  }
+
+  normalizeHoldTimingDefaults();
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  commitCurrentStateToHistory();
 }
 
 function applyDetailedSliderValue(sliderKey, nextValue) {
@@ -1747,6 +1858,10 @@ function captureCurrentState() {
     renderDensityGamma: appData.defaults.renderDensityGamma,
     renderHybridBlend: appData.defaults.renderHybridBlend,
     overlayAlpha: appData.defaults.overlayAlpha,
+    holdSpeedScale: appData.defaults.holdSpeedScale,
+    holdRepeatMs: appData.defaults.holdRepeatMs,
+    holdAccelStartMs: appData.defaults.holdAccelStartMs,
+    holdAccelEndMs: appData.defaults.holdAccelEndMs,
     backgroundColor: appData.defaults.backgroundColor,
     colorMapStopOverrides: JSON.parse(JSON.stringify(appData.defaults.colorMapStopOverrides || {})),
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
@@ -1808,6 +1923,11 @@ function applyState(state) {
   appData.defaults.renderDensityGamma = clamp(Number(state.renderDensityGamma ?? appData.defaults.renderDensityGamma), 0.2, 2);
   appData.defaults.renderHybridBlend = clamp(Number(state.renderHybridBlend ?? appData.defaults.renderHybridBlend), 0, 1);
   appData.defaults.overlayAlpha = clamp(Number(state.overlayAlpha ?? appData.defaults.overlayAlpha), 0.1, 1);
+  appData.defaults.holdSpeedScale = clamp(Number(state.holdSpeedScale ?? appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  appData.defaults.holdRepeatMs = Math.round(Number(state.holdRepeatMs ?? appData.defaults.holdRepeatMs ?? HOLD_REPEAT_MS_DEFAULT));
+  appData.defaults.holdAccelStartMs = Math.round(Number(state.holdAccelStartMs ?? appData.defaults.holdAccelStartMs ?? HOLD_ACCEL_START_MS_DEFAULT));
+  appData.defaults.holdAccelEndMs = Math.round(Number(state.holdAccelEndMs ?? appData.defaults.holdAccelEndMs ?? HOLD_ACCEL_END_MS_DEFAULT));
+  normalizeHoldTimingDefaults();
   appData.defaults.backgroundColor = state.backgroundColor || appData.defaults.backgroundColor;
   appData.defaults.colorMapStopOverrides = JSON.parse(JSON.stringify(state.colorMapStopOverrides || appData.defaults.colorMapStopOverrides || {}));
   setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
@@ -1832,6 +1952,7 @@ function applyState(state) {
   }
   syncSeedEditorInputs(currentFormulaId);
   syncQuickSliderPosition();
+  syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
   isApplyingHistoryState = false;
@@ -1992,7 +2113,7 @@ function syncQuickSliderPosition() {
     return;
   }
 
-  qsRange.value = String(appData.defaults.sliders[activeSliderKey]);
+  qsRange.value = String(getQuickSliderRangeValueFromSliderValue(activeSliderKey, appData.defaults.sliders[activeSliderKey]));
   updateQuickSliderReadout();
 }
 
@@ -2664,6 +2785,34 @@ function openPicker(kind, triggerEl) {
   layoutPickerPanel();
 }
 
+function getQuickSliderRangeValueFromSliderValue(sliderKey, sliderValue) {
+  if (sliderKey !== "iters") {
+    return sliderValue;
+  }
+
+  const min = sliderControls.iters.min;
+  const max = sliderControls.iters.max;
+  const safeValue = clamp(Number(sliderValue), min, max);
+  const logMin = Math.log10(min);
+  const logMax = Math.log10(max);
+  const position = ((Math.log10(safeValue) - logMin) / (logMax - logMin)) * 1000;
+  return clamp(position, 0, 1000);
+}
+
+function getSliderValueFromQuickSliderRangeValue(sliderKey, rangeValue) {
+  if (sliderKey !== "iters") {
+    return rangeValue;
+  }
+
+  const min = sliderControls.iters.min;
+  const max = sliderControls.iters.max;
+  const logMin = Math.log10(min);
+  const logMax = Math.log10(max);
+  const normalized = clamp(Number(rangeValue), 0, 1000) / 1000;
+  const actual = 10 ** (logMin + normalized * (logMax - logMin));
+  return Math.round(clamp(actual, min, max));
+}
+
 function updateQuickSliderReadout() {
   if (!activeSliderKey) {
     return;
@@ -2686,7 +2835,7 @@ function applySliderValue(nextValue, { commitHistory = true } = {}) {
   }
   appData.defaults.sliders[activeSliderKey] = value;
   saveDefaultsToStorage();
-  qsRange.value = value;
+  qsRange.value = String(getQuickSliderRangeValueFromSliderValue(activeSliderKey, value));
   updateQuickSliderReadout();
   requestDraw();
   if (commitHistory) {
@@ -2706,9 +2855,15 @@ function openQuickSlider(sliderKey) {
   alignQuickSliderAboveBottomBar();
 
   const control = sliderControls[sliderKey];
-  qsRange.min = String(control.min);
-  qsRange.max = String(control.max);
-  qsRange.step = String(control.sliderStep);
+  if (sliderKey === "iters") {
+    qsRange.min = "0";
+    qsRange.max = "1000";
+    qsRange.step = "1";
+  } else {
+    qsRange.min = String(control.min);
+    qsRange.max = String(control.max);
+    qsRange.step = String(control.sliderStep);
+  }
   syncQuickSliderPosition();
 }
 
@@ -2849,6 +3004,68 @@ function clearStepHold() {
   }
 }
 
+function isTextEntryTarget(el) {
+  if (!el || !(el instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(el.closest("input, textarea, select, [contenteditable='true']"));
+}
+
+function getHoldSpeedScale() {
+  return clamp(Number(appData?.defaults?.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+}
+
+function stepSliderKey(sliderKey, direction, stepSize) {
+  const control = sliderControls[sliderKey];
+  if (!control) {
+    return;
+  }
+
+  appData.defaults.sliders[sliderKey] = clamp(
+    appData.defaults.sliders[sliderKey] + direction * stepSize,
+    control.min,
+    control.max,
+  );
+
+  if (activeSliderKey === sliderKey) {
+    syncQuickSliderPosition();
+  }
+
+  requestDraw();
+}
+
+function stepSliderKeySingle(sliderKey, direction) {
+  const control = sliderControls[sliderKey];
+  if (!control) {
+    return;
+  }
+
+  stepSliderKey(sliderKey, direction, control.stepSize);
+}
+
+function getHoldStepSizeForKey(sliderKey, holdElapsedMs) {
+  const control = sliderControls[sliderKey];
+  if (!control) {
+    return 0;
+  }
+
+  const baseStep = control.stepSize;
+  const holdSpeedScale = getHoldSpeedScale();
+  const { holdAccelStartMs, holdAccelEndMs } = getHoldTimingSettings();
+  if (holdElapsedMs < holdAccelStartMs) {
+    return baseStep * holdSpeedScale;
+  }
+
+  if (holdElapsedMs >= holdAccelEndMs) {
+    return baseStep * HOLD_MAX_MULTIPLIER * holdSpeedScale;
+  }
+
+  const accelProgress = (holdElapsedMs - holdAccelStartMs) / (holdAccelEndMs - holdAccelStartMs);
+  const growth = Math.pow(HOLD_MAX_MULTIPLIER, accelProgress);
+  return baseStep * growth * holdSpeedScale;
+}
+
 function stepActiveSlider(direction) {
   if (!activeSliderKey) {
     return;
@@ -2863,18 +3080,7 @@ function getHoldStepSize(holdElapsedMs) {
     return 0;
   }
 
-  const baseStep = sliderControls[activeSliderKey].stepSize;
-  if (holdElapsedMs < HOLD_ACCEL_START_MS) {
-    return baseStep;
-  }
-
-  if (holdElapsedMs >= HOLD_ACCEL_END_MS) {
-    return baseStep * HOLD_MAX_MULTIPLIER;
-  }
-
-  const accelProgress = (holdElapsedMs - HOLD_ACCEL_START_MS) / (HOLD_ACCEL_END_MS - HOLD_ACCEL_START_MS);
-  const growth = Math.pow(HOLD_MAX_MULTIPLIER, accelProgress);
-  return baseStep * growth;
+  return getHoldStepSizeForKey(activeSliderKey, holdElapsedMs);
 }
 
 function stepActiveSliderBy(direction, stepSize) {
@@ -2894,11 +3100,12 @@ function setupStepHold(button, direction) {
     const holdStartMs = performance.now();
     stepActiveSlider(direction);
 
+    const { holdRepeatMs } = getHoldTimingSettings();
     holdInterval = window.setInterval(() => {
       const holdElapsedMs = performance.now() - holdStartMs;
       const holdStepSize = getHoldStepSize(holdElapsedMs);
       stepActiveSliderBy(direction, holdStepSize);
-    }, HOLD_REPEAT_MS);
+    }, holdRepeatMs);
   };
 
   const stopHold = () => {
@@ -2920,6 +3127,84 @@ function setupStepHold(button, direction) {
   }
 
   button.addEventListener("contextmenu", (event) => event.preventDefault());
+}
+
+function getArrowMapping(code) {
+  if (code === "ArrowLeft") return { axis: "manX", direction: -1 };
+  if (code === "ArrowRight") return { axis: "manX", direction: 1 };
+  if (code === "ArrowDown") return { axis: "manY", direction: -1 };
+  if (code === "ArrowUp") return { axis: "manY", direction: 1 };
+  return null;
+}
+
+function stopKeyboardHold() {
+  if (keyHold.interval) {
+    window.clearInterval(keyHold.interval);
+  }
+  keyHold = { code: null, axis: null, direction: 0, sliderKey: null, interval: null, startMs: 0 };
+  isKeyboardManualModulating = false;
+  requestDraw();
+}
+
+function showKeyboardStepToast(sliderKey, direction, stepSize) {
+  const signLabel = direction > 0 ? "+" : "−";
+  const baseStep = sliderControls[sliderKey]?.stepSize || 1;
+  const speedLabel = (stepSize / baseStep).toFixed(2);
+  showToast(`${sliderKey} ${signLabel} (${speedLabel}× speed)`);
+}
+
+function onKeyboardArrowDown(event) {
+  const mapping = getArrowMapping(event.code);
+  if (!mapping) {
+    return;
+  }
+
+  if (isTextEntryTarget(event.target) || isTextEntryTarget(document.activeElement)) {
+    return;
+  }
+
+  if (event.repeat && keyHold.code === event.code) {
+    event.preventDefault();
+    return;
+  }
+
+  const { manX, manY } = getManualAxisTargets();
+  const targetSliderKey = mapping.axis === "manX" ? manX : manY;
+  if (!targetSliderKey) {
+    return;
+  }
+
+  event.preventDefault();
+  const baseStep = sliderControls[targetSliderKey].stepSize;
+  stepSliderKeySingle(targetSliderKey, mapping.direction);
+  showKeyboardStepToast(targetSliderKey, mapping.direction, baseStep);
+
+  stopKeyboardHold();
+  isKeyboardManualModulating = true;
+  requestDraw();
+  const { holdRepeatMs } = getHoldTimingSettings();
+  const startMs = performance.now();
+  keyHold = {
+    code: event.code,
+    axis: mapping.axis,
+    direction: mapping.direction,
+    sliderKey: targetSliderKey,
+    startMs,
+    interval: window.setInterval(() => {
+      const holdElapsedMs = performance.now() - startMs;
+      const stepSize = getHoldStepSizeForKey(targetSliderKey, holdElapsedMs);
+      stepSliderKey(targetSliderKey, mapping.direction, stepSize);
+      showKeyboardStepToast(targetSliderKey, mapping.direction, stepSize);
+    }, holdRepeatMs),
+  };
+}
+
+function onKeyboardArrowUp(event) {
+  if (event.code !== keyHold.code) {
+    return;
+  }
+
+  stopKeyboardHold();
 }
 
 function axisScreenPosition(worldMin, worldMax, spanPx) {
@@ -3027,7 +3312,8 @@ function getParamPixelVertical(value, range, spanPx, fallbackPx) {
 }
 
 function shouldShowManualOverlay() {
-  return interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0 && isManualModulating;
+  const pointerModulating = interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0 && isManualModulating;
+  return pointerModulating || isKeyboardManualModulating;
 }
 
 function drawManualParamOverlay(meta) {
@@ -3360,7 +3646,11 @@ function draw() {
     seed: getSeedForFormula(currentFormulaId),
     renderColoring: getRenderColoringOptions(),
     backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
+    onProgress: (percent, isComplete) => {
+      updateRenderProgressToast(percent, isComplete);
+    },
   });
+
 
   const now = performance.now();
   const delta = lastDrawTimestamp > 0 ? now - lastDrawTimestamp : 0;
@@ -3618,6 +3908,7 @@ async function captureScreenshot(includeOverlay) {
     backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
   });
 
+
   if (includeOverlay) {
     drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height);
   }
@@ -3733,7 +4024,9 @@ function registerHandlers() {
   });
 
   qsRange.addEventListener("input", () => {
-    applySliderValue(Number.parseFloat(qsRange.value), { commitHistory: false });
+    const rawValue = Number.parseFloat(qsRange.value);
+    const mappedValue = getSliderValueFromQuickSliderRangeValue(activeSliderKey, rawValue);
+    applySliderValue(mappedValue, { commitHistory: false });
   });
   qsRange.addEventListener("change", () => {
     commitCurrentStateToHistory();
@@ -3815,6 +4108,10 @@ function registerHandlers() {
   detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
   detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
   detailOverlayAlphaRangeEl?.addEventListener("input", () => applyOverlayTransparency(detailOverlayAlphaRangeEl.value));
+  holdSpeedRangeEl?.addEventListener("input", () => applyHoldSpeedScale(holdSpeedRangeEl.value));
+  holdRepeatMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdRepeatMs", holdRepeatMsRangeEl.value));
+  holdAccelStartMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdAccelStartMs", holdAccelStartMsRangeEl.value));
+  holdAccelEndMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdAccelEndMs", holdAccelEndMsRangeEl.value));
 
   detailDebugToggleEl?.addEventListener("change", () => {
     appData.defaults.debug = Boolean(detailDebugToggleEl.checked);
@@ -3925,6 +4222,9 @@ function registerHandlers() {
       historyTapTracker = null;
     }
   });
+  window.addEventListener("keydown", onKeyboardArrowDown, { passive: false });
+  window.addEventListener("keyup", onKeyboardArrowUp, { passive: true });
+  window.addEventListener("blur", stopKeyboardHold, { passive: true });
 
   window.addEventListener(
     "resize",
@@ -4004,6 +4304,18 @@ async function loadData() {
   if (typeof data.defaults.overlayAlpha !== "number") {
     data.defaults.overlayAlpha = 0.9;
   }
+  if (typeof data.defaults.holdSpeedScale !== "number") {
+    data.defaults.holdSpeedScale = 1;
+  }
+  if (typeof data.defaults.holdRepeatMs !== "number") {
+    data.defaults.holdRepeatMs = HOLD_REPEAT_MS_DEFAULT;
+  }
+  if (typeof data.defaults.holdAccelStartMs !== "number") {
+    data.defaults.holdAccelStartMs = HOLD_ACCEL_START_MS_DEFAULT;
+  }
+  if (typeof data.defaults.holdAccelEndMs !== "number") {
+    data.defaults.holdAccelEndMs = HOLD_ACCEL_END_MS_DEFAULT;
+  }
 
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
@@ -4012,6 +4324,13 @@ async function loadData() {
   data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
   data.defaults.renderHybridBlend = clamp(data.defaults.renderHybridBlend, 0, 1);
   data.defaults.overlayAlpha = clamp(data.defaults.overlayAlpha, 0.1, 1);
+  data.defaults.holdSpeedScale = clamp(data.defaults.holdSpeedScale, HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  data.defaults.holdRepeatMs = Math.round(clamp(data.defaults.holdRepeatMs, HOLD_REPEAT_MS_MIN, HOLD_REPEAT_MS_MAX));
+  data.defaults.holdAccelStartMs = Math.round(clamp(data.defaults.holdAccelStartMs, HOLD_ACCEL_START_MS_MIN, HOLD_ACCEL_START_MS_MAX));
+  data.defaults.holdAccelEndMs = Math.round(clamp(data.defaults.holdAccelEndMs, HOLD_ACCEL_END_MS_MIN, HOLD_ACCEL_END_MS_MAX));
+  if (data.defaults.holdAccelEndMs <= data.defaults.holdAccelStartMs) {
+    data.defaults.holdAccelEndMs = data.defaults.holdAccelStartMs + 1;
+  }
 
   if (data.defaults.scaleMode !== "fixed") {
     data.defaults.scaleMode = "auto";
@@ -4054,6 +4373,8 @@ async function bootstrap() {
     appData.defaults.backgroundColor = typeof appData.defaults.backgroundColor === "string" ? appData.defaults.backgroundColor : "#05070c";
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
     appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.9), 0.1, 1);
+    appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+    normalizeHoldTimingDefaults();
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
     applyBackgroundTheme();
     applyDialogTransparency();

@@ -15,12 +15,16 @@
     "debug controls whether the debug axis/tick/info overlay is shown."
   ],
   "debug": false,
-  "maxRandomIters": 10000000,
+  "maxRandomIters": 100000000,
   "renderColorMode": "iteration_order",
   "renderLogStrength": 9,
   "renderDensityGamma": 0.6,
   "renderHybridBlend": 0.3,
   "backgroundColor": "#05070c",
   "colorMapStopOverrides": {},
-  "overlayAlpha": 0.9
+  "overlayAlpha": 0.9,
+  "holdSpeedScale": 1.0,
+  "holdRepeatMs": 60,
+  "holdAccelStartMs": 350,
+  "holdAccelEndMs": 1400
 }

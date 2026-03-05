@@ -73,7 +73,7 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {}, backgroundColor = [5, 7, 12] }) {
+export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {}, backgroundColor = [5, 7, 12], onProgress = null }) {
   const step = formulaStepById.get(formulaId);
   if (!step) {
     throw new Error(`Unknown formula id: ${formulaId}`);
@@ -95,6 +95,35 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   const logStrength = Number(renderColoring?.logStrength) || 9;
   const densityGamma = Number(renderColoring?.densityGamma) || 0.6;
   const hybridBlend = clamp01(Number(renderColoring?.hybridBlend) || 0.3);
+
+  const startedAt = performance.now();
+  let progressActive = false;
+  let nextProgressPercent = 5;
+  const maybeEmitProgress = (fraction, forceComplete = false) => {
+    if (typeof onProgress !== "function") {
+      return;
+    }
+
+    const elapsedMs = performance.now() - startedAt;
+    if (!progressActive && elapsedMs >= 3000) {
+      progressActive = true;
+    }
+
+    if (!progressActive) {
+      return;
+    }
+
+    if (forceComplete) {
+      onProgress(100, true);
+      return;
+    }
+
+    const percent = Math.max(0, Math.min(100, Math.floor(fraction * 100)));
+    while (nextProgressPercent <= percent) {
+      onProgress(nextProgressPercent, false);
+      nextProgressPercent += 5;
+    }
+  };
 
   let x = Number(seed?.x);
   let y = Number(seed?.y);
@@ -119,6 +148,9 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   let maxY = Number.NEGATIVE_INFINITY;
 
   for (let i = 0; i < iterations; i += 1) {
+    if (i % 2048 === 0) {
+      maybeEmitProgress((i / Math.max(1, iterations)) * 0.7);
+    }
     [x, y] = step(x, y, params.a, params.b, params.c, params.d);
     if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
       break;
@@ -135,6 +167,7 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   }
 
   if (sampleCount === 0) {
+    maybeEmitProgress(1, true);
     ctx.putImageData(image, 0, 0);
     return {
       world: {
@@ -220,6 +253,9 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
 
   if (renderMode === "iteration_order") {
     for (let i = 0; i < sampleCount; i += 1) {
+      if (i % 2048 === 0) {
+        maybeEmitProgress(0.7 + (i / Math.max(1, sampleCount)) * 0.3);
+      }
       const px = Math.round(((xs[i] - worldMinX) / worldSpanX) * (width - 1));
       const py = Math.round(((ys[i] - worldMinY) / worldSpanY) * (height - 1));
 
@@ -242,6 +278,9 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     let maxHits = 0;
 
     for (let i = 0; i < sampleCount; i += 1) {
+      if (i % 2048 === 0) {
+        maybeEmitProgress(0.7 + (i / Math.max(1, sampleCount)) * 0.15);
+      }
       const px = Math.round(((xs[i] - worldMinX) / worldSpanX) * (width - 1));
       const py = Math.round(((ys[i] - worldMinY) / worldSpanY) * (height - 1));
 
@@ -280,6 +319,9 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     }
 
     for (let pixelIndex = 0; pixelIndex < hitCounts.length; pixelIndex += 1) {
+      if (pixelIndex % 4096 === 0) {
+        maybeEmitProgress(0.85 + (pixelIndex / Math.max(1, hitCounts.length)) * 0.15);
+      }
       const hits = hitCounts[pixelIndex];
       if (hits <= 0) {
         continue;
@@ -312,6 +354,7 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     }
   }
 
+  maybeEmitProgress(1, true);
   ctx.putImageData(image, 0, 0);
 
   return {
