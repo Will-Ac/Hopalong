@@ -40,6 +40,8 @@ const detailBurnRangeEl = document.getElementById("detailBurnRange");
 const detailBurnFormattedEl = document.getElementById("detailBurnFormatted");
 const detailOverlayAlphaRangeEl = document.getElementById("detailOverlayAlphaRange");
 const detailOverlayAlphaFormattedEl = document.getElementById("detailOverlayAlphaFormatted");
+const holdSpeedRangeEl = document.getElementById("holdSpeedRange");
+const holdSpeedValueEl = document.getElementById("holdSpeedValue");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const detailColorModeSelectEl = document.getElementById("detailColorModeSelect");
 const detailLogStrengthRangeEl = document.getElementById("detailLogStrengthRange");
@@ -146,10 +148,12 @@ let toastTimer = null;
 let lastComputedUiMetrics = { fontSize: null, tileSize: null };
 let lastSizingViewport = { width: 0, height: 0 };
 
-const HOLD_REPEAT_MS = 70;
-const HOLD_ACCEL_START_MS = 2000;
-const HOLD_ACCEL_END_MS = 3000;
-const HOLD_MAX_MULTIPLIER = 10;
+const HOLD_REPEAT_MS = 60;
+const HOLD_ACCEL_START_MS = 350;
+const HOLD_ACCEL_END_MS = 1400;
+const HOLD_MAX_MULTIPLIER = 30;
+const HOLD_SPEED_SCALE_MIN = 0.25;
+const HOLD_SPEED_SCALE_MAX = 5;
 const NAME_MAX_CHARS = 20;
 const CAMERA_LONG_PRESS_MS = 550;
 const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
@@ -184,6 +188,7 @@ let paramModes = {};
 let lastParamTap = { targetKey: null, timestamp: 0 };
 let pendingTileTapTimer = null;
 let randomAllNextMode = "rand";
+let keyHold = { code: null, axis: null, direction: 0, sliderKey: null, interval: null, startMs: 0 };
 const paramPressState = {
   pointerId: null,
   targetKey: null,
@@ -1137,6 +1142,9 @@ function syncDetailedSettingsControls() {
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
   if (detailOverlayAlphaRangeEl) detailOverlayAlphaRangeEl.value = String(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1));
   if (detailOverlayAlphaFormattedEl) detailOverlayAlphaFormattedEl.textContent = formatNumberForUi(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1), 2);
+  const holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  if (holdSpeedRangeEl) holdSpeedRangeEl.value = String(holdSpeedScale);
+  if (holdSpeedValueEl) holdSpeedValueEl.textContent = `Hold speed: ${holdSpeedScale.toFixed(2)}×`;
   if (detailColorModeSelectEl) detailColorModeSelectEl.value = appData.defaults.renderColorMode;
   if (detailLogStrengthRangeEl) detailLogStrengthRangeEl.value = String(appData.defaults.renderLogStrength);
   if (detailLogStrengthFormattedEl) detailLogStrengthFormattedEl.textContent = formatNumberForUi(appData.defaults.renderLogStrength, 1);
@@ -1146,6 +1154,13 @@ function syncDetailedSettingsControls() {
   if (detailHybridBlendFormattedEl) detailHybridBlendFormattedEl.textContent = formatNumberForUi(appData.defaults.renderHybridBlend, 2);
   if (detailBackgroundColorEl) detailBackgroundColorEl.value = appData.defaults.backgroundColor || "#05070c";
   if (detailBackgroundColorValueEl) detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor || "#05070c";
+}
+
+function applyHoldSpeedScale(nextValue) {
+  appData.defaults.holdSpeedScale = clamp(Number(nextValue), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  commitCurrentStateToHistory();
 }
 
 function applyDetailedSliderValue(sliderKey, nextValue) {
@@ -1747,6 +1762,7 @@ function captureCurrentState() {
     renderDensityGamma: appData.defaults.renderDensityGamma,
     renderHybridBlend: appData.defaults.renderHybridBlend,
     overlayAlpha: appData.defaults.overlayAlpha,
+    holdSpeedScale: appData.defaults.holdSpeedScale,
     backgroundColor: appData.defaults.backgroundColor,
     colorMapStopOverrides: JSON.parse(JSON.stringify(appData.defaults.colorMapStopOverrides || {})),
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
@@ -1808,6 +1824,7 @@ function applyState(state) {
   appData.defaults.renderDensityGamma = clamp(Number(state.renderDensityGamma ?? appData.defaults.renderDensityGamma), 0.2, 2);
   appData.defaults.renderHybridBlend = clamp(Number(state.renderHybridBlend ?? appData.defaults.renderHybridBlend), 0, 1);
   appData.defaults.overlayAlpha = clamp(Number(state.overlayAlpha ?? appData.defaults.overlayAlpha), 0.1, 1);
+  appData.defaults.holdSpeedScale = clamp(Number(state.holdSpeedScale ?? appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
   appData.defaults.backgroundColor = state.backgroundColor || appData.defaults.backgroundColor;
   appData.defaults.colorMapStopOverrides = JSON.parse(JSON.stringify(state.colorMapStopOverrides || appData.defaults.colorMapStopOverrides || {}));
   setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
@@ -1832,6 +1849,7 @@ function applyState(state) {
   }
   syncSeedEditorInputs(currentFormulaId);
   syncQuickSliderPosition();
+  syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
   isApplyingHistoryState = false;
@@ -2849,6 +2867,67 @@ function clearStepHold() {
   }
 }
 
+function isTextEntryTarget(el) {
+  if (!el || !(el instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(el.closest("input, textarea, select, [contenteditable='true']"));
+}
+
+function getHoldSpeedScale() {
+  return clamp(Number(appData?.defaults?.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+}
+
+function stepSliderKey(sliderKey, direction, stepSize) {
+  const control = sliderControls[sliderKey];
+  if (!control) {
+    return;
+  }
+
+  appData.defaults.sliders[sliderKey] = clamp(
+    appData.defaults.sliders[sliderKey] + direction * stepSize,
+    control.min,
+    control.max,
+  );
+
+  if (activeSliderKey === sliderKey) {
+    syncQuickSliderPosition();
+  }
+
+  requestDraw();
+}
+
+function stepSliderKeySingle(sliderKey, direction) {
+  const control = sliderControls[sliderKey];
+  if (!control) {
+    return;
+  }
+
+  stepSliderKey(sliderKey, direction, control.stepSize);
+}
+
+function getHoldStepSizeForKey(sliderKey, holdElapsedMs) {
+  const control = sliderControls[sliderKey];
+  if (!control) {
+    return 0;
+  }
+
+  const baseStep = control.stepSize;
+  const holdSpeedScale = getHoldSpeedScale();
+  if (holdElapsedMs < HOLD_ACCEL_START_MS) {
+    return baseStep * holdSpeedScale;
+  }
+
+  if (holdElapsedMs >= HOLD_ACCEL_END_MS) {
+    return baseStep * HOLD_MAX_MULTIPLIER * holdSpeedScale;
+  }
+
+  const accelProgress = (holdElapsedMs - HOLD_ACCEL_START_MS) / (HOLD_ACCEL_END_MS - HOLD_ACCEL_START_MS);
+  const growth = Math.pow(HOLD_MAX_MULTIPLIER, accelProgress);
+  return baseStep * growth * holdSpeedScale;
+}
+
 function stepActiveSlider(direction) {
   if (!activeSliderKey) {
     return;
@@ -2863,18 +2942,7 @@ function getHoldStepSize(holdElapsedMs) {
     return 0;
   }
 
-  const baseStep = sliderControls[activeSliderKey].stepSize;
-  if (holdElapsedMs < HOLD_ACCEL_START_MS) {
-    return baseStep;
-  }
-
-  if (holdElapsedMs >= HOLD_ACCEL_END_MS) {
-    return baseStep * HOLD_MAX_MULTIPLIER;
-  }
-
-  const accelProgress = (holdElapsedMs - HOLD_ACCEL_START_MS) / (HOLD_ACCEL_END_MS - HOLD_ACCEL_START_MS);
-  const growth = Math.pow(HOLD_MAX_MULTIPLIER, accelProgress);
-  return baseStep * growth;
+  return getHoldStepSizeForKey(activeSliderKey, holdElapsedMs);
 }
 
 function stepActiveSliderBy(direction, stepSize) {
@@ -2920,6 +2988,79 @@ function setupStepHold(button, direction) {
   }
 
   button.addEventListener("contextmenu", (event) => event.preventDefault());
+}
+
+function getArrowMapping(code) {
+  if (code === "ArrowLeft") return { axis: "manX", direction: -1 };
+  if (code === "ArrowRight") return { axis: "manX", direction: 1 };
+  if (code === "ArrowDown") return { axis: "manY", direction: -1 };
+  if (code === "ArrowUp") return { axis: "manY", direction: 1 };
+  return null;
+}
+
+function stopKeyboardHold() {
+  if (keyHold.interval) {
+    window.clearInterval(keyHold.interval);
+  }
+  keyHold = { code: null, axis: null, direction: 0, sliderKey: null, interval: null, startMs: 0 };
+}
+
+function showKeyboardStepToast(sliderKey, direction, stepSize) {
+  const signLabel = direction > 0 ? "+" : "−";
+  const baseStep = sliderControls[sliderKey]?.stepSize || 1;
+  const speedLabel = (stepSize / baseStep).toFixed(2);
+  showToast(`${sliderKey} ${signLabel} (${speedLabel}× speed)`);
+}
+
+function onKeyboardArrowDown(event) {
+  const mapping = getArrowMapping(event.code);
+  if (!mapping) {
+    return;
+  }
+
+  if (isTextEntryTarget(event.target) || isTextEntryTarget(document.activeElement)) {
+    return;
+  }
+
+  if (event.repeat && keyHold.code === event.code) {
+    event.preventDefault();
+    return;
+  }
+
+  const { manX, manY } = getManualAxisTargets();
+  const targetSliderKey = mapping.axis === "manX" ? manX : manY;
+  if (!targetSliderKey) {
+    return;
+  }
+
+  event.preventDefault();
+  const baseStep = sliderControls[targetSliderKey].stepSize;
+  stepSliderKeySingle(targetSliderKey, mapping.direction);
+  showKeyboardStepToast(targetSliderKey, mapping.direction, baseStep);
+
+  stopKeyboardHold();
+  const startMs = performance.now();
+  keyHold = {
+    code: event.code,
+    axis: mapping.axis,
+    direction: mapping.direction,
+    sliderKey: targetSliderKey,
+    startMs,
+    interval: window.setInterval(() => {
+      const holdElapsedMs = performance.now() - startMs;
+      const stepSize = getHoldStepSizeForKey(targetSliderKey, holdElapsedMs);
+      stepSliderKey(targetSliderKey, mapping.direction, stepSize);
+      showKeyboardStepToast(targetSliderKey, mapping.direction, stepSize);
+    }, HOLD_REPEAT_MS),
+  };
+}
+
+function onKeyboardArrowUp(event) {
+  if (event.code !== keyHold.code) {
+    return;
+  }
+
+  stopKeyboardHold();
 }
 
 function axisScreenPosition(worldMin, worldMax, spanPx) {
@@ -3815,6 +3956,7 @@ function registerHandlers() {
   detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
   detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
   detailOverlayAlphaRangeEl?.addEventListener("input", () => applyOverlayTransparency(detailOverlayAlphaRangeEl.value));
+  holdSpeedRangeEl?.addEventListener("input", () => applyHoldSpeedScale(holdSpeedRangeEl.value));
 
   detailDebugToggleEl?.addEventListener("change", () => {
     appData.defaults.debug = Boolean(detailDebugToggleEl.checked);
@@ -3925,6 +4067,9 @@ function registerHandlers() {
       historyTapTracker = null;
     }
   });
+  window.addEventListener("keydown", onKeyboardArrowDown, { passive: false });
+  window.addEventListener("keyup", onKeyboardArrowUp, { passive: true });
+  window.addEventListener("blur", stopKeyboardHold, { passive: true });
 
   window.addEventListener(
     "resize",
@@ -4004,6 +4149,9 @@ async function loadData() {
   if (typeof data.defaults.overlayAlpha !== "number") {
     data.defaults.overlayAlpha = 0.9;
   }
+  if (typeof data.defaults.holdSpeedScale !== "number") {
+    data.defaults.holdSpeedScale = 1;
+  }
 
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
@@ -4012,6 +4160,7 @@ async function loadData() {
   data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
   data.defaults.renderHybridBlend = clamp(data.defaults.renderHybridBlend, 0, 1);
   data.defaults.overlayAlpha = clamp(data.defaults.overlayAlpha, 0.1, 1);
+  data.defaults.holdSpeedScale = clamp(data.defaults.holdSpeedScale, HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
 
   if (data.defaults.scaleMode !== "fixed") {
     data.defaults.scaleMode = "auto";
@@ -4054,6 +4203,7 @@ async function bootstrap() {
     appData.defaults.backgroundColor = typeof appData.defaults.backgroundColor === "string" ? appData.defaults.backgroundColor : "#05070c";
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
     appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.9), 0.1, 1);
+    appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
     applyBackgroundTheme();
     applyDialogTransparency();

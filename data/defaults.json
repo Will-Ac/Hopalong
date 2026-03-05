@@ -22,5 +22,6 @@
   "renderHybridBlend": 0.3,
   "backgroundColor": "#05070c",
   "colorMapStopOverrides": {},
-  "overlayAlpha": 0.9
+  "overlayAlpha": 0.9,
+  "holdSpeedScale": 1.0
 }
