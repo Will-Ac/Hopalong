@@ -894,18 +894,10 @@ Scale</button>
             <select id="detailColorModeSelect" class="perfSelect" aria-label="Coloring mode">
               <option value="iteration_order">Iteration order</option>
               <option value="hit_density_linear">Hit density (linear)</option>
-              <option value="hit_density_log">Hit density (log)</option>
               <option value="hit_density_gamma">Hit density (gamma)</option>
               <option value="hit_density_percentile">Hit density (percentile)</option>
               <option value="hybrid_density_age">Hybrid (density + recency)</option>
             </select>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Log strength</span><button id="infoLogStrength" class="perfInfoBtn" type="button">i</button></div>
-            <div class="perfControlRow">
-              <input id="detailLogStrengthRange" class="perfRangeInput" type="range" min="0.5" max="30" step="0.1" />
-              <div id="detailLogStrengthFormatted" class="perfFormattedValue">--</div>
-            </div>
           </div>
           <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Gamma</span><button id="infoDensityGamma" class="perfInfoBtn" type="button">i</button></div>
@@ -926,7 +918,7 @@ Scale</button>
           <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Max random iterations</span><button id="infoMaxRandomIters" class="perfInfoBtn" type="button">i</button></div>
             <div class="perfControlRow">
-              <input id="detailMaxRandomItersRange" class="perfRangeInput" type="range" min="1000" max="100000000" step="100" />
+              <input id="detailMaxRandomItersRange" class="perfRangeInput" type="range" min="1000" max="20000000" step="100" />
               <div id="detailMaxRandomItersFormatted" class="perfFormattedValue">--</div>
             </div>
           </div>
