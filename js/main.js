@@ -115,7 +115,7 @@ const sliderControls = {
   b: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   c: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   d: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
-  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 10000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
+  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 100000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
   burn: { button: null, label: "Burn", paramKey: "burn", min: 0, max: 5000, sliderStep: 1, stepSize: 1, displayDp: 0 },
 };
 
@@ -151,6 +151,8 @@ let fpsEstimate = 0;
 let drawScheduled = false;
 let drawDirty = false;
 let toastTimer = null;
+let renderProgressHideTimer = null;
+let renderProgressVisible = false;
 let lastComputedUiMetrics = { fontSize: null, tileSize: null };
 let lastSizingViewport = { width: 0, height: 0 };
 
@@ -309,6 +311,9 @@ function showToast(message) {
     return;
   }
 
+  renderProgressVisible = false;
+  window.clearTimeout(renderProgressHideTimer);
+  renderProgressHideTimer = null;
   window.clearTimeout(toastTimer);
   toastEl.textContent = message;
   toastEl.classList.add("is-visible");
@@ -316,6 +321,36 @@ function showToast(message) {
   toastTimer = window.setTimeout(() => {
     toastEl.classList.remove("is-visible");
   }, 5000);
+}
+
+function hideRenderProgressToast() {
+  if (!toastEl) {
+    return;
+  }
+
+  renderProgressVisible = false;
+  window.clearTimeout(renderProgressHideTimer);
+  renderProgressHideTimer = null;
+  toastEl.classList.remove("is-visible");
+}
+
+function updateRenderProgressToast(percent, isComplete = false) {
+  if (!toastEl) {
+    return;
+  }
+
+  const normalizedPercent = Math.max(0, Math.min(100, Math.round(percent / 5) * 5));
+  window.clearTimeout(renderProgressHideTimer);
+  renderProgressHideTimer = null;
+  toastEl.textContent = `Rendering iterations: ${normalizedPercent}%`;
+  toastEl.classList.add("is-visible");
+  renderProgressVisible = true;
+
+  if (isComplete) {
+    renderProgressHideTimer = window.setTimeout(() => {
+      hideRenderProgressToast();
+    }, 2000);
+  }
 }
 
 function installGlobalZoomBlockers() {
@@ -2078,7 +2113,7 @@ function syncQuickSliderPosition() {
     return;
   }
 
-  qsRange.value = String(appData.defaults.sliders[activeSliderKey]);
+  qsRange.value = String(getQuickSliderRangeValueFromSliderValue(activeSliderKey, appData.defaults.sliders[activeSliderKey]));
   updateQuickSliderReadout();
 }
 
@@ -2750,6 +2785,34 @@ function openPicker(kind, triggerEl) {
   layoutPickerPanel();
 }
 
+function getQuickSliderRangeValueFromSliderValue(sliderKey, sliderValue) {
+  if (sliderKey !== "iters") {
+    return sliderValue;
+  }
+
+  const min = sliderControls.iters.min;
+  const max = sliderControls.iters.max;
+  const safeValue = clamp(Number(sliderValue), min, max);
+  const logMin = Math.log10(min);
+  const logMax = Math.log10(max);
+  const position = ((Math.log10(safeValue) - logMin) / (logMax - logMin)) * 1000;
+  return clamp(position, 0, 1000);
+}
+
+function getSliderValueFromQuickSliderRangeValue(sliderKey, rangeValue) {
+  if (sliderKey !== "iters") {
+    return rangeValue;
+  }
+
+  const min = sliderControls.iters.min;
+  const max = sliderControls.iters.max;
+  const logMin = Math.log10(min);
+  const logMax = Math.log10(max);
+  const normalized = clamp(Number(rangeValue), 0, 1000) / 1000;
+  const actual = 10 ** (logMin + normalized * (logMax - logMin));
+  return Math.round(clamp(actual, min, max));
+}
+
 function updateQuickSliderReadout() {
   if (!activeSliderKey) {
     return;
@@ -2772,7 +2835,7 @@ function applySliderValue(nextValue, { commitHistory = true } = {}) {
   }
   appData.defaults.sliders[activeSliderKey] = value;
   saveDefaultsToStorage();
-  qsRange.value = value;
+  qsRange.value = String(getQuickSliderRangeValueFromSliderValue(activeSliderKey, value));
   updateQuickSliderReadout();
   requestDraw();
   if (commitHistory) {
@@ -2792,9 +2855,15 @@ function openQuickSlider(sliderKey) {
   alignQuickSliderAboveBottomBar();
 
   const control = sliderControls[sliderKey];
-  qsRange.min = String(control.min);
-  qsRange.max = String(control.max);
-  qsRange.step = String(control.sliderStep);
+  if (sliderKey === "iters") {
+    qsRange.min = "0";
+    qsRange.max = "1000";
+    qsRange.step = "1";
+  } else {
+    qsRange.min = String(control.min);
+    qsRange.max = String(control.max);
+    qsRange.step = String(control.sliderStep);
+  }
   syncQuickSliderPosition();
 }
 
@@ -3577,7 +3646,11 @@ function draw() {
     seed: getSeedForFormula(currentFormulaId),
     renderColoring: getRenderColoringOptions(),
     backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
+    onProgress: (percent, isComplete) => {
+      updateRenderProgressToast(percent, isComplete);
+    },
   });
+
 
   const now = performance.now();
   const delta = lastDrawTimestamp > 0 ? now - lastDrawTimestamp : 0;
@@ -3835,6 +3908,7 @@ async function captureScreenshot(includeOverlay) {
     backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
   });
 
+
   if (includeOverlay) {
     drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height);
   }
@@ -3950,7 +4024,9 @@ function registerHandlers() {
   });
 
   qsRange.addEventListener("input", () => {
-    applySliderValue(Number.parseFloat(qsRange.value), { commitHistory: false });
+    const rawValue = Number.parseFloat(qsRange.value);
+    const mappedValue = getSliderValueFromQuickSliderRangeValue(activeSliderKey, rawValue);
+    applySliderValue(mappedValue, { commitHistory: false });
   });
   qsRange.addEventListener("change", () => {
     commitCurrentStateToHistory();

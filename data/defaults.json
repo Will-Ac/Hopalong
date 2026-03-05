@@ -15,7 +15,7 @@
     "debug controls whether the debug axis/tick/info overlay is shown."
   ],
   "debug": false,
-  "maxRandomIters": 10000000,
+  "maxRandomIters": 100000000,
   "renderColorMode": "iteration_order",
   "renderLogStrength": 9,
   "renderDensityGamma": 0.6,
