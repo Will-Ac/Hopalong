@@ -79,32 +79,6 @@
         transform: translateY(0);
       }
 
-      #debugToggleDock {
-        position: absolute;
-        top: calc(10px + env(safe-area-inset-top));
-        left: max(0px, env(safe-area-inset-left));
-        z-index: 39;
-      }
-      #debugBugBtn {
-        width: var(--tile-size);
-        min-height: var(--tile-size);
-        border-radius: 10px;
-        border: 2px solid var(--param-outline);
-        background: var(--panel-bg);
-        color: rgba(var(--ui-gray-rgb), 0.95);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-      }
-      #debugBugBtn .bugIcon {
-        width: 22px;
-        height: 22px;
-        display: block;
-      }
-      #debugBugBtn.is-active {
-        background: rgba(var(--ui-gray-rgb), 0.1);
-      }
       #debugPanel {
         position: absolute;
         top: calc(42px + env(safe-area-inset-top));
@@ -837,8 +811,7 @@
           height: 16px;
         }
         #cameraBtn,
-        #scaleModeBtn,
-        #debugBugBtn {
+        #scaleModeBtn {
           border-radius: 8px;
         }
       }
@@ -856,15 +829,40 @@
         }
       }
 
+      @media (max-width: 900px) and (pointer: coarse) {
+        #pickerPanel {
+          left: max(2px, env(safe-area-inset-left));
+          width: min(778px, calc(100vw - 4px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+          top: calc(52px + env(safe-area-inset-top));
+        }
+        .pickerOption {
+          padding: 7px;
+          font-size: calc(var(--ui-font-size) - 1px);
+        }
+        .formulaName,
+        .cmapRow {
+          font-size: calc(var(--ui-font-size) - 1px);
+        }
+        .cmapRow {
+          grid-template-columns: minmax(120px, 30%) 1fr;
+          gap: 8px;
+        }
+      }
+
+      @media (max-width: 900px) and (orientation: landscape) and (pointer: coarse) {
+        #rangesEditorPanel {
+          left: auto;
+          width: calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 18px) * 0.5);
+          max-width: calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 18px) * 0.5);
+        }
+      }
+
     </style>
   </head>
   <body>
     <div id="app">
       <canvas id="c"></canvas>
       <p id="toast" aria-live="polite" aria-atomic="true"></p>
-      <div id="debugToggleDock">
-        <button id="debugBugBtn" type="button" aria-label="Toggle debug overlay" title="Debug"><svg class="bugIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 7.5h8M7.5 11.5h9M8 15.5h8M6.5 9 4 7.5M17.5 9 20 7.5M6.5 13 4 14.5M17.5 13 20 14.5M9.3 7a3.1 3.1 0 0 1 5.4 0M8.7 19.5h6.6a1.2 1.2 0 0 0 1.2-1.2V9.7a1.2 1.2 0 0 0-1.2-1.2H8.7a1.2 1.2 0 0 0-1.2 1.2v8.6a1.2 1.2 0 0 0 1.2 1.2Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      </div>
       <div id="debugPanel" class="is-hidden">
         <p id="debugInfo">Debug off</p>
       </div>
@@ -896,18 +894,10 @@ Scale</button>
             <select id="detailColorModeSelect" class="perfSelect" aria-label="Coloring mode">
               <option value="iteration_order">Iteration order</option>
               <option value="hit_density_linear">Hit density (linear)</option>
-              <option value="hit_density_log">Hit density (log)</option>
               <option value="hit_density_gamma">Hit density (gamma)</option>
               <option value="hit_density_percentile">Hit density (percentile)</option>
               <option value="hybrid_density_age">Hybrid (density + recency)</option>
             </select>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Log strength</span><button id="infoLogStrength" class="perfInfoBtn" type="button">i</button></div>
-            <div class="perfControlRow">
-              <input id="detailLogStrengthRange" class="perfRangeInput" type="range" min="0.5" max="30" step="0.1" />
-              <div id="detailLogStrengthFormatted" class="perfFormattedValue">--</div>
-            </div>
           </div>
           <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Gamma</span><button id="infoDensityGamma" class="perfInfoBtn" type="button">i</button></div>
@@ -928,7 +918,7 @@ Scale</button>
           <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Max random iterations</span><button id="infoMaxRandomIters" class="perfInfoBtn" type="button">i</button></div>
             <div class="perfControlRow">
-              <input id="detailMaxRandomItersRange" class="perfRangeInput" type="range" min="1000" max="100000000" step="100" />
+              <input id="detailMaxRandomItersRange" class="perfRangeInput" type="range" min="1000" max="20000000" step="100" />
               <div id="detailMaxRandomItersFormatted" class="perfFormattedValue">--</div>
             </div>
           </div>

@@ -50,8 +50,6 @@ const holdAccelEndMsRangeEl = document.getElementById("holdAccelEndMsRange");
 const holdAccelEndMsValueEl = document.getElementById("holdAccelEndMsValue");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const detailColorModeSelectEl = document.getElementById("detailColorModeSelect");
-const detailLogStrengthRangeEl = document.getElementById("detailLogStrengthRange");
-const detailLogStrengthFormattedEl = document.getElementById("detailLogStrengthFormatted");
 const detailDensityGammaRangeEl = document.getElementById("detailDensityGammaRange");
 const detailDensityGammaFormattedEl = document.getElementById("detailDensityGammaFormatted");
 const detailHybridBlendRangeEl = document.getElementById("detailHybridBlendRange");
@@ -71,7 +69,6 @@ const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
 const infoBurnEl = document.getElementById("infoBurn");
 const infoDebugEl = document.getElementById("infoDebug");
 const infoColorModeEl = document.getElementById("infoColorMode");
-const infoLogStrengthEl = document.getElementById("infoLogStrength");
 const infoDensityGammaEl = document.getElementById("infoDensityGamma");
 const infoHybridBlendEl = document.getElementById("infoHybridBlend");
 const detailSeedXInputEl = document.getElementById("detailSeedXInput");
@@ -115,7 +112,7 @@ const sliderControls = {
   b: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   c: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   d: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
-  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 100000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
+  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 20000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
   burn: { button: null, label: "Burn", paramKey: "burn", min: 0, max: 5000, sliderStep: 1, stepSize: 1, displayDp: 0 },
 };
 
@@ -129,7 +126,6 @@ const DEFAULT_PARAM_RANGES = {
 const RENDER_COLOR_MODES = {
   ITERATION_ORDER: "iteration_order",
   HIT_DENSITY_LINEAR: "hit_density_linear",
-  HIT_DENSITY_LOG: "hit_density_log",
   HIT_DENSITY_GAMMA: "hit_density_gamma",
   HIT_DENSITY_PERCENTILE: "hit_density_percentile",
   HYBRID_DENSITY_AGE: "hybrid_density_age",
@@ -1222,8 +1218,6 @@ function syncDetailedSettingsControls() {
   if (holdAccelEndMsRangeEl) holdAccelEndMsRangeEl.value = String(holdAccelEndMs);
   if (holdAccelEndMsValueEl) holdAccelEndMsValueEl.textContent = `Accel end: ${holdAccelEndMs} ms`;
   if (detailColorModeSelectEl) detailColorModeSelectEl.value = appData.defaults.renderColorMode;
-  if (detailLogStrengthRangeEl) detailLogStrengthRangeEl.value = String(appData.defaults.renderLogStrength);
-  if (detailLogStrengthFormattedEl) detailLogStrengthFormattedEl.textContent = formatNumberForUi(appData.defaults.renderLogStrength, 1);
   if (detailDensityGammaRangeEl) detailDensityGammaRangeEl.value = String(appData.defaults.renderDensityGamma);
   if (detailDensityGammaFormattedEl) detailDensityGammaFormattedEl.textContent = formatNumberForUi(appData.defaults.renderDensityGamma, 2);
   if (detailHybridBlendRangeEl) detailHybridBlendRangeEl.value = String(appData.defaults.renderHybridBlend);
@@ -1280,8 +1274,9 @@ function applyMaxRandomIterations(nextValue) {
 
 function applyRenderColorMode(mode) {
   const normalizedMode = String(mode || "").trim();
-  appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(normalizedMode)
-    ? normalizedMode
+  const nextMode = normalizedMode === "hit_density_log" ? RENDER_COLOR_MODES.HIT_DENSITY_LINEAR : normalizedMode;
+  appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(nextMode)
+    ? nextMode
     : RENDER_COLOR_MODES.ITERATION_ORDER;
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
@@ -1916,8 +1911,9 @@ function applyState(state) {
   appData.defaults.cmapName = state.cmapName;
   appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
   appData.defaults.maxRandomIters = Math.round(clamp(state.maxRandomIters ?? appData.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
-  appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(state.renderColorMode)
-    ? state.renderColorMode
+  const savedColorMode = state.renderColorMode === "hit_density_log" ? RENDER_COLOR_MODES.HIT_DENSITY_LINEAR : state.renderColorMode;
+  appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(savedColorMode)
+    ? savedColorMode
     : appData.defaults.renderColorMode;
   appData.defaults.renderLogStrength = clamp(Number(state.renderLogStrength ?? appData.defaults.renderLogStrength), 0.5, 30);
   appData.defaults.renderDensityGamma = clamp(Number(state.renderDensityGamma ?? appData.defaults.renderDensityGamma), 0.2, 2);
@@ -4121,7 +4117,6 @@ function registerHandlers() {
   });
 
   detailColorModeSelectEl?.addEventListener("change", () => applyRenderColorMode(detailColorModeSelectEl.value));
-  detailLogStrengthRangeEl?.addEventListener("input", () => applyRenderColorParam("renderLogStrength", detailLogStrengthRangeEl.value, 0.5, 30, 1));
   detailDensityGammaRangeEl?.addEventListener("input", () => applyRenderColorParam("renderDensityGamma", detailDensityGammaRangeEl.value, 0.2, 2, 2));
   detailHybridBlendRangeEl?.addEventListener("input", () => applyRenderColorParam("renderHybridBlend", detailHybridBlendRangeEl.value, 0, 1, 2));
 
@@ -4171,9 +4166,6 @@ function registerHandlers() {
   });
   infoColorModeEl?.addEventListener("click", (event) => {
     showSettingsInfo("Switch between iteration-order and density-based coloring methods to emphasize different structure in the attractor.", event.currentTarget);
-  });
-  infoLogStrengthEl?.addEventListener("click", (event) => {
-    showSettingsInfo("Log strength compresses extreme hit counts. Increase it when dense centers overwhelm medium-detail regions.", event.currentTarget);
   });
   infoDensityGammaEl?.addEventListener("click", (event) => {
     showSettingsInfo("Gamma reshapes density contrast. Lower values brighten medium-density detail; higher values emphasize only the densest regions.", event.currentTarget);
@@ -4288,6 +4280,9 @@ async function loadData() {
   }
   if (typeof data.defaults.maxRandomIters !== "number") {
     data.defaults.maxRandomIters = sliderControls.iters.max;
+  }
+  if (data.defaults.renderColorMode === "hit_density_log") {
+    data.defaults.renderColorMode = RENDER_COLOR_MODES.HIT_DENSITY_LINEAR;
   }
   if (!RENDER_COLOR_MODE_SET.has(data.defaults.renderColorMode)) {
     data.defaults.renderColorMode = RENDER_COLOR_MODES.ITERATION_ORDER;

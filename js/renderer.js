@@ -24,19 +24,12 @@ function blendRgb(base, top, amount) {
   ];
 }
 
-function mapHitToT(hits, maxHits, mode, { logStrength, densityGamma }) {
+function mapHitToT(hits, maxHits, mode, { densityGamma }) {
   if (!Number.isFinite(hits) || hits <= 0 || !Number.isFinite(maxHits) || maxHits <= 0) {
     return 0;
   }
 
   const linear = clamp01(hits / maxHits);
-  if (mode === "hit_density_log") {
-    const k = Math.max(0.01, Number(logStrength) || 9);
-    const numerator = Math.log1p(k * hits);
-    const denominator = Math.log1p(k * maxHits);
-    return clamp01(denominator > 0 ? numerator / denominator : linear);
-  }
-
   if (mode === "hit_density_gamma") {
     const gamma = Math.max(0.05, Number(densityGamma) || 0.6);
     return clamp01(linear ** gamma);
@@ -92,7 +85,6 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   }
 
   const renderMode = String(renderColoring?.mode || "iteration_order").trim();
-  const logStrength = Number(renderColoring?.logStrength) || 9;
   const densityGamma = Number(renderColoring?.densityGamma) || 0.6;
   const hybridBlend = clamp01(Number(renderColoring?.hybridBlend) || 0.3);
 
@@ -331,7 +323,7 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
       if (renderMode === "hit_density_percentile") {
         t = percentileLookup.get(hits) || 0;
       } else {
-        t = mapHitToT(hits, maxHits, renderMode, { logStrength, densityGamma });
+        t = mapHitToT(hits, maxHits, renderMode, { densityGamma });
       }
 
       const idx = pixelIndex * 4;
