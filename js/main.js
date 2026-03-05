@@ -42,6 +42,12 @@ const detailOverlayAlphaRangeEl = document.getElementById("detailOverlayAlphaRan
 const detailOverlayAlphaFormattedEl = document.getElementById("detailOverlayAlphaFormatted");
 const holdSpeedRangeEl = document.getElementById("holdSpeedRange");
 const holdSpeedValueEl = document.getElementById("holdSpeedValue");
+const holdRepeatMsRangeEl = document.getElementById("holdRepeatMsRange");
+const holdRepeatMsValueEl = document.getElementById("holdRepeatMsValue");
+const holdAccelStartMsRangeEl = document.getElementById("holdAccelStartMsRange");
+const holdAccelStartMsValueEl = document.getElementById("holdAccelStartMsValue");
+const holdAccelEndMsRangeEl = document.getElementById("holdAccelEndMsRange");
+const holdAccelEndMsValueEl = document.getElementById("holdAccelEndMsValue");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const detailColorModeSelectEl = document.getElementById("detailColorModeSelect");
 const detailLogStrengthRangeEl = document.getElementById("detailLogStrengthRange");
@@ -148,9 +154,15 @@ let toastTimer = null;
 let lastComputedUiMetrics = { fontSize: null, tileSize: null };
 let lastSizingViewport = { width: 0, height: 0 };
 
-const HOLD_REPEAT_MS = 60;
-const HOLD_ACCEL_START_MS = 350;
-const HOLD_ACCEL_END_MS = 1400;
+const HOLD_REPEAT_MS_DEFAULT = 60;
+const HOLD_REPEAT_MS_MIN = 20;
+const HOLD_REPEAT_MS_MAX = 300;
+const HOLD_ACCEL_START_MS_DEFAULT = 350;
+const HOLD_ACCEL_START_MS_MIN = 0;
+const HOLD_ACCEL_START_MS_MAX = 5000;
+const HOLD_ACCEL_END_MS_DEFAULT = 1400;
+const HOLD_ACCEL_END_MS_MIN = 100;
+const HOLD_ACCEL_END_MS_MAX = 8000;
 const HOLD_MAX_MULTIPLIER = 30;
 const HOLD_SPEED_SCALE_MIN = 0.25;
 const HOLD_SPEED_SCALE_MAX = 50;
@@ -189,6 +201,7 @@ let lastParamTap = { targetKey: null, timestamp: 0 };
 let pendingTileTapTimer = null;
 let randomAllNextMode = "rand";
 let keyHold = { code: null, axis: null, direction: 0, sliderKey: null, interval: null, startMs: 0 };
+let isKeyboardManualModulating = false;
 const paramPressState = {
   pointerId: null,
   targetKey: null,
@@ -1124,6 +1137,27 @@ function closeFormulaSettingsPanel() {
   formulaSettingsPanelEl?.classList.add("is-hidden");
 }
 
+
+function getHoldTimingSettings() {
+  const holdRepeatMs = Math.round(clamp(Number(appData?.defaults?.holdRepeatMs ?? HOLD_REPEAT_MS_DEFAULT), HOLD_REPEAT_MS_MIN, HOLD_REPEAT_MS_MAX));
+  const holdAccelStartMs = Math.round(clamp(Number(appData?.defaults?.holdAccelStartMs ?? HOLD_ACCEL_START_MS_DEFAULT), HOLD_ACCEL_START_MS_MIN, HOLD_ACCEL_START_MS_MAX));
+  const holdAccelEndMs = Math.round(clamp(Number(appData?.defaults?.holdAccelEndMs ?? HOLD_ACCEL_END_MS_DEFAULT), HOLD_ACCEL_END_MS_MIN, HOLD_ACCEL_END_MS_MAX));
+  const normalizedAccelEndMs = Math.max(holdAccelStartMs + 1, holdAccelEndMs);
+
+  return { holdRepeatMs, holdAccelStartMs, holdAccelEndMs: normalizedAccelEndMs };
+}
+
+function normalizeHoldTimingDefaults() {
+  if (!appData?.defaults) {
+    return;
+  }
+
+  const { holdRepeatMs, holdAccelStartMs, holdAccelEndMs } = getHoldTimingSettings();
+  appData.defaults.holdRepeatMs = holdRepeatMs;
+  appData.defaults.holdAccelStartMs = holdAccelStartMs;
+  appData.defaults.holdAccelEndMs = holdAccelEndMs;
+}
+
 function setSettingsTab(tabKey) {
   const showColor = tabKey !== "general";
   settingsTabColorEl?.classList.toggle("is-active", showColor);
@@ -1143,8 +1177,15 @@ function syncDetailedSettingsControls() {
   if (detailOverlayAlphaRangeEl) detailOverlayAlphaRangeEl.value = String(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1));
   if (detailOverlayAlphaFormattedEl) detailOverlayAlphaFormattedEl.textContent = formatNumberForUi(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1), 2);
   const holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  const { holdRepeatMs, holdAccelStartMs, holdAccelEndMs } = getHoldTimingSettings();
   if (holdSpeedRangeEl) holdSpeedRangeEl.value = String(holdSpeedScale);
   if (holdSpeedValueEl) holdSpeedValueEl.textContent = `Hold speed: ${holdSpeedScale.toFixed(2)}×`;
+  if (holdRepeatMsRangeEl) holdRepeatMsRangeEl.value = String(holdRepeatMs);
+  if (holdRepeatMsValueEl) holdRepeatMsValueEl.textContent = `Repeat interval: ${holdRepeatMs} ms`;
+  if (holdAccelStartMsRangeEl) holdAccelStartMsRangeEl.value = String(holdAccelStartMs);
+  if (holdAccelStartMsValueEl) holdAccelStartMsValueEl.textContent = `Accel start: ${holdAccelStartMs} ms`;
+  if (holdAccelEndMsRangeEl) holdAccelEndMsRangeEl.value = String(holdAccelEndMs);
+  if (holdAccelEndMsValueEl) holdAccelEndMsValueEl.textContent = `Accel end: ${holdAccelEndMs} ms`;
   if (detailColorModeSelectEl) detailColorModeSelectEl.value = appData.defaults.renderColorMode;
   if (detailLogStrengthRangeEl) detailLogStrengthRangeEl.value = String(appData.defaults.renderLogStrength);
   if (detailLogStrengthFormattedEl) detailLogStrengthFormattedEl.textContent = formatNumberForUi(appData.defaults.renderLogStrength, 1);
@@ -1158,6 +1199,26 @@ function syncDetailedSettingsControls() {
 
 function applyHoldSpeedScale(nextValue) {
   appData.defaults.holdSpeedScale = clamp(Number(nextValue), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  commitCurrentStateToHistory();
+}
+
+function applyHoldTimingSetting(key, nextValue) {
+  if (!appData?.defaults) {
+    return;
+  }
+
+  const numeric = Math.round(Number(nextValue));
+  if (key === "holdRepeatMs") {
+    appData.defaults.holdRepeatMs = clamp(numeric, HOLD_REPEAT_MS_MIN, HOLD_REPEAT_MS_MAX);
+  } else if (key === "holdAccelStartMs") {
+    appData.defaults.holdAccelStartMs = clamp(numeric, HOLD_ACCEL_START_MS_MIN, HOLD_ACCEL_START_MS_MAX);
+  } else if (key === "holdAccelEndMs") {
+    appData.defaults.holdAccelEndMs = clamp(numeric, HOLD_ACCEL_END_MS_MIN, HOLD_ACCEL_END_MS_MAX);
+  }
+
+  normalizeHoldTimingDefaults();
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   commitCurrentStateToHistory();
@@ -1763,6 +1824,9 @@ function captureCurrentState() {
     renderHybridBlend: appData.defaults.renderHybridBlend,
     overlayAlpha: appData.defaults.overlayAlpha,
     holdSpeedScale: appData.defaults.holdSpeedScale,
+    holdRepeatMs: appData.defaults.holdRepeatMs,
+    holdAccelStartMs: appData.defaults.holdAccelStartMs,
+    holdAccelEndMs: appData.defaults.holdAccelEndMs,
     backgroundColor: appData.defaults.backgroundColor,
     colorMapStopOverrides: JSON.parse(JSON.stringify(appData.defaults.colorMapStopOverrides || {})),
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
@@ -1825,6 +1889,10 @@ function applyState(state) {
   appData.defaults.renderHybridBlend = clamp(Number(state.renderHybridBlend ?? appData.defaults.renderHybridBlend), 0, 1);
   appData.defaults.overlayAlpha = clamp(Number(state.overlayAlpha ?? appData.defaults.overlayAlpha), 0.1, 1);
   appData.defaults.holdSpeedScale = clamp(Number(state.holdSpeedScale ?? appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  appData.defaults.holdRepeatMs = Math.round(Number(state.holdRepeatMs ?? appData.defaults.holdRepeatMs ?? HOLD_REPEAT_MS_DEFAULT));
+  appData.defaults.holdAccelStartMs = Math.round(Number(state.holdAccelStartMs ?? appData.defaults.holdAccelStartMs ?? HOLD_ACCEL_START_MS_DEFAULT));
+  appData.defaults.holdAccelEndMs = Math.round(Number(state.holdAccelEndMs ?? appData.defaults.holdAccelEndMs ?? HOLD_ACCEL_END_MS_DEFAULT));
+  normalizeHoldTimingDefaults();
   appData.defaults.backgroundColor = state.backgroundColor || appData.defaults.backgroundColor;
   appData.defaults.colorMapStopOverrides = JSON.parse(JSON.stringify(state.colorMapStopOverrides || appData.defaults.colorMapStopOverrides || {}));
   setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
@@ -2915,15 +2983,16 @@ function getHoldStepSizeForKey(sliderKey, holdElapsedMs) {
 
   const baseStep = control.stepSize;
   const holdSpeedScale = getHoldSpeedScale();
-  if (holdElapsedMs < HOLD_ACCEL_START_MS) {
+  const { holdAccelStartMs, holdAccelEndMs } = getHoldTimingSettings();
+  if (holdElapsedMs < holdAccelStartMs) {
     return baseStep * holdSpeedScale;
   }
 
-  if (holdElapsedMs >= HOLD_ACCEL_END_MS) {
+  if (holdElapsedMs >= holdAccelEndMs) {
     return baseStep * HOLD_MAX_MULTIPLIER * holdSpeedScale;
   }
 
-  const accelProgress = (holdElapsedMs - HOLD_ACCEL_START_MS) / (HOLD_ACCEL_END_MS - HOLD_ACCEL_START_MS);
+  const accelProgress = (holdElapsedMs - holdAccelStartMs) / (holdAccelEndMs - holdAccelStartMs);
   const growth = Math.pow(HOLD_MAX_MULTIPLIER, accelProgress);
   return baseStep * growth * holdSpeedScale;
 }
@@ -2962,11 +3031,12 @@ function setupStepHold(button, direction) {
     const holdStartMs = performance.now();
     stepActiveSlider(direction);
 
+    const { holdRepeatMs } = getHoldTimingSettings();
     holdInterval = window.setInterval(() => {
       const holdElapsedMs = performance.now() - holdStartMs;
       const holdStepSize = getHoldStepSize(holdElapsedMs);
       stepActiveSliderBy(direction, holdStepSize);
-    }, HOLD_REPEAT_MS);
+    }, holdRepeatMs);
   };
 
   const stopHold = () => {
@@ -3003,6 +3073,8 @@ function stopKeyboardHold() {
     window.clearInterval(keyHold.interval);
   }
   keyHold = { code: null, axis: null, direction: 0, sliderKey: null, interval: null, startMs: 0 };
+  isKeyboardManualModulating = false;
+  requestDraw();
 }
 
 function showKeyboardStepToast(sliderKey, direction, stepSize) {
@@ -3039,6 +3111,9 @@ function onKeyboardArrowDown(event) {
   showKeyboardStepToast(targetSliderKey, mapping.direction, baseStep);
 
   stopKeyboardHold();
+  isKeyboardManualModulating = true;
+  requestDraw();
+  const { holdRepeatMs } = getHoldTimingSettings();
   const startMs = performance.now();
   keyHold = {
     code: event.code,
@@ -3051,7 +3126,7 @@ function onKeyboardArrowDown(event) {
       const stepSize = getHoldStepSizeForKey(targetSliderKey, holdElapsedMs);
       stepSliderKey(targetSliderKey, mapping.direction, stepSize);
       showKeyboardStepToast(targetSliderKey, mapping.direction, stepSize);
-    }, HOLD_REPEAT_MS),
+    }, holdRepeatMs),
   };
 }
 
@@ -3168,7 +3243,8 @@ function getParamPixelVertical(value, range, spanPx, fallbackPx) {
 }
 
 function shouldShowManualOverlay() {
-  return interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0 && isManualModulating;
+  const pointerModulating = interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0 && isManualModulating;
+  return pointerModulating || isKeyboardManualModulating;
 }
 
 function drawManualParamOverlay(meta) {
@@ -3957,6 +4033,9 @@ function registerHandlers() {
   detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
   detailOverlayAlphaRangeEl?.addEventListener("input", () => applyOverlayTransparency(detailOverlayAlphaRangeEl.value));
   holdSpeedRangeEl?.addEventListener("input", () => applyHoldSpeedScale(holdSpeedRangeEl.value));
+  holdRepeatMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdRepeatMs", holdRepeatMsRangeEl.value));
+  holdAccelStartMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdAccelStartMs", holdAccelStartMsRangeEl.value));
+  holdAccelEndMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdAccelEndMs", holdAccelEndMsRangeEl.value));
 
   detailDebugToggleEl?.addEventListener("change", () => {
     appData.defaults.debug = Boolean(detailDebugToggleEl.checked);
@@ -4152,6 +4231,15 @@ async function loadData() {
   if (typeof data.defaults.holdSpeedScale !== "number") {
     data.defaults.holdSpeedScale = 1;
   }
+  if (typeof data.defaults.holdRepeatMs !== "number") {
+    data.defaults.holdRepeatMs = HOLD_REPEAT_MS_DEFAULT;
+  }
+  if (typeof data.defaults.holdAccelStartMs !== "number") {
+    data.defaults.holdAccelStartMs = HOLD_ACCEL_START_MS_DEFAULT;
+  }
+  if (typeof data.defaults.holdAccelEndMs !== "number") {
+    data.defaults.holdAccelEndMs = HOLD_ACCEL_END_MS_DEFAULT;
+  }
 
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
@@ -4161,6 +4249,12 @@ async function loadData() {
   data.defaults.renderHybridBlend = clamp(data.defaults.renderHybridBlend, 0, 1);
   data.defaults.overlayAlpha = clamp(data.defaults.overlayAlpha, 0.1, 1);
   data.defaults.holdSpeedScale = clamp(data.defaults.holdSpeedScale, HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  data.defaults.holdRepeatMs = Math.round(clamp(data.defaults.holdRepeatMs, HOLD_REPEAT_MS_MIN, HOLD_REPEAT_MS_MAX));
+  data.defaults.holdAccelStartMs = Math.round(clamp(data.defaults.holdAccelStartMs, HOLD_ACCEL_START_MS_MIN, HOLD_ACCEL_START_MS_MAX));
+  data.defaults.holdAccelEndMs = Math.round(clamp(data.defaults.holdAccelEndMs, HOLD_ACCEL_END_MS_MIN, HOLD_ACCEL_END_MS_MAX));
+  if (data.defaults.holdAccelEndMs <= data.defaults.holdAccelStartMs) {
+    data.defaults.holdAccelEndMs = data.defaults.holdAccelStartMs + 1;
+  }
 
   if (data.defaults.scaleMode !== "fixed") {
     data.defaults.scaleMode = "auto";
@@ -4204,6 +4298,7 @@ async function bootstrap() {
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
     appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.9), 0.1, 1);
     appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+    normalizeHoldTimingDefaults();
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
     applyBackgroundTheme();
     applyDialogTransparency();

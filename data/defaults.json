@@ -23,5 +23,8 @@
   "backgroundColor": "#05070c",
   "colorMapStopOverrides": {},
   "overlayAlpha": 0.9,
-  "holdSpeedScale": 1.0
+  "holdSpeedScale": 1.0,
+  "holdRepeatMs": 60,
+  "holdAccelStartMs": 350,
+  "holdAccelEndMs": 1400
 }
