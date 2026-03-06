@@ -121,3 +121,38 @@ body.help-modal-open {
     border-right: 0;
   }
 }
+
+
+.helpHoverTooltip {
+  position: fixed;
+  z-index: 130;
+  max-width: min(360px, calc(100vw - 16px));
+  background: rgba(16, 19, 28, 0.96);
+  border: 1px solid rgba(148, 154, 164, 0.34);
+  border-radius: 10px;
+  padding: 10px 11px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
+  pointer-events: none;
+  color: rgb(206, 210, 217);
+}
+
+.helpHoverTooltip.is-hidden {
+  display: none;
+}
+
+.helpHoverTitle {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.helpHoverText,
+.helpHoverInteraction {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.helpHoverInteraction {
+  margin-top: 6px;
+  opacity: 0.95;
+}

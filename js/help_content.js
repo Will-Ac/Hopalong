@@ -1,6 +1,6 @@
 (function () {
   const HELP_CONTENT = {
-    version: 1,
+    version: 2,
     title: "Help",
     sections: [
       {
@@ -61,10 +61,81 @@
       { term: "ManX / ManY", text: "Manual modulation axes driven by pointer position or movement." },
     ],
     topics: {
-      randomize: "Randomize/next explores a new point in parameter history.",
-      settings: "Open detailed settings for color, rendering, and controls.",
-      export: "Capture a screenshot. Long-press may include overlay info.",
-      slider_step: "Use +/− for precise nudges. Hold to accelerate.",
+      help: {
+        title: "Help",
+        text: "Open Help to review controls, gestures, parameter modes, and sharing/export tips.",
+        interaction: "Click/tap to open the full Help modal.",
+      },
+      settings: {
+        title: "Settings",
+        text: "Open settings for color, render tuning, hold-speed behavior, and debug controls.",
+        interaction: "Click/tap to open or close the settings panel.",
+      },
+      export: {
+        title: "Screenshot / Export",
+        text: "Capture the current image. Export includes state details and QR support.",
+        interaction: "Click/tap for screenshot. Long-press may include richer overlay data.",
+      },
+      scale_mode: {
+        title: "Scale mode",
+        text: "Toggle between auto-scaling and fixed view scaling.",
+        interaction: "Click/tap to switch mode.",
+      },
+      randomize: {
+        title: "Randomize mode",
+        text: "Switches between randomizing all eligible parameters and fixing current values.",
+        interaction: "Double-tap/click quickly to toggle mode.",
+      },
+      param_tile: {
+        title: "Parameter tile",
+        text: "Displays one active formula/color/parameter control at a glance.",
+        interaction: "Tap for quick action. Long-press/swipe can change mode or history behavior.",
+      },
+      slider_step: {
+        title: "Step controls (+/−)",
+        text: "Nudge the selected parameter in small increments.",
+        interaction: "Click/tap for one step; press-and-hold to accelerate.",
+      },
+      slider_range: {
+        title: "Quick slider",
+        text: "Continuously adjusts the currently selected parameter value.",
+        interaction: "Drag the slider thumb to adjust smoothly.",
+      },
+      picker_option: {
+        title: "Picker option",
+        text: "Selects the highlighted formula or color map.",
+        interaction: "Click/tap to preview/apply selection.",
+      },
+      picker_settings: {
+        title: "Picker settings",
+        text: "Opens detailed editor for the selected formula or color map.",
+        interaction: "Click/tap the gear icon.",
+      },
+      color_stop: {
+        title: "Color stop control",
+        text: "Adjust stop position, color, transparency, or remove it from the active map.",
+        interaction: "Use slider/buttons for edits; changes update the preview live.",
+      },
+      input: {
+        title: "Input control",
+        text: "This control edits a numeric or text value used by the renderer.",
+        interaction: "Click/tap to edit, then type or drag as supported.",
+      },
+      button: {
+        title: "Button",
+        text: "Triggers an action in the app.",
+        interaction: "Click/tap to run the action once.",
+      },
+      select: {
+        title: "Selection list",
+        text: "Choose one of multiple modes/options.",
+        interaction: "Click/tap and pick an option from the list.",
+      },
+      settings_info: {
+        title: "Info hint",
+        text: "Shows a short explanation of this setting.",
+        interaction: "Click/tap the i button.",
+      },
     },
   };
 
