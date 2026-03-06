@@ -1,0 +1,158 @@
+.helpModalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.58);
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  touch-action: auto;
+}
+
+.helpModalBackdrop.is-hidden {
+  display: none;
+}
+
+.helpModalPanel {
+  width: min(720px, 100%);
+  max-height: min(92vh, 100%);
+  background: rgba(10, 12, 18, 0.96);
+  border: 1px solid rgba(148, 154, 164, 0.24);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.42);
+}
+
+.helpModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(148, 154, 164, 0.22);
+}
+
+.helpModalHeader h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+#helpCloseBtn {
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 154, 164, 0.35);
+  background: rgba(148, 154, 164, 0.12);
+  color: rgb(148, 154, 164);
+}
+
+.helpModeRow {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(148, 154, 164, 0.14);
+}
+
+.helpModalBody {
+  overflow: auto;
+  padding: 12px 14px 16px;
+  touch-action: pan-y;
+}
+
+.helpSection {
+  margin-bottom: 16px;
+}
+
+.helpSection h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.helpSubheading {
+  margin: 10px 0 4px;
+  font-size: 13px;
+  opacity: 0.92;
+}
+
+.helpSection ul {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.42;
+}
+
+.helpShortcutList {
+  list-style: none;
+  padding-left: 0;
+}
+
+.helpShortcutList li {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) 1fr;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.helpKeycap {
+  display: inline-block;
+  border: 1px solid rgba(148, 154, 164, 0.38);
+  border-radius: 6px;
+  padding: 2px 6px;
+  background: rgba(148, 154, 164, 0.11);
+  margin-right: 4px;
+  min-width: 1.8em;
+  text-align: center;
+}
+
+body.help-modal-open {
+  overflow: hidden;
+}
+
+@media (max-width: 700px) {
+  .helpModalBackdrop {
+    padding: 0;
+  }
+
+  .helpModalPanel {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+}
+
+
+.helpHoverTooltip {
+  position: fixed;
+  z-index: 130;
+  max-width: min(360px, calc(100vw - 16px));
+  background: rgba(16, 19, 28, 0.96);
+  border: 1px solid rgba(148, 154, 164, 0.34);
+  border-radius: 10px;
+  padding: 10px 11px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
+  pointer-events: none;
+  color: rgb(206, 210, 217);
+}
+
+.helpHoverTooltip.is-hidden {
+  display: none;
+}
+
+.helpHoverTitle {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.helpHoverText,
+.helpHoverInteraction {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.helpHoverInteraction {
+  margin-top: 6px;
+  opacity: 0.95;
+}

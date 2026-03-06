@@ -2559,6 +2559,7 @@ function renderFormulaPicker() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "pickerOption";
+    button.dataset.helpId = "picker_option";
     if (formula.id === currentFormulaId) {
       button.classList.add("is-selected");
     }
@@ -2600,6 +2601,7 @@ function renderFormulaPicker() {
     settingsButton.className = "formulaPickerSettingsBtn";
     settingsButton.setAttribute("aria-label", `Edit defaults for ${formula.name || formula.id}`);
     settingsButton.textContent = "⚙";
+    settingsButton.dataset.helpId = "picker_settings";
     settingsButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -2619,6 +2621,7 @@ function renderColorMapPicker() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "pickerOption";
+    button.dataset.helpId = "picker_option";
     if (cmapName === appData.defaults.cmapName) {
       button.classList.add("is-selected");
     }
@@ -2654,6 +2657,7 @@ function renderColorMapPicker() {
     settingsButton.type = "button";
     settingsButton.className = "colorPickerSettingsBtn";
     settingsButton.textContent = "⚙";
+    settingsButton.dataset.helpId = "picker_settings";
     settingsButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -2688,16 +2692,19 @@ function renderColorStopsEditor() {
     colorInput.className = "colorStopColorInput colorStopTile";
     colorInput.value = rgbToHex(stop.slice(1, 4));
     colorInput.classList.toggle("is-transparent", stop[4] <= 0.001);
+    colorInput.dataset.helpId = "color_stop";
 
     const transparentBtn = document.createElement("button");
     transparentBtn.type = "button";
     transparentBtn.className = "rangeActionBtn";
     transparentBtn.textContent = "Transparent";
+    transparentBtn.dataset.helpId = "color_stop";
 
     const removeBtn = document.createElement("button");
     removeBtn.type = "button";
     removeBtn.className = "rangeActionBtn";
     removeBtn.textContent = "Remove";
+    removeBtn.dataset.helpId = "color_stop";
 
     colorRow.append(label, colorInput, transparentBtn, removeBtn);
 
@@ -2707,6 +2714,7 @@ function renderColorStopsEditor() {
     posInput.max = "1";
     posInput.step = "0.01";
     posInput.value = String(stop[0]);
+    posInput.dataset.helpId = "color_stop";
 
     colorInput.addEventListener("input", () => {
       const [r, g, b] = hexToRgb(colorInput.value);
@@ -4406,6 +4414,12 @@ async function bootstrap() {
     saveDefaultsToStorage();
 
     registerHandlers();
+    if (typeof window.initHelpUI === "function") {
+      window.initHelpUI({
+        openButtonSelector: "#helpBtn",
+        settingsContainerSelector: "#generalTabPanel",
+      });
+    }
     maybeShowLandscapeHint();
     commitCurrentStateToHistory();
     requestDraw();
