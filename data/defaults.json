@@ -25,10 +25,11 @@
   "overlayAlpha": 0.9,
   "interestOverlayEnabled": false,
   "interestGridSize": 24,
-  "interestThreshold": 0.5,
   "interestScanIterations": 1200,
-  "interestWeightCoverage": 0.35,
-  "interestWeightComplexity": 0.35,
-  "interestWeightBoundedness": 0.3,
-  "interestWeightLinePenalty": 0.35
+  "interestEscapeValueThreshold": 1000,
+  "interestSparseBinThreshold": 12,
+  "interestLineDominanceThreshold": 0.64,
+  "interestLoopRecurrenceThreshold": 0.035,
+  "interestMediumOpacity": 0.24,
+  "interestHighOpacity": 0.42
 }

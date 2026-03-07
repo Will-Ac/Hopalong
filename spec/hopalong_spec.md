@@ -182,10 +182,14 @@ Split into modules (even if bundled later):
   - Low: escape/divergence, very sparse occupancy, or strong line-like dominance.
   - Medium: non-low cells that show closed-loop recurrence/path-diversity evidence.
   - High: non-low cells without the medium loop signature.
-- Combined weighted scoring is removed from scan classification (legacy weight sliders may remain temporarily for backward-compatibility UI wiring).
+- Combined weighted scoring is removed from scan classification; classifier tuning is controlled by explicit threshold sliders.
 - Draw a translucent grayscale grid overlay on top of the rendered image using category opacity mapping: low = hidden, medium = medium opacity, high = highest opacity.
 - Add settings in the General tab for:
   - Grid size
-  - Interest threshold
   - Scan iterations per cell
+  - Escape value threshold
+  - Sparse bin threshold
+  - Line dominance threshold
+  - Loop recurrence threshold
+  - Overlay opacity for medium and high categories
   - Overlay enable/disable toggle

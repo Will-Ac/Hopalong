@@ -982,13 +982,6 @@ Scale</button>
             </div>
           </div>
           <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Interest threshold</span></div>
-            <div class="perfControlRow">
-              <input id="detailInterestThresholdRange" class="perfRangeInput" type="range" min="0" max="1" step="0.01" />
-              <div id="detailInterestThresholdFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Scan iterations per cell</span></div>
             <div class="perfControlRow">
               <input id="detailInterestScanIterationsRange" class="perfRangeInput" type="range" min="120" max="20000" step="40" />
@@ -996,36 +989,50 @@ Scale</button>
             </div>
           </div>
           <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Escape value threshold</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestEscapeValueThresholdRange" class="perfRangeInput" type="range" min="100" max="5000" step="10" />
+              <div id="detailInterestEscapeValueThresholdFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Sparse bin threshold</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestSparseBinThresholdRange" class="perfRangeInput" type="range" min="4" max="80" step="1" />
+              <div id="detailInterestSparseBinThresholdFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Line dominance threshold</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestLineDominanceThresholdRange" class="perfRangeInput" type="range" min="0.2" max="0.98" step="0.01" />
+              <div id="detailInterestLineDominanceThresholdFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Loop recurrence threshold</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestLoopRecurrenceThresholdRange" class="perfRangeInput" type="range" min="0.001" max="0.2" step="0.001" />
+              <div id="detailInterestLoopRecurrenceThresholdFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Overlay opacity (medium)</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestMediumOpacityRange" class="perfRangeInput" type="range" min="0.05" max="0.8" step="0.01" />
+              <div id="detailInterestMediumOpacityFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Overlay opacity (high)</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestHighOpacityRange" class="perfRangeInput" type="range" min="0.05" max="0.95" step="0.01" />
+              <div id="detailInterestHighOpacityFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Interest overlay</span></div>
             <label class="modeOption"><input id="detailInterestOverlayToggle" type="checkbox" /> Show translucent interest map when enabled</label>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Weight: coverage</span></div>
-            <div class="perfControlRow">
-              <input id="detailInterestWeightCoverageRange" class="perfRangeInput" type="range" min="0" max="2" step="0.01" />
-              <div id="detailInterestWeightCoverageFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Weight: complexity</span></div>
-            <div class="perfControlRow">
-              <input id="detailInterestWeightComplexityRange" class="perfRangeInput" type="range" min="0" max="2" step="0.01" />
-              <div id="detailInterestWeightComplexityFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Weight: boundedness</span></div>
-            <div class="perfControlRow">
-              <input id="detailInterestWeightBoundednessRange" class="perfRangeInput" type="range" min="0" max="2" step="0.01" />
-              <div id="detailInterestWeightBoundednessFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Weight: line penalty</span></div>
-            <div class="perfControlRow">
-              <input id="detailInterestWeightLinePenaltyRange" class="perfRangeInput" type="range" min="0" max="2" step="0.01" />
-              <div id="detailInterestWeightLinePenaltyFormatted" class="perfFormattedValue">--</div>
-            </div>
           </div>
         </div>
         <div id="settingsInfoPopup" class="is-hidden" role="dialog" aria-live="polite">
