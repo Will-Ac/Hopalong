@@ -175,14 +175,15 @@ Split into modules (even if bundled later):
 ## 12) Interest overlay (new)
 
 - Add optional "interest map" scanning tied to the currently assigned ManX/ManY modulation plane.
-- When enabled and at least one parameter is assigned to ManX/ManY, scan a configurable grid of parameter samples and compute an interest score per cell.
+- When enabled and at least one parameter is assigned to ManX/ManY, scan a configurable grid of parameter samples and classify each cell as `low`, `medium`, or `high` interest.
 - Keep the overlay visible after scan completion; do not rescan unless non-plane inputs change (formula, seeds, non-modulated params, scan config).
-- Interest scoring should prefer bounded, spatially rich patterns and suppress degenerate outcomes (dot/line/blank).
-- Scoring uses a two-stage strategy:
-  - Stage 1 disqualifies likely low-interest cases (escape/divergence, very sparse occupancy, strong line dominance, very low path diversity).
-  - Stage 2 ranks survivors by weighted coverage/complexity/boundedness minus line penalties.
-- Provide user-adjustable relative weights for scoring factors (coverage, complexity, boundedness, line-penalty).
-- Draw a translucent grayscale grid overlay on top of the rendered image, where brighter cells indicate higher interest.
+- Cell classification must be evaluated in normalized auto-scale space (per-cell sampled world bounds mapped to [0..1] occupancy bins) so metrics align with auto-scaled behavior.
+- Classification uses feature gates:
+  - Low: escape/divergence, very sparse occupancy, or strong line-like dominance.
+  - Medium: non-low cells that show closed-loop recurrence/path-diversity evidence.
+  - High: non-low cells without the medium loop signature.
+- Combined weighted scoring is removed from scan classification (legacy weight sliders may remain temporarily for backward-compatibility UI wiring).
+- Draw a translucent grayscale grid overlay on top of the rendered image; during Phase 1/2 the draw path can map categories to temporary numeric intensity for compatibility.
 - Add settings in the General tab for:
   - Grid size
   - Interest threshold

@@ -51,28 +51,27 @@ const ESCAPE_ABS_BOUND = 1e6;
 
 const formulaStepById = new Map(VARIANTS.map((formula) => [formula.id, formula.step]));
 
-function safeRatio(numerator, denominator, fallback = 0) {
-  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) {
-    return fallback;
-  }
-  return numerator / denominator;
-}
-
-export function scoreOrbitInterest({
+export function classifyOrbitInterest({
   formulaId,
   params,
   iterations = 1200,
   burn = 120,
   seed = null,
-  weights = {},
+  config = {},
 }) {
   const step = formulaStepById.get(formulaId);
   if (!step) {
-    return 0;
+    return { level: "low", features: { invalidFormula: true } };
   }
 
   const totalIterations = Math.max(32, Math.round(Number(iterations) || 1200));
   const burnSteps = clamp(Math.round(Number(burn) || 0), 0, 5000);
+  const sparseBinThreshold = Math.max(4, Math.round(Number(config.sparseBinThreshold) || 12));
+  const escapeValueThreshold = Math.max(10, Number(config.escapeValueThreshold) || 1000);
+  const lineDominanceThreshold = clamp(Number(config.lineDominanceThreshold) || 0.64, 0.2, 0.98);
+  const edgeDiversityThreshold = clamp(Number(config.edgeDiversityThreshold) || 0.045, 0.001, 0.6);
+  const loopRecurrenceThreshold = clamp(Number(config.loopRecurrenceThreshold) || 0.035, 0.001, 0.6);
+  const boundednessThreshold = clamp(Number(config.boundednessThreshold) || 0.9, 0.4, 1);
 
   let x = Number(seed?.x);
   let y = Number(seed?.y);
@@ -92,36 +91,30 @@ export function scoreOrbitInterest({
   const ys = new Float64Array(totalIterations);
   let sampleCount = 0;
   let escaped = false;
+  let escapedHigh = false;
   let minX = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
-  let meanX = 0;
-  let meanY = 0;
-  let m2x = 0;
-  let m2y = 0;
-  let covSum = 0;
 
   for (let i = 0; i < totalIterations; i += 1) {
     [x, y] = step(x, y, params.a, params.b, params.c, params.d);
-    if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      escaped = true;
+      break;
+    }
+    if (Math.abs(x) > escapeValueThreshold || Math.abs(y) > escapeValueThreshold) {
+      escapedHigh = true;
+    }
+    if (Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
       escaped = true;
       break;
     }
 
     xs[sampleCount] = x;
     ys[sampleCount] = y;
+    sampleCount += 1;
 
-    const nextCount = sampleCount + 1;
-    const dx = x - meanX;
-    const dy = y - meanY;
-    meanX += dx / nextCount;
-    meanY += dy / nextCount;
-    m2x += dx * (x - meanX);
-    m2y += dy * (y - meanY);
-    covSum += dx * (y - meanY);
-
-    sampleCount = nextCount;
     if (x < minX) minX = x;
     if (x > maxX) maxX = x;
     if (y < minY) minY = y;
@@ -129,10 +122,19 @@ export function scoreOrbitInterest({
   }
 
   const boundedness = clamp01(sampleCount / totalIterations);
-  if (sampleCount < 16 || boundedness < 0.9) {
-    return 0;
+  if (sampleCount < 16 || boundedness < boundednessThreshold) {
+    return {
+      level: "low",
+      features: {
+        sparse: sampleCount < 16,
+        escaped,
+        escapedHigh,
+        boundedness,
+      },
+    };
   }
 
+  // Evaluate complexity in normalized auto-scale space (0..1 in each axis)
   const binsPerAxis = 20;
   const totalBins = binsPerAxis * binsPerAxis;
   const spanX = Math.max(maxX - minX, 1e-9);
@@ -169,61 +171,64 @@ export function scoreOrbitInterest({
   const lineDominance = Math.max(maxRowRatio, maxColRatio);
   const edgeDiversity = edgeSet.size / Math.max(1, sampleCount - 1);
 
-  // Option B stage 1: disqualify obvious low-interest outcomes.
-  // These gates target exactly the classes the user marked as "not interesting".
-  if (escaped) return 0;
-  if (activeBins < 12) return 0;
-  if (lineDominance > 0.64) return 0;
-  if (edgeDiversity < 0.045) return 0;
+  const isSparse = activeBins < sparseBinThreshold;
+  const isLineLike = lineDominance > lineDominanceThreshold || edgeDiversity < edgeDiversityThreshold;
+  const hasClosedLoopEvidence = edgeDiversity >= loopRecurrenceThreshold && activeBins >= Math.max(sparseBinThreshold, 16);
 
-  const coverage = safeRatio(activeBins, totalBins, 0);
-  const targetCoverage = 0.22;
-  const coverageScore = clamp01(1 - Math.abs(coverage - targetCoverage) / targetCoverage);
-
-  let entropy = 0;
-  if (activeBins > 1) {
-    for (let i = 0; i < binHits.length; i += 1) {
-      const hits = binHits[i];
-      if (hits <= 0) continue;
-      const p = hits / sampleCount;
-      entropy -= p * Math.log(p);
-    }
+  if (escaped || escapedHigh || isSparse || isLineLike) {
+    return {
+      level: "low",
+      features: {
+        escaped,
+        escapedHigh,
+        sparse: isSparse,
+        lineLike: isLineLike,
+        closedLoop: hasClosedLoopEvidence,
+        activeBins,
+        lineDominance,
+        edgeDiversity,
+      },
+    };
   }
-  const maxEntropy = Math.log(Math.max(2, activeBins));
-  const entropyScore = clamp01(safeRatio(entropy, maxEntropy, 0));
-  const complexityScore = clamp01(entropyScore * 0.72 + clamp01(edgeDiversity / 0.22) * 0.28);
 
-  const varianceX = safeRatio(m2x, Math.max(1, sampleCount - 1), 0);
-  const varianceY = safeRatio(m2y, Math.max(1, sampleCount - 1), 0);
-  const covariance = safeRatio(covSum, Math.max(1, sampleCount - 1), 0);
-  const trace = varianceX + varianceY;
-  const det = varianceX * varianceY - covariance * covariance;
-  const disc = Math.sqrt(Math.max(0, trace * trace - 4 * det));
-  const lambdaMax = Math.max((trace + disc) * 0.5, 1e-9);
-  const lambdaMin = Math.max((trace - disc) * 0.5, 1e-9);
-  const anisotropy = lambdaMax / lambdaMin;
-  const anisotropyPenalty = clamp01((anisotropy - 3) / 24);
-  const linePenalty = clamp01(anisotropyPenalty * 0.45 + clamp01((lineDominance - 0.28) / 0.5) * 0.55);
-  const tinyPatternPenalty = activeBins <= 2 ? 0.5 : 0;
+  if (hasClosedLoopEvidence) {
+    return {
+      level: "medium",
+      features: {
+        escaped,
+        escapedHigh,
+        sparse: isSparse,
+        lineLike: isLineLike,
+        closedLoop: true,
+        activeBins,
+        lineDominance,
+        edgeDiversity,
+      },
+    };
+  }
 
-  const boundedScore = clamp01((boundedness - 0.92) / 0.08);
-  const coverageWeight = Math.max(0, Number(weights.coverage) || 0.35);
-  const complexityWeight = Math.max(0, Number(weights.complexity) || 0.35);
-  const boundednessWeight = Math.max(0, Number(weights.boundedness) || 0.3);
-  const linePenaltyWeight = Math.max(0, Number(weights.linePenalty) || 0.35);
-  const totalPositiveWeight = Math.max(1e-9, coverageWeight + complexityWeight + boundednessWeight);
-  const weightedPositive = (
-    coverageWeight * coverageScore
-    + complexityWeight * complexityScore
-    + boundednessWeight * boundedScore
-  ) / totalPositiveWeight;
-  const interest = clamp01(
-    weightedPositive
-      - linePenaltyWeight * linePenalty
-      - tinyPatternPenalty,
-  );
-  return interest;
+  return {
+    level: "high",
+    features: {
+      escaped,
+      escapedHigh,
+      sparse: isSparse,
+      lineLike: isLineLike,
+      closedLoop: hasClosedLoopEvidence,
+      activeBins,
+      lineDominance,
+      edgeDiversity,
+    },
+  };
 }
+
+export function scoreOrbitInterest(options) {
+  const result = classifyOrbitInterest(options);
+  if (result.level === "high") return 1;
+  if (result.level === "medium") return 0.66;
+  return 0;
+}
+
 
 
 export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {

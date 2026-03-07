@@ -1,5 +1,5 @@
 import { ColorMapNames, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
-import { renderFrame, getParamsForFormula, scoreOrbitInterest } from "./renderer.js";
+import { renderFrame, getParamsForFormula, classifyOrbitInterest } from "./renderer.js";
 import {
   FORMULA_METADATA,
   FORMULA_RANGES_RAW,
@@ -207,7 +207,7 @@ const interestOverlayState = {
   axisXKey: "a",
   axisYKey: "b",
   gridSize: 0,
-  scores: null,
+  levels: null,
   scannedCells: 0,
   totalCells: 0,
   running: false,
@@ -1270,15 +1270,6 @@ function syncDetailedSettingsControls() {
   if (detailInterestWeightLinePenaltyFormattedEl) detailInterestWeightLinePenaltyFormattedEl.textContent = formatNumberForUi(appData.defaults.interestWeightLinePenalty, 2);
 }
 
-function getInterestWeights() {
-  return {
-    coverage: clamp(Number(appData.defaults.interestWeightCoverage), 0, 2),
-    complexity: clamp(Number(appData.defaults.interestWeightComplexity), 0, 2),
-    boundedness: clamp(Number(appData.defaults.interestWeightBoundedness), 0, 2),
-    linePenalty: clamp(Number(appData.defaults.interestWeightLinePenalty), 0, 2),
-  };
-}
-
 function invalidateInterestScan(shouldClearScores = false) {
   interestOverlayState.token += 1;
   interestOverlayState.running = false;
@@ -1289,7 +1280,7 @@ function invalidateInterestScan(shouldClearScores = false) {
     interestScanTimer = null;
   }
   if (shouldClearScores) {
-    interestOverlayState.scores = null;
+    interestOverlayState.levels = null;
     interestOverlayState.gridSize = 0;
     interestOverlayState.scannedCells = 0;
     interestOverlayState.totalCells = 0;
@@ -3426,7 +3417,6 @@ function buildInterestScanSignature() {
   const gridSize = Math.round(appData.defaults.interestGridSize);
   const scanIterations = Math.round(appData.defaults.interestScanIterations);
   const burn = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
-  const weights = getInterestWeights();
   const signature = JSON.stringify({
     formulaId: currentFormulaId,
     staticParams,
@@ -3438,7 +3428,6 @@ function buildInterestScanSignature() {
     gridSize,
     scanIterations,
     burn,
-    weights,
   });
 
   return {
@@ -3453,7 +3442,6 @@ function buildInterestScanSignature() {
     scanIterations,
     burn,
     staticParams,
-    weights,
   };
 }
 
@@ -3472,14 +3460,14 @@ function maybeStartInterestScan() {
   if (interestOverlayState.running && interestOverlayState.signature === config.signature) {
     return;
   }
-  if (!interestOverlayState.running && interestOverlayState.signature === config.signature && interestOverlayState.scores) {
+  if (!interestOverlayState.running && interestOverlayState.signature === config.signature && interestOverlayState.levels) {
     return;
   }
 
   invalidateInterestScan(false);
   const scanToken = interestOverlayState.token;
   const totalCells = config.gridSize * config.gridSize;
-  const scores = new Float32Array(totalCells);
+  const levels = new Uint8Array(totalCells);
   interestOverlayState.running = true;
   interestOverlayState.signature = config.signature;
   interestOverlayState.axisXKey = config.axisXKey;
@@ -3487,7 +3475,7 @@ function maybeStartInterestScan() {
   interestOverlayState.gridSize = config.gridSize;
   interestOverlayState.totalCells = totalCells;
   interestOverlayState.scannedCells = 0;
-  interestOverlayState.scores = scores;
+  interestOverlayState.levels = levels;
   interestOverlayState.lastProgressToastAt = 0;
   maybeShowOverlayProgressToast(true);
 
@@ -3506,14 +3494,14 @@ function maybeStartInterestScan() {
         [config.axisXKey]: mapGridCellToParamValue(col, config.gridSize, config.axisXRange, false),
         [config.axisYKey]: mapGridCellToParamValue(row, config.gridSize, config.axisYRange, true),
       };
-      scores[index] = scoreOrbitInterest({
+      const classification = classifyOrbitInterest({
         formulaId: currentFormulaId,
         params: scanParams,
         iterations: config.scanIterations,
         burn: config.burn,
         seed: config.seed,
-        weights: config.weights,
       });
+      levels[index] = classification.level === "high" ? 2 : (classification.level === "medium" ? 1 : 0);
       interestOverlayState.scannedCells += 1;
     }
 
@@ -3543,7 +3531,7 @@ function drawInterestOverlay(meta) {
   if (!currentConfig) {
     return;
   }
-  if (interestOverlayState.signature !== currentConfig.signature || !interestOverlayState.scores || interestOverlayState.gridSize <= 0) {
+  if (interestOverlayState.signature !== currentConfig.signature || !interestOverlayState.levels || interestOverlayState.gridSize <= 0) {
     return;
   }
 
@@ -3557,7 +3545,8 @@ function drawInterestOverlay(meta) {
   for (let row = 0; row < size; row += 1) {
     for (let col = 0; col < size; col += 1) {
       const index = row * size + col;
-      const score = clamp(Number(interestOverlayState.scores[index]), 0, 1);
+      const level = Number(interestOverlayState.levels[index] || 0);
+      const score = level >= 2 ? 1 : (level === 1 ? 0.66 : 0);
       if (score < threshold) {
         continue;
       }
