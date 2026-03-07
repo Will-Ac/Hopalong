@@ -51,6 +51,87 @@ const ESCAPE_ABS_BOUND = 1e6;
 
 const formulaStepById = new Map(VARIANTS.map((formula) => [formula.id, formula.step]));
 
+function estimateLyapunovExponent({
+  step,
+  params,
+  iterations,
+  burnSteps,
+  seed,
+  delta0,
+  maxDistance,
+  rescaleEachStep,
+}) {
+  const safeDelta0 = Math.max(1e-12, Number(delta0) || 1e-6);
+  const maxPairDistance = Math.max(safeDelta0 * 2, Number(maxDistance) || 100000);
+
+  let x1 = Number(seed?.x);
+  let y1 = Number(seed?.y);
+  if (!Number.isFinite(x1)) x1 = 0;
+  if (!Number.isFinite(y1)) y1 = 0;
+
+  let x2 = x1 + safeDelta0;
+  let y2 = y1 - safeDelta0;
+
+  for (let i = 0; i < burnSteps; i += 1) {
+    [x1, y1] = step(x1, y1, params.a, params.b, params.c, params.d);
+    [x2, y2] = step(x2, y2, params.a, params.b, params.c, params.d);
+    if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
+      return { exponent: null, validSteps: 0, escaped: true };
+    }
+    if (Math.abs(x1) > ESCAPE_ABS_BOUND || Math.abs(y1) > ESCAPE_ABS_BOUND || Math.abs(x2) > ESCAPE_ABS_BOUND || Math.abs(y2) > ESCAPE_ABS_BOUND) {
+      return { exponent: null, validSteps: 0, escaped: true };
+    }
+  }
+
+  let prevDistance = Math.max(safeDelta0, 1e-12);
+  let logSum = 0;
+  let validSteps = 0;
+
+  for (let i = 0; i < iterations; i += 1) {
+    [x1, y1] = step(x1, y1, params.a, params.b, params.c, params.d);
+    [x2, y2] = step(x2, y2, params.a, params.b, params.c, params.d);
+    if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
+      break;
+    }
+    if (Math.abs(x1) > ESCAPE_ABS_BOUND || Math.abs(y1) > ESCAPE_ABS_BOUND || Math.abs(x2) > ESCAPE_ABS_BOUND || Math.abs(y2) > ESCAPE_ABS_BOUND) {
+      break;
+    }
+
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const rawDistance = Math.hypot(dx, dy);
+    if (!Number.isFinite(rawDistance)) {
+      break;
+    }
+
+    const distance = Math.max(1e-12, Math.min(rawDistance, maxPairDistance));
+    const ratio = distance / Math.max(prevDistance, 1e-12);
+    if (ratio > 0 && Number.isFinite(ratio)) {
+      logSum += Math.log(ratio);
+      validSteps += 1;
+    }
+
+    if (rescaleEachStep) {
+      const scale = safeDelta0 / Math.max(rawDistance, 1e-12);
+      x2 = x1 + dx * scale;
+      y2 = y1 + dy * scale;
+      prevDistance = safeDelta0;
+    } else {
+      prevDistance = distance;
+    }
+  }
+
+  if (validSteps < 16) {
+    return { exponent: null, validSteps, escaped: false };
+  }
+
+  return {
+    exponent: logSum / validSteps,
+    validSteps,
+    escaped: false,
+  };
+}
+
 export function classifyOrbitInterest({
   formulaId,
   params,
@@ -72,6 +153,11 @@ export function classifyOrbitInterest({
   const edgeDiversityThreshold = clamp(Number(config.edgeDiversityThreshold) || 0.045, 0.001, 0.6);
   const loopRecurrenceThreshold = clamp(Number(config.loopRecurrenceThreshold) || 0.035, 0.001, 0.6);
   const boundednessThreshold = clamp(Number(config.boundednessThreshold) || 0.9, 0.4, 1);
+  const lyapunovEnabled = Boolean(config.lyapunovEnabled);
+  const lyapunovMinExponent = clamp(Number(config.lyapunovMinExponent) || 0, -2, 2);
+  const lyapunovDelta0 = Math.max(1e-12, Number(config.lyapunovDelta0) || 0.000001);
+  const lyapunovRescale = config.lyapunovRescale !== false;
+  const lyapunovMaxDistance = Math.max(10, Number(config.lyapunovMaxDistance) || 100000);
 
   let x = Number(seed?.x);
   let y = Number(seed?.y);
@@ -191,9 +277,22 @@ export function classifyOrbitInterest({
     };
   }
 
+  const lyapunov = estimateLyapunovExponent({
+    step,
+    params,
+    iterations: totalIterations,
+    burnSteps,
+    seed,
+    delta0: lyapunovDelta0,
+    maxDistance: lyapunovMaxDistance,
+    rescaleEachStep: lyapunovRescale,
+  });
+  const lyapunovExponent = Number.isFinite(lyapunov.exponent) ? lyapunov.exponent : null;
+  const lyapunovChaotic = lyapunovEnabled && lyapunovExponent !== null && lyapunovExponent >= lyapunovMinExponent;
+
   if (hasClosedLoopEvidence) {
     return {
-      level: "medium",
+      level: lyapunovChaotic ? "high" : "medium",
       features: {
         escaped,
         escapedHigh,
@@ -203,12 +302,18 @@ export function classifyOrbitInterest({
         activeBins,
         lineDominance,
         edgeDiversity,
+        lyapunovEnabled,
+        lyapunovExponent,
+        lyapunovMinExponent,
+        lyapunovChaotic,
+        lyapunovValidSteps: lyapunov.validSteps,
       },
     };
   }
 
+  const highWithoutLyapunov = !lyapunovEnabled;
   return {
-    level: "high",
+    level: highWithoutLyapunov || lyapunovChaotic ? "high" : "medium",
     features: {
       escaped,
       escapedHigh,
@@ -218,6 +323,11 @@ export function classifyOrbitInterest({
       activeBins,
       lineDominance,
       edgeDiversity,
+      lyapunovEnabled,
+      lyapunovExponent,
+      lyapunovMinExponent,
+      lyapunovChaotic,
+      lyapunovValidSteps: lyapunov.validSteps,
     },
   };
 }

@@ -31,5 +31,10 @@
   "interestLineDominanceThreshold": 0.64,
   "interestLoopRecurrenceThreshold": 0.035,
   "interestMediumOpacity": 0.24,
-  "interestHighOpacity": 0.42
+  "interestHighOpacity": 0.42,
+  "interestLyapunovEnabled": false,
+  "interestLyapunovMinExponent": 0,
+  "interestLyapunovDelta0": 1e-06,
+  "interestLyapunovRescale": true,
+  "interestLyapunovMaxDistance": 100000
 }
