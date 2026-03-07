@@ -251,6 +251,8 @@ const INTEREST_GRID_MIN = 12;
 const INTEREST_GRID_MAX = 80;
 const INTEREST_SCAN_MIN = 120;
 const INTEREST_SCAN_MAX = 20000;
+const INTEREST_MEDIUM_OVERLAY_ALPHA = 0.24;
+const INTEREST_HIGH_OVERLAY_ALPHA = 0.42;
 
 const LEGACY_SLIDER_KEY_MAP = {
   alpha: "a",
@@ -3535,7 +3537,6 @@ function drawInterestOverlay(meta) {
     return;
   }
 
-  const threshold = clamp(Number(appData.defaults.interestThreshold), 0, 1);
   const { view } = meta;
   const size = interestOverlayState.gridSize;
   const cellWidth = view.width / size;
@@ -3546,12 +3547,13 @@ function drawInterestOverlay(meta) {
     for (let col = 0; col < size; col += 1) {
       const index = row * size + col;
       const level = Number(interestOverlayState.levels[index] || 0);
-      const score = level >= 2 ? 1 : (level === 1 ? 0.66 : 0);
-      if (score < threshold) {
+      if (level <= 0) {
         continue;
       }
-      const shade = Math.round(255 * score);
-      const alpha = 0.12 + score * 0.32;
+
+      const isHigh = level >= 2;
+      const shade = isHigh ? 255 : 184;
+      const alpha = isHigh ? INTEREST_HIGH_OVERLAY_ALPHA : INTEREST_MEDIUM_OVERLAY_ALPHA;
       ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, ${alpha})`;
       ctx.fillRect(col * cellWidth, row * cellHeight, cellWidth, cellHeight);
     }

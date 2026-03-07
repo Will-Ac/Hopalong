@@ -183,7 +183,7 @@ Split into modules (even if bundled later):
   - Medium: non-low cells that show closed-loop recurrence/path-diversity evidence.
   - High: non-low cells without the medium loop signature.
 - Combined weighted scoring is removed from scan classification (legacy weight sliders may remain temporarily for backward-compatibility UI wiring).
-- Draw a translucent grayscale grid overlay on top of the rendered image; during Phase 1/2 the draw path can map categories to temporary numeric intensity for compatibility.
+- Draw a translucent grayscale grid overlay on top of the rendered image using category opacity mapping: low = hidden, medium = medium opacity, high = highest opacity.
 - Add settings in the General tab for:
   - Grid size
   - Interest threshold
