@@ -154,6 +154,7 @@ export function classifyOrbitInterest({
   const loopRecurrenceThreshold = clamp(Number(config.loopRecurrenceThreshold) || 0.035, 0.001, 0.6);
   const boundednessThreshold = clamp(Number(config.boundednessThreshold) || 0.9, 0.4, 1);
   const lyapunovEnabled = Boolean(config.lyapunovEnabled);
+  const lyapunovOnly = Boolean(config.lyapunovOnly);
   const lyapunovMinExponent = clamp(Number(config.lyapunovMinExponent) || 0, -2, 2);
   const lyapunovDelta0 = Math.max(1e-12, Number(config.lyapunovDelta0) || 0.000001);
   const lyapunovRescale = config.lyapunovRescale !== false;
@@ -220,6 +221,26 @@ export function classifyOrbitInterest({
     };
   }
 
+  if (lyapunovOnly) {
+    const level = lyapunovExponent === null
+      ? "low"
+      : (lyapunovChaotic ? "high" : "medium");
+    return {
+      level,
+      features: {
+        escaped,
+        escapedHigh,
+        boundedness,
+        lyapunovEnabled,
+        lyapunovOnly,
+        lyapunovExponent,
+        lyapunovMinExponent,
+        lyapunovChaotic,
+        lyapunovValidSteps: lyapunov.validSteps,
+      },
+    };
+  }
+
   // Evaluate complexity in normalized auto-scale space (0..1 in each axis)
   const binsPerAxis = 20;
   const totalBins = binsPerAxis * binsPerAxis;
@@ -277,19 +298,6 @@ export function classifyOrbitInterest({
     };
   }
 
-  const lyapunov = estimateLyapunovExponent({
-    step,
-    params,
-    iterations: totalIterations,
-    burnSteps,
-    seed,
-    delta0: lyapunovDelta0,
-    maxDistance: lyapunovMaxDistance,
-    rescaleEachStep: lyapunovRescale,
-  });
-  const lyapunovExponent = Number.isFinite(lyapunov.exponent) ? lyapunov.exponent : null;
-  const lyapunovChaotic = lyapunovEnabled && lyapunovExponent !== null && lyapunovExponent >= lyapunovMinExponent;
-
   if (hasClosedLoopEvidence) {
     return {
       level: lyapunovChaotic ? "high" : "medium",
@@ -303,6 +311,7 @@ export function classifyOrbitInterest({
         lineDominance,
         edgeDiversity,
         lyapunovEnabled,
+        lyapunovOnly,
         lyapunovExponent,
         lyapunovMinExponent,
         lyapunovChaotic,
@@ -324,6 +333,7 @@ export function classifyOrbitInterest({
       lineDominance,
       edgeDiversity,
       lyapunovEnabled,
+      lyapunovOnly,
       lyapunovExponent,
       lyapunovMinExponent,
       lyapunovChaotic,

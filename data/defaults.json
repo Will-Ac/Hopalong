@@ -36,5 +36,6 @@
   "interestLyapunovMinExponent": 0,
   "interestLyapunovDelta0": 1e-06,
   "interestLyapunovRescale": true,
-  "interestLyapunovMaxDistance": 100000
+  "interestLyapunovMaxDistance": 100000,
+  "interestLyapunovOnly": false
 }

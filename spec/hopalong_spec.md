@@ -182,6 +182,7 @@ Split into modules (even if bundled later):
   - Low: escape/divergence, very sparse occupancy, or strong line-like dominance.
   - Medium: non-low cells that show closed-loop recurrence/path-diversity evidence.
   - High: non-low cells without the medium loop signature; when Lyapunov gate is enabled, High requires Lyapunov exponent to meet threshold.
+  - Lyapunov-only mode: ignore non-Lyapunov feature gates and classify cells from Lyapunov exponent alone (high if threshold passed, medium if valid but below threshold, low if invalid/insufficient).
 - Add finite-time Lyapunov estimation using two nearby seeds and mean log divergence `mean(log(d(n+1)/d(n)))`; positive exponent indicates chaotic tendency.
 - Combined weighted scoring is removed from scan classification; classifier tuning is controlled by explicit threshold sliders.
 - Draw a translucent grayscale grid overlay on top of the rendered image using category opacity mapping: low = hidden, medium = medium opacity, high = highest opacity.
@@ -194,6 +195,7 @@ Split into modules (even if bundled later):
   - Loop recurrence threshold
   - Overlay opacity for medium and high categories
   - Lyapunov gate enable/disable
+  - Lyapunov-only matrix mode toggle
   - Lyapunov minimum exponent threshold
   - Lyapunov initial separation (d0)
   - Lyapunov renormalization toggle

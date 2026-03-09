@@ -67,6 +67,7 @@ const detailInterestMediumOpacityFormattedEl = document.getElementById("detailIn
 const detailInterestHighOpacityRangeEl = document.getElementById("detailInterestHighOpacityRange");
 const detailInterestHighOpacityFormattedEl = document.getElementById("detailInterestHighOpacityFormatted");
 const detailInterestLyapunovEnabledEl = document.getElementById("detailInterestLyapunovEnabled");
+const detailInterestLyapunovOnlyEl = document.getElementById("detailInterestLyapunovOnly");
 const detailInterestLyapunovMinExponentRangeEl = document.getElementById("detailInterestLyapunovMinExponentRange");
 const detailInterestLyapunovMinExponentFormattedEl = document.getElementById("detailInterestLyapunovMinExponentFormatted");
 const detailInterestLyapunovDelta0RangeEl = document.getElementById("detailInterestLyapunovDelta0Range");
@@ -1280,6 +1281,7 @@ function syncDetailedSettingsControls() {
   if (detailInterestHighOpacityRangeEl) detailInterestHighOpacityRangeEl.value = String(appData.defaults.interestHighOpacity);
   if (detailInterestHighOpacityFormattedEl) detailInterestHighOpacityFormattedEl.textContent = formatNumberForUi(appData.defaults.interestHighOpacity, 2);
   if (detailInterestLyapunovEnabledEl) detailInterestLyapunovEnabledEl.checked = Boolean(appData.defaults.interestLyapunovEnabled);
+  if (detailInterestLyapunovOnlyEl) detailInterestLyapunovOnlyEl.checked = Boolean(appData.defaults.interestLyapunovOnly);
   if (detailInterestLyapunovMinExponentRangeEl) detailInterestLyapunovMinExponentRangeEl.value = String(appData.defaults.interestLyapunovMinExponent);
   if (detailInterestLyapunovMinExponentFormattedEl) detailInterestLyapunovMinExponentFormattedEl.textContent = formatNumberForUi(appData.defaults.interestLyapunovMinExponent, 3);
   if (detailInterestLyapunovDelta0RangeEl) detailInterestLyapunovDelta0RangeEl.value = String(appData.defaults.interestLyapunovDelta0);
@@ -3426,6 +3428,7 @@ function getInterestClassifierConfig() {
     lineDominanceThreshold: clamp(Number(appData.defaults.interestLineDominanceThreshold), 0.2, 0.98),
     loopRecurrenceThreshold: clamp(Number(appData.defaults.interestLoopRecurrenceThreshold), 0.001, 0.2),
     lyapunovEnabled: Boolean(appData.defaults.interestLyapunovEnabled),
+    lyapunovOnly: Boolean(appData.defaults.interestLyapunovOnly),
     lyapunovMinExponent: clamp(Number(appData.defaults.interestLyapunovMinExponent), -0.5, 0.5),
     lyapunovDelta0: clamp(Number(appData.defaults.interestLyapunovDelta0), 0.0000001, 0.01),
     lyapunovRescale: Boolean(appData.defaults.interestLyapunovRescale),
@@ -4438,6 +4441,13 @@ function registerHandlers() {
     invalidateInterestScan(true);
     requestDraw();
   });
+  detailInterestLyapunovOnlyEl?.addEventListener("change", () => {
+    appData.defaults.interestLyapunovOnly = Boolean(detailInterestLyapunovOnlyEl.checked);
+    syncDetailedSettingsControls();
+    saveDefaultsToStorage();
+    invalidateInterestScan(true);
+    requestDraw();
+  });
   detailInterestLyapunovRescaleEl?.addEventListener("change", () => {
     appData.defaults.interestLyapunovRescale = Boolean(detailInterestLyapunovRescaleEl.checked);
     syncDetailedSettingsControls();
@@ -4669,6 +4679,9 @@ async function loadData() {
   if (typeof data.defaults.interestLyapunovEnabled !== "boolean") {
     data.defaults.interestLyapunovEnabled = false;
   }
+  if (typeof data.defaults.interestLyapunovOnly !== "boolean") {
+    data.defaults.interestLyapunovOnly = false;
+  }
   if (typeof data.defaults.interestLyapunovMinExponent !== "number") {
     data.defaults.interestLyapunovMinExponent = 0;
   }
@@ -4698,6 +4711,7 @@ async function loadData() {
   data.defaults.interestMediumOpacity = clamp(data.defaults.interestMediumOpacity, 0.05, 0.8);
   data.defaults.interestHighOpacity = clamp(data.defaults.interestHighOpacity, 0.05, 0.95);
   data.defaults.interestLyapunovEnabled = Boolean(data.defaults.interestLyapunovEnabled);
+  data.defaults.interestLyapunovOnly = Boolean(data.defaults.interestLyapunovOnly);
   data.defaults.interestLyapunovMinExponent = clamp(data.defaults.interestLyapunovMinExponent, -0.5, 0.5);
   data.defaults.interestLyapunovDelta0 = clamp(data.defaults.interestLyapunovDelta0, 0.0000001, 0.01);
   data.defaults.interestLyapunovRescale = Boolean(data.defaults.interestLyapunovRescale);
@@ -4754,6 +4768,7 @@ async function bootstrap() {
     appData.defaults.interestMediumOpacity = clamp(Number(appData.defaults.interestMediumOpacity ?? 0.24), 0.05, 0.8);
     appData.defaults.interestHighOpacity = clamp(Number(appData.defaults.interestHighOpacity ?? 0.42), 0.05, 0.95);
     appData.defaults.interestLyapunovEnabled = Boolean(appData.defaults.interestLyapunovEnabled);
+    appData.defaults.interestLyapunovOnly = Boolean(appData.defaults.interestLyapunovOnly);
     appData.defaults.interestLyapunovMinExponent = clamp(Number(appData.defaults.interestLyapunovMinExponent ?? 0), -0.5, 0.5);
     appData.defaults.interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0 ?? 0.000001), 0.0000001, 0.01);
     appData.defaults.interestLyapunovRescale = Boolean(appData.defaults.interestLyapunovRescale ?? true);
