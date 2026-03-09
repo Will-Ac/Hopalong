@@ -15,7 +15,6 @@ const canvas = document.getElementById("c");
 const toastEl = document.getElementById("toast");
 const formulaBtn = document.getElementById("formulaBtn");
 const cmapBtn = document.getElementById("cmapBtn");
-const debugBugBtn = document.getElementById("debugBugBtn");
 const debugInfoEl = document.getElementById("debugInfo");
 const debugPanelEl = document.getElementById("debugPanel");
 const rangesEditorToggleEl = document.getElementById("rangesEditorToggle");
@@ -782,23 +781,6 @@ function configureNameBoxWidths() {
 
 function layoutFloatingActions() {
   applyResponsiveUiSizing();
-
-  if (!debugBugBtn || !debugPanelEl || !paramOverlayEl) {
-    return;
-  }
-
-  const appRect = paramOverlayEl.parentElement?.getBoundingClientRect();
-  const bugRect = debugBugBtn.getBoundingClientRect();
-  if (!appRect) {
-    return;
-  }
-
-  const margin = 6;
-  const maxLeft = Math.max(0, appRect.width - debugPanelEl.offsetWidth - margin);
-  const nextLeft = clamp(bugRect.left - appRect.left, 0, maxLeft);
-  const nextTop = bugRect.bottom - appRect.top + margin;
-  debugPanelEl.style.left = `${Math.round(nextLeft)}px`;
-  debugPanelEl.style.top = `${Math.round(nextTop)}px`;
 }
 
 function collectUiTextLines() {
@@ -1468,7 +1450,6 @@ function syncRandomModeButton() {
 function syncDebugToggleUi() {
   const isDebug = Boolean(appData?.defaults?.debug);
   debugPanelEl?.classList.toggle("is-hidden", !isDebug);
-  debugBugBtn?.classList.toggle("is-active", isDebug);
   if (detailDebugToggleEl) {
     detailDebugToggleEl.checked = isDebug;
   }
@@ -2013,7 +1994,7 @@ function isEventInsideInteractiveUi(eventTarget) {
     return false;
   }
 
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #debugToggleDock, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #colorSettingsPanel, #rangesEditorToggle"));
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #colorSettingsPanel, #rangesEditorToggle"));
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -4027,13 +4008,6 @@ async function endCameraPress(event) {
 function registerHandlers() {
   pickerClose.addEventListener("click", () => closePicker());
   pickerBackdrop.addEventListener("click", () => closePicker());
-  debugBugBtn?.addEventListener("click", () => {
-    appData.defaults.debug = !Boolean(appData.defaults.debug);
-    syncDebugToggleUi();
-    saveDefaultsToStorage();
-    requestDraw();
-  });
-
   for (const [targetKey, target] of Object.entries(paramTileTargets)) {
     const tile = target.button.closest(".poItem");
     if (!tile) {
@@ -4090,6 +4064,10 @@ function registerHandlers() {
 
   overlayToggleBtn?.addEventListener("click", () => {
     appData.defaults.modulationOverlayEnabled = !isModulationOverlayEnabled();
+    if (!appData.defaults.modulationOverlayEnabled) {
+      isManualModulating = false;
+      isKeyboardManualModulating = false;
+    }
     syncOverlayToggleButton();
     saveDefaultsToStorage();
     requestDraw();
