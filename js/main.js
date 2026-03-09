@@ -47,6 +47,13 @@ const detailOverlayColorValueEl = document.getElementById("detailOverlayColorVal
 const detailOverlayAlphaRangeEl = document.getElementById("detailOverlayAlphaRange");
 const detailOverlayAlphaFormattedEl = document.getElementById("detailOverlayAlphaFormatted");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
+const detailColorModeSelectEl = document.getElementById("detailColorModeSelect");
+const detailLogStrengthRangeEl = document.getElementById("detailLogStrengthRange");
+const detailLogStrengthFormattedEl = document.getElementById("detailLogStrengthFormatted");
+const detailDensityGammaRangeEl = document.getElementById("detailDensityGammaRange");
+const detailDensityGammaFormattedEl = document.getElementById("detailDensityGammaFormatted");
+const detailHybridBlendRangeEl = document.getElementById("detailHybridBlendRange");
+const detailHybridBlendFormattedEl = document.getElementById("detailHybridBlendFormatted");
 const detailBackgroundColorEl = document.getElementById("detailBackgroundColor");
 const detailBackgroundColorValueEl = document.getElementById("detailBackgroundColorValue");
 const colorSettingsPanelEl = document.getElementById("colorSettingsPanel");
@@ -61,6 +68,10 @@ const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
 const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
 const infoBurnEl = document.getElementById("infoBurn");
 const infoDebugEl = document.getElementById("infoDebug");
+const infoColorModeEl = document.getElementById("infoColorMode");
+const infoLogStrengthEl = document.getElementById("infoLogStrength");
+const infoDensityGammaEl = document.getElementById("infoDensityGamma");
+const infoHybridBlendEl = document.getElementById("infoHybridBlend");
 const detailSeedXInputEl = document.getElementById("detailSeedXInput");
 const detailSeedYInputEl = document.getElementById("detailSeedYInput");
 const extraFormulaParamsEl = document.getElementById("extraFormulaParams");
@@ -217,9 +228,9 @@ const ZOOM_RATIO_MIN = 0.002;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
 const MOD_OVERLAY_GRID_SIZE_MIN = 4;
-const MOD_OVERLAY_GRID_SIZE_MAX = 24;
+const MOD_OVERLAY_GRID_SIZE_MAX = 48;
 const MOD_OVERLAY_SCAN_ITERS_MIN = 1;
-const MOD_OVERLAY_SCAN_ITERS_MAX = 20;
+const MOD_OVERLAY_SCAN_ITERS_MAX = 10000;
 
 const LEGACY_SLIDER_KEY_MAP = {
   alpha: "a",
@@ -1215,6 +1226,13 @@ function syncDetailedSettingsControls() {
   if (detailOverlayAlphaRangeEl) detailOverlayAlphaRangeEl.value = String(overlayOpacity);
   if (detailOverlayAlphaFormattedEl) detailOverlayAlphaFormattedEl.textContent = formatNumberForUi(overlayOpacity, 2);
 
+  if (detailColorModeSelectEl) detailColorModeSelectEl.value = appData.defaults.renderColorMode;
+  if (detailLogStrengthRangeEl) detailLogStrengthRangeEl.value = String(appData.defaults.renderLogStrength);
+  if (detailLogStrengthFormattedEl) detailLogStrengthFormattedEl.textContent = formatNumberForUi(appData.defaults.renderLogStrength, 1);
+  if (detailDensityGammaRangeEl) detailDensityGammaRangeEl.value = String(appData.defaults.renderDensityGamma);
+  if (detailDensityGammaFormattedEl) detailDensityGammaFormattedEl.textContent = formatNumberForUi(appData.defaults.renderDensityGamma, 2);
+  if (detailHybridBlendRangeEl) detailHybridBlendRangeEl.value = String(appData.defaults.renderHybridBlend);
+  if (detailHybridBlendFormattedEl) detailHybridBlendFormattedEl.textContent = formatNumberForUi(appData.defaults.renderHybridBlend, 2);
   if (detailBackgroundColorEl) detailBackgroundColorEl.value = appData.defaults.backgroundColor || "#05070c";
   if (detailBackgroundColorValueEl) detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor || "#05070c";
 }
@@ -1235,6 +1253,27 @@ function applyMaxRandomIterations(nextValue) {
   appData.defaults.maxRandomIters = clamped;
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
+  commitCurrentStateToHistory();
+}
+
+function applyRenderColorMode(mode) {
+  const normalizedMode = String(mode || "").trim();
+  appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(normalizedMode)
+    ? normalizedMode
+    : RENDER_COLOR_MODES.ITERATION_ORDER;
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyRenderColorParam(key, nextValue, min, max, digits) {
+  const numeric = clamp(Number(nextValue), min, max);
+  const factor = 10 ** digits;
+  appData.defaults[key] = Math.round(numeric * factor) / factor;
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
   commitCurrentStateToHistory();
 }
 
@@ -1264,10 +1303,10 @@ function applyOverlayTransparency(nextValue) {
 
 function getRenderColoringOptions() {
   return {
-    mode: "iteration_order",
-    logStrength: 9,
-    densityGamma: 0.6,
-    hybridBlend: 0.3,
+    mode: appData.defaults.renderColorMode,
+    logStrength: appData.defaults.renderLogStrength,
+    densityGamma: appData.defaults.renderDensityGamma,
+    hybridBlend: appData.defaults.renderHybridBlend,
   };
 }
 
@@ -1807,6 +1846,10 @@ function captureCurrentState() {
     cmapName: appData.defaults.cmapName,
     sliders: { ...appData.defaults.sliders },
     maxRandomIters: appData.defaults.maxRandomIters,
+    renderColorMode: appData.defaults.renderColorMode,
+    renderLogStrength: appData.defaults.renderLogStrength,
+    renderDensityGamma: appData.defaults.renderDensityGamma,
+    renderHybridBlend: appData.defaults.renderHybridBlend,
     overlayGridSize: appData.defaults.overlayGridSize,
     overlayScanIterations: appData.defaults.overlayScanIterations,
     overlayColor: appData.defaults.overlayColor,
@@ -1865,6 +1908,12 @@ function applyState(state) {
   appData.defaults.cmapName = state.cmapName;
   appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
   appData.defaults.maxRandomIters = Math.round(clamp(state.maxRandomIters ?? appData.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
+  appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(state.renderColorMode)
+    ? state.renderColorMode
+    : appData.defaults.renderColorMode;
+  appData.defaults.renderLogStrength = clamp(Number(state.renderLogStrength ?? appData.defaults.renderLogStrength), 0.5, 30);
+  appData.defaults.renderDensityGamma = clamp(Number(state.renderDensityGamma ?? appData.defaults.renderDensityGamma), 0.2, 2);
+  appData.defaults.renderHybridBlend = clamp(Number(state.renderHybridBlend ?? appData.defaults.renderHybridBlend), 0, 1);
   appData.defaults.overlayGridSize = Math.round(clamp(Number(state.overlayGridSize ?? appData.defaults.overlayGridSize ?? 12), MOD_OVERLAY_GRID_SIZE_MIN, MOD_OVERLAY_GRID_SIZE_MAX));
   appData.defaults.overlayScanIterations = Math.round(clamp(Number(state.overlayScanIterations ?? appData.defaults.overlayScanIterations ?? 6), MOD_OVERLAY_SCAN_ITERS_MIN, MOD_OVERLAY_SCAN_ITERS_MAX));
   appData.defaults.overlayColor = typeof state.overlayColor === "string" ? state.overlayColor : (appData.defaults.overlayColor || "#ffffff");
@@ -4080,6 +4129,10 @@ function registerHandlers() {
   detailOverlayGridSizeRangeEl?.addEventListener("input", () => applyOverlaySetting("overlayGridSize", detailOverlayGridSizeRangeEl.value, MOD_OVERLAY_GRID_SIZE_MIN, MOD_OVERLAY_GRID_SIZE_MAX));
   detailOverlayScanItersRangeEl?.addEventListener("input", () => applyOverlaySetting("overlayScanIterations", detailOverlayScanItersRangeEl.value, MOD_OVERLAY_SCAN_ITERS_MIN, MOD_OVERLAY_SCAN_ITERS_MAX));
   detailOverlayColorEl?.addEventListener("input", () => applyOverlayColor(detailOverlayColorEl.value));
+  detailColorModeSelectEl?.addEventListener("change", () => applyRenderColorMode(detailColorModeSelectEl.value));
+  detailLogStrengthRangeEl?.addEventListener("input", () => applyRenderColorParam("renderLogStrength", detailLogStrengthRangeEl.value, 0.5, 30, 1));
+  detailDensityGammaRangeEl?.addEventListener("input", () => applyRenderColorParam("renderDensityGamma", detailDensityGammaRangeEl.value, 0.2, 2, 2));
+  detailHybridBlendRangeEl?.addEventListener("input", () => applyRenderColorParam("renderHybridBlend", detailHybridBlendRangeEl.value, 0, 1, 2));
 
   detailDebugToggleEl?.addEventListener("change", () => {
     appData.defaults.debug = Boolean(detailDebugToggleEl.checked);
@@ -4131,6 +4184,18 @@ function registerHandlers() {
   });
   infoDebugEl?.addEventListener("click", (event) => {
     showSettingsInfo("Debug overlay draws extra guides and diagnostics. Turning it off reduces UI drawing overhead.", event.currentTarget);
+  });
+  infoColorModeEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Switch between iteration-order and density-based coloring methods to emphasize different structure in the attractor.", event.currentTarget);
+  });
+  infoLogStrengthEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Log strength compresses extreme hit counts. Increase it when dense centers overwhelm medium-detail regions.", event.currentTarget);
+  });
+  infoDensityGammaEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Gamma reshapes density contrast. Lower values brighten medium-density detail; higher values emphasize only the densest regions.", event.currentTarget);
+  });
+  infoHybridBlendEl?.addEventListener("click", (event) => {
+    showSettingsInfo("Hybrid age blend mixes density color with recency color. Increase to make newer orbit paths more visible.", event.currentTarget);
   });
   settingsInfoPopupEl?.addEventListener("click", hideSettingsInfo);
 
@@ -4240,6 +4305,18 @@ async function loadData() {
   if (typeof data.defaults.maxRandomIters !== "number") {
     data.defaults.maxRandomIters = sliderControls.iters.max;
   }
+  if (!RENDER_COLOR_MODE_SET.has(data.defaults.renderColorMode)) {
+    data.defaults.renderColorMode = RENDER_COLOR_MODES.ITERATION_ORDER;
+  }
+  if (typeof data.defaults.renderLogStrength !== "number") {
+    data.defaults.renderLogStrength = 9;
+  }
+  if (typeof data.defaults.renderDensityGamma !== "number") {
+    data.defaults.renderDensityGamma = 0.6;
+  }
+  if (typeof data.defaults.renderHybridBlend !== "number") {
+    data.defaults.renderHybridBlend = 0.3;
+  }
   if (typeof data.defaults.overlayGridSize !== "number") {
     data.defaults.overlayGridSize = 12;
   }
@@ -4268,6 +4345,9 @@ async function loadData() {
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
   data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
+  data.defaults.renderLogStrength = clamp(data.defaults.renderLogStrength, 0.5, 30);
+  data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
+  data.defaults.renderHybridBlend = clamp(data.defaults.renderHybridBlend, 0, 1);
   data.defaults.overlayGridSize = Math.round(clamp(data.defaults.overlayGridSize, MOD_OVERLAY_GRID_SIZE_MIN, MOD_OVERLAY_GRID_SIZE_MAX));
   data.defaults.overlayScanIterations = Math.round(clamp(data.defaults.overlayScanIterations, MOD_OVERLAY_SCAN_ITERS_MIN, MOD_OVERLAY_SCAN_ITERS_MAX));
   data.defaults.overlayOpacity = clamp(data.defaults.overlayOpacity, 0.1, 1);

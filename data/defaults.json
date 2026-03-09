@@ -21,5 +21,9 @@
   "overlayGridSize": 12,
   "overlayScanIterations": 6,
   "overlayColor": "#ffffff",
-  "overlayOpacity": 0.6
+  "overlayOpacity": 0.6,
+  "renderColorMode": "iteration_order",
+  "renderLogStrength": 9,
+  "renderDensityGamma": 0.6,
+  "renderHybridBlend": 0.3
 }
