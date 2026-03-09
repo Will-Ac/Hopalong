@@ -1133,11 +1133,13 @@ function openRangesEditor() {
   setSettingsTab("color");
   syncDetailedSettingsControls();
   hideSettingsInfo();
+  syncSettingsToggleButton();
 }
 
 function closeRangesEditor() {
   rangesEditorPanelEl?.classList.add("is-hidden");
   hideSettingsInfo();
+  syncSettingsToggleButton();
 }
 
 function openFormulaSettingsPanel(formulaId = null) {
@@ -1410,11 +1412,18 @@ function setScaleModeFixed(reason = "manual pan/zoom") {
 }
 
 function syncScaleModeButton() {
-  const isFixed = getScaleMode() === "fixed";
-  scaleModeBtn.textContent = isFixed ? "Auto\nScale" : "Fixed\nScale";
-  scaleModeBtn.classList.toggle("is-fixed", isFixed);
-  scaleModeBtn.setAttribute("aria-label", isFixed ? "Switch to auto scaling" : "Switch to fixed scaling");
-  scaleModeBtn.title = isFixed ? "Fixed scale" : "Auto scale";
+  const isAuto = getScaleMode() === "auto";
+  scaleModeBtn.textContent = "Auto\nScale";
+  scaleModeBtn.classList.toggle("is-active", isAuto);
+  scaleModeBtn.setAttribute("aria-label", isAuto ? "Disable auto scaling" : "Enable auto scaling");
+  scaleModeBtn.title = isAuto ? "Auto scale on" : "Auto scale off";
+}
+
+function syncSettingsToggleButton() {
+  const isOpen = !rangesEditorPanelEl?.classList.contains("is-hidden");
+  rangesEditorToggleEl?.classList.toggle("is-active", isOpen);
+  rangesEditorToggleEl?.setAttribute("aria-label", isOpen ? "Close settings editor" : "Open settings editor");
+  rangesEditorToggleEl.title = isOpen ? "Settings open" : "Settings closed";
 }
 
 function isModulationOverlayEnabled() {
@@ -4076,16 +4085,16 @@ function registerHandlers() {
   });
 
   scaleModeBtn.addEventListener("click", () => {
-    const currentlyFixed = getScaleMode() === "fixed";
-    if (!currentlyFixed) {
+    const isAuto = getScaleMode() === "auto";
+    if (isAuto) {
       syncFixedViewFromLastRenderMeta();
     }
-    appData.defaults.scaleMode = currentlyFixed ? "auto" : "fixed";
+    appData.defaults.scaleMode = isAuto ? "fixed" : "auto";
     syncScaleModeButton();
     saveDefaultsToStorage();
     requestDraw();
     commitCurrentStateToHistory();
-    showToast(getScaleMode() === "fixed" ? "Fixed scale mode enabled." : "Auto scale mode enabled.");
+    showToast(getScaleMode() === "auto" ? "Auto scale enabled." : "Auto scale disabled.");
   });
 
   const toggleRandomMode = (event) => {
@@ -4436,6 +4445,7 @@ async function bootstrap() {
     syncSeedEditorInputs(currentFormulaId);
     rangesEditorFormulaId = currentFormulaId;
     syncDebugToggleUi();
+    syncSettingsToggleButton();
     syncOverlayToggleButton();
     syncScaleModeButton();
     syncRandomModeButton();

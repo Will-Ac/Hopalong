@@ -774,17 +774,17 @@
       #scaleModeBtn.is-fixed {
         background: rgba(var(--ui-gray-rgb), 0.1);
       }
+      .topActionBtn.is-active {
+        background: rgba(var(--ui-gray-rgb), 0.9);
+        color: rgba(8, 10, 15, 0.95);
+      }
       #overlayToggleBtn .eyeIcon {
         width: 22px;
         height: 22px;
         display: block;
       }
-      #overlayToggleBtn.is-active {
-        background: rgba(var(--ui-gray-rgb), 0.9);
-        color: rgba(8, 10, 15, 0.95);
-      }
       #overlayToggleBtn.is-active .eyeIcon {
-        transform: scaleX(-1) rotate(180deg);
+        transform: scaleX(-1);
         filter: invert(1);
       }
       #randomModeTile.is-random {
