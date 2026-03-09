@@ -1,5 +1,7 @@
 # Hopalong v124 — rewrite spec pack (2026-02-16)
 
+> **Baseline reset PR note (2026-03-09):** This PR intentionally resets the working scope to a minimal baseline. Keep only these overlay capabilities for two-parameter modulation: **grid size**, **scan iterations per cell**, and **overlay color/opacity**. Advanced classifier controls and Lyapunov-focused controls are out of scope and should be added back only in later incremental PRs.
+
 This pack is intended to be handed to Codex as the source-of-truth for a clean rewrite of `hopalongv124.html`.
 
 ## 1) Scope
