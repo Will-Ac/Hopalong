@@ -19,6 +19,7 @@ const debugBugBtn = document.getElementById("debugBugBtn");
 const debugInfoEl = document.getElementById("debugInfo");
 const debugPanelEl = document.getElementById("debugPanel");
 const rangesEditorToggleEl = document.getElementById("rangesEditorToggle");
+const overlayToggleBtn = document.getElementById("overlayToggleBtn");
 const rangesEditorPanelEl = document.getElementById("rangesEditorPanel");
 const rangesEditorCloseEl = document.getElementById("rangesEditorClose");
 const formulaSettingsPanelEl = document.getElementById("formulaSettingsPanel");
@@ -1434,6 +1435,18 @@ function syncScaleModeButton() {
   scaleModeBtn.title = isFixed ? "Fixed scale" : "Auto scale";
 }
 
+function isModulationOverlayEnabled() {
+  return Boolean(appData?.defaults?.modulationOverlayEnabled ?? true);
+}
+
+function syncOverlayToggleButton() {
+  const isOn = isModulationOverlayEnabled();
+  if (!overlayToggleBtn) return;
+  overlayToggleBtn.classList.toggle("is-active", isOn);
+  overlayToggleBtn.setAttribute("aria-label", isOn ? "Disable modulation overlay" : "Enable modulation overlay");
+  overlayToggleBtn.title = isOn ? "Modulation overlay on" : "Modulation overlay off";
+}
+
 function syncRandomModeButton() {
   const globalMode = getGlobalRandomFixMixState();
 
@@ -1854,6 +1867,7 @@ function captureCurrentState() {
     overlayScanIterations: appData.defaults.overlayScanIterations,
     overlayColor: appData.defaults.overlayColor,
     overlayOpacity: appData.defaults.overlayOpacity,
+    modulationOverlayEnabled: appData.defaults.modulationOverlayEnabled,
     backgroundColor: appData.defaults.backgroundColor,
     colorMapStopOverrides: JSON.parse(JSON.stringify(appData.defaults.colorMapStopOverrides || {})),
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
@@ -1918,6 +1932,7 @@ function applyState(state) {
   appData.defaults.overlayScanIterations = Math.round(clamp(Number(state.overlayScanIterations ?? appData.defaults.overlayScanIterations ?? 6), MOD_OVERLAY_SCAN_ITERS_MIN, MOD_OVERLAY_SCAN_ITERS_MAX));
   appData.defaults.overlayColor = typeof state.overlayColor === "string" ? state.overlayColor : (appData.defaults.overlayColor || "#ffffff");
   appData.defaults.overlayOpacity = clamp(Number(state.overlayOpacity ?? appData.defaults.overlayOpacity ?? 0.6), 0.1, 1);
+  appData.defaults.modulationOverlayEnabled = Boolean(state.modulationOverlayEnabled ?? appData.defaults.modulationOverlayEnabled ?? true);
   appData.defaults.backgroundColor = state.backgroundColor || appData.defaults.backgroundColor;
   appData.defaults.colorMapStopOverrides = JSON.parse(JSON.stringify(state.colorMapStopOverrides || appData.defaults.colorMapStopOverrides || {}));
   setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
@@ -1941,6 +1956,7 @@ function applyState(state) {
     };
   }
   syncSeedEditorInputs(currentFormulaId);
+  syncOverlayToggleButton();
   syncQuickSliderPosition();
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
@@ -3302,6 +3318,9 @@ function getParamPixelVertical(value, range, spanPx, fallbackPx) {
 }
 
 function shouldShowManualOverlay() {
+  if (!isModulationOverlayEnabled()) {
+    return false;
+  }
   const pointerModulating = interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0 && isManualModulating;
   return pointerModulating || isKeyboardManualModulating;
 }
@@ -4069,6 +4088,15 @@ function registerHandlers() {
   }
   cameraBtn.addEventListener("contextmenu", (event) => event.preventDefault());
 
+  overlayToggleBtn?.addEventListener("click", () => {
+    appData.defaults.modulationOverlayEnabled = !isModulationOverlayEnabled();
+    syncOverlayToggleButton();
+    saveDefaultsToStorage();
+    requestDraw();
+    commitCurrentStateToHistory();
+    showToast(appData.defaults.modulationOverlayEnabled ? "Modulation overlay enabled." : "Modulation overlay disabled.");
+  });
+
   scaleModeBtn.addEventListener("click", () => {
     const currentlyFixed = getScaleMode() === "fixed";
     if (!currentlyFixed) {
@@ -4329,6 +4357,9 @@ async function loadData() {
   if (typeof data.defaults.overlayOpacity !== "number") {
     data.defaults.overlayOpacity = 0.6;
   }
+  if (typeof data.defaults.modulationOverlayEnabled !== "boolean") {
+    data.defaults.modulationOverlayEnabled = true;
+  }
   if (typeof data.defaults.holdSpeedScale !== "number") {
     data.defaults.holdSpeedScale = 1;
   }
@@ -4400,6 +4431,7 @@ async function bootstrap() {
     appData.defaults.backgroundColor = typeof appData.defaults.backgroundColor === "string" ? appData.defaults.backgroundColor : "#05070c";
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
     appData.defaults.overlayOpacity = clamp(Number(appData.defaults.overlayOpacity ?? 0.6), 0.1, 1);
+    appData.defaults.modulationOverlayEnabled = Boolean(appData.defaults.modulationOverlayEnabled ?? true);
     appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
     normalizeHoldTimingDefaults();
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
@@ -4426,6 +4458,7 @@ async function bootstrap() {
     syncSeedEditorInputs(currentFormulaId);
     rangesEditorFormulaId = currentFormulaId;
     syncDebugToggleUi();
+    syncOverlayToggleButton();
     syncScaleModeButton();
     syncRandomModeButton();
     syncParamModeVisuals();

@@ -800,6 +800,18 @@
       #scaleModeBtn.is-fixed {
         background: rgba(var(--ui-gray-rgb), 0.1);
       }
+      #overlayToggleBtn .eyeIcon {
+        width: 22px;
+        height: 22px;
+        display: block;
+      }
+      #overlayToggleBtn.is-active {
+        background: rgba(var(--ui-gray-rgb), 0.9);
+        color: rgba(8, 10, 15, 0.95);
+      }
+      #overlayToggleBtn.is-active .eyeIcon {
+        transform: scaleX(-1);
+      }
       #randomModeTile.is-random {
         border-style: dashed;
       }
@@ -870,6 +882,7 @@
       </div>
       <div id="topRightActions">
         <button id="rangesEditorToggle" class="topActionBtn" type="button" aria-label="Open ranges editor">⚙</button>
+        <button id="overlayToggleBtn" class="topActionBtn" type="button" aria-label="Disable modulation overlay" title="Modulation overlay on"><svg class="eyeIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.4-5.5 9.5-5.5 9.5 5.5 9.5 5.5-3.4 5.5-9.5 5.5S2.5 12 2.5 12Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.8" fill="currentColor"/></svg></button>
         <button id="scaleModeBtn" class="topActionBtn" type="button" aria-label="Toggle scaling mode">Fixed
 Scale</button>
         <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
