@@ -1559,8 +1559,7 @@ function setScaleModeFixed(reason = "manual pan/zoom") {
 
 function syncScaleModeButton() {
   const isAuto = getScaleMode() === "auto";
-  scaleModeBtn.textContent = "Auto
-Scale";
+  scaleModeBtn.textContent = "Auto\nScale";
   scaleModeBtn.classList.toggle("is-active", isAuto);
   scaleModeBtn.setAttribute("aria-label", isAuto ? "Disable auto scale" : "Enable auto scale");
   scaleModeBtn.title = isAuto ? "Auto scale on" : "Auto scale off";
