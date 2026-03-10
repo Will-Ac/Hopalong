@@ -184,6 +184,7 @@ Split into modules (even if bundled later):
 - Overlay grid represents parameter-space interest, not world-space sample area:
   - two-axis mode: each cell maps to `(ManX, ManY)` pair over parameter ranges
   - one-axis mode: selected parameter is swept across X columns and rendered as vertical stripes using the same grid size
+  - effective scan grid is center-aligned to parameter axes (odd grid count) so axis center lines pass through cell centers rather than cell boundaries
   - parameters not on the modulation plane stay fixed to their current values during scan.
 - For each scanned sample, evaluate two nearby seeds and estimate finite-time Lyapunov exponent:
   - per-step contribution: `log(d(n+1) / d(n))`
@@ -197,7 +198,8 @@ Split into modules (even if bundled later):
 - Cache lifecycle:
   - compute once and keep result visible while modulation continues
   - recompute only when fixed (non-plane) parameters or scan configuration change
-  - changes to plane parameters during modulation do not invalidate the cached result.
+  - changes to plane parameters during modulation do not invalidate the cached result
+  - when recalculation is triggered and overlay is expected to be visible, show toast updates for scan start and completion.
 - Numerical robustness:
   - guard invalid/non-finite values
   - apply epsilon floor before log division

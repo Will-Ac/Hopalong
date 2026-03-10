@@ -384,7 +384,15 @@ export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gri
     return { gridSize: 0, highCells: [] };
   }
 
-  const safeGridSize = Math.max(1, Math.round(Number(gridSize) || 24));
+  const normalizeCenteredGridSize = (rawSize) => {
+    const rounded = Math.max(1, Math.round(Number(rawSize) || 24));
+    if (rounded % 2 === 1) {
+      return rounded;
+    }
+    return rounded > 1 ? rounded - 1 : 1;
+  };
+
+  const safeGridSize = normalizeCenteredGridSize(gridSize);
   const sampleIterations = Math.max(1, Math.round(Number(iterations) || 1200));
 
   const d0Raw = Number(lyapunov?.delta0);
@@ -403,91 +411,97 @@ export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gri
     d: Number(baseParams?.d) || 0,
   };
 
-  const buildParamsForCell = (col, row) => {
-    const params = { ...safeBase };
-    if (plane.mode === "two_axis") {
-      const [xMin, xMax] = plane.axisXRange || [safeBase[plane.axisXParam], safeBase[plane.axisXParam]];
-      const [yMin, yMax] = plane.axisYRange || [safeBase[plane.axisYParam], safeBase[plane.axisYParam]];
-      const tx = safeGridSize > 1 ? col / (safeGridSize - 1) : 0.5;
-      const ty = safeGridSize > 1 ? row / (safeGridSize - 1) : 0.5;
-      params[plane.axisXParam] = xMin + (xMax - xMin) * tx;
-      params[plane.axisYParam] = yMax - (yMax - yMin) * ty;
-      return params;
+  const sampleAxisValue = (minValue, maxValue, index) => {
+    const t = safeGridSize > 1 ? index / (safeGridSize - 1) : 0.5;
+    return minValue + (maxValue - minValue) * t;
+  };
+
+  const computeLambdaForParams = (cellParams) => {
+    let x1 = 0;
+    let y1 = 0;
+    let x2 = d0;
+    let y2 = 0;
+
+    let sumLogRatio = 0;
+    let validSteps = 0;
+    let previousDistance = d0;
+
+    for (let i = 0; i < sampleIterations; i += 1) {
+      [x1, y1] = step(x1, y1, cellParams.a, cellParams.b, cellParams.c, cellParams.d);
+      [x2, y2] = step(x2, y2, cellParams.a, cellParams.b, cellParams.c, cellParams.d);
+
+      if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
+        break;
+      }
+
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const d1Raw = Math.hypot(dx, dy);
+      if (!Number.isFinite(d1Raw)) {
+        continue;
+      }
+
+      const dPrev = Math.max(previousDistance, epsilon);
+      const dNext = Math.max(Math.min(d1Raw, maxDistance), epsilon);
+      const ratio = dNext / dPrev;
+      if (!Number.isFinite(ratio) || ratio <= 0) {
+        continue;
+      }
+
+      const logRatio = Math.log(Math.max(ratio, epsilon));
+      if (!Number.isFinite(logRatio)) {
+        continue;
+      }
+
+      sumLogRatio += logRatio;
+      validSteps += 1;
+
+      if (shouldRescale) {
+        const scale = d0 / Math.max(d1Raw, epsilon);
+        x2 = x1 + dx * scale;
+        y2 = y1 + dy * scale;
+        previousDistance = d0;
+      } else {
+        previousDistance = dNext;
+      }
     }
 
-    const [axisMin, axisMax] = plane.axisRange || [safeBase[plane.axisParam], safeBase[plane.axisParam]];
-    const tx = safeGridSize > 1 ? col / (safeGridSize - 1) : 0.5;
-    params[plane.axisParam] = axisMin + (axisMax - axisMin) * tx;
-    return params;
+    if (validSteps < minValidSteps) {
+      return Number.NEGATIVE_INFINITY;
+    }
+    return sumLogRatio / validSteps;
   };
 
   const highCells = [];
-  let cellIndex = 0;
+
+  if (plane.mode === "one_axis") {
+    const [axisMin, axisMax] = plane.axisRange || [safeBase[plane.axisParam], safeBase[plane.axisParam]];
+    for (let col = 0; col < safeGridSize; col += 1) {
+      const cellParams = { ...safeBase };
+      cellParams[plane.axisParam] = sampleAxisValue(axisMin, axisMax, col);
+      const lambda = computeLambdaForParams(cellParams);
+      if (Number.isFinite(lambda) && lambda >= minExponent) {
+        for (let row = 0; row < safeGridSize; row += 1) {
+          highCells.push(row * safeGridSize + col);
+        }
+      }
+    }
+
+    return { gridSize: safeGridSize, highCells };
+  }
+
+  const [xMin, xMax] = plane.axisXRange || [safeBase[plane.axisXParam], safeBase[plane.axisXParam]];
+  const [yMin, yMax] = plane.axisYRange || [safeBase[plane.axisYParam], safeBase[plane.axisYParam]];
 
   for (let row = 0; row < safeGridSize; row += 1) {
     for (let col = 0; col < safeGridSize; col += 1) {
-      const cellParams = buildParamsForCell(col, row);
-      let x1 = 0;
-      let y1 = 0;
-      let x2 = d0;
-      let y2 = 0;
-
-      let sumLogRatio = 0;
-      let validSteps = 0;
-      let previousDistance = d0;
-
-      for (let i = 0; i < sampleIterations; i += 1) {
-        [x1, y1] = step(x1, y1, cellParams.a, cellParams.b, cellParams.c, cellParams.d);
-        [x2, y2] = step(x2, y2, cellParams.a, cellParams.b, cellParams.c, cellParams.d);
-
-        if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
-          break;
-        }
-
-        const dx = x2 - x1;
-        const dy = y2 - y1;
-        const d1Raw = Math.hypot(dx, dy);
-        if (!Number.isFinite(d1Raw)) {
-          continue;
-        }
-
-        const dPrev = Math.max(previousDistance, epsilon);
-        const dNext = Math.max(Math.min(d1Raw, maxDistance), epsilon);
-        const ratio = dNext / dPrev;
-        if (!Number.isFinite(ratio) || ratio <= 0) {
-          continue;
-        }
-
-        const logRatio = Math.log(Math.max(ratio, epsilon));
-        if (!Number.isFinite(logRatio)) {
-          continue;
-        }
-
-        sumLogRatio += logRatio;
-        validSteps += 1;
-
-        if (shouldRescale) {
-          const scale = d0 / Math.max(d1Raw, epsilon);
-          x2 = x1 + dx * scale;
-          y2 = y1 + dy * scale;
-          previousDistance = d0;
-        } else {
-          previousDistance = dNext;
-        }
+      const cellParams = { ...safeBase };
+      cellParams[plane.axisXParam] = sampleAxisValue(xMin, xMax, col);
+      cellParams[plane.axisYParam] = sampleAxisValue(yMax, yMin, row);
+      const lambda = computeLambdaForParams(cellParams);
+      if (Number.isFinite(lambda) && lambda >= minExponent) {
+        highCells.push(row * safeGridSize + col);
       }
-
-      const lambda = validSteps >= minValidSteps ? (sumLogRatio / validSteps) : Number.NEGATIVE_INFINITY;
-      const isHigh = Number.isFinite(lambda) && lambda >= minExponent;
-      if (isHigh) {
-        if (plane.mode === "one_axis") {
-          for (let fillRow = 0; fillRow < safeGridSize; fillRow += 1) {
-            highCells.push(fillRow * safeGridSize + col);
-          }
-        } else {
-          highCells.push(cellIndex);
-        }
-      }
-      cellIndex += 1;
     }
   }
 

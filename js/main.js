@@ -3485,6 +3485,19 @@ function getInterestPlaneConfig() {
   };
 }
 
+function getCenteredInterestGridSize(rawGridSize) {
+  const clampedGridSize = Math.round(clamp(Number(rawGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+  if (clampedGridSize % 2 === 1) {
+    return clampedGridSize;
+  }
+
+  if (clampedGridSize < INTEREST_GRID_SIZE_MAX) {
+    return clampedGridSize + 1;
+  }
+
+  return Math.max(INTEREST_GRID_SIZE_MIN, clampedGridSize - 1);
+}
+
 function buildInterestOverlayScanKey({ planeConfig, baseParams, lyapunovConfig, gridSize, scanIterations }) {
   const fixedParamKeys = ["a", "b", "c", "d"].filter((key) => {
     if (planeConfig.mode === "two_axis") {
@@ -3526,7 +3539,7 @@ function drawInterestOverlay(meta) {
   }
 
   const { view } = meta;
-  const gridSize = Math.round(clamp(Number(appData.defaults.interestGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+  const gridSize = getCenteredInterestGridSize(appData.defaults.interestGridSize);
   const scanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
   const lyapunovConfig = {
     minExponent: clamp(Number(appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX),
@@ -3544,6 +3557,8 @@ function drawInterestOverlay(meta) {
   });
 
   if (!interestOverlayScanCache || interestOverlayScanCache.scanKey !== scanKey) {
+    showToast(`Recalculating interest overlay (${gridSize}×${gridSize})...`);
+    const overlayScanStartedAt = performance.now();
     const scanResult = classifyInterestGridLyapunov({
       formulaId: currentFormulaId,
       baseParams,
@@ -3552,11 +3567,14 @@ function drawInterestOverlay(meta) {
       iterations: scanIterations,
       lyapunov: lyapunovConfig,
     });
+    const scanElapsedMs = performance.now() - overlayScanStartedAt;
     interestOverlayScanCache = {
       scanKey,
       scanResult,
       computedAt: performance.now(),
+      gridSize,
     };
+    showToast(`Interest overlay updated in ${formatNumberForUi(scanElapsedMs, 0)} ms.`);
   }
 
   const scanResult = interestOverlayScanCache?.scanResult;
