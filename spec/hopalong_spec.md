@@ -168,3 +168,44 @@ Split into modules (even if bundled later):
   - `interestOverlayEnabled` is ON, and
   - active manual modulation is happening with both ManX and ManY assigned (2-parameter modulation).
 - Existing manual modulation axis lines and crosshair remain unchanged and are always drawn during modulation, regardless of interest overlay toggle state.
+
+## 13) Lyapunov-only interest classifier overlay (PR2)
+
+- Adds General settings controls for Lyapunov-only classification:
+  - `interestLyapunovEnabled` (boolean, default `false`)
+  - `interestLyapunovMinExponent` (number, default `0.0`)
+  - `interestLyapunovDelta0` (number, default `1e-6`)
+  - `interestLyapunovRescale` (boolean, default `true`)
+  - `interestLyapunovMaxDistance` (number clamp for pair distance)
+- Overlay visibility rule for PR2 follow-up behavior:
+  - `interestOverlayEnabled` is ON, and
+  - manual modulation is actively happening, and
+  - either ManX and/or ManY is assigned.
+- Overlay grid represents parameter-space interest, not world-space sample area:
+  - two-axis mode: each cell maps to `(ManX, ManY)` pair over parameter ranges
+  - one-axis mode: selected parameter is swept across X columns and rendered as vertical stripes using the same grid size
+  - effective scan grid is center-aligned to parameter axes (odd cell counts) so axis center lines pass through cell centers rather than cell boundaries
+  - overlay cells are square on screen (equal X/Y cell size); configured grid size is applied on the long screen axis
+  - parameters not on the modulation plane stay fixed to their current values during scan.
+- For each scanned sample, evaluate two nearby seeds and estimate finite-time Lyapunov exponent:
+  - per-step contribution: `log(d(n+1) / d(n))`
+  - score: `lambda = mean(log(d(n+1) / d(n)))`
+- Classification is Lyapunov-only in this PR:
+  - `high` if `lambda >= interestLyapunovMinExponent`
+  - `low` otherwise
+- Rendering is two-level in this PR:
+  - `low` cells are hidden
+  - `high` cells are shown as translucent overlay fill only (no grid lines), with stripe behavior in one-axis mode
+- Cache lifecycle:
+  - compute once and keep result visible while modulation continues
+  - recompute only when fixed (non-plane) parameters or scan configuration change
+  - changes to plane parameters during modulation do not invalidate the cached result
+  - when recalculation is triggered and overlay is expected to be visible, show toast updates for scan start and completion.
+- Numerical robustness:
+  - guard invalid/non-finite values
+  - apply epsilon floor before log division
+  - classify as low when too few valid Lyapunov steps are available
+  - when rescale is enabled, renormalize perturbation each step to `delta0`
+- This PR intentionally excludes secondary heuristics (sparse/line/loop gates and other multi-feature classifiers).
+
+- Top action buttons: debug bug button is removed; eye and Auto Scale buttons use white active styling for clearer ON state.

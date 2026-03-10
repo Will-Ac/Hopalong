@@ -376,3 +376,149 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     },
   };
 }
+
+
+export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gridCols = 25, gridRows = 25, iterations = 1200, lyapunov = {}, onProgress = null }) {
+  const step = formulaStepById.get(formulaId);
+  if (!step || !plane) {
+    return { gridCols: 0, gridRows: 0, highCells: [] };
+  }
+
+  const safeGridCols = Math.max(1, Math.round(Number(gridCols) || 25));
+  const safeGridRows = Math.max(1, Math.round(Number(gridRows) || 25));
+  const sampleIterations = Math.max(1, Math.round(Number(iterations) || 1200));
+
+  const d0Raw = Number(lyapunov?.delta0);
+  const d0 = Number.isFinite(d0Raw) && d0Raw > 0 ? d0Raw : 1e-6;
+  const minExponent = Number(lyapunov?.minExponent) || 0;
+  const maxDistanceRaw = Number(lyapunov?.maxDistance);
+  const maxDistance = Number.isFinite(maxDistanceRaw) && maxDistanceRaw > 0 ? maxDistanceRaw : 1e6;
+  const shouldRescale = Boolean(lyapunov?.rescale);
+  const epsilon = 1e-12;
+  const minValidSteps = Math.max(4, Math.floor(sampleIterations * 0.1));
+
+  const safeBase = {
+    a: Number(baseParams?.a) || 0,
+    b: Number(baseParams?.b) || 0,
+    c: Number(baseParams?.c) || 0,
+    d: Number(baseParams?.d) || 0,
+  };
+
+  const sampleAxisValue = (minValue, maxValue, index, count) => {
+    const t = count > 1 ? index / (count - 1) : 0.5;
+    return minValue + (maxValue - minValue) * t;
+  };
+
+  const computeLambdaForParams = (cellParams) => {
+    let x1 = 0;
+    let y1 = 0;
+    let x2 = d0;
+    let y2 = 0;
+
+    let sumLogRatio = 0;
+    let validSteps = 0;
+    let previousDistance = d0;
+
+    for (let i = 0; i < sampleIterations; i += 1) {
+      [x1, y1] = step(x1, y1, cellParams.a, cellParams.b, cellParams.c, cellParams.d);
+      [x2, y2] = step(x2, y2, cellParams.a, cellParams.b, cellParams.c, cellParams.d);
+
+      if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
+        break;
+      }
+
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const d1Raw = Math.hypot(dx, dy);
+      if (!Number.isFinite(d1Raw)) {
+        continue;
+      }
+
+      const dPrev = Math.max(previousDistance, epsilon);
+      const dNext = Math.max(Math.min(d1Raw, maxDistance), epsilon);
+      const ratio = dNext / dPrev;
+      if (!Number.isFinite(ratio) || ratio <= 0) {
+        continue;
+      }
+
+      const logRatio = Math.log(Math.max(ratio, epsilon));
+      if (!Number.isFinite(logRatio)) {
+        continue;
+      }
+
+      sumLogRatio += logRatio;
+      validSteps += 1;
+
+      if (shouldRescale) {
+        const scale = d0 / Math.max(d1Raw, epsilon);
+        x2 = x1 + dx * scale;
+        y2 = y1 + dy * scale;
+        previousDistance = d0;
+      } else {
+        previousDistance = dNext;
+      }
+    }
+
+    if (validSteps < minValidSteps) {
+      return Number.NEGATIVE_INFINITY;
+    }
+    return sumLogRatio / validSteps;
+  };
+
+  const highCells = [];
+
+  const totalCells = Math.max(1, safeGridCols * safeGridRows);
+  let processedCells = 0;
+  let nextProgressPercent = 0;
+  const emitProgress = (force = false) => {
+    if (typeof onProgress !== "function") return;
+    const percent = Math.max(0, Math.min(100, Math.floor((processedCells / totalCells) * 100)));
+    if (force) {
+      onProgress(100);
+      return;
+    }
+    while (nextProgressPercent <= percent) {
+      onProgress(nextProgressPercent);
+      nextProgressPercent += 5;
+    }
+  };
+
+  if (plane.mode === "one_axis") {
+    const [axisMin, axisMax] = plane.axisRange || [safeBase[plane.axisParam], safeBase[plane.axisParam]];
+    for (let col = 0; col < safeGridCols; col += 1) {
+      const cellParams = { ...safeBase };
+      cellParams[plane.axisParam] = sampleAxisValue(axisMin, axisMax, col, safeGridCols);
+      const lambda = computeLambdaForParams(cellParams);
+      if (Number.isFinite(lambda) && lambda >= minExponent) {
+        for (let row = 0; row < safeGridRows; row += 1) {
+          highCells.push(row * safeGridCols + col);
+        }
+      }
+      processedCells += safeGridRows;
+      emitProgress(false);
+    }
+
+    emitProgress(true);
+    return { gridCols: safeGridCols, gridRows: safeGridRows, highCells };
+  }
+
+  const [xMin, xMax] = plane.axisXRange || [safeBase[plane.axisXParam], safeBase[plane.axisXParam]];
+  const [yMin, yMax] = plane.axisYRange || [safeBase[plane.axisYParam], safeBase[plane.axisYParam]];
+
+  for (let row = 0; row < safeGridRows; row += 1) {
+    for (let col = 0; col < safeGridCols; col += 1) {
+      const cellParams = { ...safeBase };
+      cellParams[plane.axisXParam] = sampleAxisValue(xMin, xMax, col, safeGridCols);
+      cellParams[plane.axisYParam] = sampleAxisValue(yMax, yMin, row, safeGridRows);
+      const lambda = computeLambdaForParams(cellParams);
+      if (Number.isFinite(lambda) && lambda >= minExponent) {
+        highCells.push(row * safeGridCols + col);
+      }
+      processedCells += 1;
+      emitProgress(false);
+    }
+  }
+
+  emitProgress(true);
+  return { gridCols: safeGridCols, gridRows: safeGridRows, highCells };
+}

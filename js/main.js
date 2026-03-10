@@ -1,5 +1,5 @@
 import { ColorMapNames, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
-import { renderFrame, getParamsForFormula } from "./renderer.js";
+import { renderFrame, getParamsForFormula, classifyInterestGridLyapunov } from "./renderer.js";
 import {
   FORMULA_METADATA,
   FORMULA_RANGES_RAW,
@@ -55,6 +55,14 @@ const detailInterestGridSizeRangeEl = document.getElementById("detailInterestGri
 const detailInterestGridSizeFormattedEl = document.getElementById("detailInterestGridSizeFormatted");
 const detailInterestScanIterationsRangeEl = document.getElementById("detailInterestScanIterationsRange");
 const detailInterestScanIterationsFormattedEl = document.getElementById("detailInterestScanIterationsFormatted");
+const detailInterestLyapunovEnabledToggleEl = document.getElementById("detailInterestLyapunovEnabledToggle");
+const detailInterestLyapunovMinExponentRangeEl = document.getElementById("detailInterestLyapunovMinExponentRange");
+const detailInterestLyapunovMinExponentFormattedEl = document.getElementById("detailInterestLyapunovMinExponentFormatted");
+const detailInterestLyapunovDelta0RangeEl = document.getElementById("detailInterestLyapunovDelta0Range");
+const detailInterestLyapunovDelta0FormattedEl = document.getElementById("detailInterestLyapunovDelta0Formatted");
+const detailInterestLyapunovRescaleToggleEl = document.getElementById("detailInterestLyapunovRescaleToggle");
+const detailInterestLyapunovMaxDistanceRangeEl = document.getElementById("detailInterestLyapunovMaxDistanceRange");
+const detailInterestLyapunovMaxDistanceFormattedEl = document.getElementById("detailInterestLyapunovMaxDistanceFormatted");
 const detailColorModeSelectEl = document.getElementById("detailColorModeSelect");
 const detailLogStrengthRangeEl = document.getElementById("detailLogStrengthRange");
 const detailLogStrengthFormattedEl = document.getElementById("detailLogStrengthFormatted");
@@ -144,9 +152,19 @@ const RENDER_COLOR_MODES = {
 const RENDER_COLOR_MODE_SET = new Set(Object.values(RENDER_COLOR_MODES));
 
 const INTEREST_GRID_SIZE_MIN = 8;
-const INTEREST_GRID_SIZE_MAX = 64;
+const INTEREST_GRID_SIZE_MAX = 256;
 const INTEREST_SCAN_ITERATIONS_MIN = 100;
 const INTEREST_SCAN_ITERATIONS_MAX = 5000;
+const INTEREST_LYAPUNOV_MIN_EXPONENT_MIN = -1;
+const INTEREST_LYAPUNOV_MIN_EXPONENT_MAX = 1;
+const INTEREST_LYAPUNOV_DELTA0_MIN = 1e-7;
+const INTEREST_LYAPUNOV_DELTA0_MAX = 1e-3;
+const INTEREST_LYAPUNOV_MAX_DISTANCE_MIN = 1e-3;
+const INTEREST_LYAPUNOV_MAX_DISTANCE_MAX = 1e6;
+
+function normalizeInterestGridSize(rawValue) {
+  return Math.round(clamp(Number(rawValue), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+}
 
 const ctx = canvas.getContext("2d", { alpha: false });
 let appData = null;
@@ -159,6 +177,12 @@ let holdInterval = null;
 let lastRenderMeta = null;
 let lastDrawTimestamp = 0;
 let fpsEstimate = 0;
+let interestOverlayScanCache = null;
+let interestOverlayCalcInProgress = false;
+let interestOverlayCalcProgressPercent = 0;
+let interestOverlayShowProgressToast = false;
+let interestOverlayLastProgressToastPercent = -1;
+let wasManualOverlayActive = false;
 let drawScheduled = false;
 let drawDirty = false;
 let toastTimer = null;
@@ -300,6 +324,16 @@ function clampLabel(text, maxChars = NAME_MAX_CHARS) {
 }
 
 function requestDraw() {
+  const manualModulationStarting = shouldShowManualOverlay() && !wasManualOverlayActive;
+  if (manualModulationStarting) {
+    const pendingPlan = getInterestOverlayScanPlan(null);
+    if (pendingPlan && interestOverlayScanCache?.scanKey !== pendingPlan.scanKey) {
+      interestOverlayShowProgressToast = true;
+      interestOverlayLastProgressToastPercent = -1;
+    }
+  }
+
+  precomputeInterestOverlayScan(null);
   drawDirty = true;
   if (drawScheduled) {
     return;
@@ -1156,6 +1190,8 @@ function openRangesEditor() {
 
   closeFormulaSettingsPanel();
   rangesEditorPanelEl.classList.remove("is-hidden");
+  rangesEditorToggleEl?.classList.add("is-active");
+  rangesEditorToggleEl?.setAttribute("aria-pressed", "true");
   setSettingsTab("color");
   syncDetailedSettingsControls();
   hideSettingsInfo();
@@ -1163,6 +1199,8 @@ function openRangesEditor() {
 
 function closeRangesEditor() {
   rangesEditorPanelEl?.classList.add("is-hidden");
+  rangesEditorToggleEl?.classList.remove("is-active");
+  rangesEditorToggleEl?.setAttribute("aria-pressed", "false");
   hideSettingsInfo();
 }
 
@@ -1223,12 +1261,25 @@ function syncDetailedSettingsControls() {
   if (detailOverlayAlphaRangeEl) detailOverlayAlphaRangeEl.value = String(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1));
   if (detailOverlayAlphaFormattedEl) detailOverlayAlphaFormattedEl.textContent = formatNumberForUi(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1), 2);
   if (detailInterestOverlayToggleEl) detailInterestOverlayToggleEl.checked = Boolean(appData.defaults.interestOverlayEnabled);
-  const interestGridSize = Math.round(clamp(Number(appData.defaults.interestGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+  const interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize);
   const interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+  const interestLyapunovEnabled = Boolean(appData.defaults.interestLyapunovEnabled);
+  const interestLyapunovMinExponent = clamp(Number(appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
+  const interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
+  const interestLyapunovRescale = Boolean(appData.defaults.interestLyapunovRescale);
+  const interestLyapunovMaxDistance = clamp(Number(appData.defaults.interestLyapunovMaxDistance), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
   if (detailInterestGridSizeRangeEl) detailInterestGridSizeRangeEl.value = String(interestGridSize);
   if (detailInterestGridSizeFormattedEl) detailInterestGridSizeFormattedEl.textContent = formatNumberForUi(interestGridSize, 0);
   if (detailInterestScanIterationsRangeEl) detailInterestScanIterationsRangeEl.value = String(interestScanIterations);
   if (detailInterestScanIterationsFormattedEl) detailInterestScanIterationsFormattedEl.textContent = formatNumberForUi(interestScanIterations, 0);
+  if (detailInterestLyapunovEnabledToggleEl) detailInterestLyapunovEnabledToggleEl.checked = interestLyapunovEnabled;
+  if (detailInterestLyapunovMinExponentRangeEl) detailInterestLyapunovMinExponentRangeEl.value = String(interestLyapunovMinExponent);
+  if (detailInterestLyapunovMinExponentFormattedEl) detailInterestLyapunovMinExponentFormattedEl.textContent = formatNumberForUi(interestLyapunovMinExponent, 2);
+  if (detailInterestLyapunovDelta0RangeEl) detailInterestLyapunovDelta0RangeEl.value = String(interestLyapunovDelta0);
+  if (detailInterestLyapunovDelta0FormattedEl) detailInterestLyapunovDelta0FormattedEl.textContent = interestLyapunovDelta0.toExponential(2);
+  if (detailInterestLyapunovRescaleToggleEl) detailInterestLyapunovRescaleToggleEl.checked = interestLyapunovRescale;
+  if (detailInterestLyapunovMaxDistanceRangeEl) detailInterestLyapunovMaxDistanceRangeEl.value = String(interestLyapunovMaxDistance);
+  if (detailInterestLyapunovMaxDistanceFormattedEl) detailInterestLyapunovMaxDistanceFormattedEl.textContent = formatNumberForUi(interestLyapunovMaxDistance, 3);
   syncInterestOverlayToggleUi();
   const holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
   const { holdRepeatMs, holdAccelStartMs, holdAccelEndMs } = getHoldTimingSettings();
@@ -1328,7 +1379,7 @@ function applyInterestOverlayEnabled(nextValue) {
 }
 
 function applyInterestGridSize(nextValue) {
-  appData.defaults.interestGridSize = Math.round(clamp(Number(nextValue), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+  appData.defaults.interestGridSize = normalizeInterestGridSize(nextValue);
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
@@ -1339,6 +1390,47 @@ function applyInterestScanIterations(nextValue) {
   appData.defaults.interestScanIterations = Math.round(clamp(Number(nextValue), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyInterestLyapunovEnabled(nextValue) {
+  appData.defaults.interestLyapunovEnabled = Boolean(nextValue);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyInterestLyapunovMinExponent(nextValue) {
+  appData.defaults.interestLyapunovMinExponent = clamp(Number(nextValue), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyInterestLyapunovDelta0(nextValue) {
+  appData.defaults.interestLyapunovDelta0 = clamp(Number(nextValue), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyInterestLyapunovRescale(nextValue) {
+  appData.defaults.interestLyapunovRescale = Boolean(nextValue);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyInterestLyapunovMaxDistance(nextValue) {
+  appData.defaults.interestLyapunovMaxDistance = clamp(Number(nextValue), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
   commitCurrentStateToHistory();
 }
 
@@ -1476,11 +1568,11 @@ function setScaleModeFixed(reason = "manual pan/zoom") {
 }
 
 function syncScaleModeButton() {
-  const isFixed = getScaleMode() === "fixed";
-  scaleModeBtn.textContent = isFixed ? "Auto\nScale" : "Fixed\nScale";
-  scaleModeBtn.classList.toggle("is-fixed", isFixed);
-  scaleModeBtn.setAttribute("aria-label", isFixed ? "Switch to auto scaling" : "Switch to fixed scaling");
-  scaleModeBtn.title = isFixed ? "Fixed scale" : "Auto scale";
+  const isAuto = getScaleMode() === "auto";
+  scaleModeBtn.textContent = "Auto\nScale";
+  scaleModeBtn.classList.toggle("is-active", isAuto);
+  scaleModeBtn.setAttribute("aria-label", isAuto ? "Disable auto scale" : "Enable auto scale");
+  scaleModeBtn.title = isAuto ? "Auto scale on" : "Auto scale off";
 }
 
 function syncRandomModeButton() {
@@ -1903,6 +1995,11 @@ function captureCurrentState() {
     interestOverlayEnabled: appData.defaults.interestOverlayEnabled,
     interestGridSize: appData.defaults.interestGridSize,
     interestScanIterations: appData.defaults.interestScanIterations,
+    interestLyapunovEnabled: appData.defaults.interestLyapunovEnabled,
+    interestLyapunovMinExponent: appData.defaults.interestLyapunovMinExponent,
+    interestLyapunovDelta0: appData.defaults.interestLyapunovDelta0,
+    interestLyapunovRescale: appData.defaults.interestLyapunovRescale,
+    interestLyapunovMaxDistance: appData.defaults.interestLyapunovMaxDistance,
     holdSpeedScale: appData.defaults.holdSpeedScale,
     holdRepeatMs: appData.defaults.holdRepeatMs,
     holdAccelStartMs: appData.defaults.holdAccelStartMs,
@@ -1969,8 +2066,13 @@ function applyState(state) {
   appData.defaults.renderHybridBlend = clamp(Number(state.renderHybridBlend ?? appData.defaults.renderHybridBlend), 0, 1);
   appData.defaults.overlayAlpha = clamp(Number(state.overlayAlpha ?? appData.defaults.overlayAlpha), 0.1, 1);
   appData.defaults.interestOverlayEnabled = Boolean(state.interestOverlayEnabled ?? appData.defaults.interestOverlayEnabled);
-  appData.defaults.interestGridSize = Math.round(clamp(Number(state.interestGridSize ?? appData.defaults.interestGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+  appData.defaults.interestGridSize = normalizeInterestGridSize(state.interestGridSize ?? appData.defaults.interestGridSize);
   appData.defaults.interestScanIterations = Math.round(clamp(Number(state.interestScanIterations ?? appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+  appData.defaults.interestLyapunovEnabled = Boolean(state.interestLyapunovEnabled ?? appData.defaults.interestLyapunovEnabled);
+  appData.defaults.interestLyapunovMinExponent = clamp(Number(state.interestLyapunovMinExponent ?? appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
+  appData.defaults.interestLyapunovDelta0 = clamp(Number(state.interestLyapunovDelta0 ?? appData.defaults.interestLyapunovDelta0), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
+  appData.defaults.interestLyapunovRescale = Boolean(state.interestLyapunovRescale ?? appData.defaults.interestLyapunovRescale);
+  appData.defaults.interestLyapunovMaxDistance = clamp(Number(state.interestLyapunovMaxDistance ?? appData.defaults.interestLyapunovMaxDistance), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
   appData.defaults.holdSpeedScale = clamp(Number(state.holdSpeedScale ?? appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
   appData.defaults.holdRepeatMs = Math.round(Number(state.holdRepeatMs ?? appData.defaults.holdRepeatMs ?? HOLD_REPEAT_MS_DEFAULT));
   appData.defaults.holdAccelStartMs = Math.round(Number(state.holdAccelStartMs ?? appData.defaults.holdAccelStartMs ?? HOLD_ACCEL_START_MS_DEFAULT));
@@ -2055,7 +2157,7 @@ function isEventInsideInteractiveUi(eventTarget) {
     return false;
   }
 
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #debugToggleDock, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #colorSettingsPanel, #rangesEditorToggle"));
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #colorSettingsPanel, #rangesEditorToggle"));
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -3364,50 +3466,225 @@ function shouldShowManualOverlay() {
   return pointerModulating || isKeyboardManualModulating;
 }
 
-function hasTwoAxisManualTargets() {
+function hasAnyManualTargets() {
   const { manX, manY } = getManualAxisTargets();
-  return Boolean(manX && manY);
+  return Boolean(manX || manY);
 }
 
-function shouldShowInterestOverlay() {
-  return Boolean(appData?.defaults?.interestOverlayEnabled) && shouldShowManualOverlay() && hasTwoAxisManualTargets();
+function getInterestPlaneConfig() {
+  const { manX, manY } = getManualAxisTargets();
+  const xControl = getControlForSlider(manX);
+  const yControl = getControlForSlider(manY);
+  const xParam = xControl?.paramKey || null;
+  const yParam = yControl?.paramKey || null;
+
+  if (!xParam && !yParam) {
+    return null;
+  }
+
+  const xRange = xControl ? getRangeForControl(xControl) : null;
+  const yRange = yControl ? getRangeForControl(yControl) : null;
+
+  if (xParam && yParam && xParam !== yParam && xRange && yRange) {
+    return {
+      mode: "two_axis",
+      axisXParam: xParam,
+      axisYParam: yParam,
+      axisXRange: xRange,
+      axisYRange: yRange,
+    };
+  }
+
+  const axisParam = xParam || yParam;
+  const axisRange = xRange || yRange;
+  if (!axisParam || !axisRange) {
+    return null;
+  }
+
+  return {
+    mode: "one_axis",
+    axisParam,
+    axisRange,
+  };
 }
 
-function drawInterestOverlay(meta) {
-  if (!meta || !shouldShowInterestOverlay()) {
+function normalizeCenteredCellCount(rawCount) {
+  const rounded = Math.max(1, Math.round(Number(rawCount) || 1));
+  if (rounded % 2 === 1) {
+    return rounded;
+  }
+  return rounded > 1 ? rounded - 1 : 1;
+}
+
+function getInterestGridLayout(view, rawGridSize) {
+  const selectedGridSize = Math.round(clamp(Number(rawGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+  const width = Math.max(1, Number(view?.width) || 1);
+  const height = Math.max(1, Number(view?.height) || 1);
+  const isWidthLong = width >= height;
+  const longCount = selectedGridSize;
+  const cellSize = Math.max(1, (isWidthLong ? width : height) / longCount);
+  const rawShortCount = (isWidthLong ? height : width) / cellSize;
+  const shortCount = normalizeCenteredCellCount(rawShortCount);
+
+  const cols = isWidthLong ? longCount : shortCount;
+  const rows = isWidthLong ? shortCount : longCount;
+  const gridWidthPx = cols * cellSize;
+  const gridHeightPx = rows * cellSize;
+
+  return {
+    cols,
+    rows,
+    cellSize,
+    offsetX: (width - gridWidthPx) * 0.5,
+    offsetY: (height - gridHeightPx) * 0.5,
+  };
+}
+
+function buildInterestOverlayScanKey({ planeConfig, baseParams, lyapunovConfig, gridCols, gridRows, scanIterations }) {
+  const fixedParamKeys = ["a", "b", "c", "d"].filter((key) => {
+    if (planeConfig.mode === "two_axis") {
+      return key !== planeConfig.axisXParam && key !== planeConfig.axisYParam;
+    }
+    return key !== planeConfig.axisParam;
+  });
+
+  const fixedParams = Object.fromEntries(fixedParamKeys.map((key) => [key, Number(baseParams[key]) || 0]));
+
+  return JSON.stringify({
+    formulaId: currentFormulaId,
+    planeMode: planeConfig.mode,
+    axisXParam: planeConfig.axisXParam || null,
+    axisYParam: planeConfig.axisYParam || null,
+    axisParam: planeConfig.axisParam || null,
+    axisXRange: planeConfig.axisXRange || null,
+    axisYRange: planeConfig.axisYRange || null,
+    axisRange: planeConfig.axisRange || null,
+    gridCols,
+    gridRows,
+    scanIterations,
+    lyapunovConfig,
+    fixedParams,
+  });
+}
+
+function getInterestOverlayScanPlan(meta = null) {
+  if (!appData || !currentFormulaId) {
+    return null;
+  }
+  if (!Boolean(appData.defaults.interestOverlayEnabled) || !Boolean(appData.defaults.interestLyapunovEnabled) || !hasAnyManualTargets()) {
+    return null;
+  }
+
+  const planeConfig = getInterestPlaneConfig();
+  if (!planeConfig) {
+    return null;
+  }
+
+  const view = meta?.view || { width: Math.max(1, canvas.width), height: Math.max(1, canvas.height) };
+  const gridLayout = getInterestGridLayout(view, appData.defaults.interestGridSize);
+  const gridCols = gridLayout.cols;
+  const gridRows = gridLayout.rows;
+  const scanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+  const lyapunovConfig = {
+    minExponent: clamp(Number(appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX),
+    delta0: clamp(Number(appData.defaults.interestLyapunovDelta0), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX),
+    rescale: Boolean(appData.defaults.interestLyapunovRescale),
+    maxDistance: clamp(Number(appData.defaults.interestLyapunovMaxDistance), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX),
+  };
+  const baseParams = getDerivedParams();
+  const scanKey = buildInterestOverlayScanKey({
+    planeConfig,
+    baseParams,
+    lyapunovConfig,
+    gridCols,
+    gridRows,
+    scanIterations,
+  });
+
+  return { planeConfig, gridLayout, gridCols, gridRows, scanIterations, lyapunovConfig, baseParams, scanKey };
+}
+
+function precomputeInterestOverlayScan(meta = null) {
+  const plan = getInterestOverlayScanPlan(meta);
+  if (!plan) {
     return;
   }
 
-  const { view } = meta;
-  const gridSize = Math.round(clamp(Number(appData.defaults.interestGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
-  const stepX = Math.max(4, view.width / gridSize);
-  const stepY = Math.max(4, view.height / gridSize);
+  if (interestOverlayScanCache?.scanKey === plan.scanKey) {
+    return;
+  }
+
+  interestOverlayCalcInProgress = true;
+  interestOverlayCalcProgressPercent = 0;
+  interestOverlayLastProgressToastPercent = -1;
+
+  const scanResult = classifyInterestGridLyapunov({
+    formulaId: currentFormulaId,
+    baseParams: plan.baseParams,
+    plane: plan.planeConfig,
+    gridCols: plan.gridCols,
+    gridRows: plan.gridRows,
+    iterations: plan.scanIterations,
+    lyapunov: plan.lyapunovConfig,
+    onProgress: (percent) => {
+      const nextPercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+      interestOverlayCalcProgressPercent = nextPercent;
+      if (interestOverlayShowProgressToast && nextPercent !== interestOverlayLastProgressToastPercent) {
+        showToast(`Interest overlay calc ${nextPercent}%`);
+        interestOverlayLastProgressToastPercent = nextPercent;
+      }
+    },
+  });
+
+  interestOverlayScanCache = {
+    scanKey: plan.scanKey,
+    scanResult,
+    computedAt: performance.now(),
+    gridCols: plan.gridCols,
+    gridRows: plan.gridRows,
+  };
+
+  interestOverlayCalcInProgress = false;
+  if (interestOverlayShowProgressToast) {
+    showToast("Interest overlay calc 100%");
+    interestOverlayShowProgressToast = false;
+  }
+}
+
+function shouldShowInterestOverlay() {
+  return Boolean(appData?.defaults?.interestOverlayEnabled) && shouldShowManualOverlay() && hasAnyManualTargets();
+}
+
+function drawInterestOverlay(meta) {
+  if (!meta || !shouldShowInterestOverlay() || !Boolean(appData.defaults.interestLyapunovEnabled)) {
+    return;
+  }
+
+  const plan = getInterestOverlayScanPlan(meta);
+  if (!plan) {
+    return;
+  }
+
+  if (interestOverlayScanCache?.scanKey !== plan.scanKey) {
+    return;
+  }
+
+  const scanResult = interestOverlayScanCache?.scanResult;
+  if (!scanResult || scanResult.gridCols !== plan.gridCols || scanResult.gridRows !== plan.gridRows || !Array.isArray(scanResult.highCells) || scanResult.highCells.length === 0) {
+    return;
+  }
+
+  const { cellSize, offsetX, offsetY } = plan.gridLayout;
 
   ctx.save();
-  ctx.fillStyle = "rgba(120, 200, 255, 0.08)";
-  ctx.strokeStyle = "rgba(120, 200, 255, 0.35)";
-  ctx.lineWidth = 1;
-
-  for (let col = 0; col < gridSize; col += 1) {
-    const x = Math.round(col * stepX);
-    for (let row = 0; row < gridSize; row += 1) {
-      const y = Math.round(row * stepY);
-      ctx.fillRect(x, y, Math.ceil(stepX), Math.ceil(stepY));
-    }
+  ctx.fillStyle = "rgba(120, 200, 255, 0.2)";
+  for (const cellIndex of scanResult.highCells) {
+    const col = cellIndex % plan.gridCols;
+    const row = Math.floor(cellIndex / plan.gridCols);
+    const x = offsetX + col * cellSize;
+    const y = offsetY + row * cellSize;
+    ctx.fillRect(x, y, cellSize, cellSize);
   }
-
-  ctx.beginPath();
-  for (let col = 1; col < gridSize; col += 1) {
-    const x = Math.round(col * stepX) + 0.5;
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, view.height);
-  }
-  for (let row = 1; row < gridSize; row += 1) {
-    const y = Math.round(row * stepY) + 0.5;
-    ctx.moveTo(0, y);
-    ctx.lineTo(view.width, y);
-  }
-  ctx.stroke();
   ctx.restore();
 }
 
@@ -3415,10 +3692,6 @@ function syncInterestOverlayToggleUi() {
   const enabled = Boolean(appData?.defaults?.interestOverlayEnabled);
   overlayToggleBtn?.classList.toggle("is-active", enabled);
   overlayToggleBtn?.setAttribute("aria-pressed", enabled ? "true" : "false");
-  const eyePupil = overlayToggleBtn?.querySelector(".eyePupil");
-  if (eyePupil) {
-    eyePupil.setAttribute("fill", enabled ? "currentColor" : "none");
-  }
 }
 
 function drawManualParamOverlay(meta) {
@@ -3771,6 +4044,13 @@ function draw() {
     renderMs: now - startedAt,
   };
 
+  const manualOverlayActive = shouldShowManualOverlay();
+  if (manualOverlayActive && !wasManualOverlayActive && interestOverlayCalcInProgress) {
+    interestOverlayShowProgressToast = true;
+    interestOverlayLastProgressToastPercent = -1;
+  }
+  wasManualOverlayActive = manualOverlayActive;
+
   drawDebugOverlay(lastRenderMeta);
   drawInterestOverlay(lastRenderMeta);
   drawManualParamOverlay(lastRenderMeta);
@@ -4096,13 +4376,6 @@ async function endCameraPress(event) {
 function registerHandlers() {
   pickerClose.addEventListener("click", () => closePicker());
   pickerBackdrop.addEventListener("click", () => closePicker());
-  debugBugBtn?.addEventListener("click", () => {
-    appData.defaults.debug = !Boolean(appData.defaults.debug);
-    syncDebugToggleUi();
-    saveDefaultsToStorage();
-    requestDraw();
-  });
-
   for (const [targetKey, target] of Object.entries(paramTileTargets)) {
     const tile = target.button.closest(".poItem");
     if (!tile) {
@@ -4167,7 +4440,7 @@ function registerHandlers() {
     saveDefaultsToStorage();
     requestDraw();
     commitCurrentStateToHistory();
-    showToast(getScaleMode() === "fixed" ? "Fixed scale mode enabled." : "Auto scale mode enabled.");
+    showToast(getScaleMode() === "auto" ? "Auto scale enabled." : "Auto scale disabled.");
   });
 
   overlayToggleBtn?.addEventListener("click", () => {
@@ -4221,6 +4494,11 @@ function registerHandlers() {
   detailInterestOverlayToggleEl?.addEventListener("change", () => applyInterestOverlayEnabled(detailInterestOverlayToggleEl.checked));
   detailInterestGridSizeRangeEl?.addEventListener("input", () => applyInterestGridSize(detailInterestGridSizeRangeEl.value));
   detailInterestScanIterationsRangeEl?.addEventListener("input", () => applyInterestScanIterations(detailInterestScanIterationsRangeEl.value));
+  detailInterestLyapunovEnabledToggleEl?.addEventListener("change", () => applyInterestLyapunovEnabled(detailInterestLyapunovEnabledToggleEl.checked));
+  detailInterestLyapunovMinExponentRangeEl?.addEventListener("input", () => applyInterestLyapunovMinExponent(detailInterestLyapunovMinExponentRangeEl.value));
+  detailInterestLyapunovDelta0RangeEl?.addEventListener("input", () => applyInterestLyapunovDelta0(detailInterestLyapunovDelta0RangeEl.value));
+  detailInterestLyapunovRescaleToggleEl?.addEventListener("change", () => applyInterestLyapunovRescale(detailInterestLyapunovRescaleToggleEl.checked));
+  detailInterestLyapunovMaxDistanceRangeEl?.addEventListener("input", () => applyInterestLyapunovMaxDistance(detailInterestLyapunovMaxDistanceRangeEl.value));
   holdSpeedRangeEl?.addEventListener("input", () => applyHoldSpeedScale(holdSpeedRangeEl.value));
   holdRepeatMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdRepeatMs", holdRepeatMsRangeEl.value));
   holdAccelStartMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdAccelStartMs", holdAccelStartMsRangeEl.value));
@@ -4402,6 +4680,9 @@ async function loadData() {
   if (typeof data.defaults.maxRandomIters !== "number") {
     data.defaults.maxRandomIters = sliderControls.iters.max;
   }
+  if (typeof data.defaults.launchIterationCap !== "number") {
+    data.defaults.launchIterationCap = 500000;
+  }
   if (!RENDER_COLOR_MODE_SET.has(data.defaults.renderColorMode)) {
     data.defaults.renderColorMode = RENDER_COLOR_MODES.ITERATION_ORDER;
   }
@@ -4426,6 +4707,21 @@ async function loadData() {
   if (typeof data.defaults.interestScanIterations !== "number") {
     data.defaults.interestScanIterations = 1200;
   }
+  if (typeof data.defaults.interestLyapunovEnabled !== "boolean") {
+    data.defaults.interestLyapunovEnabled = false;
+  }
+  if (typeof data.defaults.interestLyapunovMinExponent !== "number") {
+    data.defaults.interestLyapunovMinExponent = 0;
+  }
+  if (typeof data.defaults.interestLyapunovDelta0 !== "number") {
+    data.defaults.interestLyapunovDelta0 = 1e-6;
+  }
+  if (typeof data.defaults.interestLyapunovRescale !== "boolean") {
+    data.defaults.interestLyapunovRescale = true;
+  }
+  if (typeof data.defaults.interestLyapunovMaxDistance !== "number") {
+    data.defaults.interestLyapunovMaxDistance = INTEREST_LYAPUNOV_MAX_DISTANCE_MAX;
+  }
   if (typeof data.defaults.holdSpeedScale !== "number") {
     data.defaults.holdSpeedScale = 1;
   }
@@ -4441,13 +4737,17 @@ async function loadData() {
 
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
+  data.defaults.launchIterationCap = Math.round(clamp(data.defaults.launchIterationCap, sliderControls.iters.min, sliderControls.iters.max));
   data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   data.defaults.renderLogStrength = clamp(data.defaults.renderLogStrength, 0.5, 30);
   data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
   data.defaults.renderHybridBlend = clamp(data.defaults.renderHybridBlend, 0, 1);
   data.defaults.overlayAlpha = clamp(data.defaults.overlayAlpha, 0.1, 1);
-  data.defaults.interestGridSize = Math.round(clamp(data.defaults.interestGridSize, INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+  data.defaults.interestGridSize = normalizeInterestGridSize(data.defaults.interestGridSize);
   data.defaults.interestScanIterations = Math.round(clamp(data.defaults.interestScanIterations, INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+  data.defaults.interestLyapunovMinExponent = clamp(data.defaults.interestLyapunovMinExponent, INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
+  data.defaults.interestLyapunovDelta0 = clamp(data.defaults.interestLyapunovDelta0, INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
+  data.defaults.interestLyapunovMaxDistance = clamp(data.defaults.interestLyapunovMaxDistance, INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
   data.defaults.holdSpeedScale = clamp(data.defaults.holdSpeedScale, HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
   data.defaults.holdRepeatMs = Math.round(clamp(data.defaults.holdRepeatMs, HOLD_REPEAT_MS_MIN, HOLD_REPEAT_MS_MAX));
   data.defaults.holdAccelStartMs = Math.round(clamp(data.defaults.holdAccelStartMs, HOLD_ACCEL_START_MS_MIN, HOLD_ACCEL_START_MS_MAX));
@@ -4498,8 +4798,15 @@ async function bootstrap() {
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
     appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.9), 0.1, 1);
     appData.defaults.interestOverlayEnabled = Boolean(appData.defaults.interestOverlayEnabled);
-    appData.defaults.interestGridSize = Math.round(clamp(Number(appData.defaults.interestGridSize ?? 24), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+    appData.defaults.interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize ?? 24);
     appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? 1200), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+    appData.defaults.interestLyapunovEnabled = Boolean(appData.defaults.interestLyapunovEnabled);
+    appData.defaults.interestLyapunovMinExponent = clamp(Number(appData.defaults.interestLyapunovMinExponent ?? 0), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
+    appData.defaults.interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0 ?? 1e-6), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
+    appData.defaults.interestLyapunovRescale = Boolean(appData.defaults.interestLyapunovRescale ?? true);
+    appData.defaults.interestLyapunovMaxDistance = clamp(Number(appData.defaults.interestLyapunovMaxDistance ?? INTEREST_LYAPUNOV_MAX_DISTANCE_MAX), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
+    appData.defaults.launchIterationCap = Math.round(clamp(Number(appData.defaults.launchIterationCap ?? 500000), sliderControls.iters.min, sliderControls.iters.max));
+    appData.defaults.sliders.iters = Math.min(appData.defaults.sliders.iters, appData.defaults.launchIterationCap);
     appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
     normalizeHoldTimingDefaults();
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
