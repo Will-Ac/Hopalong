@@ -974,6 +974,35 @@ Scale</button>
             </div>
           </div>
           <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Lyapunov classifier</span></div>
+            <label class="modeOption"><input id="detailInterestLyapunovEnabledToggle" type="checkbox" /> Enable Lyapunov-only high-interest cells</label>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Lyapunov min exponent</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestLyapunovMinExponentRange" class="perfRangeInput" type="range" min="-1" max="1" step="0.01" />
+              <div id="detailInterestLyapunovMinExponentFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Lyapunov initial delta</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestLyapunovDelta0Range" class="perfRangeInput" type="range" min="0.0000001" max="0.001" step="0.0000001" />
+              <div id="detailInterestLyapunovDelta0Formatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Lyapunov rescale</span></div>
+            <label class="modeOption"><input id="detailInterestLyapunovRescaleToggle" type="checkbox" /> Renormalize separation to initial delta each step</label>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Lyapunov max distance</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestLyapunovMaxDistanceRange" class="perfRangeInput" type="range" min="0.001" max="1000000" step="0.001" />
+              <div id="detailInterestLyapunovMaxDistanceFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Hold speed</span></div>
             <div class="perfControlRow">
               <input id="holdSpeedRange" class="perfRangeInput" type="range" min="0.25" max="50" step="0.05" />

@@ -168,3 +168,27 @@ Split into modules (even if bundled later):
   - `interestOverlayEnabled` is ON, and
   - active manual modulation is happening with both ManX and ManY assigned (2-parameter modulation).
 - Existing manual modulation axis lines and crosshair remain unchanged and are always drawn during modulation, regardless of interest overlay toggle state.
+
+## 13) Lyapunov-only interest classifier overlay (PR2)
+
+- Adds General settings controls for Lyapunov-only classification:
+  - `interestLyapunovEnabled` (boolean, default `false`)
+  - `interestLyapunovMinExponent` (number, default `0.0`)
+  - `interestLyapunovDelta0` (number, default `1e-6`)
+  - `interestLyapunovRescale` (boolean, default `true`)
+  - `interestLyapunovMaxDistance` (number clamp for pair distance)
+- For each overlay grid cell, evaluate two nearby seeds and estimate finite-time Lyapunov exponent:
+  - Per-step contribution: `log(d(n+1) / d(n))`
+  - Cell score: `lambda = mean(log(d(n+1) / d(n)))`
+- Classification is Lyapunov-only in this PR:
+  - `high` if `lambda >= interestLyapunovMinExponent`
+  - `low` otherwise
+- Rendering is two-level in this PR:
+  - `low` cells are hidden
+  - `high` cells are shown as translucent overlay cells
+- Numerical robustness:
+  - guard invalid/non-finite values
+  - apply epsilon floor before log division
+  - classify as low when too few valid Lyapunov steps are available
+  - when rescale is enabled, renormalize perturbation each step to `delta0`
+- This PR intentionally excludes secondary heuristics (sparse/line/loop gates and other multi-feature classifiers).

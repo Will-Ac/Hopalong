@@ -1,5 +1,5 @@
 import { ColorMapNames, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
-import { renderFrame, getParamsForFormula } from "./renderer.js";
+import { renderFrame, getParamsForFormula, classifyInterestGridLyapunov } from "./renderer.js";
 import {
   FORMULA_METADATA,
   FORMULA_RANGES_RAW,
@@ -55,6 +55,14 @@ const detailInterestGridSizeRangeEl = document.getElementById("detailInterestGri
 const detailInterestGridSizeFormattedEl = document.getElementById("detailInterestGridSizeFormatted");
 const detailInterestScanIterationsRangeEl = document.getElementById("detailInterestScanIterationsRange");
 const detailInterestScanIterationsFormattedEl = document.getElementById("detailInterestScanIterationsFormatted");
+const detailInterestLyapunovEnabledToggleEl = document.getElementById("detailInterestLyapunovEnabledToggle");
+const detailInterestLyapunovMinExponentRangeEl = document.getElementById("detailInterestLyapunovMinExponentRange");
+const detailInterestLyapunovMinExponentFormattedEl = document.getElementById("detailInterestLyapunovMinExponentFormatted");
+const detailInterestLyapunovDelta0RangeEl = document.getElementById("detailInterestLyapunovDelta0Range");
+const detailInterestLyapunovDelta0FormattedEl = document.getElementById("detailInterestLyapunovDelta0Formatted");
+const detailInterestLyapunovRescaleToggleEl = document.getElementById("detailInterestLyapunovRescaleToggle");
+const detailInterestLyapunovMaxDistanceRangeEl = document.getElementById("detailInterestLyapunovMaxDistanceRange");
+const detailInterestLyapunovMaxDistanceFormattedEl = document.getElementById("detailInterestLyapunovMaxDistanceFormatted");
 const detailColorModeSelectEl = document.getElementById("detailColorModeSelect");
 const detailLogStrengthRangeEl = document.getElementById("detailLogStrengthRange");
 const detailLogStrengthFormattedEl = document.getElementById("detailLogStrengthFormatted");
@@ -147,6 +155,12 @@ const INTEREST_GRID_SIZE_MIN = 8;
 const INTEREST_GRID_SIZE_MAX = 64;
 const INTEREST_SCAN_ITERATIONS_MIN = 100;
 const INTEREST_SCAN_ITERATIONS_MAX = 5000;
+const INTEREST_LYAPUNOV_MIN_EXPONENT_MIN = -1;
+const INTEREST_LYAPUNOV_MIN_EXPONENT_MAX = 1;
+const INTEREST_LYAPUNOV_DELTA0_MIN = 1e-7;
+const INTEREST_LYAPUNOV_DELTA0_MAX = 1e-3;
+const INTEREST_LYAPUNOV_MAX_DISTANCE_MIN = 1e-3;
+const INTEREST_LYAPUNOV_MAX_DISTANCE_MAX = 1e6;
 
 const ctx = canvas.getContext("2d", { alpha: false });
 let appData = null;
@@ -159,6 +173,7 @@ let holdInterval = null;
 let lastRenderMeta = null;
 let lastDrawTimestamp = 0;
 let fpsEstimate = 0;
+let interestOverlayScanCache = null;
 let drawScheduled = false;
 let drawDirty = false;
 let toastTimer = null;
@@ -1225,10 +1240,23 @@ function syncDetailedSettingsControls() {
   if (detailInterestOverlayToggleEl) detailInterestOverlayToggleEl.checked = Boolean(appData.defaults.interestOverlayEnabled);
   const interestGridSize = Math.round(clamp(Number(appData.defaults.interestGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
   const interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+  const interestLyapunovEnabled = Boolean(appData.defaults.interestLyapunovEnabled);
+  const interestLyapunovMinExponent = clamp(Number(appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
+  const interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
+  const interestLyapunovRescale = Boolean(appData.defaults.interestLyapunovRescale);
+  const interestLyapunovMaxDistance = clamp(Number(appData.defaults.interestLyapunovMaxDistance), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
   if (detailInterestGridSizeRangeEl) detailInterestGridSizeRangeEl.value = String(interestGridSize);
   if (detailInterestGridSizeFormattedEl) detailInterestGridSizeFormattedEl.textContent = formatNumberForUi(interestGridSize, 0);
   if (detailInterestScanIterationsRangeEl) detailInterestScanIterationsRangeEl.value = String(interestScanIterations);
   if (detailInterestScanIterationsFormattedEl) detailInterestScanIterationsFormattedEl.textContent = formatNumberForUi(interestScanIterations, 0);
+  if (detailInterestLyapunovEnabledToggleEl) detailInterestLyapunovEnabledToggleEl.checked = interestLyapunovEnabled;
+  if (detailInterestLyapunovMinExponentRangeEl) detailInterestLyapunovMinExponentRangeEl.value = String(interestLyapunovMinExponent);
+  if (detailInterestLyapunovMinExponentFormattedEl) detailInterestLyapunovMinExponentFormattedEl.textContent = formatNumberForUi(interestLyapunovMinExponent, 2);
+  if (detailInterestLyapunovDelta0RangeEl) detailInterestLyapunovDelta0RangeEl.value = String(interestLyapunovDelta0);
+  if (detailInterestLyapunovDelta0FormattedEl) detailInterestLyapunovDelta0FormattedEl.textContent = interestLyapunovDelta0.toExponential(2);
+  if (detailInterestLyapunovRescaleToggleEl) detailInterestLyapunovRescaleToggleEl.checked = interestLyapunovRescale;
+  if (detailInterestLyapunovMaxDistanceRangeEl) detailInterestLyapunovMaxDistanceRangeEl.value = String(interestLyapunovMaxDistance);
+  if (detailInterestLyapunovMaxDistanceFormattedEl) detailInterestLyapunovMaxDistanceFormattedEl.textContent = formatNumberForUi(interestLyapunovMaxDistance, 3);
   syncInterestOverlayToggleUi();
   const holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
   const { holdRepeatMs, holdAccelStartMs, holdAccelEndMs } = getHoldTimingSettings();
@@ -1339,6 +1367,47 @@ function applyInterestScanIterations(nextValue) {
   appData.defaults.interestScanIterations = Math.round(clamp(Number(nextValue), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyInterestLyapunovEnabled(nextValue) {
+  appData.defaults.interestLyapunovEnabled = Boolean(nextValue);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyInterestLyapunovMinExponent(nextValue) {
+  appData.defaults.interestLyapunovMinExponent = clamp(Number(nextValue), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyInterestLyapunovDelta0(nextValue) {
+  appData.defaults.interestLyapunovDelta0 = clamp(Number(nextValue), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyInterestLyapunovRescale(nextValue) {
+  appData.defaults.interestLyapunovRescale = Boolean(nextValue);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyInterestLyapunovMaxDistance(nextValue) {
+  appData.defaults.interestLyapunovMaxDistance = clamp(Number(nextValue), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
   commitCurrentStateToHistory();
 }
 
@@ -1903,6 +1972,11 @@ function captureCurrentState() {
     interestOverlayEnabled: appData.defaults.interestOverlayEnabled,
     interestGridSize: appData.defaults.interestGridSize,
     interestScanIterations: appData.defaults.interestScanIterations,
+    interestLyapunovEnabled: appData.defaults.interestLyapunovEnabled,
+    interestLyapunovMinExponent: appData.defaults.interestLyapunovMinExponent,
+    interestLyapunovDelta0: appData.defaults.interestLyapunovDelta0,
+    interestLyapunovRescale: appData.defaults.interestLyapunovRescale,
+    interestLyapunovMaxDistance: appData.defaults.interestLyapunovMaxDistance,
     holdSpeedScale: appData.defaults.holdSpeedScale,
     holdRepeatMs: appData.defaults.holdRepeatMs,
     holdAccelStartMs: appData.defaults.holdAccelStartMs,
@@ -1971,6 +2045,11 @@ function applyState(state) {
   appData.defaults.interestOverlayEnabled = Boolean(state.interestOverlayEnabled ?? appData.defaults.interestOverlayEnabled);
   appData.defaults.interestGridSize = Math.round(clamp(Number(state.interestGridSize ?? appData.defaults.interestGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
   appData.defaults.interestScanIterations = Math.round(clamp(Number(state.interestScanIterations ?? appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+  appData.defaults.interestLyapunovEnabled = Boolean(state.interestLyapunovEnabled ?? appData.defaults.interestLyapunovEnabled);
+  appData.defaults.interestLyapunovMinExponent = clamp(Number(state.interestLyapunovMinExponent ?? appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
+  appData.defaults.interestLyapunovDelta0 = clamp(Number(state.interestLyapunovDelta0 ?? appData.defaults.interestLyapunovDelta0), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
+  appData.defaults.interestLyapunovRescale = Boolean(state.interestLyapunovRescale ?? appData.defaults.interestLyapunovRescale);
+  appData.defaults.interestLyapunovMaxDistance = clamp(Number(state.interestLyapunovMaxDistance ?? appData.defaults.interestLyapunovMaxDistance), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
   appData.defaults.holdSpeedScale = clamp(Number(state.holdSpeedScale ?? appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
   appData.defaults.holdRepeatMs = Math.round(Number(state.holdRepeatMs ?? appData.defaults.holdRepeatMs ?? HOLD_REPEAT_MS_DEFAULT));
   appData.defaults.holdAccelStartMs = Math.round(Number(state.holdAccelStartMs ?? appData.defaults.holdAccelStartMs ?? HOLD_ACCEL_START_MS_DEFAULT));
@@ -3378,36 +3457,62 @@ function drawInterestOverlay(meta) {
     return;
   }
 
-  const { view } = meta;
+  const { manX, manY } = getManualAxisTargets();
+  if (!manX || !manY || !Boolean(appData.defaults.interestLyapunovEnabled)) {
+    return;
+  }
+
+  const { view, world } = meta;
   const gridSize = Math.round(clamp(Number(appData.defaults.interestGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
-  const stepX = Math.max(4, view.width / gridSize);
-  const stepY = Math.max(4, view.height / gridSize);
+  const scanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+  const lyapunovConfig = {
+    enabled: Boolean(appData.defaults.interestLyapunovEnabled),
+    minExponent: clamp(Number(appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX),
+    delta0: clamp(Number(appData.defaults.interestLyapunovDelta0), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX),
+    rescale: Boolean(appData.defaults.interestLyapunovRescale),
+    maxDistance: clamp(Number(appData.defaults.interestLyapunovMaxDistance), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX),
+  };
+
+  const signature = JSON.stringify({
+    formulaId: currentFormulaId,
+    params: getDerivedParams(),
+    world,
+    gridSize,
+    scanIterations,
+    manX,
+    manY,
+    lyapunovConfig,
+  });
+
+  if (!interestOverlayScanCache || interestOverlayScanCache.signature !== signature) {
+    const scanResult = classifyInterestGridLyapunov({
+      formulaId: currentFormulaId,
+      params: getDerivedParams(),
+      world,
+      gridSize,
+      iterations: scanIterations,
+      lyapunov: lyapunovConfig,
+    });
+    interestOverlayScanCache = { signature, scanResult };
+  }
+
+  const scanResult = interestOverlayScanCache?.scanResult;
+  if (!scanResult || scanResult.gridSize !== gridSize || !Array.isArray(scanResult.highCells) || scanResult.highCells.length === 0) {
+    return;
+  }
+
+  const stepX = view.width / gridSize;
+  const stepY = view.height / gridSize;
 
   ctx.save();
-  ctx.fillStyle = "rgba(120, 200, 255, 0.08)";
-  ctx.strokeStyle = "rgba(120, 200, 255, 0.35)";
-  ctx.lineWidth = 1;
-
-  for (let col = 0; col < gridSize; col += 1) {
+  ctx.fillStyle = "rgba(120, 200, 255, 0.2)";
+  for (const cellIndex of scanResult.highCells) {
+    const col = cellIndex % gridSize;
+    const row = Math.floor(cellIndex / gridSize);
     const x = Math.round(col * stepX);
-    for (let row = 0; row < gridSize; row += 1) {
-      const y = Math.round(row * stepY);
-      ctx.fillRect(x, y, Math.ceil(stepX), Math.ceil(stepY));
-    }
+    const y = Math.round(row * stepY);
+    ctx.fillRect(x, y, Math.ceil(stepX), Math.ceil(stepY));
   }
-
-  ctx.beginPath();
-  for (let col = 1; col < gridSize; col += 1) {
-    const x = Math.round(col * stepX) + 0.5;
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, view.height);
-  }
-  for (let row = 1; row < gridSize; row += 1) {
-    const y = Math.round(row * stepY) + 0.5;
-    ctx.moveTo(0, y);
-    ctx.lineTo(view.width, y);
-  }
-  ctx.stroke();
   ctx.restore();
 }
 
@@ -4221,6 +4326,11 @@ function registerHandlers() {
   detailInterestOverlayToggleEl?.addEventListener("change", () => applyInterestOverlayEnabled(detailInterestOverlayToggleEl.checked));
   detailInterestGridSizeRangeEl?.addEventListener("input", () => applyInterestGridSize(detailInterestGridSizeRangeEl.value));
   detailInterestScanIterationsRangeEl?.addEventListener("input", () => applyInterestScanIterations(detailInterestScanIterationsRangeEl.value));
+  detailInterestLyapunovEnabledToggleEl?.addEventListener("change", () => applyInterestLyapunovEnabled(detailInterestLyapunovEnabledToggleEl.checked));
+  detailInterestLyapunovMinExponentRangeEl?.addEventListener("input", () => applyInterestLyapunovMinExponent(detailInterestLyapunovMinExponentRangeEl.value));
+  detailInterestLyapunovDelta0RangeEl?.addEventListener("input", () => applyInterestLyapunovDelta0(detailInterestLyapunovDelta0RangeEl.value));
+  detailInterestLyapunovRescaleToggleEl?.addEventListener("change", () => applyInterestLyapunovRescale(detailInterestLyapunovRescaleToggleEl.checked));
+  detailInterestLyapunovMaxDistanceRangeEl?.addEventListener("input", () => applyInterestLyapunovMaxDistance(detailInterestLyapunovMaxDistanceRangeEl.value));
   holdSpeedRangeEl?.addEventListener("input", () => applyHoldSpeedScale(holdSpeedRangeEl.value));
   holdRepeatMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdRepeatMs", holdRepeatMsRangeEl.value));
   holdAccelStartMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdAccelStartMs", holdAccelStartMsRangeEl.value));
@@ -4426,6 +4536,21 @@ async function loadData() {
   if (typeof data.defaults.interestScanIterations !== "number") {
     data.defaults.interestScanIterations = 1200;
   }
+  if (typeof data.defaults.interestLyapunovEnabled !== "boolean") {
+    data.defaults.interestLyapunovEnabled = false;
+  }
+  if (typeof data.defaults.interestLyapunovMinExponent !== "number") {
+    data.defaults.interestLyapunovMinExponent = 0;
+  }
+  if (typeof data.defaults.interestLyapunovDelta0 !== "number") {
+    data.defaults.interestLyapunovDelta0 = 1e-6;
+  }
+  if (typeof data.defaults.interestLyapunovRescale !== "boolean") {
+    data.defaults.interestLyapunovRescale = true;
+  }
+  if (typeof data.defaults.interestLyapunovMaxDistance !== "number") {
+    data.defaults.interestLyapunovMaxDistance = INTEREST_LYAPUNOV_MAX_DISTANCE_MAX;
+  }
   if (typeof data.defaults.holdSpeedScale !== "number") {
     data.defaults.holdSpeedScale = 1;
   }
@@ -4448,6 +4573,9 @@ async function loadData() {
   data.defaults.overlayAlpha = clamp(data.defaults.overlayAlpha, 0.1, 1);
   data.defaults.interestGridSize = Math.round(clamp(data.defaults.interestGridSize, INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
   data.defaults.interestScanIterations = Math.round(clamp(data.defaults.interestScanIterations, INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+  data.defaults.interestLyapunovMinExponent = clamp(data.defaults.interestLyapunovMinExponent, INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
+  data.defaults.interestLyapunovDelta0 = clamp(data.defaults.interestLyapunovDelta0, INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
+  data.defaults.interestLyapunovMaxDistance = clamp(data.defaults.interestLyapunovMaxDistance, INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
   data.defaults.holdSpeedScale = clamp(data.defaults.holdSpeedScale, HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
   data.defaults.holdRepeatMs = Math.round(clamp(data.defaults.holdRepeatMs, HOLD_REPEAT_MS_MIN, HOLD_REPEAT_MS_MAX));
   data.defaults.holdAccelStartMs = Math.round(clamp(data.defaults.holdAccelStartMs, HOLD_ACCEL_START_MS_MIN, HOLD_ACCEL_START_MS_MAX));
@@ -4500,6 +4628,11 @@ async function bootstrap() {
     appData.defaults.interestOverlayEnabled = Boolean(appData.defaults.interestOverlayEnabled);
     appData.defaults.interestGridSize = Math.round(clamp(Number(appData.defaults.interestGridSize ?? 24), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
     appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? 1200), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+    appData.defaults.interestLyapunovEnabled = Boolean(appData.defaults.interestLyapunovEnabled);
+    appData.defaults.interestLyapunovMinExponent = clamp(Number(appData.defaults.interestLyapunovMinExponent ?? 0), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
+    appData.defaults.interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0 ?? 1e-6), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
+    appData.defaults.interestLyapunovRescale = Boolean(appData.defaults.interestLyapunovRescale ?? true);
+    appData.defaults.interestLyapunovMaxDistance = clamp(Number(appData.defaults.interestLyapunovMaxDistance ?? INTEREST_LYAPUNOV_MAX_DISTANCE_MAX), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
     appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
     normalizeHoldTimingDefaults();
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);

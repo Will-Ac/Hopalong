@@ -376,3 +376,93 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
     },
   };
 }
+
+
+export function classifyInterestGridLyapunov({ formulaId, params, world, gridSize = 24, iterations = 1200, lyapunov = {} }) {
+  const step = formulaStepById.get(formulaId);
+  if (!step || !world) {
+    return { gridSize: 0, highCells: [] };
+  }
+
+  const safeGridSize = Math.max(1, Math.round(Number(gridSize) || 24));
+  const worldSpanX = Math.max(Number(world.maxX) - Number(world.minX), 1e-6);
+  const worldSpanY = Math.max(Number(world.maxY) - Number(world.minY), 1e-6);
+  const sampleIterations = Math.max(1, Math.round(Number(iterations) || 1200));
+
+  const d0Raw = Number(lyapunov?.delta0);
+  const d0 = Number.isFinite(d0Raw) && d0Raw > 0 ? d0Raw : 1e-6;
+  const minExponent = Number(lyapunov?.minExponent) || 0;
+  const maxDistanceRaw = Number(lyapunov?.maxDistance);
+  const maxDistance = Number.isFinite(maxDistanceRaw) && maxDistanceRaw > 0 ? maxDistanceRaw : 1e6;
+  const shouldRescale = Boolean(lyapunov?.rescale);
+  const epsilon = 1e-12;
+  const minValidSteps = Math.max(4, Math.floor(sampleIterations * 0.1));
+
+  const highCells = [];
+  let cellIndex = 0;
+
+  for (let row = 0; row < safeGridSize; row += 1) {
+    for (let col = 0; col < safeGridSize; col += 1) {
+      const tx = (col + 0.5) / safeGridSize;
+      const ty = (row + 0.5) / safeGridSize;
+      let x1 = Number(world.minX) + tx * worldSpanX;
+      let y1 = Number(world.minY) + ty * worldSpanY;
+      let x2 = x1 + d0;
+      let y2 = y1;
+
+      let sumLogRatio = 0;
+      let validSteps = 0;
+      let previousDistance = d0;
+
+      for (let i = 0; i < sampleIterations; i += 1) {
+        [x1, y1] = step(x1, y1, params.a, params.b, params.c, params.d);
+        [x2, y2] = step(x2, y2, params.a, params.b, params.c, params.d);
+
+        if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
+          break;
+        }
+
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const d1Raw = Math.hypot(dx, dy);
+        if (!Number.isFinite(d1Raw)) {
+          continue;
+        }
+
+        const dPrev = Math.max(previousDistance, epsilon);
+        const dNext = Math.max(Math.min(d1Raw, maxDistance), epsilon);
+        const ratio = dNext / dPrev;
+        if (!Number.isFinite(ratio) || ratio <= 0) {
+          continue;
+        }
+
+        const logRatio = Math.log(Math.max(ratio, epsilon));
+        if (!Number.isFinite(logRatio)) {
+          continue;
+        }
+
+        sumLogRatio += logRatio;
+        validSteps += 1;
+
+        if (shouldRescale) {
+          const scale = d0 / Math.max(d1Raw, epsilon);
+          const scaledDx = dx * scale;
+          const scaledDy = dy * scale;
+          x2 = x1 + scaledDx;
+          y2 = y1 + scaledDy;
+          previousDistance = d0;
+        } else {
+          previousDistance = dNext;
+        }
+      }
+
+      const lambda = validSteps >= minValidSteps ? (sumLogRatio / validSteps) : Number.NEGATIVE_INFINITY;
+      if (Number.isFinite(lambda) && lambda >= minExponent) {
+        highCells.push(cellIndex);
+      }
+      cellIndex += 1;
+    }
+  }
+
+  return { gridSize: safeGridSize, highCells };
+}

@@ -29,5 +29,10 @@
   "holdAccelEndMs": 1400,
   "interestOverlayEnabled": false,
   "interestGridSize": 24,
-  "interestScanIterations": 1200
+  "interestScanIterations": 1200,
+  "interestLyapunovEnabled": false,
+  "interestLyapunovMinExponent": 0.0,
+  "interestLyapunovDelta0": 0.000001,
+  "interestLyapunovRescale": true,
+  "interestLyapunovMaxDistance": 1000000
 }
