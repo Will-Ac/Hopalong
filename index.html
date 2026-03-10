@@ -814,6 +814,14 @@
         height: 24px;
         display: block;
       }
+      #overlayToggleBtn .eyeIcon {
+        width: 22px;
+        height: 22px;
+        display: block;
+      }
+      #overlayToggleBtn.is-active {
+        background: rgba(var(--ui-gray-rgb), 0.12);
+      }
       #cameraBtn.is-armed {
         background: rgba(var(--ui-gray-rgb), 0.1);
       }
@@ -870,6 +878,7 @@
       </div>
       <div id="topRightActions">
         <button id="rangesEditorToggle" class="topActionBtn" type="button" aria-label="Open ranges editor">⚙</button>
+        <button id="overlayToggleBtn" class="topActionBtn" type="button" aria-label="Toggle interest overlay" title="Interest overlay"><svg class="eyeIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.2 12s3.3-6 9.8-6 9.8 6 9.8 6-3.3 6-9.8 6-9.8-6-9.8-6Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle class="eyePupil" cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></button>
         <button id="scaleModeBtn" class="topActionBtn" type="button" aria-label="Toggle scaling mode">Fixed
 Scale</button>
         <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -944,6 +953,24 @@ Scale</button>
             <div class="perfControlRow">
               <input id="detailOverlayAlphaRange" class="perfRangeInput" type="range" min="0.1" max="1" step="0.01" />
               <div id="detailOverlayAlphaFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Interest overlay</span></div>
+            <label class="modeOption"><input id="detailInterestOverlayToggle" type="checkbox" /> Show modulation grid overlay while actively modulating both axes</label>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Interest grid size</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestGridSizeRange" class="perfRangeInput" type="range" min="8" max="64" step="1" />
+              <div id="detailInterestGridSizeFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Scan iterations per cell</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestScanIterationsRange" class="perfRangeInput" type="range" min="100" max="5000" step="50" />
+              <div id="detailInterestScanIterationsFormatted" class="perfFormattedValue">--</div>
             </div>
           </div>
           <div class="perfSettingCard">

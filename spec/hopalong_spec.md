@@ -153,3 +153,18 @@ Split into modules (even if bundled later):
   - center point of the visible range
   - FPS
 - When debug is `Off`, hide axes/ticks/readout details and show a short `Debug off` message.
+
+## 12) Baseline interest overlay (PR1)
+
+- Add General settings controls for:
+  - `Interest overlay` (`interestOverlayEnabled`, boolean, default `false`)
+  - `Interest grid size` (`interestGridSize`, numeric slider, default `24`)
+  - `Scan iterations per cell` (`interestScanIterations`, numeric slider, default `1200`)
+- Add a top-right eye button between Settings and Fixed Scale that toggles `interestOverlayEnabled`.
+  - Button uses the same tile size/shape as the existing top-right action buttons.
+  - Eye icon appears filled when enabled and outlined when disabled.
+- Overlay rendering is a simple translucent grid only (no classifier, no Lyapunov/chaos metric logic).
+- Overlay visibility rule: show only when both are true:
+  - `interestOverlayEnabled` is ON, and
+  - active manual modulation is happening with both ManX and ManY assigned (2-parameter modulation).
+- Existing manual modulation axis lines and crosshair remain unchanged and are always drawn during modulation, regardless of interest overlay toggle state.
