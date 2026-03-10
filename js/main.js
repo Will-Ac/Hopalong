@@ -162,6 +162,19 @@ const INTEREST_LYAPUNOV_DELTA0_MAX = 1e-3;
 const INTEREST_LYAPUNOV_MAX_DISTANCE_MIN = 1e-3;
 const INTEREST_LYAPUNOV_MAX_DISTANCE_MAX = 1e6;
 
+function normalizeInterestGridSize(rawValue) {
+  const clampedValue = Math.round(clamp(Number(rawValue), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+  if (clampedValue % 2 === 1) {
+    return clampedValue;
+  }
+
+  if (clampedValue < INTEREST_GRID_SIZE_MAX) {
+    return clampedValue + 1;
+  }
+
+  return Math.max(INTEREST_GRID_SIZE_MIN, clampedValue - 1);
+}
+
 const ctx = canvas.getContext("2d", { alpha: false });
 let appData = null;
 let currentFormulaId = null;
@@ -1238,7 +1251,7 @@ function syncDetailedSettingsControls() {
   if (detailOverlayAlphaRangeEl) detailOverlayAlphaRangeEl.value = String(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1));
   if (detailOverlayAlphaFormattedEl) detailOverlayAlphaFormattedEl.textContent = formatNumberForUi(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1), 2);
   if (detailInterestOverlayToggleEl) detailInterestOverlayToggleEl.checked = Boolean(appData.defaults.interestOverlayEnabled);
-  const interestGridSize = Math.round(clamp(Number(appData.defaults.interestGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+  const interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize);
   const interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
   const interestLyapunovEnabled = Boolean(appData.defaults.interestLyapunovEnabled);
   const interestLyapunovMinExponent = clamp(Number(appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
@@ -1356,7 +1369,7 @@ function applyInterestOverlayEnabled(nextValue) {
 }
 
 function applyInterestGridSize(nextValue) {
-  appData.defaults.interestGridSize = Math.round(clamp(Number(nextValue), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+  appData.defaults.interestGridSize = normalizeInterestGridSize(nextValue);
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
@@ -1545,11 +1558,12 @@ function setScaleModeFixed(reason = "manual pan/zoom") {
 }
 
 function syncScaleModeButton() {
-  const isFixed = getScaleMode() === "fixed";
-  scaleModeBtn.textContent = isFixed ? "Auto\nScale" : "Fixed\nScale";
-  scaleModeBtn.classList.toggle("is-fixed", isFixed);
-  scaleModeBtn.setAttribute("aria-label", isFixed ? "Switch to auto scaling" : "Switch to fixed scaling");
-  scaleModeBtn.title = isFixed ? "Fixed scale" : "Auto scale";
+  const isAuto = getScaleMode() === "auto";
+  scaleModeBtn.textContent = "Auto
+Scale";
+  scaleModeBtn.classList.toggle("is-active", isAuto);
+  scaleModeBtn.setAttribute("aria-label", isAuto ? "Disable auto scale" : "Enable auto scale");
+  scaleModeBtn.title = isAuto ? "Auto scale on" : "Auto scale off";
 }
 
 function syncRandomModeButton() {
@@ -2043,7 +2057,7 @@ function applyState(state) {
   appData.defaults.renderHybridBlend = clamp(Number(state.renderHybridBlend ?? appData.defaults.renderHybridBlend), 0, 1);
   appData.defaults.overlayAlpha = clamp(Number(state.overlayAlpha ?? appData.defaults.overlayAlpha), 0.1, 1);
   appData.defaults.interestOverlayEnabled = Boolean(state.interestOverlayEnabled ?? appData.defaults.interestOverlayEnabled);
-  appData.defaults.interestGridSize = Math.round(clamp(Number(state.interestGridSize ?? appData.defaults.interestGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+  appData.defaults.interestGridSize = normalizeInterestGridSize(state.interestGridSize ?? appData.defaults.interestGridSize);
   appData.defaults.interestScanIterations = Math.round(clamp(Number(state.interestScanIterations ?? appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
   appData.defaults.interestLyapunovEnabled = Boolean(state.interestLyapunovEnabled ?? appData.defaults.interestLyapunovEnabled);
   appData.defaults.interestLyapunovMinExponent = clamp(Number(state.interestLyapunovMinExponent ?? appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
@@ -2134,7 +2148,7 @@ function isEventInsideInteractiveUi(eventTarget) {
     return false;
   }
 
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #debugToggleDock, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #colorSettingsPanel, #rangesEditorToggle"));
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #colorSettingsPanel, #rangesEditorToggle"));
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -3485,20 +3499,39 @@ function getInterestPlaneConfig() {
   };
 }
 
-function getCenteredInterestGridSize(rawGridSize) {
-  const clampedGridSize = Math.round(clamp(Number(rawGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
-  if (clampedGridSize % 2 === 1) {
-    return clampedGridSize;
+function normalizeCenteredCellCount(rawCount) {
+  const rounded = Math.max(1, Math.round(Number(rawCount) || 1));
+  if (rounded % 2 === 1) {
+    return rounded;
   }
-
-  if (clampedGridSize < INTEREST_GRID_SIZE_MAX) {
-    return clampedGridSize + 1;
-  }
-
-  return Math.max(INTEREST_GRID_SIZE_MIN, clampedGridSize - 1);
+  return rounded > 1 ? rounded - 1 : 1;
 }
 
-function buildInterestOverlayScanKey({ planeConfig, baseParams, lyapunovConfig, gridSize, scanIterations }) {
+function getInterestGridLayout(view, rawGridSize) {
+  const selectedGridSize = Math.round(clamp(Number(rawGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+  const width = Math.max(1, Number(view?.width) || 1);
+  const height = Math.max(1, Number(view?.height) || 1);
+  const isWidthLong = width >= height;
+  const longCount = normalizeCenteredCellCount(selectedGridSize);
+  const cellSize = Math.max(1, (isWidthLong ? width : height) / longCount);
+  const rawShortCount = (isWidthLong ? height : width) / cellSize;
+  const shortCount = normalizeCenteredCellCount(rawShortCount);
+
+  const cols = isWidthLong ? longCount : shortCount;
+  const rows = isWidthLong ? shortCount : longCount;
+  const gridWidthPx = cols * cellSize;
+  const gridHeightPx = rows * cellSize;
+
+  return {
+    cols,
+    rows,
+    cellSize,
+    offsetX: (width - gridWidthPx) * 0.5,
+    offsetY: (height - gridHeightPx) * 0.5,
+  };
+}
+
+function buildInterestOverlayScanKey({ planeConfig, baseParams, lyapunovConfig, gridCols, gridRows, scanIterations }) {
   const fixedParamKeys = ["a", "b", "c", "d"].filter((key) => {
     if (planeConfig.mode === "two_axis") {
       return key !== planeConfig.axisXParam && key !== planeConfig.axisYParam;
@@ -3517,7 +3550,8 @@ function buildInterestOverlayScanKey({ planeConfig, baseParams, lyapunovConfig, 
     axisXRange: planeConfig.axisXRange || null,
     axisYRange: planeConfig.axisYRange || null,
     axisRange: planeConfig.axisRange || null,
-    gridSize,
+    gridCols,
+    gridRows,
     scanIterations,
     lyapunovConfig,
     fixedParams,
@@ -3539,7 +3573,9 @@ function drawInterestOverlay(meta) {
   }
 
   const { view } = meta;
-  const gridSize = getCenteredInterestGridSize(appData.defaults.interestGridSize);
+  const gridLayout = getInterestGridLayout(view, appData.defaults.interestGridSize);
+  const gridCols = gridLayout.cols;
+  const gridRows = gridLayout.rows;
   const scanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
   const lyapunovConfig = {
     minExponent: clamp(Number(appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX),
@@ -3552,18 +3588,20 @@ function drawInterestOverlay(meta) {
     planeConfig,
     baseParams,
     lyapunovConfig,
-    gridSize,
+    gridCols,
+    gridRows,
     scanIterations,
   });
 
   if (!interestOverlayScanCache || interestOverlayScanCache.scanKey !== scanKey) {
-    showToast(`Recalculating interest overlay (${gridSize}×${gridSize})...`);
+    showToast(`Recalculating interest overlay (${gridCols}×${gridRows})...`);
     const overlayScanStartedAt = performance.now();
     const scanResult = classifyInterestGridLyapunov({
       formulaId: currentFormulaId,
       baseParams,
       plane: planeConfig,
-      gridSize,
+      gridCols,
+      gridRows,
       iterations: scanIterations,
       lyapunov: lyapunovConfig,
     });
@@ -3572,27 +3610,27 @@ function drawInterestOverlay(meta) {
       scanKey,
       scanResult,
       computedAt: performance.now(),
-      gridSize,
+      gridCols,
+      gridRows,
     };
     showToast(`Interest overlay updated in ${formatNumberForUi(scanElapsedMs, 0)} ms.`);
   }
 
   const scanResult = interestOverlayScanCache?.scanResult;
-  if (!scanResult || scanResult.gridSize !== gridSize || !Array.isArray(scanResult.highCells) || scanResult.highCells.length === 0) {
+  if (!scanResult || scanResult.gridCols !== gridCols || scanResult.gridRows !== gridRows || !Array.isArray(scanResult.highCells) || scanResult.highCells.length === 0) {
     return;
   }
 
-  const stepX = view.width / gridSize;
-  const stepY = view.height / gridSize;
+  const { cellSize, offsetX, offsetY } = gridLayout;
 
   ctx.save();
   ctx.fillStyle = "rgba(120, 200, 255, 0.2)";
   for (const cellIndex of scanResult.highCells) {
-    const col = cellIndex % gridSize;
-    const row = Math.floor(cellIndex / gridSize);
-    const x = Math.round(col * stepX);
-    const y = Math.round(row * stepY);
-    ctx.fillRect(x, y, Math.ceil(stepX), Math.ceil(stepY));
+    const col = cellIndex % gridCols;
+    const row = Math.floor(cellIndex / gridCols);
+    const x = Math.round(offsetX + col * cellSize);
+    const y = Math.round(offsetY + row * cellSize);
+    ctx.fillRect(x, y, Math.ceil(cellSize), Math.ceil(cellSize));
   }
   ctx.restore();
 }
@@ -3601,10 +3639,6 @@ function syncInterestOverlayToggleUi() {
   const enabled = Boolean(appData?.defaults?.interestOverlayEnabled);
   overlayToggleBtn?.classList.toggle("is-active", enabled);
   overlayToggleBtn?.setAttribute("aria-pressed", enabled ? "true" : "false");
-  const eyePupil = overlayToggleBtn?.querySelector(".eyePupil");
-  if (eyePupil) {
-    eyePupil.setAttribute("fill", enabled ? "currentColor" : "none");
-  }
 }
 
 function drawManualParamOverlay(meta) {
@@ -4282,13 +4316,6 @@ async function endCameraPress(event) {
 function registerHandlers() {
   pickerClose.addEventListener("click", () => closePicker());
   pickerBackdrop.addEventListener("click", () => closePicker());
-  debugBugBtn?.addEventListener("click", () => {
-    appData.defaults.debug = !Boolean(appData.defaults.debug);
-    syncDebugToggleUi();
-    saveDefaultsToStorage();
-    requestDraw();
-  });
-
   for (const [targetKey, target] of Object.entries(paramTileTargets)) {
     const tile = target.button.closest(".poItem");
     if (!tile) {
@@ -4353,7 +4380,7 @@ function registerHandlers() {
     saveDefaultsToStorage();
     requestDraw();
     commitCurrentStateToHistory();
-    showToast(getScaleMode() === "fixed" ? "Fixed scale mode enabled." : "Auto scale mode enabled.");
+    showToast(getScaleMode() === "auto" ? "Auto scale enabled." : "Auto scale disabled.");
   });
 
   overlayToggleBtn?.addEventListener("click", () => {
@@ -4652,7 +4679,7 @@ async function loadData() {
   data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
   data.defaults.renderHybridBlend = clamp(data.defaults.renderHybridBlend, 0, 1);
   data.defaults.overlayAlpha = clamp(data.defaults.overlayAlpha, 0.1, 1);
-  data.defaults.interestGridSize = Math.round(clamp(data.defaults.interestGridSize, INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+  data.defaults.interestGridSize = normalizeInterestGridSize(data.defaults.interestGridSize);
   data.defaults.interestScanIterations = Math.round(clamp(data.defaults.interestScanIterations, INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
   data.defaults.interestLyapunovMinExponent = clamp(data.defaults.interestLyapunovMinExponent, INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
   data.defaults.interestLyapunovDelta0 = clamp(data.defaults.interestLyapunovDelta0, INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
@@ -4707,7 +4734,7 @@ async function bootstrap() {
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
     appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.9), 0.1, 1);
     appData.defaults.interestOverlayEnabled = Boolean(appData.defaults.interestOverlayEnabled);
-    appData.defaults.interestGridSize = Math.round(clamp(Number(appData.defaults.interestGridSize ?? 24), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+    appData.defaults.interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize ?? 24);
     appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? 1200), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
     appData.defaults.interestLyapunovEnabled = Boolean(appData.defaults.interestLyapunovEnabled);
     appData.defaults.interestLyapunovMinExponent = clamp(Number(appData.defaults.interestLyapunovMinExponent ?? 0), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);

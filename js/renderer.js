@@ -378,21 +378,14 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
 }
 
 
-export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gridSize = 24, iterations = 1200, lyapunov = {} }) {
+export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gridCols = 25, gridRows = 25, iterations = 1200, lyapunov = {} }) {
   const step = formulaStepById.get(formulaId);
   if (!step || !plane) {
-    return { gridSize: 0, highCells: [] };
+    return { gridCols: 0, gridRows: 0, highCells: [] };
   }
 
-  const normalizeCenteredGridSize = (rawSize) => {
-    const rounded = Math.max(1, Math.round(Number(rawSize) || 24));
-    if (rounded % 2 === 1) {
-      return rounded;
-    }
-    return rounded > 1 ? rounded - 1 : 1;
-  };
-
-  const safeGridSize = normalizeCenteredGridSize(gridSize);
+  const safeGridCols = Math.max(1, Math.round(Number(gridCols) || 25));
+  const safeGridRows = Math.max(1, Math.round(Number(gridRows) || 25));
   const sampleIterations = Math.max(1, Math.round(Number(iterations) || 1200));
 
   const d0Raw = Number(lyapunov?.delta0);
@@ -411,8 +404,8 @@ export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gri
     d: Number(baseParams?.d) || 0,
   };
 
-  const sampleAxisValue = (minValue, maxValue, index) => {
-    const t = safeGridSize > 1 ? index / (safeGridSize - 1) : 0.5;
+  const sampleAxisValue = (minValue, maxValue, index, count) => {
+    const t = count > 1 ? index / (count - 1) : 0.5;
     return minValue + (maxValue - minValue) * t;
   };
 
@@ -476,34 +469,34 @@ export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gri
 
   if (plane.mode === "one_axis") {
     const [axisMin, axisMax] = plane.axisRange || [safeBase[plane.axisParam], safeBase[plane.axisParam]];
-    for (let col = 0; col < safeGridSize; col += 1) {
+    for (let col = 0; col < safeGridCols; col += 1) {
       const cellParams = { ...safeBase };
-      cellParams[plane.axisParam] = sampleAxisValue(axisMin, axisMax, col);
+      cellParams[plane.axisParam] = sampleAxisValue(axisMin, axisMax, col, safeGridCols);
       const lambda = computeLambdaForParams(cellParams);
       if (Number.isFinite(lambda) && lambda >= minExponent) {
-        for (let row = 0; row < safeGridSize; row += 1) {
-          highCells.push(row * safeGridSize + col);
+        for (let row = 0; row < safeGridRows; row += 1) {
+          highCells.push(row * safeGridCols + col);
         }
       }
     }
 
-    return { gridSize: safeGridSize, highCells };
+    return { gridCols: safeGridCols, gridRows: safeGridRows, highCells };
   }
 
   const [xMin, xMax] = plane.axisXRange || [safeBase[plane.axisXParam], safeBase[plane.axisXParam]];
   const [yMin, yMax] = plane.axisYRange || [safeBase[plane.axisYParam], safeBase[plane.axisYParam]];
 
-  for (let row = 0; row < safeGridSize; row += 1) {
-    for (let col = 0; col < safeGridSize; col += 1) {
+  for (let row = 0; row < safeGridRows; row += 1) {
+    for (let col = 0; col < safeGridCols; col += 1) {
       const cellParams = { ...safeBase };
-      cellParams[plane.axisXParam] = sampleAxisValue(xMin, xMax, col);
-      cellParams[plane.axisYParam] = sampleAxisValue(yMax, yMin, row);
+      cellParams[plane.axisXParam] = sampleAxisValue(xMin, xMax, col, safeGridCols);
+      cellParams[plane.axisYParam] = sampleAxisValue(yMax, yMin, row, safeGridRows);
       const lambda = computeLambdaForParams(cellParams);
       if (Number.isFinite(lambda) && lambda >= minExponent) {
-        highCells.push(row * safeGridSize + col);
+        highCells.push(row * safeGridCols + col);
       }
     }
   }
 
-  return { gridSize: safeGridSize, highCells };
+  return { gridCols: safeGridCols, gridRows: safeGridRows, highCells };
 }

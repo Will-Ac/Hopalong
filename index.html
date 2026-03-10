@@ -79,32 +79,6 @@
         transform: translateY(0);
       }
 
-      #debugToggleDock {
-        position: absolute;
-        top: calc(10px + env(safe-area-inset-top));
-        left: max(0px, env(safe-area-inset-left));
-        z-index: 39;
-      }
-      #debugBugBtn {
-        width: var(--tile-size);
-        min-height: var(--tile-size);
-        border-radius: 10px;
-        border: 2px solid var(--param-outline);
-        background: var(--panel-bg);
-        color: rgba(var(--ui-gray-rgb), 0.95);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-      }
-      #debugBugBtn .bugIcon {
-        width: 22px;
-        height: 22px;
-        display: block;
-      }
-      #debugBugBtn.is-active {
-        background: rgba(var(--ui-gray-rgb), 0.1);
-      }
       #debugPanel {
         position: absolute;
         top: calc(42px + env(safe-area-inset-top));
@@ -797,9 +771,6 @@
         white-space: pre-line;
         overflow: hidden;
       }
-      #scaleModeBtn.is-fixed {
-        background: rgba(var(--ui-gray-rgb), 0.1);
-      }
       #randomModeTile.is-random {
         border-style: dashed;
       }
@@ -819,8 +790,11 @@
         height: 22px;
         display: block;
       }
-      #overlayToggleBtn.is-active {
-        background: rgba(var(--ui-gray-rgb), 0.12);
+      #overlayToggleBtn.is-active,
+      #scaleModeBtn.is-active {
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.9);
       }
       #cameraBtn.is-armed {
         background: rgba(var(--ui-gray-rgb), 0.1);
@@ -845,8 +819,7 @@
           height: 16px;
         }
         #cameraBtn,
-        #scaleModeBtn,
-        #debugBugBtn {
+        #scaleModeBtn {
           border-radius: 8px;
         }
       }
@@ -870,16 +843,13 @@
     <div id="app">
       <canvas id="c"></canvas>
       <p id="toast" aria-live="polite" aria-atomic="true"></p>
-      <div id="debugToggleDock">
-        <button id="debugBugBtn" type="button" aria-label="Toggle debug overlay" title="Debug"><svg class="bugIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 7.5h8M7.5 11.5h9M8 15.5h8M6.5 9 4 7.5M17.5 9 20 7.5M6.5 13 4 14.5M17.5 13 20 14.5M9.3 7a3.1 3.1 0 0 1 5.4 0M8.7 19.5h6.6a1.2 1.2 0 0 0 1.2-1.2V9.7a1.2 1.2 0 0 0-1.2-1.2H8.7a1.2 1.2 0 0 0-1.2 1.2v8.6a1.2 1.2 0 0 0 1.2 1.2Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      </div>
       <div id="debugPanel" class="is-hidden">
         <p id="debugInfo">Debug off</p>
       </div>
       <div id="topRightActions">
         <button id="rangesEditorToggle" class="topActionBtn" type="button" aria-label="Open ranges editor">⚙</button>
         <button id="overlayToggleBtn" class="topActionBtn" type="button" aria-label="Toggle interest overlay" title="Interest overlay"><svg class="eyeIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.2 12s3.3-6 9.8-6 9.8 6 9.8 6-3.3 6-9.8 6-9.8-6-9.8-6Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle class="eyePupil" cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></button>
-        <button id="scaleModeBtn" class="topActionBtn" type="button" aria-label="Toggle scaling mode">Fixed
+        <button id="scaleModeBtn" class="topActionBtn" type="button" aria-label="Toggle auto scale">Auto
 Scale</button>
         <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>

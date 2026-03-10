@@ -184,7 +184,8 @@ Split into modules (even if bundled later):
 - Overlay grid represents parameter-space interest, not world-space sample area:
   - two-axis mode: each cell maps to `(ManX, ManY)` pair over parameter ranges
   - one-axis mode: selected parameter is swept across X columns and rendered as vertical stripes using the same grid size
-  - effective scan grid is center-aligned to parameter axes (odd grid count) so axis center lines pass through cell centers rather than cell boundaries
+  - effective scan grid is center-aligned to parameter axes (odd cell counts) so axis center lines pass through cell centers rather than cell boundaries
+  - overlay cells are square on screen (equal X/Y cell size); configured grid size is applied on the long screen axis
   - parameters not on the modulation plane stay fixed to their current values during scan.
 - For each scanned sample, evaluate two nearby seeds and estimate finite-time Lyapunov exponent:
   - per-step contribution: `log(d(n+1) / d(n))`
@@ -194,7 +195,7 @@ Split into modules (even if bundled later):
   - `low` otherwise
 - Rendering is two-level in this PR:
   - `low` cells are hidden
-  - `high` cells are shown as translucent overlay cells (or stripes in one-axis mode)
+  - `high` cells are shown as translucent overlay fill only (no grid lines), with stripe behavior in one-axis mode
 - Cache lifecycle:
   - compute once and keep result visible while modulation continues
   - recompute only when fixed (non-plane) parameters or scan configuration change
@@ -206,3 +207,5 @@ Split into modules (even if bundled later):
   - classify as low when too few valid Lyapunov steps are available
   - when rescale is enabled, renormalize perturbation each step to `delta0`
 - This PR intentionally excludes secondary heuristics (sparse/line/loop gates and other multi-feature classifiers).
+
+- Top action buttons: debug bug button is removed; eye and Auto Scale buttons use white active styling for clearer ON state.
