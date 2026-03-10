@@ -32,7 +32,8 @@
   "interestScanIterations": 1200,
   "interestLyapunovEnabled": false,
   "interestLyapunovMinExponent": 0.0,
-  "interestLyapunovDelta0": 0.000001,
+  "interestLyapunovDelta0": 1e-06,
   "interestLyapunovRescale": true,
-  "interestLyapunovMaxDistance": 1000000
+  "interestLyapunovMaxDistance": 1000000,
+  "launchIterationCap": 500000
 }

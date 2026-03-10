@@ -163,16 +163,7 @@ const INTEREST_LYAPUNOV_MAX_DISTANCE_MIN = 1e-3;
 const INTEREST_LYAPUNOV_MAX_DISTANCE_MAX = 1e6;
 
 function normalizeInterestGridSize(rawValue) {
-  const clampedValue = Math.round(clamp(Number(rawValue), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
-  if (clampedValue % 2 === 1) {
-    return clampedValue;
-  }
-
-  if (clampedValue < INTEREST_GRID_SIZE_MAX) {
-    return clampedValue + 1;
-  }
-
-  return Math.max(INTEREST_GRID_SIZE_MIN, clampedValue - 1);
+  return Math.round(clamp(Number(rawValue), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
 }
 
 const ctx = canvas.getContext("2d", { alpha: false });
@@ -3511,7 +3502,7 @@ function getInterestGridLayout(view, rawGridSize) {
   const width = Math.max(1, Number(view?.width) || 1);
   const height = Math.max(1, Number(view?.height) || 1);
   const isWidthLong = width >= height;
-  const longCount = normalizeCenteredCellCount(selectedGridSize);
+  const longCount = selectedGridSize;
   const cellSize = Math.max(1, (isWidthLong ? width : height) / longCount);
   const rawShortCount = (isWidthLong ? height : width) / cellSize;
   const shortCount = normalizeCenteredCellCount(rawShortCount);
@@ -3627,9 +3618,9 @@ function drawInterestOverlay(meta) {
   for (const cellIndex of scanResult.highCells) {
     const col = cellIndex % gridCols;
     const row = Math.floor(cellIndex / gridCols);
-    const x = Math.round(offsetX + col * cellSize);
-    const y = Math.round(offsetY + row * cellSize);
-    ctx.fillRect(x, y, Math.ceil(cellSize), Math.ceil(cellSize));
+    const x = offsetX + col * cellSize;
+    const y = offsetY + row * cellSize;
+    ctx.fillRect(x, y, cellSize, cellSize);
   }
   ctx.restore();
 }
@@ -4619,6 +4610,9 @@ async function loadData() {
   if (typeof data.defaults.maxRandomIters !== "number") {
     data.defaults.maxRandomIters = sliderControls.iters.max;
   }
+  if (typeof data.defaults.launchIterationCap !== "number") {
+    data.defaults.launchIterationCap = 500000;
+  }
   if (!RENDER_COLOR_MODE_SET.has(data.defaults.renderColorMode)) {
     data.defaults.renderColorMode = RENDER_COLOR_MODES.ITERATION_ORDER;
   }
@@ -4673,6 +4667,7 @@ async function loadData() {
 
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
+  data.defaults.launchIterationCap = Math.round(clamp(data.defaults.launchIterationCap, sliderControls.iters.min, sliderControls.iters.max));
   data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   data.defaults.renderLogStrength = clamp(data.defaults.renderLogStrength, 0.5, 30);
   data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
@@ -4740,6 +4735,8 @@ async function bootstrap() {
     appData.defaults.interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0 ?? 1e-6), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
     appData.defaults.interestLyapunovRescale = Boolean(appData.defaults.interestLyapunovRescale ?? true);
     appData.defaults.interestLyapunovMaxDistance = clamp(Number(appData.defaults.interestLyapunovMaxDistance ?? INTEREST_LYAPUNOV_MAX_DISTANCE_MAX), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
+    appData.defaults.launchIterationCap = Math.round(clamp(Number(appData.defaults.launchIterationCap ?? 500000), sliderControls.iters.min, sliderControls.iters.max));
+    appData.defaults.sliders.iters = Math.min(appData.defaults.sliders.iters, appData.defaults.launchIterationCap);
     appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
     normalizeHoldTimingDefaults();
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
