@@ -378,7 +378,7 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
 }
 
 
-export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gridCols = 25, gridRows = 25, iterations = 1200, lyapunov = {} }) {
+export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gridCols = 25, gridRows = 25, iterations = 1200, lyapunov = {}, onProgress = null }) {
   const step = formulaStepById.get(formulaId);
   if (!step || !plane) {
     return { gridCols: 0, gridRows: 0, highCells: [] };
@@ -467,6 +467,22 @@ export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gri
 
   const highCells = [];
 
+  const totalCells = Math.max(1, safeGridCols * safeGridRows);
+  let processedCells = 0;
+  let nextProgressPercent = 0;
+  const emitProgress = (force = false) => {
+    if (typeof onProgress !== "function") return;
+    const percent = Math.max(0, Math.min(100, Math.floor((processedCells / totalCells) * 100)));
+    if (force) {
+      onProgress(100);
+      return;
+    }
+    while (nextProgressPercent <= percent) {
+      onProgress(nextProgressPercent);
+      nextProgressPercent += 5;
+    }
+  };
+
   if (plane.mode === "one_axis") {
     const [axisMin, axisMax] = plane.axisRange || [safeBase[plane.axisParam], safeBase[plane.axisParam]];
     for (let col = 0; col < safeGridCols; col += 1) {
@@ -478,8 +494,11 @@ export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gri
           highCells.push(row * safeGridCols + col);
         }
       }
+      processedCells += safeGridRows;
+      emitProgress(false);
     }
 
+    emitProgress(true);
     return { gridCols: safeGridCols, gridRows: safeGridRows, highCells };
   }
 
@@ -495,8 +514,11 @@ export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gri
       if (Number.isFinite(lambda) && lambda >= minExponent) {
         highCells.push(row * safeGridCols + col);
       }
+      processedCells += 1;
+      emitProgress(false);
     }
   }
 
+  emitProgress(true);
   return { gridCols: safeGridCols, gridRows: safeGridRows, highCells };
 }
