@@ -152,7 +152,7 @@ const RENDER_COLOR_MODES = {
 const RENDER_COLOR_MODE_SET = new Set(Object.values(RENDER_COLOR_MODES));
 
 const INTEREST_GRID_SIZE_MIN = 8;
-const INTEREST_GRID_SIZE_MAX = 64;
+const INTEREST_GRID_SIZE_MAX = 256;
 const INTEREST_SCAN_ITERATIONS_MIN = 100;
 const INTEREST_SCAN_ITERATIONS_MAX = 5000;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MIN = -1;
@@ -1190,6 +1190,8 @@ function openRangesEditor() {
 
   closeFormulaSettingsPanel();
   rangesEditorPanelEl.classList.remove("is-hidden");
+  rangesEditorToggleEl?.classList.add("is-active");
+  rangesEditorToggleEl?.setAttribute("aria-pressed", "true");
   setSettingsTab("color");
   syncDetailedSettingsControls();
   hideSettingsInfo();
@@ -1197,6 +1199,8 @@ function openRangesEditor() {
 
 function closeRangesEditor() {
   rangesEditorPanelEl?.classList.add("is-hidden");
+  rangesEditorToggleEl?.classList.remove("is-active");
+  rangesEditorToggleEl?.setAttribute("aria-pressed", "false");
   hideSettingsInfo();
 }
 
