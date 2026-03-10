@@ -177,15 +177,27 @@ Split into modules (even if bundled later):
   - `interestLyapunovDelta0` (number, default `1e-6`)
   - `interestLyapunovRescale` (boolean, default `true`)
   - `interestLyapunovMaxDistance` (number clamp for pair distance)
-- For each overlay grid cell, evaluate two nearby seeds and estimate finite-time Lyapunov exponent:
-  - Per-step contribution: `log(d(n+1) / d(n))`
-  - Cell score: `lambda = mean(log(d(n+1) / d(n)))`
+- Overlay visibility rule for PR2 follow-up behavior:
+  - `interestOverlayEnabled` is ON, and
+  - manual modulation is actively happening, and
+  - either ManX and/or ManY is assigned.
+- Overlay grid represents parameter-space interest, not world-space sample area:
+  - two-axis mode: each cell maps to `(ManX, ManY)` pair over parameter ranges
+  - one-axis mode: selected parameter is swept across X columns and rendered as vertical stripes using the same grid size
+  - parameters not on the modulation plane stay fixed to their current values during scan.
+- For each scanned sample, evaluate two nearby seeds and estimate finite-time Lyapunov exponent:
+  - per-step contribution: `log(d(n+1) / d(n))`
+  - score: `lambda = mean(log(d(n+1) / d(n)))`
 - Classification is Lyapunov-only in this PR:
   - `high` if `lambda >= interestLyapunovMinExponent`
   - `low` otherwise
 - Rendering is two-level in this PR:
   - `low` cells are hidden
-  - `high` cells are shown as translucent overlay cells
+  - `high` cells are shown as translucent overlay cells (or stripes in one-axis mode)
+- Cache lifecycle:
+  - compute once and keep result visible while modulation continues
+  - recompute only when fixed (non-plane) parameters or scan configuration change
+  - changes to plane parameters during modulation do not invalidate the cached result.
 - Numerical robustness:
   - guard invalid/non-finite values
   - apply epsilon floor before log division

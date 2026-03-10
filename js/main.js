@@ -3443,57 +3443,120 @@ function shouldShowManualOverlay() {
   return pointerModulating || isKeyboardManualModulating;
 }
 
-function hasTwoAxisManualTargets() {
+function hasAnyManualTargets() {
   const { manX, manY } = getManualAxisTargets();
-  return Boolean(manX && manY);
+  return Boolean(manX || manY);
+}
+
+function getInterestPlaneConfig() {
+  const { manX, manY } = getManualAxisTargets();
+  const xControl = getControlForSlider(manX);
+  const yControl = getControlForSlider(manY);
+  const xParam = xControl?.paramKey || null;
+  const yParam = yControl?.paramKey || null;
+
+  if (!xParam && !yParam) {
+    return null;
+  }
+
+  const xRange = xControl ? getRangeForControl(xControl) : null;
+  const yRange = yControl ? getRangeForControl(yControl) : null;
+
+  if (xParam && yParam && xParam !== yParam && xRange && yRange) {
+    return {
+      mode: "two_axis",
+      axisXParam: xParam,
+      axisYParam: yParam,
+      axisXRange: xRange,
+      axisYRange: yRange,
+    };
+  }
+
+  const axisParam = xParam || yParam;
+  const axisRange = xRange || yRange;
+  if (!axisParam || !axisRange) {
+    return null;
+  }
+
+  return {
+    mode: "one_axis",
+    axisParam,
+    axisRange,
+  };
+}
+
+function buildInterestOverlayScanKey({ planeConfig, baseParams, lyapunovConfig, gridSize, scanIterations }) {
+  const fixedParamKeys = ["a", "b", "c", "d"].filter((key) => {
+    if (planeConfig.mode === "two_axis") {
+      return key !== planeConfig.axisXParam && key !== planeConfig.axisYParam;
+    }
+    return key !== planeConfig.axisParam;
+  });
+
+  const fixedParams = Object.fromEntries(fixedParamKeys.map((key) => [key, Number(baseParams[key]) || 0]));
+
+  return JSON.stringify({
+    formulaId: currentFormulaId,
+    planeMode: planeConfig.mode,
+    axisXParam: planeConfig.axisXParam || null,
+    axisYParam: planeConfig.axisYParam || null,
+    axisParam: planeConfig.axisParam || null,
+    axisXRange: planeConfig.axisXRange || null,
+    axisYRange: planeConfig.axisYRange || null,
+    axisRange: planeConfig.axisRange || null,
+    gridSize,
+    scanIterations,
+    lyapunovConfig,
+    fixedParams,
+  });
 }
 
 function shouldShowInterestOverlay() {
-  return Boolean(appData?.defaults?.interestOverlayEnabled) && shouldShowManualOverlay() && hasTwoAxisManualTargets();
+  return Boolean(appData?.defaults?.interestOverlayEnabled) && shouldShowManualOverlay() && hasAnyManualTargets();
 }
 
 function drawInterestOverlay(meta) {
-  if (!meta || !shouldShowInterestOverlay()) {
+  if (!meta || !shouldShowInterestOverlay() || !Boolean(appData.defaults.interestLyapunovEnabled)) {
     return;
   }
 
-  const { manX, manY } = getManualAxisTargets();
-  if (!manX || !manY || !Boolean(appData.defaults.interestLyapunovEnabled)) {
+  const planeConfig = getInterestPlaneConfig();
+  if (!planeConfig) {
     return;
   }
 
-  const { view, world } = meta;
+  const { view } = meta;
   const gridSize = Math.round(clamp(Number(appData.defaults.interestGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
   const scanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
   const lyapunovConfig = {
-    enabled: Boolean(appData.defaults.interestLyapunovEnabled),
     minExponent: clamp(Number(appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX),
     delta0: clamp(Number(appData.defaults.interestLyapunovDelta0), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX),
     rescale: Boolean(appData.defaults.interestLyapunovRescale),
     maxDistance: clamp(Number(appData.defaults.interestLyapunovMaxDistance), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX),
   };
-
-  const signature = JSON.stringify({
-    formulaId: currentFormulaId,
-    params: getDerivedParams(),
-    world,
+  const baseParams = getDerivedParams();
+  const scanKey = buildInterestOverlayScanKey({
+    planeConfig,
+    baseParams,
+    lyapunovConfig,
     gridSize,
     scanIterations,
-    manX,
-    manY,
-    lyapunovConfig,
   });
 
-  if (!interestOverlayScanCache || interestOverlayScanCache.signature !== signature) {
+  if (!interestOverlayScanCache || interestOverlayScanCache.scanKey !== scanKey) {
     const scanResult = classifyInterestGridLyapunov({
       formulaId: currentFormulaId,
-      params: getDerivedParams(),
-      world,
+      baseParams,
+      plane: planeConfig,
       gridSize,
       iterations: scanIterations,
       lyapunov: lyapunovConfig,
     });
-    interestOverlayScanCache = { signature, scanResult };
+    interestOverlayScanCache = {
+      scanKey,
+      scanResult,
+      computedAt: performance.now(),
+    };
   }
 
   const scanResult = interestOverlayScanCache?.scanResult;

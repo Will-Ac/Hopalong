@@ -378,15 +378,13 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
 }
 
 
-export function classifyInterestGridLyapunov({ formulaId, params, world, gridSize = 24, iterations = 1200, lyapunov = {} }) {
+export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gridSize = 24, iterations = 1200, lyapunov = {} }) {
   const step = formulaStepById.get(formulaId);
-  if (!step || !world) {
+  if (!step || !plane) {
     return { gridSize: 0, highCells: [] };
   }
 
   const safeGridSize = Math.max(1, Math.round(Number(gridSize) || 24));
-  const worldSpanX = Math.max(Number(world.maxX) - Number(world.minX), 1e-6);
-  const worldSpanY = Math.max(Number(world.maxY) - Number(world.minY), 1e-6);
   const sampleIterations = Math.max(1, Math.round(Number(iterations) || 1200));
 
   const d0Raw = Number(lyapunov?.delta0);
@@ -398,25 +396,49 @@ export function classifyInterestGridLyapunov({ formulaId, params, world, gridSiz
   const epsilon = 1e-12;
   const minValidSteps = Math.max(4, Math.floor(sampleIterations * 0.1));
 
+  const safeBase = {
+    a: Number(baseParams?.a) || 0,
+    b: Number(baseParams?.b) || 0,
+    c: Number(baseParams?.c) || 0,
+    d: Number(baseParams?.d) || 0,
+  };
+
+  const buildParamsForCell = (col, row) => {
+    const params = { ...safeBase };
+    if (plane.mode === "two_axis") {
+      const [xMin, xMax] = plane.axisXRange || [safeBase[plane.axisXParam], safeBase[plane.axisXParam]];
+      const [yMin, yMax] = plane.axisYRange || [safeBase[plane.axisYParam], safeBase[plane.axisYParam]];
+      const tx = safeGridSize > 1 ? col / (safeGridSize - 1) : 0.5;
+      const ty = safeGridSize > 1 ? row / (safeGridSize - 1) : 0.5;
+      params[plane.axisXParam] = xMin + (xMax - xMin) * tx;
+      params[plane.axisYParam] = yMax - (yMax - yMin) * ty;
+      return params;
+    }
+
+    const [axisMin, axisMax] = plane.axisRange || [safeBase[plane.axisParam], safeBase[plane.axisParam]];
+    const tx = safeGridSize > 1 ? col / (safeGridSize - 1) : 0.5;
+    params[plane.axisParam] = axisMin + (axisMax - axisMin) * tx;
+    return params;
+  };
+
   const highCells = [];
   let cellIndex = 0;
 
   for (let row = 0; row < safeGridSize; row += 1) {
     for (let col = 0; col < safeGridSize; col += 1) {
-      const tx = (col + 0.5) / safeGridSize;
-      const ty = (row + 0.5) / safeGridSize;
-      let x1 = Number(world.minX) + tx * worldSpanX;
-      let y1 = Number(world.minY) + ty * worldSpanY;
-      let x2 = x1 + d0;
-      let y2 = y1;
+      const cellParams = buildParamsForCell(col, row);
+      let x1 = 0;
+      let y1 = 0;
+      let x2 = d0;
+      let y2 = 0;
 
       let sumLogRatio = 0;
       let validSteps = 0;
       let previousDistance = d0;
 
       for (let i = 0; i < sampleIterations; i += 1) {
-        [x1, y1] = step(x1, y1, params.a, params.b, params.c, params.d);
-        [x2, y2] = step(x2, y2, params.a, params.b, params.c, params.d);
+        [x1, y1] = step(x1, y1, cellParams.a, cellParams.b, cellParams.c, cellParams.d);
+        [x2, y2] = step(x2, y2, cellParams.a, cellParams.b, cellParams.c, cellParams.d);
 
         if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
           break;
@@ -446,10 +468,8 @@ export function classifyInterestGridLyapunov({ formulaId, params, world, gridSiz
 
         if (shouldRescale) {
           const scale = d0 / Math.max(d1Raw, epsilon);
-          const scaledDx = dx * scale;
-          const scaledDy = dy * scale;
-          x2 = x1 + scaledDx;
-          y2 = y1 + scaledDy;
+          x2 = x1 + dx * scale;
+          y2 = y1 + dy * scale;
           previousDistance = d0;
         } else {
           previousDistance = dNext;
@@ -457,8 +477,15 @@ export function classifyInterestGridLyapunov({ formulaId, params, world, gridSiz
       }
 
       const lambda = validSteps >= minValidSteps ? (sumLogRatio / validSteps) : Number.NEGATIVE_INFINITY;
-      if (Number.isFinite(lambda) && lambda >= minExponent) {
-        highCells.push(cellIndex);
+      const isHigh = Number.isFinite(lambda) && lambda >= minExponent;
+      if (isHigh) {
+        if (plane.mode === "one_axis") {
+          for (let fillRow = 0; fillRow < safeGridSize; fillRow += 1) {
+            highCells.push(fillRow * safeGridSize + col);
+          }
+        } else {
+          highCells.push(cellIndex);
+        }
       }
       cellIndex += 1;
     }
