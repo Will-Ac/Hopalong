@@ -194,6 +194,7 @@ let interestOverlayLastProgressToastPercent = -1;
 let wasManualOverlayActive = false;
 let drawScheduled = false;
 let drawDirty = false;
+let drawInProgress = false;
 let toastTimer = null;
 let renderProgressHideTimer = null;
 let renderProgressVisible = false;
@@ -349,14 +350,22 @@ function requestDraw() {
   }
 
   drawScheduled = true;
-  window.requestAnimationFrame(() => {
+  window.requestAnimationFrame(async () => {
     drawScheduled = false;
-    if (!drawDirty) {
+    if (!drawDirty || drawInProgress) {
       return;
     }
 
     drawDirty = false;
-    draw();
+    drawInProgress = true;
+    try {
+      await draw();
+    } finally {
+      drawInProgress = false;
+      if (drawDirty) {
+        requestDraw();
+      }
+    }
   });
 }
 
@@ -4010,7 +4019,7 @@ function drawDebugOverlay(meta) {
   ].join("\n");
 }
 
-function draw() {
+async function draw() {
   if (!appData || !currentFormulaId) {
     return;
   }
@@ -4020,7 +4029,7 @@ function draw() {
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const iterations = iterationSetting;
-  const frameMeta = renderFrame({
+  const frameMeta = await renderFrame({
     ctx,
     canvas,
     formulaId: currentFormulaId,
@@ -4053,7 +4062,7 @@ function draw() {
     renderMs: now - startedAt,
   };
 
-  refreshExportCacheFromCurrentFrame();
+  await refreshExportCacheFromCurrentFrame();
 
   const manualOverlayActive = shouldShowManualOverlay();
   if (manualOverlayActive && !wasManualOverlayActive && interestOverlayCalcInProgress) {
@@ -4338,13 +4347,13 @@ function ensureExportCacheCanvas(width, height) {
   return exportCacheCanvas;
 }
 
-function renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx) {
+async function renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx) {
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const scaleMode = getScaleMode();
   const exportWorld = getExportWorldFromLiveMeta(targetCanvas.width, targetCanvas.height);
 
-  renderFrame({
+  await renderFrame({
     ctx: targetCtx,
     canvas: targetCanvas,
     formulaId: currentFormulaId,
@@ -4361,13 +4370,13 @@ function renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx) {
   });
 }
 
-function refreshExportCacheFromCurrentFrame() {
+async function refreshExportCacheFromCurrentFrame() {
   if (!canvas || !lastRenderMeta || !appData || !currentFormulaId) {
     return;
   }
   const { pxW, pxH } = getExportSizePx(canvas);
   const targetCanvas = ensureExportCacheCanvas(pxW, pxH);
-  renderCurrentFrameIntoExportCanvas(targetCanvas, exportCacheCtx);
+  await renderCurrentFrameIntoExportCanvas(targetCanvas, exportCacheCtx);
   exportCacheMeta = { pxW, pxH, updatedAt: performance.now() };
 }
 
@@ -4406,7 +4415,7 @@ function getLongEdgeExportSize(targetLongEdge) {
 
 async function captureCachedScreenshot(includeOverlay) {
   if (!exportCacheCanvas || !exportCacheMeta) {
-    refreshExportCacheFromCurrentFrame();
+    await refreshExportCacheFromCurrentFrame();
   }
   if (!exportCacheCanvas) {
     throw new Error("No render cache available yet.");
@@ -4428,7 +4437,7 @@ async function captureHighResScreenshot(longEdgePx) {
     throw new Error("Screenshot export context unavailable.");
   }
 
-  renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx);
+  await renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx);
   const blob = await exportCanvasToBlob(targetCanvas);
   const label = longEdgePx >= 7680 ? "8k" : "4k";
   const filename = `hopalong-clean-${label}-${formatScreenshotTimestamp(new Date())}.png`;
