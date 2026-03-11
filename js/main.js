@@ -238,6 +238,11 @@ const paramTileTargets = {
 let exportCacheCanvas = null;
 let exportCacheCtx = null;
 let exportCacheMeta = null;
+let exportCacheRefreshTimer = null;
+let exportCacheRefreshInProgress = false;
+let exportCacheRefreshPromise = null;
+let exportCachePendingRevision = 0;
+let renderRevision = 0;
 let pendingShareFile = null;
 let pendingShareTitle = "";
 let isApplyingHistoryState = false;
@@ -4061,8 +4066,9 @@ async function draw() {
     iterations,
     renderMs: now - startedAt,
   };
+  renderRevision += 1;
 
-  await refreshExportCacheFromCurrentFrame();
+  scheduleExportCacheRefresh();
 
   const manualOverlayActive = shouldShowManualOverlay();
   if (manualOverlayActive && !wasManualOverlayActive && interestOverlayCalcInProgress) {
@@ -4377,7 +4383,66 @@ async function refreshExportCacheFromCurrentFrame() {
   const { pxW, pxH } = getExportSizePx(canvas);
   const targetCanvas = ensureExportCacheCanvas(pxW, pxH);
   await renderCurrentFrameIntoExportCanvas(targetCanvas, exportCacheCtx);
-  exportCacheMeta = { pxW, pxH, updatedAt: performance.now() };
+  exportCacheMeta = {
+    pxW,
+    pxH,
+    updatedAt: performance.now(),
+    renderRevision,
+  };
+}
+
+function isExportCacheCurrentForLatestRender() {
+  return Boolean(exportCacheMeta && exportCacheMeta.renderRevision === renderRevision);
+}
+
+function scheduleExportCacheRefresh(delayMs = 450) {
+  exportCachePendingRevision = Math.max(exportCachePendingRevision, renderRevision);
+  if (exportCacheRefreshTimer) {
+    window.clearTimeout(exportCacheRefreshTimer);
+    exportCacheRefreshTimer = null;
+  }
+
+  exportCacheRefreshTimer = window.setTimeout(() => {
+    exportCacheRefreshTimer = null;
+    void ensureExportCacheCurrent({ forceImmediate: true });
+  }, Math.max(0, Math.round(delayMs)));
+}
+
+async function ensureExportCacheCurrent({ forceImmediate = false } = {}) {
+  if (isExportCacheCurrentForLatestRender()) {
+    return;
+  }
+
+  if (!forceImmediate && exportCacheRefreshTimer) {
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    return;
+  }
+
+  if (exportCacheRefreshTimer) {
+    window.clearTimeout(exportCacheRefreshTimer);
+    exportCacheRefreshTimer = null;
+  }
+
+  if (exportCacheRefreshInProgress && exportCacheRefreshPromise) {
+    await exportCacheRefreshPromise;
+    return;
+  }
+
+  exportCacheRefreshInProgress = true;
+  exportCacheRefreshPromise = (async () => {
+    try {
+      await refreshExportCacheFromCurrentFrame();
+    } finally {
+      exportCacheRefreshInProgress = false;
+      exportCacheRefreshPromise = null;
+      exportCachePendingRevision = renderRevision;
+      if (!isExportCacheCurrentForLatestRender()) {
+        scheduleExportCacheRefresh(0);
+      }
+    }
+  })();
+
+  await exportCacheRefreshPromise;
 }
 
 function makeCanvasClone(sourceCanvas, includeOverlay) {
@@ -4414,8 +4479,9 @@ function getLongEdgeExportSize(targetLongEdge) {
 }
 
 async function captureCachedScreenshot(includeOverlay) {
-  if (!exportCacheCanvas || !exportCacheMeta) {
-    await refreshExportCacheFromCurrentFrame();
+  if (!exportCacheCanvas || !exportCacheMeta || !isExportCacheCurrentForLatestRender()) {
+    showToast("Preparing latest screenshot...");
+    await ensureExportCacheCurrent({ forceImmediate: true });
   }
   if (!exportCacheCanvas) {
     throw new Error("No render cache available yet.");
