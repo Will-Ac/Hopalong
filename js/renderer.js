@@ -96,20 +96,9 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   const densityGamma = Number(renderColoring?.densityGamma) || 0.6;
   const hybridBlend = clamp01(Number(renderColoring?.hybridBlend) || 0.3);
 
-  const startedAt = performance.now();
-  let progressActive = false;
-  let nextProgressPercent = 5;
+  let nextProgressPercent = 0;
   const maybeEmitProgress = (fraction, forceComplete = false) => {
     if (typeof onProgress !== "function") {
-      return;
-    }
-
-    const elapsedMs = performance.now() - startedAt;
-    if (!progressActive && elapsedMs >= 3000) {
-      progressActive = true;
-    }
-
-    if (!progressActive) {
       return;
     }
 
@@ -124,6 +113,8 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
       nextProgressPercent += 5;
     }
   };
+
+  maybeEmitProgress(0, false);
 
   let x = Number(seed?.x);
   let y = Number(seed?.y);
@@ -148,7 +139,7 @@ export function renderFrame({ ctx, canvas, formulaId, cmapName, params, iteratio
   let maxY = Number.NEGATIVE_INFINITY;
 
   for (let i = 0; i < iterations; i += 1) {
-    if (i % 2048 === 0) {
+    if (i % 1024 === 0) {
       maybeEmitProgress((i / Math.max(1, iterations)) * 0.7);
     }
     [x, y] = step(x, y, params.a, params.b, params.c, params.d);
