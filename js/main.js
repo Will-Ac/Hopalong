@@ -4214,8 +4214,30 @@ function drawScreenshotOverlay(targetCtx, width, height) {
 async function saveBlobToDevice(blob, filename) {
   const file = new File([blob], filename, { type: "image/png" });
   if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
-    await navigator.share({ files: [file], title: filename });
-    return;
+    try {
+      await navigator.share({ files: [file], title: filename });
+      return;
+    } catch (error) {
+      const shareErrorName = String(error?.name || "");
+      const shareErrorMessage = String(error?.message || "");
+      const isUserCancelled = shareErrorName === "AbortError";
+      const shouldFallbackToDownload = shareErrorName === "NotAllowedError"
+        || shareErrorName === "NotSupportedError"
+        || /not allowed|denied|permission|policy|context/i.test(shareErrorMessage);
+
+      if (isUserCancelled) {
+        throw new Error("Share cancelled.");
+      }
+
+      if (!shouldFallbackToDownload) {
+        throw error;
+      }
+
+      console.info("Web Share API unavailable in this context. Falling back to file download.", {
+        shareErrorName,
+        shareErrorMessage,
+      });
+    }
   }
 
   const objectUrl = URL.createObjectURL(blob);
@@ -4396,6 +4418,10 @@ async function captureScreenshotAction(action) {
       await captureHighResScreenshot(7680);
     }
   } catch (error) {
+    if (error?.message === "Share cancelled.") {
+      showToast("Share cancelled.");
+      return;
+    }
     console.error(error);
     showToast(`Screenshot failed: ${error.message}`);
   }
