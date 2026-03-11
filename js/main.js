@@ -120,6 +120,13 @@ const paramRowEl = document.getElementById("paramRow");
 const bottomBarEl = document.querySelector(".bottomBar");
 const topRightActionsEl = document.getElementById("topRightActions");
 const cameraBtn = document.getElementById("cameraBtn");
+const screenshotMenuOverlayEl = document.getElementById("screenshotMenuOverlay");
+const screenshotMenuBackdropEl = document.getElementById("screenshotMenuBackdrop");
+const screenshotMenuCloseEl = document.getElementById("screenshotMenuClose");
+const screenshotMenuCleanEl = document.getElementById("screenshotMenuClean");
+const screenshotMenuOverlayOptionEl = document.getElementById("screenshotMenuOverlayOption");
+const screenshotMenu4kEl = document.getElementById("screenshotMenu4k");
+const screenshotMenu8kEl = document.getElementById("screenshotMenu8k");
 const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
 const randomModeTile = document.getElementById("randomModeTile");
@@ -204,7 +211,6 @@ const HOLD_MAX_MULTIPLIER = 30;
 const HOLD_SPEED_SCALE_MIN = 0.25;
 const HOLD_SPEED_SCALE_MAX = 50;
 const NAME_MAX_CHARS = 20;
-const CAMERA_LONG_PRESS_MS = 550;
 const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
 const PARAM_MOVE_CANCEL_PX = 10;
 const PARAM_SWIPE_TRIGGER_PX = 20;
@@ -226,10 +232,9 @@ const paramTileTargets = {
   iters: { button: sliderControls.iters.button, modeKey: sliderControls.iters.paramKey, shortTap: () => openQuickSlider("iters") },
 };
 
-let cameraPressTimer = null;
-let longPressTriggered = false;
-let cameraLastTapTs = 0;
-let pendingCameraTapTimer = null;
+let exportCacheCanvas = null;
+let exportCacheCtx = null;
+let exportCacheMeta = null;
 let isApplyingHistoryState = false;
 let historyStates = [];
 let historyIndex = -1;
@@ -4044,6 +4049,8 @@ function draw() {
     renderMs: now - startedAt,
   };
 
+  refreshExportCacheFromCurrentFrame();
+
   const manualOverlayActive = shouldShowManualOverlay();
   if (manualOverlayActive && !wasManualOverlayActive && interestOverlayCalcInProgress) {
     interestOverlayShowProgressToast = true;
@@ -4248,39 +4255,30 @@ function getExportWorldFromLiveMeta(exportWidth, exportHeight) {
   };
 }
 
-async function captureScreenshot(includeOverlay) {
-  if (!canvas) {
-    return;
+function ensureExportCacheCanvas(width, height) {
+  if (!exportCacheCanvas) {
+    exportCacheCanvas = document.createElement("canvas");
+    exportCacheCtx = exportCacheCanvas.getContext("2d", { willReadFrequently: true });
   }
-
-  const { pxW, pxH, dpr, isLandscape, hasScreenSize, debug } = getExportSizePx(canvas);
-  const exportWorld = getExportWorldFromLiveMeta(pxW, pxH);
-  if (window.__HOPALONG_SCREENSHOT_DEBUG) {
-    console.info("[screenshot] export sizing", {
-      pxW,
-      pxH,
-      dpr,
-      isLandscape,
-      hasScreenSize,
-      exportWorld,
-      ...debug,
-    });
-  }
-  const exportCanvas = document.createElement("canvas");
-  exportCanvas.width = pxW;
-  exportCanvas.height = pxH;
-  const exportCtx = exportCanvas.getContext("2d", { willReadFrequently: true });
-  if (!exportCtx) {
+  if (!exportCacheCtx) {
     throw new Error("Screenshot export context unavailable.");
   }
+  if (exportCacheCanvas.width !== width || exportCacheCanvas.height !== height) {
+    exportCacheCanvas.width = width;
+    exportCacheCanvas.height = height;
+  }
+  return exportCacheCanvas;
+}
 
+function renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx) {
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const scaleMode = getScaleMode();
+  const exportWorld = getExportWorldFromLiveMeta(targetCanvas.width, targetCanvas.height);
 
   renderFrame({
-    ctx: exportCtx,
-    canvas: exportCanvas,
+    ctx: targetCtx,
+    canvas: targetCanvas,
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
@@ -4293,84 +4291,114 @@ async function captureScreenshot(includeOverlay) {
     renderColoring: getRenderColoringOptions(),
     backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
   });
+}
 
-
-  if (includeOverlay) {
-    drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height);
+function refreshExportCacheFromCurrentFrame() {
+  if (!canvas || !lastRenderMeta || !appData || !currentFormulaId) {
+    return;
   }
+  const { pxW, pxH } = getExportSizePx(canvas);
+  const targetCanvas = ensureExportCacheCanvas(pxW, pxH);
+  renderCurrentFrameIntoExportCanvas(targetCanvas, exportCacheCtx);
+  exportCacheMeta = { pxW, pxH, updatedAt: performance.now() };
+}
 
-  const blob = await new Promise((resolve) => exportCanvas.toBlob(resolve, "image/png"));
+function makeCanvasClone(sourceCanvas, includeOverlay) {
+  const outputCanvas = document.createElement("canvas");
+  outputCanvas.width = sourceCanvas.width;
+  outputCanvas.height = sourceCanvas.height;
+  const outputCtx = outputCanvas.getContext("2d", { willReadFrequently: true });
+  if (!outputCtx) {
+    throw new Error("Screenshot export context unavailable.");
+  }
+  outputCtx.drawImage(sourceCanvas, 0, 0);
+  if (includeOverlay) {
+    drawScreenshotOverlay(outputCtx, outputCanvas.width, outputCanvas.height);
+  }
+  return outputCanvas;
+}
+
+async function exportCanvasToBlob(canvasToExport) {
+  const blob = await new Promise((resolve) => canvasToExport.toBlob(resolve, "image/png"));
   if (!blob) {
     throw new Error("Screenshot export failed.");
   }
+  return blob;
+}
 
+function getLongEdgeExportSize(targetLongEdge) {
+  const size = getExportSizePx(canvas);
+  const longEdge = Math.max(1, Number(targetLongEdge) || 1);
+  const aspect = size.pxW / Math.max(1, size.pxH);
+  if (aspect >= 1) {
+    return { width: longEdge, height: Math.max(1, Math.round(longEdge / aspect)) };
+  }
+  return { width: Math.max(1, Math.round(longEdge * aspect)), height: longEdge };
+}
+
+async function captureCachedScreenshot(includeOverlay) {
+  if (!exportCacheCanvas || !exportCacheMeta) {
+    refreshExportCacheFromCurrentFrame();
+  }
+  if (!exportCacheCanvas) {
+    throw new Error("No render cache available yet.");
+  }
+  const outputCanvas = makeCanvasClone(exportCacheCanvas, includeOverlay);
+  const blob = await exportCanvasToBlob(outputCanvas);
   const filename = `hopalong-${includeOverlay ? "overlay" : "clean"}-${formatScreenshotTimestamp(new Date())}.png`;
   await saveBlobToDevice(blob, filename);
-  showToast(includeOverlay ? "Saved screenshot with parameter overlay." : "Saved clean screenshot.");
+  showToast(includeOverlay ? "Saved overlay screenshot." : "Saved clean screenshot.");
 }
 
-function clearCameraPressState() {
-  if (cameraPressTimer) {
-    window.clearTimeout(cameraPressTimer);
-    cameraPressTimer = null;
+async function captureHighResScreenshot(longEdgePx) {
+  const { width, height } = getLongEdgeExportSize(longEdgePx);
+  const targetCanvas = document.createElement("canvas");
+  targetCanvas.width = width;
+  targetCanvas.height = height;
+  const targetCtx = targetCanvas.getContext("2d", { willReadFrequently: true });
+  if (!targetCtx) {
+    throw new Error("Screenshot export context unavailable.");
   }
+
+  renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx);
+  const blob = await exportCanvasToBlob(targetCanvas);
+  const label = longEdgePx >= 7680 ? "8k" : "4k";
+  const filename = `hopalong-clean-${label}-${formatScreenshotTimestamp(new Date())}.png`;
+  await saveBlobToDevice(blob, filename);
+  showToast(`Saved clean ${label.toUpperCase()} screenshot.`);
 }
 
-function clearPendingCameraTap() {
-  if (pendingCameraTapTimer) {
-    window.clearTimeout(pendingCameraTapTimer);
-    pendingCameraTapTimer = null;
-  }
+function openScreenshotMenu() {
+  screenshotMenuOverlayEl?.classList.add("is-open");
 }
 
-async function captureScreenshotSafe(includeOverlay) {
+function closeScreenshotMenu() {
+  screenshotMenuOverlayEl?.classList.remove("is-open");
+}
+
+async function captureScreenshotAction(action) {
   try {
-    await captureScreenshot(includeOverlay);
+    if (action === "clean") {
+      await captureCachedScreenshot(false);
+      return;
+    }
+    if (action === "overlay") {
+      await captureCachedScreenshot(true);
+      return;
+    }
+    if (action === "4k") {
+      showToast("Rendering 4K screenshot. This may take a moment.");
+      await captureHighResScreenshot(3840);
+      return;
+    }
+    if (action === "8k") {
+      showToast("Rendering 8K screenshot. This may take longer.");
+      await captureHighResScreenshot(7680);
+    }
   } catch (error) {
     console.error(error);
-    showToast(`${includeOverlay ? "Overlay screenshot" : "Screenshot"} failed: ${error.message}`);
+    showToast(`Screenshot failed: ${error.message}`);
   }
-}
-
-function beginCameraPress(event) {
-  event.preventDefault();
-  event.stopPropagation();
-  clearCameraPressState();
-  longPressTriggered = false;
-  cameraBtn.classList.add("is-armed");
-
-  cameraPressTimer = window.setTimeout(async () => {
-    longPressTriggered = true;
-    clearPendingCameraTap();
-    await captureScreenshotSafe(true);
-  }, CAMERA_LONG_PRESS_MS);
-}
-
-async function endCameraPress(event) {
-  event.preventDefault();
-  event.stopPropagation();
-  clearCameraPressState();
-  cameraBtn.classList.remove("is-armed");
-
-  if (longPressTriggered) {
-    longPressTriggered = false;
-    return;
-  }
-
-  const now = performance.now();
-  if (now - cameraLastTapTs <= DOUBLE_TAP_MS) {
-    cameraLastTapTs = 0;
-    clearPendingCameraTap();
-    await captureScreenshotSafe(true);
-    return;
-  }
-
-  cameraLastTapTs = now;
-  clearPendingCameraTap();
-  pendingCameraTapTimer = window.setTimeout(() => {
-    pendingCameraTapTimer = null;
-    captureScreenshotSafe(false);
-  }, DOUBLE_TAP_MS + 10);
 }
 
 function registerHandlers() {
@@ -4414,21 +4442,30 @@ function registerHandlers() {
   setupStepHold(qsMinus, -1);
   setupStepHold(qsPlus, 1);
 
-  if (window.PointerEvent) {
-    cameraBtn.addEventListener("pointerdown", beginCameraPress);
-    cameraBtn.addEventListener("pointerup", endCameraPress);
-    cameraBtn.addEventListener("pointercancel", () => {
-      clearCameraPressState();
-      cameraBtn.classList.remove("is-armed");
-      longPressTriggered = false;
-    });
-  } else {
-    cameraBtn.addEventListener("touchstart", beginCameraPress, { passive: false });
-    cameraBtn.addEventListener("touchend", endCameraPress, { passive: false });
-    cameraBtn.addEventListener("mousedown", beginCameraPress);
-    cameraBtn.addEventListener("mouseup", endCameraPress);
-  }
+  cameraBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openScreenshotMenu();
+  });
   cameraBtn.addEventListener("contextmenu", (event) => event.preventDefault());
+  screenshotMenuCloseEl?.addEventListener("click", () => closeScreenshotMenu());
+  screenshotMenuBackdropEl?.addEventListener("click", () => closeScreenshotMenu());
+  screenshotMenuCleanEl?.addEventListener("click", async () => {
+    closeScreenshotMenu();
+    await captureScreenshotAction("clean");
+  });
+  screenshotMenuOverlayOptionEl?.addEventListener("click", async () => {
+    closeScreenshotMenu();
+    await captureScreenshotAction("overlay");
+  });
+  screenshotMenu4kEl?.addEventListener("click", async () => {
+    closeScreenshotMenu();
+    await captureScreenshotAction("4k");
+  });
+  screenshotMenu8kEl?.addEventListener("click", async () => {
+    closeScreenshotMenu();
+    await captureScreenshotAction("8k");
+  });
 
   scaleModeBtn.addEventListener("click", () => {
     const currentlyFixed = getScaleMode() === "fixed";
