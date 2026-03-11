@@ -127,6 +127,8 @@ const screenshotMenuCleanEl = document.getElementById("screenshotMenuClean");
 const screenshotMenuOverlayOptionEl = document.getElementById("screenshotMenuOverlayOption");
 const screenshotMenu4kEl = document.getElementById("screenshotMenu4k");
 const screenshotMenu8kEl = document.getElementById("screenshotMenu8k");
+const screenshotMenuShareRetryEl = document.getElementById("screenshotMenuShareRetry");
+const screenshotMenuShareRetryHintEl = document.getElementById("screenshotMenuShareRetryHint");
 const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
 const randomModeTile = document.getElementById("randomModeTile");
@@ -235,6 +237,8 @@ const paramTileTargets = {
 let exportCacheCanvas = null;
 let exportCacheCtx = null;
 let exportCacheMeta = null;
+let pendingShareFile = null;
+let pendingShareTitle = "";
 let isApplyingHistoryState = false;
 let historyStates = [];
 let historyIndex = -1;
@@ -4216,12 +4220,14 @@ async function saveBlobToDevice(blob, filename) {
   if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: filename });
+      pendingShareFile = null;
+      pendingShareTitle = "";
       return;
     } catch (error) {
       const shareErrorName = String(error?.name || "");
       const shareErrorMessage = String(error?.message || "");
       const isUserCancelled = shareErrorName === "AbortError";
-      const shouldFallbackToDownload = shareErrorName === "NotAllowedError"
+      const requiresFreshTap = shareErrorName === "NotAllowedError"
         || shareErrorName === "NotSupportedError"
         || /not allowed|denied|permission|policy|context/i.test(shareErrorMessage);
 
@@ -4229,14 +4235,17 @@ async function saveBlobToDevice(blob, filename) {
         throw new Error("Share cancelled.");
       }
 
-      if (!shouldFallbackToDownload) {
+      if (!requiresFreshTap) {
         throw error;
       }
 
-      console.info("Web Share API unavailable in this context. Falling back to file download.", {
+      pendingShareFile = file;
+      pendingShareTitle = filename;
+      console.info("Web Share API needs a fresh user activation. Waiting for explicit retry tap.", {
         shareErrorName,
         shareErrorMessage,
       });
+      throw new Error("Share needs a fresh tap. Use 'Share prepared screenshot now'.");
     }
   }
 
@@ -4248,6 +4257,43 @@ async function saveBlobToDevice(blob, filename) {
   downloadAnchor.click();
   downloadAnchor.remove();
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+}
+
+function syncScreenshotMenuShareRetryUi() {
+  if (!screenshotMenuShareRetryEl) {
+    return;
+  }
+
+  const hasPendingShare = Boolean(pendingShareFile);
+  screenshotMenuShareRetryEl.classList.toggle("is-hidden", !hasPendingShare);
+  if (screenshotMenuShareRetryHintEl) {
+    screenshotMenuShareRetryHintEl.textContent = hasPendingShare
+      ? "Needed when browser requires a second explicit tap to share."
+      : "Shown when share needs a fresh tap.";
+  }
+}
+
+async function retryPendingShare() {
+  if (!pendingShareFile || !navigator.share) {
+    showToast("No prepared screenshot waiting to share.");
+    return;
+  }
+
+  try {
+    await navigator.share({ files: [pendingShareFile], title: pendingShareTitle || pendingShareFile.name });
+    pendingShareFile = null;
+    pendingShareTitle = "";
+    syncScreenshotMenuShareRetryUi();
+    closeScreenshotMenu();
+    showToast("Screenshot shared.");
+  } catch (error) {
+    if (String(error?.name || "") === "AbortError") {
+      showToast("Share cancelled.");
+      return;
+    }
+    console.error(error);
+    showToast(`Share failed: ${error.message}`);
+  }
 }
 
 function getExportWorldFromLiveMeta(exportWidth, exportHeight) {
@@ -4391,6 +4437,7 @@ async function captureHighResScreenshot(longEdgePx) {
 }
 
 function openScreenshotMenu() {
+  syncScreenshotMenuShareRetryUi();
   screenshotMenuOverlayEl?.classList.add("is-open");
 }
 
@@ -4420,6 +4467,11 @@ async function captureScreenshotAction(action) {
   } catch (error) {
     if (error?.message === "Share cancelled.") {
       showToast("Share cancelled.");
+      return;
+    }
+    if (error?.message === "Share needs a fresh tap. Use 'Share prepared screenshot now'.") {
+      openScreenshotMenu();
+      showToast("Share needs one more tap. Use 'Share prepared screenshot now'.");
       return;
     }
     console.error(error);
@@ -4491,6 +4543,9 @@ function registerHandlers() {
   screenshotMenu8kEl?.addEventListener("click", async () => {
     closeScreenshotMenu();
     await captureScreenshotAction("8k");
+  });
+  screenshotMenuShareRetryEl?.addEventListener("click", async () => {
+    await retryPendingShare();
   });
 
   scaleModeBtn.addEventListener("click", () => {

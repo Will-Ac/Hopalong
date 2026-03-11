@@ -679,6 +679,9 @@
         margin-bottom: 8px;
         font-size: var(--ui-font-size);
       }
+      .screenshotMenuRow.is-hidden {
+        display: none;
+      }
       .screenshotMenuHint {
         display: block;
         margin-top: 4px;
@@ -1154,6 +1157,7 @@ Scale</button>
           <button id="screenshotMenuOverlayOption" class="screenshotMenuRow" type="button">2. Overlay screenshot (device full size)</button>
           <button id="screenshotMenu4k" class="screenshotMenuRow" type="button">3. Clean screenshot (4K)<span class="screenshotMenuHint">May take a moment to render.</span></button>
           <button id="screenshotMenu8k" class="screenshotMenuRow" type="button">4. Clean screenshot (8K)<span class="screenshotMenuHint">May take longer to render.</span></button>
+          <button id="screenshotMenuShareRetry" class="screenshotMenuRow is-hidden" type="button">Share prepared screenshot now<span id="screenshotMenuShareRetryHint" class="screenshotMenuHint">Shown when share needs a fresh tap.</span></button>
           <button id="screenshotMenuClose" type="button" aria-label="Close screenshot options">Close</button>
         </div>
       </div>
