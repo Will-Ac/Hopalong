@@ -200,6 +200,7 @@ let wasManualOverlayActive = false;
 let drawScheduled = false;
 let drawDirty = false;
 let drawInProgress = false;
+let highResExportInProgress = false;
 let toastTimer = null;
 let renderProgressHideTimer = null;
 let renderProgressVisible = false;
@@ -347,6 +348,9 @@ function requestDraw() {
   }
 
   drawDirty = true;
+  if (highResExportInProgress) {
+    return;
+  }
   if (drawScheduled) {
     return;
   }
@@ -400,6 +404,10 @@ function hideRenderProgressToast() {
 }
 
 function updateRenderProgressToast(percent, isComplete = false) {
+  if (highResExportInProgress) {
+    return;
+  }
+
   if (!toastEl) {
     return;
   }
@@ -3651,6 +3659,10 @@ function precomputeInterestOverlayScan(meta = null) {
 }
 
 function scheduleInterestOverlayRecalc({ meta = null, immediate = false, showProgress = false } = {}) {
+  if (highResExportInProgress) {
+    return;
+  }
+
   const plan = getInterestOverlayScanPlan(meta);
   if (!plan) {
     interestOverlayPendingPlan = null;
@@ -4604,29 +4616,37 @@ async function captureHighResScreenshot(longEdgePx) {
   }
 
   const label = longEdgePx >= 7680 ? "8K" : "4K";
-  await renderFrame({
-    ctx: targetCtx,
-    canvas: targetCanvas,
-    formulaId: currentFormulaId,
-    cmapName: appData.defaults.cmapName,
-    params: getDerivedParams(),
-    iterations: Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max)),
-    burn: Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max)),
-    scaleMode: getScaleMode(),
-    fixedView,
-    worldOverride: getExportWorldFromLiveMeta(width, height),
-    seed: getSeedForFormula(currentFormulaId),
-    renderColoring: getRenderColoringOptions(),
-    backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
-    onProgress: (percent, isComplete) => {
-      updateExportRenderProgressToast(`Rendering ${label} screenshot`, percent, isComplete);
-    },
-  });
-  const blob = await exportCanvasToBlob(targetCanvas);
-  const filenameLabel = longEdgePx >= 7680 ? "8k" : "4k";
-  const filename = `hopalong-clean-${filenameLabel}-${formatScreenshotTimestamp(new Date())}.png`;
-  await saveBlobToDevice(blob, filename);
-  showToast(`Saved clean ${label} screenshot.`);
+  highResExportInProgress = true;
+  try {
+    await renderFrame({
+      ctx: targetCtx,
+      canvas: targetCanvas,
+      formulaId: currentFormulaId,
+      cmapName: appData.defaults.cmapName,
+      params: getDerivedParams(),
+      iterations: Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max)),
+      burn: Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max)),
+      scaleMode: getScaleMode(),
+      fixedView,
+      worldOverride: getExportWorldFromLiveMeta(width, height),
+      seed: getSeedForFormula(currentFormulaId),
+      renderColoring: getRenderColoringOptions(),
+      backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
+      onProgress: (percent, isComplete) => {
+        updateExportRenderProgressToast(`Rendering ${label} screenshot`, percent, isComplete);
+      },
+    });
+    const blob = await exportCanvasToBlob(targetCanvas);
+    const filenameLabel = longEdgePx >= 7680 ? "8k" : "4k";
+    const filename = `hopalong-clean-${filenameLabel}-${formatScreenshotTimestamp(new Date())}.png`;
+    await saveBlobToDevice(blob, filename);
+    showToast(`Saved clean ${label} screenshot.`);
+  } finally {
+    highResExportInProgress = false;
+    if (drawDirty) {
+      requestDraw();
+    }
+  }
 }
 
 function openScreenshotMenu() {
