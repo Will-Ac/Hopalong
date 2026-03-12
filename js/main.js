@@ -253,6 +253,8 @@ const paramTileTargets = {
 
 let exportCacheCanvas = null;
 let exportCacheCtx = null;
+let interactionCanvas = null;
+let interactionCtx = null;
 let exportCacheMeta = null;
 let renderRevision = 0;
 let renderGeneration = 0;
@@ -2552,9 +2554,12 @@ function onCanvasPointerDown(event) {
   if (activePointers.size === 1) {
     interactionState = INTERACTION_STATE.MOD_1;
     primaryPointerId = event.pointerId;
-    isManualModulating = false;
+    isManualModulating = hasAnyManualTargets();
     const pos = getCanvasPointerPosition(event);
     lastPointerPosition = { x: pos.x, y: pos.y };
+    if (isManualModulating && lastRenderMeta) {
+      drawManualParamOverlay(lastRenderMeta);
+    }
     requestDraw();
     return;
   }
@@ -4221,23 +4226,36 @@ async function draw() {
   const effectiveIterationSetting = cappedInteractionActive
     ? Math.min(iterationSetting, panZoomIterationCap)
     : iterationSetting;
+  const useInteractiveRenderPath = cappedInteractionActive;
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const iterations = effectiveIterationSetting;
   renderProgressStartedAt = performance.now();
   renderProgressShownThisDraw = false;
-  const { pxW, pxH } = getExportSizePx(canvas);
-  const cropScale = Math.max(
-    1,
-    canvas.width / Math.max(1, pxW),
-    canvas.height / Math.max(1, pxH),
-  );
-  const fullCanvas = ensureExportCacheCanvas(
-    Math.max(1, Math.round(pxW * cropScale)),
-    Math.max(1, Math.round(pxH * cropScale)),
-  );
+  let renderTargetCanvas = null;
+  let renderTargetCtx = null;
+  let viewportWidth = Math.max(1, canvas.width);
+  let viewportHeight = Math.max(1, canvas.height);
+
+  if (useInteractiveRenderPath) {
+    renderTargetCanvas = ensureInteractionCanvas(viewportWidth, viewportHeight);
+    renderTargetCtx = interactionCtx;
+  } else {
+    const { pxW, pxH } = getExportSizePx(canvas);
+    const cropScale = Math.max(
+      1,
+      canvas.width / Math.max(1, pxW),
+      canvas.height / Math.max(1, pxH),
+    );
+    renderTargetCanvas = ensureExportCacheCanvas(
+      Math.max(1, Math.round(pxW * cropScale)),
+      Math.max(1, Math.round(pxH * cropScale)),
+    );
+    renderTargetCtx = exportCacheCtx;
+  }
+
   const frameMetaFull = await renderFrame({
-    ctx: exportCacheCtx,
-    canvas: fullCanvas,
+    ctx: renderTargetCtx,
+    canvas: renderTargetCanvas,
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
@@ -4258,15 +4276,13 @@ async function draw() {
     return;
   }
 
-  const viewportWidth = Math.max(1, canvas.width);
-  const viewportHeight = Math.max(1, canvas.height);
-  const cropX = Math.max(0, Math.floor((fullCanvas.width - viewportWidth) * 0.5));
-  const cropY = Math.max(0, Math.floor((fullCanvas.height - viewportHeight) * 0.5));
-  const cropW = Math.min(viewportWidth, fullCanvas.width - cropX);
-  const cropH = Math.min(viewportHeight, fullCanvas.height - cropY);
+  const cropX = useInteractiveRenderPath ? 0 : Math.max(0, Math.floor((renderTargetCanvas.width - viewportWidth) * 0.5));
+  const cropY = useInteractiveRenderPath ? 0 : Math.max(0, Math.floor((renderTargetCanvas.height - viewportHeight) * 0.5));
+  const cropW = useInteractiveRenderPath ? viewportWidth : Math.min(viewportWidth, renderTargetCanvas.width - cropX);
+  const cropH = useInteractiveRenderPath ? viewportHeight : Math.min(viewportHeight, renderTargetCanvas.height - cropY);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(fullCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+  ctx.drawImage(renderTargetCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
   const fullWorld = frameMetaFull.world;
   const fullView = frameMetaFull.view;
@@ -4311,18 +4327,22 @@ async function draw() {
     iterations,
     renderMs: now - startedAt,
   };
-  lastFullRenderMeta = {
-    ...frameMetaFull,
-    iterations,
-    renderMs: now - startedAt,
-  };
+  if (!useInteractiveRenderPath) {
+    lastFullRenderMeta = {
+      ...frameMetaFull,
+      iterations,
+      renderMs: now - startedAt,
+    };
+  }
   renderRevision += 1;
-  exportCacheMeta = {
-    pxW: fullCanvas.width,
-    pxH: fullCanvas.height,
-    updatedAt: performance.now(),
-    renderRevision,
-  };
+  if (!useInteractiveRenderPath) {
+    exportCacheMeta = {
+      pxW: renderTargetCanvas.width,
+      pxH: renderTargetCanvas.height,
+      updatedAt: performance.now(),
+      renderRevision,
+    };
+  }
 
   const manualOverlayActive = shouldShowManualOverlay();
   if (manualOverlayActive && !wasManualOverlayActive && interestOverlayCalcInProgress) {
@@ -4620,6 +4640,21 @@ function ensureExportCacheCanvas(width, height) {
     exportCacheCanvas.height = height;
   }
   return exportCacheCanvas;
+}
+
+function ensureInteractionCanvas(width, height) {
+  if (!interactionCanvas) {
+    interactionCanvas = document.createElement("canvas");
+    interactionCtx = interactionCanvas.getContext("2d", { willReadFrequently: true });
+  }
+  if (!interactionCtx) {
+    throw new Error("Interaction render context unavailable.");
+  }
+  if (interactionCanvas.width !== width || interactionCanvas.height !== height) {
+    interactionCanvas.width = width;
+    interactionCanvas.height = height;
+  }
+  return interactionCanvas;
 }
 
 async function renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx) {
