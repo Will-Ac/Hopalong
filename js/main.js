@@ -800,7 +800,7 @@ function applyBackgroundTheme() {
   const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
   const isLight = luminance > 0.52;
   document.documentElement.style.setProperty("--ui-gray-rgb", isLight ? "44, 50, 60" : "148, 154, 164");
-  document.documentElement.style.setProperty("--panel-bg", isLight ? "rgba(255,255,255,0.28)" : "rgba(12, 14, 20, 0.26)");
+  document.documentElement.style.setProperty("--panel-rgb", isLight ? "255, 255, 255" : "12, 14, 20");
 }
 
 function applyDialogTransparency() {

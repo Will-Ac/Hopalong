@@ -7,7 +7,8 @@
     <style>
       :root {
         color-scheme: dark;
-        --panel-bg: rgba(12, 14, 20, 0.26);
+        --panel-rgb: 12, 14, 20;
+        --panel-bg: rgba(var(--panel-rgb), var(--dialog-alpha));
         --ui-gray-rgb: 148, 154, 164;
         --panel-border: rgba(var(--ui-gray-rgb), 0.18);
         --param-outline: rgba(var(--ui-gray-rgb), 0.42);
@@ -147,7 +148,7 @@
         -webkit-overflow-scrolling: touch;
         border-radius: 10px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.15);
-        background: rgba(8, 10, 15, var(--dialog-alpha));
+        background: var(--panel-bg);
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
         padding: 10px;
@@ -410,7 +411,7 @@
         min-height: 32px;
         border-radius: 6px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.24);
-        background: rgba(8, 10, 15, var(--dialog-alpha));
+        background: var(--panel-bg);
         color: var(--text);
         font-size: var(--ui-font-size);
         padding: 4px 8px;
@@ -658,7 +659,7 @@
         right: max(6px, env(safe-area-inset-right));
         top: calc(58px + env(safe-area-inset-top));
         width: min(360px, calc(100vw - 12px));
-        background: rgba(8, 10, 15, var(--dialog-alpha));
+        background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 10px;
         padding: 10px;
@@ -708,7 +709,7 @@
         width: min(648px, calc(100vw - 12px));
         top: calc(58px + env(safe-area-inset-top));
         bottom: calc(98px + env(safe-area-inset-bottom));
-        background: rgba(8, 10, 15, var(--dialog-alpha));
+        background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 10px;
         display: flex;
@@ -775,7 +776,7 @@
         border-radius: 10px;
         border: 2px solid var(--param-outline);
         background: var(--panel-bg);
-        color: rgba(var(--ui-gray-rgb), 0.95);
+        color: var(--text);
         display: inline-grid;
         align-items: center;
         justify-content: center;
@@ -791,7 +792,7 @@
         border-radius: 10px;
         border: 2px solid var(--param-outline);
         background: var(--panel-bg);
-        color: rgba(var(--ui-gray-rgb), 0.95);
+        color: var(--text);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -812,7 +813,7 @@
         min-height: calc(var(--ui-font-size) * 2.1);
         border: 0;
         background: transparent;
-        color: rgba(var(--ui-gray-rgb), 0.95);
+        color: var(--text);
         display: inline-flex;
         align-items: center;
         justify-content: center;
