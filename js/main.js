@@ -184,6 +184,7 @@ let activeColorSettingsMap = null;
 let activePickerTrigger = null;
 let holdInterval = null;
 let lastRenderMeta = null;
+let lastFullRenderMeta = null;
 let lastDrawTimestamp = 0;
 let fpsEstimate = 0;
 let interestOverlayScanCache = null;
@@ -238,10 +239,6 @@ const paramTileTargets = {
 let exportCacheCanvas = null;
 let exportCacheCtx = null;
 let exportCacheMeta = null;
-let exportCacheRefreshTimer = null;
-let exportCacheRefreshInProgress = false;
-let exportCacheRefreshPromise = null;
-let exportCachePendingRevision = 0;
 let renderRevision = 0;
 let pendingShareFile = null;
 let pendingShareTitle = "";
@@ -411,6 +408,25 @@ function updateRenderProgressToast(percent, isComplete = false) {
   window.clearTimeout(renderProgressHideTimer);
   renderProgressHideTimer = null;
   toastEl.textContent = `Rendering iterations: ${normalizedPercent}%`;
+  toastEl.classList.add("is-visible");
+  renderProgressVisible = true;
+
+  if (isComplete) {
+    renderProgressHideTimer = window.setTimeout(() => {
+      hideRenderProgressToast();
+    }, 2000);
+  }
+}
+
+function updateExportRenderProgressToast(label, percent, isComplete = false) {
+  if (!toastEl) {
+    return;
+  }
+
+  const normalizedPercent = Math.max(0, Math.min(100, Math.round(percent / 5) * 5));
+  window.clearTimeout(renderProgressHideTimer);
+  renderProgressHideTimer = null;
+  toastEl.textContent = `${label}: ${normalizedPercent}%`;
   toastEl.classList.add("is-visible");
   renderProgressVisible = true;
 
@@ -4034,9 +4050,19 @@ async function draw() {
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const iterations = iterationSetting;
-  const frameMeta = await renderFrame({
-    ctx,
-    canvas,
+  const { pxW, pxH } = getExportSizePx(canvas);
+  const cropScale = Math.max(
+    1,
+    canvas.width / Math.max(1, pxW),
+    canvas.height / Math.max(1, pxH),
+  );
+  const fullCanvas = ensureExportCacheCanvas(
+    Math.max(1, Math.round(pxW * cropScale)),
+    Math.max(1, Math.round(pxH * cropScale)),
+  );
+  const frameMetaFull = await renderFrame({
+    ctx: exportCacheCtx,
+    canvas: fullCanvas,
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
@@ -4052,6 +4078,45 @@ async function draw() {
     },
   });
 
+  const viewportWidth = Math.max(1, canvas.width);
+  const viewportHeight = Math.max(1, canvas.height);
+  const cropX = Math.max(0, Math.floor((fullCanvas.width - viewportWidth) * 0.5));
+  const cropY = Math.max(0, Math.floor((fullCanvas.height - viewportHeight) * 0.5));
+  const cropW = Math.min(viewportWidth, fullCanvas.width - cropX);
+  const cropH = Math.min(viewportHeight, fullCanvas.height - cropY);
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(fullCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+  const fullWorld = frameMetaFull.world;
+  const fullView = frameMetaFull.view;
+  const worldPerPxX = (fullWorld.maxX - fullWorld.minX) / Math.max(1, fullView.width - 1);
+  const worldPerPxY = (fullWorld.maxY - fullWorld.minY) / Math.max(1, fullView.height - 1);
+  const viewWorldMinX = fullWorld.minX + cropX * worldPerPxX;
+  const viewWorldMaxX = viewWorldMinX + worldPerPxX * Math.max(1, cropW - 1);
+  const viewWorldMinY = fullWorld.minY + cropY * worldPerPxY;
+  const viewWorldMaxY = viewWorldMinY + worldPerPxY * Math.max(1, cropH - 1);
+
+  const frameMeta = {
+    ...frameMetaFull,
+    world: {
+      minX: viewWorldMinX,
+      maxX: viewWorldMaxX,
+      minY: viewWorldMinY,
+      maxY: viewWorldMaxY,
+      centerX: (viewWorldMinX + viewWorldMaxX) * 0.5,
+      centerY: (viewWorldMinY + viewWorldMaxY) * 0.5,
+    },
+    view: {
+      width: cropW,
+      height: cropH,
+      centerX: cropW * 0.5,
+      centerY: cropH * 0.5,
+      scaleX: (cropW - 1) / Math.max(viewWorldMaxX - viewWorldMinX, 1e-6),
+      scaleY: (cropH - 1) / Math.max(viewWorldMaxY - viewWorldMinY, 1e-6),
+    },
+  };
+
 
   const now = performance.now();
   const delta = lastDrawTimestamp > 0 ? now - lastDrawTimestamp : 0;
@@ -4066,9 +4131,18 @@ async function draw() {
     iterations,
     renderMs: now - startedAt,
   };
+  lastFullRenderMeta = {
+    ...frameMetaFull,
+    iterations,
+    renderMs: now - startedAt,
+  };
   renderRevision += 1;
-
-  scheduleExportCacheRefresh();
+  exportCacheMeta = {
+    pxW: fullCanvas.width,
+    pxH: fullCanvas.height,
+    updatedAt: performance.now(),
+    renderRevision,
+  };
 
   const manualOverlayActive = shouldShowManualOverlay();
   if (manualOverlayActive && !wasManualOverlayActive && interestOverlayCalcInProgress) {
@@ -4312,12 +4386,13 @@ async function retryPendingShare() {
 }
 
 function getExportWorldFromLiveMeta(exportWidth, exportHeight) {
-  if (!lastRenderMeta?.world || !lastRenderMeta?.view) {
+  const sourceMeta = lastFullRenderMeta || lastRenderMeta;
+  if (!sourceMeta?.world || !sourceMeta?.view) {
     return null;
   }
 
-  const liveView = lastRenderMeta.view;
-  const liveWorld = lastRenderMeta.world;
+  const liveView = sourceMeta.view;
+  const liveWorld = sourceMeta.world;
   const liveSpanX = Math.max(liveWorld.maxX - liveWorld.minX, 1e-6);
   const liveSpanY = Math.max(liveWorld.maxY - liveWorld.minY, 1e-6);
   const worldPerPxX = liveSpanX / Math.max(1, liveView.width - 1);
@@ -4391,60 +4466,6 @@ async function refreshExportCacheFromCurrentFrame() {
   };
 }
 
-function isExportCacheCurrentForLatestRender() {
-  return Boolean(exportCacheMeta && exportCacheMeta.renderRevision === renderRevision);
-}
-
-function scheduleExportCacheRefresh(delayMs = 450) {
-  exportCachePendingRevision = Math.max(exportCachePendingRevision, renderRevision);
-  if (exportCacheRefreshTimer) {
-    window.clearTimeout(exportCacheRefreshTimer);
-    exportCacheRefreshTimer = null;
-  }
-
-  exportCacheRefreshTimer = window.setTimeout(() => {
-    exportCacheRefreshTimer = null;
-    void ensureExportCacheCurrent({ forceImmediate: true });
-  }, Math.max(0, Math.round(delayMs)));
-}
-
-async function ensureExportCacheCurrent({ forceImmediate = false } = {}) {
-  if (isExportCacheCurrentForLatestRender()) {
-    return;
-  }
-
-  if (!forceImmediate && exportCacheRefreshTimer) {
-    await new Promise((resolve) => window.setTimeout(resolve, 0));
-    return;
-  }
-
-  if (exportCacheRefreshTimer) {
-    window.clearTimeout(exportCacheRefreshTimer);
-    exportCacheRefreshTimer = null;
-  }
-
-  if (exportCacheRefreshInProgress && exportCacheRefreshPromise) {
-    await exportCacheRefreshPromise;
-    return;
-  }
-
-  exportCacheRefreshInProgress = true;
-  exportCacheRefreshPromise = (async () => {
-    try {
-      await refreshExportCacheFromCurrentFrame();
-    } finally {
-      exportCacheRefreshInProgress = false;
-      exportCacheRefreshPromise = null;
-      exportCachePendingRevision = renderRevision;
-      if (!isExportCacheCurrentForLatestRender()) {
-        scheduleExportCacheRefresh(0);
-      }
-    }
-  })();
-
-  await exportCacheRefreshPromise;
-}
-
 function makeCanvasClone(sourceCanvas, includeOverlay) {
   const outputCanvas = document.createElement("canvas");
   outputCanvas.width = sourceCanvas.width;
@@ -4479,9 +4500,9 @@ function getLongEdgeExportSize(targetLongEdge) {
 }
 
 async function captureCachedScreenshot(includeOverlay) {
-  if (!exportCacheCanvas || !exportCacheMeta || !isExportCacheCurrentForLatestRender()) {
+  if (!exportCacheCanvas || !exportCacheMeta) {
     showToast("Preparing latest screenshot...");
-    await ensureExportCacheCurrent({ forceImmediate: true });
+    await refreshExportCacheFromCurrentFrame();
   }
   if (!exportCacheCanvas) {
     throw new Error("No render cache available yet.");
@@ -4503,12 +4524,30 @@ async function captureHighResScreenshot(longEdgePx) {
     throw new Error("Screenshot export context unavailable.");
   }
 
-  await renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx);
+  const label = longEdgePx >= 7680 ? "8K" : "4K";
+  await renderFrame({
+    ctx: targetCtx,
+    canvas: targetCanvas,
+    formulaId: currentFormulaId,
+    cmapName: appData.defaults.cmapName,
+    params: getDerivedParams(),
+    iterations: Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max)),
+    burn: Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max)),
+    scaleMode: getScaleMode(),
+    fixedView,
+    worldOverride: getExportWorldFromLiveMeta(width, height),
+    seed: getSeedForFormula(currentFormulaId),
+    renderColoring: getRenderColoringOptions(),
+    backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
+    onProgress: (percent, isComplete) => {
+      updateExportRenderProgressToast(`Rendering ${label} screenshot`, percent, isComplete);
+    },
+  });
   const blob = await exportCanvasToBlob(targetCanvas);
-  const label = longEdgePx >= 7680 ? "8k" : "4k";
-  const filename = `hopalong-clean-${label}-${formatScreenshotTimestamp(new Date())}.png`;
+  const filenameLabel = longEdgePx >= 7680 ? "8k" : "4k";
+  const filename = `hopalong-clean-${filenameLabel}-${formatScreenshotTimestamp(new Date())}.png`;
   await saveBlobToDevice(blob, filename);
-  showToast(`Saved clean ${label.toUpperCase()} screenshot.`);
+  showToast(`Saved clean ${label} screenshot.`);
 }
 
 function openScreenshotMenu() {
