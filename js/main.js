@@ -192,6 +192,10 @@ let interestOverlayCalcInProgress = false;
 let interestOverlayCalcProgressPercent = 0;
 let interestOverlayShowProgressToast = false;
 let interestOverlayLastProgressToastPercent = -1;
+let interestOverlayRecalcTimer = null;
+let interestOverlayPendingPlan = null;
+let interestOverlayComputeSeq = 0;
+let interestOverlayActiveJobSeq = 0;
 let wasManualOverlayActive = false;
 let drawScheduled = false;
 let drawDirty = false;
@@ -342,16 +346,6 @@ function requestDraw() {
     syncDetailedSettingsControls();
   }
 
-  const manualModulationStarting = shouldShowManualOverlay() && !wasManualOverlayActive;
-  if (manualModulationStarting) {
-    const pendingPlan = getInterestOverlayScanPlan(null);
-    if (pendingPlan && interestOverlayScanCache?.scanKey !== pendingPlan.scanKey) {
-      interestOverlayShowProgressToast = true;
-      interestOverlayLastProgressToastPercent = -1;
-    }
-  }
-
-  precomputeInterestOverlayScan(null);
   drawDirty = true;
   if (drawScheduled) {
     return;
@@ -1420,6 +1414,9 @@ function applyInterestOverlayEnabled(nextValue) {
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
+  if (appData.defaults.interestOverlayEnabled) {
+    scheduleInterestOverlayRecalc({ immediate: true, showProgress: true });
+  }
   commitCurrentStateToHistory();
 }
 
@@ -3650,8 +3647,17 @@ function getInterestOverlayScanPlan(meta = null) {
 }
 
 function precomputeInterestOverlayScan(meta = null) {
+  scheduleInterestOverlayRecalc({ meta, immediate: false });
+}
+
+function scheduleInterestOverlayRecalc({ meta = null, immediate = false, showProgress = false } = {}) {
   const plan = getInterestOverlayScanPlan(meta);
   if (!plan) {
+    interestOverlayPendingPlan = null;
+    if (interestOverlayRecalcTimer) {
+      window.clearTimeout(interestOverlayRecalcTimer);
+      interestOverlayRecalcTimer = null;
+    }
     return;
   }
 
@@ -3659,40 +3665,84 @@ function precomputeInterestOverlayScan(meta = null) {
     return;
   }
 
+  interestOverlayPendingPlan = plan;
+  if (showProgress) {
+    interestOverlayShowProgressToast = true;
+    interestOverlayLastProgressToastPercent = -1;
+  }
+
+  if (interestOverlayRecalcTimer) {
+    window.clearTimeout(interestOverlayRecalcTimer);
+    interestOverlayRecalcTimer = null;
+  }
+
+  const delayMs = immediate ? 0 : 220;
+  interestOverlayRecalcTimer = window.setTimeout(() => {
+    interestOverlayRecalcTimer = null;
+    void runInterestOverlayRecalc();
+  }, delayMs);
+}
+
+async function runInterestOverlayRecalc() {
+  if (interestOverlayCalcInProgress) {
+    return;
+  }
+
+  const plan = interestOverlayPendingPlan;
+  if (!plan || interestOverlayScanCache?.scanKey === plan.scanKey) {
+    return;
+  }
+
+  const jobSeq = ++interestOverlayComputeSeq;
+  interestOverlayActiveJobSeq = jobSeq;
   interestOverlayCalcInProgress = true;
   interestOverlayCalcProgressPercent = 0;
   interestOverlayLastProgressToastPercent = -1;
 
-  const scanResult = classifyInterestGridLyapunov({
-    formulaId: currentFormulaId,
-    baseParams: plan.baseParams,
-    plane: plan.planeConfig,
-    gridCols: plan.gridCols,
-    gridRows: plan.gridRows,
-    iterations: plan.scanIterations,
-    lyapunov: plan.lyapunovConfig,
-    onProgress: (percent) => {
-      const nextPercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
-      interestOverlayCalcProgressPercent = nextPercent;
-      if (interestOverlayShowProgressToast && nextPercent !== interestOverlayLastProgressToastPercent) {
-        showToast(`Interest overlay calc ${nextPercent}%`);
-        interestOverlayLastProgressToastPercent = nextPercent;
-      }
-    },
-  });
+  try {
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
 
-  interestOverlayScanCache = {
-    scanKey: plan.scanKey,
-    scanResult,
-    computedAt: performance.now(),
-    gridCols: plan.gridCols,
-    gridRows: plan.gridRows,
-  };
+    const scanResult = classifyInterestGridLyapunov({
+      formulaId: currentFormulaId,
+      baseParams: plan.baseParams,
+      plane: plan.planeConfig,
+      gridCols: plan.gridCols,
+      gridRows: plan.gridRows,
+      iterations: plan.scanIterations,
+      lyapunov: plan.lyapunovConfig,
+      onProgress: (percent) => {
+        const nextPercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+        interestOverlayCalcProgressPercent = nextPercent;
+        if (interestOverlayShowProgressToast && nextPercent !== interestOverlayLastProgressToastPercent) {
+          showToast(`Interest overlay calc ${nextPercent}%`);
+          interestOverlayLastProgressToastPercent = nextPercent;
+        }
+      },
+    });
 
-  interestOverlayCalcInProgress = false;
-  if (interestOverlayShowProgressToast) {
-    showToast("Interest overlay calc 100%");
-    interestOverlayShowProgressToast = false;
+    if (jobSeq !== interestOverlayActiveJobSeq) {
+      return;
+    }
+
+    if (interestOverlayPendingPlan?.scanKey === plan.scanKey) {
+      interestOverlayScanCache = {
+        scanKey: plan.scanKey,
+        scanResult,
+        computedAt: performance.now(),
+        gridCols: plan.gridCols,
+        gridRows: plan.gridRows,
+      };
+    }
+  } finally {
+    interestOverlayCalcInProgress = false;
+    if (interestOverlayShowProgressToast) {
+      showToast("Interest overlay calc 100%");
+      interestOverlayShowProgressToast = false;
+    }
+
+    if (interestOverlayPendingPlan && interestOverlayScanCache?.scanKey !== interestOverlayPendingPlan.scanKey) {
+      scheduleInterestOverlayRecalc({ immediate: true, showProgress: true });
+    }
   }
 }
 
@@ -3710,7 +3760,8 @@ function drawInterestOverlay(meta) {
     return;
   }
 
-  if (interestOverlayScanCache?.scanKey !== plan.scanKey) {
+  const isStaleOverlay = interestOverlayScanCache?.scanKey !== plan.scanKey;
+  if (!interestOverlayScanCache) {
     return;
   }
 
@@ -3722,13 +3773,21 @@ function drawInterestOverlay(meta) {
   const { cellSize, offsetX, offsetY } = plan.gridLayout;
 
   ctx.save();
-  ctx.fillStyle = "rgba(120, 200, 255, 0.2)";
+  ctx.fillStyle = isStaleOverlay ? "rgba(120, 200, 255, 0.12)" : "rgba(120, 200, 255, 0.2)";
   for (const cellIndex of scanResult.highCells) {
     const col = cellIndex % plan.gridCols;
     const row = Math.floor(cellIndex / plan.gridCols);
     const x = offsetX + col * cellSize;
     const y = offsetY + row * cellSize;
     ctx.fillRect(x, y, cellSize, cellSize);
+  }
+
+  if (isStaleOverlay) {
+    ctx.fillStyle = "rgba(180, 220, 255, 0.75)";
+    ctx.font = "12px Inter, system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("Overlay updating…", 14, 14);
   }
   ctx.restore();
 }
@@ -4164,6 +4223,10 @@ async function draw() {
   updateQuickSliderReadout();
   syncDetailedSettingsControls();
   layoutFloatingActions();
+
+  if (shouldShowInterestOverlay()) {
+    scheduleInterestOverlayRecalc({ meta: lastRenderMeta, immediate: false, showProgress: true });
+  }
 
 }
 
