@@ -336,6 +336,12 @@ function clampLabel(text, maxChars = NAME_MAX_CHARS) {
 }
 
 function requestDraw() {
+  if (appData) {
+    refreshParamButtons();
+    updateQuickSliderReadout();
+    syncDetailedSettingsControls();
+  }
+
   const manualModulationStarting = shouldShowManualOverlay() && !wasManualOverlayActive;
   if (manualModulationStarting) {
     const pendingPlan = getInterestOverlayScanPlan(null);
