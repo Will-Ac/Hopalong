@@ -1,5 +1,5 @@
 import { ColorMapNames, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
-import { renderFrame, getParamsForFormula, classifyInterestGridLyapunov, isRenderCancelledError } from "./renderer.js";
+import { renderFrame, getParamsForFormula, classifyInterestGridLyapunov } from "./renderer.js";
 import {
   FORMULA_METADATA,
   FORMULA_RANGES_RAW,
@@ -55,8 +55,6 @@ const detailInterestGridSizeRangeEl = document.getElementById("detailInterestGri
 const detailInterestGridSizeFormattedEl = document.getElementById("detailInterestGridSizeFormatted");
 const detailInterestScanIterationsRangeEl = document.getElementById("detailInterestScanIterationsRange");
 const detailInterestScanIterationsFormattedEl = document.getElementById("detailInterestScanIterationsFormatted");
-const detailPanZoomIterationCapRangeEl = document.getElementById("detailPanZoomIterationCapRange");
-const detailPanZoomIterationCapFormattedEl = document.getElementById("detailPanZoomIterationCapFormatted");
 const detailInterestLyapunovEnabledToggleEl = document.getElementById("detailInterestLyapunovEnabledToggle");
 const detailInterestLyapunovMinExponentRangeEl = document.getElementById("detailInterestLyapunovMinExponentRange");
 const detailInterestLyapunovMinExponentFormattedEl = document.getElementById("detailInterestLyapunovMinExponentFormatted");
@@ -122,15 +120,6 @@ const paramRowEl = document.getElementById("paramRow");
 const bottomBarEl = document.querySelector(".bottomBar");
 const topRightActionsEl = document.getElementById("topRightActions");
 const cameraBtn = document.getElementById("cameraBtn");
-const screenshotMenuOverlayEl = document.getElementById("screenshotMenuOverlay");
-const screenshotMenuBackdropEl = document.getElementById("screenshotMenuBackdrop");
-const screenshotMenuCloseEl = document.getElementById("screenshotMenuClose");
-const screenshotMenuCleanEl = document.getElementById("screenshotMenuClean");
-const screenshotMenuOverlayOptionEl = document.getElementById("screenshotMenuOverlayOption");
-const screenshotMenu4kEl = document.getElementById("screenshotMenu4k");
-const screenshotMenu8kEl = document.getElementById("screenshotMenu8k");
-const screenshotMenuShareRetryEl = document.getElementById("screenshotMenuShareRetry");
-const screenshotMenuShareRetryHintEl = document.getElementById("screenshotMenuShareRetryHint");
 const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
 const randomModeTile = document.getElementById("randomModeTile");
@@ -166,10 +155,6 @@ const INTEREST_GRID_SIZE_MIN = 8;
 const INTEREST_GRID_SIZE_MAX = 256;
 const INTEREST_SCAN_ITERATIONS_MIN = 100;
 const INTEREST_SCAN_ITERATIONS_MAX = 5000;
-const PAN_ZOOM_ITERATION_CAP_DEFAULT = 500000;
-const PAN_ZOOM_ITERATION_CAP_MIN = 10000;
-const PAN_ZOOM_ITERATION_CAP_MAX = 50000000;
-const PAN_ZOOM_SETTLE_MS = 200;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MIN = -1;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MAX = 1;
 const INTEREST_LYAPUNOV_DELTA0_MIN = 1e-7;
@@ -190,7 +175,6 @@ let activeColorSettingsMap = null;
 let activePickerTrigger = null;
 let holdInterval = null;
 let lastRenderMeta = null;
-let lastFullRenderMeta = null;
 let lastDrawTimestamp = 0;
 let fpsEstimate = 0;
 let interestOverlayScanCache = null;
@@ -198,22 +182,12 @@ let interestOverlayCalcInProgress = false;
 let interestOverlayCalcProgressPercent = 0;
 let interestOverlayShowProgressToast = false;
 let interestOverlayLastProgressToastPercent = -1;
-let interestOverlayRecalcTimer = null;
-let interestOverlayPendingPlan = null;
-let interestOverlayComputeSeq = 0;
-let interestOverlayActiveJobSeq = 0;
 let wasManualOverlayActive = false;
 let drawScheduled = false;
 let drawDirty = false;
-let drawInProgress = false;
-let highResExportInProgress = false;
-let panZoomInteractionActive = false;
-let panZoomSettleTimer = null;
 let toastTimer = null;
 let renderProgressHideTimer = null;
 let renderProgressVisible = false;
-let renderProgressStartedAt = 0;
-let renderProgressShownThisDraw = false;
 let lastComputedUiMetrics = { fontSize: null, tileSize: null };
 let lastSizingViewport = { width: 0, height: 0 };
 
@@ -230,6 +204,7 @@ const HOLD_MAX_MULTIPLIER = 30;
 const HOLD_SPEED_SCALE_MIN = 0.25;
 const HOLD_SPEED_SCALE_MAX = 50;
 const NAME_MAX_CHARS = 20;
+const CAMERA_LONG_PRESS_MS = 550;
 const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
 const PARAM_MOVE_CANCEL_PX = 10;
 const PARAM_SWIPE_TRIGGER_PX = 20;
@@ -251,13 +226,10 @@ const paramTileTargets = {
   iters: { button: sliderControls.iters.button, modeKey: sliderControls.iters.paramKey, shortTap: () => openQuickSlider("iters") },
 };
 
-let exportCacheCanvas = null;
-let exportCacheCtx = null;
-let exportCacheMeta = null;
-let renderRevision = 0;
-let renderGeneration = 0;
-let pendingShareFile = null;
-let pendingShareTitle = "";
+let cameraPressTimer = null;
+let longPressTriggered = false;
+let cameraLastTapTs = 0;
+let pendingCameraTapTimer = null;
 let isApplyingHistoryState = false;
 let historyStates = [];
 let historyIndex = -1;
@@ -351,60 +323,32 @@ function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   return `${normalized.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
 }
 
-function interruptRunningWork() {
-  renderGeneration += 1;
-}
-
-function requestDraw({ interrupt = true } = {}) {
-  if (interrupt) {
-    interruptRunningWork();
+function requestDraw() {
+  const manualModulationStarting = shouldShowManualOverlay() && !wasManualOverlayActive;
+  if (manualModulationStarting) {
+    const pendingPlan = getInterestOverlayScanPlan(null);
+    if (pendingPlan && interestOverlayScanCache?.scanKey !== pendingPlan.scanKey) {
+      interestOverlayShowProgressToast = true;
+      interestOverlayLastProgressToastPercent = -1;
+    }
   }
 
-  if (appData) {
-    refreshParamButtons();
-    updateQuickSliderReadout();
-    syncDetailedSettingsControls();
-  }
-
+  precomputeInterestOverlayScan(null);
   drawDirty = true;
-  if (highResExportInProgress) {
-    return;
-  }
   if (drawScheduled) {
     return;
   }
 
   drawScheduled = true;
-  window.requestAnimationFrame(async () => {
+  window.requestAnimationFrame(() => {
     drawScheduled = false;
-    if (!drawDirty || drawInProgress) {
+    if (!drawDirty) {
       return;
     }
 
     drawDirty = false;
-    drawInProgress = true;
-    try {
-      await draw();
-    } catch (error) {
-      if (!isRenderCancelledError(error)) {
-        throw error;
-      }
-    } finally {
-      drawInProgress = false;
-      if (drawDirty) {
-        requestDraw({ interrupt: false });
-      }
-    }
+    draw();
   });
-}
-
-function installInteractionInterrupts() {
-  const interruptEvents = ["pointerdown", "wheel", "keydown", "touchstart", "input", "change", "click"];
-  for (const eventName of interruptEvents) {
-    document.addEventListener(eventName, () => {
-      interruptRunningWork();
-    }, { capture: true, passive: eventName === "wheel" ? false : true });
-  }
 }
 
 function showToast(message) {
@@ -436,38 +380,6 @@ function hideRenderProgressToast() {
 }
 
 function updateRenderProgressToast(percent, isComplete = false) {
-  if (highResExportInProgress) {
-    return;
-  }
-
-  if (!toastEl) {
-    return;
-  }
-
-  const elapsedMs = performance.now() - renderProgressStartedAt;
-  if (!isComplete && elapsedMs < 1000) {
-    return;
-  }
-  if (isComplete && !renderProgressShownThisDraw) {
-    return;
-  }
-
-  const normalizedPercent = Math.max(0, Math.min(100, Math.round(percent / 5) * 5));
-  window.clearTimeout(renderProgressHideTimer);
-  renderProgressHideTimer = null;
-  toastEl.textContent = `Render ${normalizedPercent}%`;
-  toastEl.classList.add("is-visible");
-  renderProgressVisible = true;
-  renderProgressShownThisDraw = true;
-
-  if (isComplete) {
-    renderProgressHideTimer = window.setTimeout(() => {
-      hideRenderProgressToast();
-    }, 2000);
-  }
-}
-
-function updateExportRenderProgressToast(label, percent, isComplete = false) {
   if (!toastEl) {
     return;
   }
@@ -475,7 +387,7 @@ function updateExportRenderProgressToast(label, percent, isComplete = false) {
   const normalizedPercent = Math.max(0, Math.min(100, Math.round(percent / 5) * 5));
   window.clearTimeout(renderProgressHideTimer);
   renderProgressHideTimer = null;
-  toastEl.textContent = `${label}: ${normalizedPercent}%`;
+  toastEl.textContent = `Rendering iterations: ${normalizedPercent}%`;
   toastEl.classList.add("is-visible");
   renderProgressVisible = true;
 
@@ -1351,7 +1263,6 @@ function syncDetailedSettingsControls() {
   if (detailInterestOverlayToggleEl) detailInterestOverlayToggleEl.checked = Boolean(appData.defaults.interestOverlayEnabled);
   const interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize);
   const interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
-  const panZoomIterationCap = Math.round(clamp(Number(appData.defaults.panZoomIterationCap), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
   const interestLyapunovEnabled = Boolean(appData.defaults.interestLyapunovEnabled);
   const interestLyapunovMinExponent = clamp(Number(appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
   const interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
@@ -1361,8 +1272,6 @@ function syncDetailedSettingsControls() {
   if (detailInterestGridSizeFormattedEl) detailInterestGridSizeFormattedEl.textContent = formatNumberForUi(interestGridSize, 0);
   if (detailInterestScanIterationsRangeEl) detailInterestScanIterationsRangeEl.value = String(interestScanIterations);
   if (detailInterestScanIterationsFormattedEl) detailInterestScanIterationsFormattedEl.textContent = formatNumberForUi(interestScanIterations, 0);
-  if (detailPanZoomIterationCapRangeEl) detailPanZoomIterationCapRangeEl.value = String(panZoomIterationCap);
-  if (detailPanZoomIterationCapFormattedEl) detailPanZoomIterationCapFormattedEl.textContent = formatNumberForUi(panZoomIterationCap, 0);
   if (detailInterestLyapunovEnabledToggleEl) detailInterestLyapunovEnabledToggleEl.checked = interestLyapunovEnabled;
   if (detailInterestLyapunovMinExponentRangeEl) detailInterestLyapunovMinExponentRangeEl.value = String(interestLyapunovMinExponent);
   if (detailInterestLyapunovMinExponentFormattedEl) detailInterestLyapunovMinExponentFormattedEl.textContent = formatNumberForUi(interestLyapunovMinExponent, 2);
@@ -1466,9 +1375,6 @@ function applyInterestOverlayEnabled(nextValue) {
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
-  if (appData.defaults.interestOverlayEnabled) {
-    scheduleInterestOverlayRecalc({ immediate: true, showProgress: true });
-  }
   commitCurrentStateToHistory();
 }
 
@@ -1485,13 +1391,6 @@ function applyInterestScanIterations(nextValue) {
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
-  commitCurrentStateToHistory();
-}
-
-function applyPanZoomIterationCap(nextValue) {
-  appData.defaults.panZoomIterationCap = Math.round(clamp(Number(nextValue), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
-  syncDetailedSettingsControls();
-  saveDefaultsToStorage();
   commitCurrentStateToHistory();
 }
 
@@ -2337,8 +2236,6 @@ function applyManualModulation(deltaX, deltaY) {
     return false;
   }
 
-  beginPanZoomInteraction();
-
   if (manX) {
     const control = sliderControls[manX];
     appData.defaults.sliders[manX] = clamp(
@@ -2482,30 +2379,6 @@ function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
 function clearTwoFingerGesture() {
   twoFingerGesture = null;
   lastTwoDebug = null;
-}
-
-function beginPanZoomInteraction() {
-  panZoomInteractionActive = true;
-  if (panZoomSettleTimer) {
-    window.clearTimeout(panZoomSettleTimer);
-    panZoomSettleTimer = null;
-  }
-}
-
-function schedulePanZoomSettledRedraw() {
-  if (!panZoomInteractionActive) {
-    return;
-  }
-
-  if (panZoomSettleTimer) {
-    window.clearTimeout(panZoomSettleTimer);
-  }
-
-  panZoomSettleTimer = window.setTimeout(() => {
-    panZoomSettleTimer = null;
-    panZoomInteractionActive = false;
-    requestDraw();
-  }, PAN_ZOOM_SETTLE_MS);
 }
 
 function onCanvasPointerDown(event) {
@@ -2666,12 +2539,10 @@ function onCanvasPointerMove(event) {
   }
 
   if (shouldZoom && Number.isFinite(ratioStep) && ratioStep > 0) {
-    beginPanZoomInteraction();
     applyZoomAtPoint(ratioStep, midpoint.x, midpoint.y);
   }
 
   if (shouldPan) {
-    beginPanZoomInteraction();
     applyPanDelta(dxm, dym);
   }
 
@@ -2693,7 +2564,6 @@ function clearPointerState(pointerId) {
     lastPointerPosition = null;
     isManualModulating = false;
     clearTwoFingerGesture();
-    schedulePanZoomSettledRedraw();
     requestDraw();
     return;
   }
@@ -2737,11 +2607,9 @@ function onCanvasWheel(event) {
     syncFixedViewFromLastRenderMeta();
   }
   setScaleModeFixed("manual pan/zoom");
-  beginPanZoomInteraction();
   const pos = getCanvasPointerPosition(event);
   const zoomFactor = Math.exp(-event.deltaY * 0.0025);
   applyZoomAtPoint(zoomFactor, pos.x, pos.y);
-  schedulePanZoomSettledRedraw();
   suppressHistoryTap = true;
   window.setTimeout(() => {
     suppressHistoryTap = false;
@@ -3425,7 +3293,6 @@ function stopKeyboardHold() {
   }
   keyHold = { code: null, axis: null, direction: 0, sliderKey: null, interval: null, startMs: 0 };
   isKeyboardManualModulating = false;
-  schedulePanZoomSettledRedraw();
   requestDraw();
 }
 
@@ -3463,7 +3330,6 @@ function onKeyboardArrowDown(event) {
   showKeyboardStepToast(targetSliderKey, mapping.direction, baseStep);
 
   stopKeyboardHold();
-  beginPanZoomInteraction();
   isKeyboardManualModulating = true;
   requestDraw();
   const { holdRepeatMs } = getHoldTimingSettings();
@@ -3739,21 +3605,8 @@ function getInterestOverlayScanPlan(meta = null) {
 }
 
 function precomputeInterestOverlayScan(meta = null) {
-  scheduleInterestOverlayRecalc({ meta, immediate: false });
-}
-
-function scheduleInterestOverlayRecalc({ meta = null, immediate = false, showProgress = false } = {}) {
-  if (highResExportInProgress) {
-    return;
-  }
-
   const plan = getInterestOverlayScanPlan(meta);
   if (!plan) {
-    interestOverlayPendingPlan = null;
-    if (interestOverlayRecalcTimer) {
-      window.clearTimeout(interestOverlayRecalcTimer);
-      interestOverlayRecalcTimer = null;
-    }
     return;
   }
 
@@ -3761,90 +3614,40 @@ function scheduleInterestOverlayRecalc({ meta = null, immediate = false, showPro
     return;
   }
 
-  interestOverlayPendingPlan = plan;
-  if (showProgress) {
-    interestOverlayShowProgressToast = true;
-    interestOverlayLastProgressToastPercent = -1;
-  }
-
-  if (interestOverlayRecalcTimer) {
-    window.clearTimeout(interestOverlayRecalcTimer);
-    interestOverlayRecalcTimer = null;
-  }
-
-  const delayMs = immediate ? 0 : 220;
-  interestOverlayRecalcTimer = window.setTimeout(() => {
-    interestOverlayRecalcTimer = null;
-    void runInterestOverlayRecalc();
-  }, delayMs);
-}
-
-async function runInterestOverlayRecalc() {
-  if (interestOverlayCalcInProgress) {
-    return;
-  }
-
-  const plan = interestOverlayPendingPlan;
-  if (!plan || interestOverlayScanCache?.scanKey === plan.scanKey) {
-    return;
-  }
-
-  const jobSeq = ++interestOverlayComputeSeq;
-  const jobGeneration = renderGeneration;
-  interestOverlayActiveJobSeq = jobSeq;
   interestOverlayCalcInProgress = true;
   interestOverlayCalcProgressPercent = 0;
   interestOverlayLastProgressToastPercent = -1;
 
-  try {
-    await new Promise((resolve) => window.setTimeout(resolve, 0));
+  const scanResult = classifyInterestGridLyapunov({
+    formulaId: currentFormulaId,
+    baseParams: plan.baseParams,
+    plane: plan.planeConfig,
+    gridCols: plan.gridCols,
+    gridRows: plan.gridRows,
+    iterations: plan.scanIterations,
+    lyapunov: plan.lyapunovConfig,
+    onProgress: (percent) => {
+      const nextPercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+      interestOverlayCalcProgressPercent = nextPercent;
+      if (interestOverlayShowProgressToast && nextPercent !== interestOverlayLastProgressToastPercent) {
+        showToast(`Interest overlay calc ${nextPercent}%`);
+        interestOverlayLastProgressToastPercent = nextPercent;
+      }
+    },
+  });
 
-    const scanResult = classifyInterestGridLyapunov({
-      formulaId: currentFormulaId,
-      baseParams: plan.baseParams,
-      plane: plan.planeConfig,
-      gridCols: plan.gridCols,
-      gridRows: plan.gridRows,
-      iterations: plan.scanIterations,
-      lyapunov: plan.lyapunovConfig,
-      onProgress: (percent) => {
-        const nextPercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
-        interestOverlayCalcProgressPercent = nextPercent;
-        if (interestOverlayShowProgressToast && nextPercent !== interestOverlayLastProgressToastPercent) {
-          showToast(`Interest overlay calc ${nextPercent}%`);
-          interestOverlayLastProgressToastPercent = nextPercent;
-        }
-      },
-      shouldAbort: () => jobSeq !== interestOverlayActiveJobSeq || jobGeneration !== renderGeneration,
-    });
+  interestOverlayScanCache = {
+    scanKey: plan.scanKey,
+    scanResult,
+    computedAt: performance.now(),
+    gridCols: plan.gridCols,
+    gridRows: plan.gridRows,
+  };
 
-    if (jobSeq !== interestOverlayActiveJobSeq) {
-      return;
-    }
-
-    if (interestOverlayPendingPlan?.scanKey === plan.scanKey) {
-      interestOverlayScanCache = {
-        scanKey: plan.scanKey,
-        scanResult,
-        computedAt: performance.now(),
-        gridCols: plan.gridCols,
-        gridRows: plan.gridRows,
-      };
-    }
-  } catch (error) {
-    if (!isRenderCancelledError(error)) {
-      throw error;
-    }
-  } finally {
-    interestOverlayCalcInProgress = false;
-    if (interestOverlayShowProgressToast) {
-      showToast("Interest overlay calc 100%");
-      interestOverlayShowProgressToast = false;
-    }
-
-    if (interestOverlayPendingPlan && interestOverlayScanCache?.scanKey !== interestOverlayPendingPlan.scanKey) {
-      scheduleInterestOverlayRecalc({ immediate: true, showProgress: true });
-    }
+  interestOverlayCalcInProgress = false;
+  if (interestOverlayShowProgressToast) {
+    showToast("Interest overlay calc 100%");
+    interestOverlayShowProgressToast = false;
   }
 }
 
@@ -3862,8 +3665,7 @@ function drawInterestOverlay(meta) {
     return;
   }
 
-  const isStaleOverlay = interestOverlayScanCache?.scanKey !== plan.scanKey;
-  if (!interestOverlayScanCache) {
+  if (interestOverlayScanCache?.scanKey !== plan.scanKey) {
     return;
   }
 
@@ -3875,21 +3677,13 @@ function drawInterestOverlay(meta) {
   const { cellSize, offsetX, offsetY } = plan.gridLayout;
 
   ctx.save();
-  ctx.fillStyle = isStaleOverlay ? "rgba(120, 200, 255, 0.12)" : "rgba(120, 200, 255, 0.2)";
+  ctx.fillStyle = "rgba(120, 200, 255, 0.2)";
   for (const cellIndex of scanResult.highCells) {
     const col = cellIndex % plan.gridCols;
     const row = Math.floor(cellIndex / plan.gridCols);
     const x = offsetX + col * cellSize;
     const y = offsetY + row * cellSize;
     ctx.fillRect(x, y, cellSize, cellSize);
-  }
-
-  if (isStaleOverlay) {
-    ctx.fillStyle = "rgba(180, 220, 255, 0.75)";
-    ctx.font = "12px Inter, system-ui, -apple-system, Segoe UI, sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillText("Overlay updating…", 14, 14);
   }
   ctx.restore();
 }
@@ -4207,37 +4001,19 @@ function drawDebugOverlay(meta) {
   ].join("\n");
 }
 
-async function draw() {
+function draw() {
   if (!appData || !currentFormulaId) {
     return;
   }
 
   const startedAt = performance.now();
-  const myGeneration = renderGeneration;
   const didResize = resizeCanvas();
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  const panZoomIterationCap = Math.round(clamp(Number(appData.defaults.panZoomIterationCap ?? PAN_ZOOM_ITERATION_CAP_DEFAULT), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
-  const cappedInteractionActive = panZoomInteractionActive || isManualModulating || isKeyboardManualModulating;
-  const effectiveIterationSetting = cappedInteractionActive
-    ? Math.min(iterationSetting, panZoomIterationCap)
-    : iterationSetting;
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
-  const iterations = effectiveIterationSetting;
-  renderProgressStartedAt = performance.now();
-  renderProgressShownThisDraw = false;
-  const { pxW, pxH } = getExportSizePx(canvas);
-  const cropScale = Math.max(
-    1,
-    canvas.width / Math.max(1, pxW),
-    canvas.height / Math.max(1, pxH),
-  );
-  const fullCanvas = ensureExportCacheCanvas(
-    Math.max(1, Math.round(pxW * cropScale)),
-    Math.max(1, Math.round(pxH * cropScale)),
-  );
-  const frameMetaFull = await renderFrame({
-    ctx: exportCacheCtx,
-    canvas: fullCanvas,
+  const iterations = iterationSetting;
+  const frameMeta = renderFrame({
+    ctx,
+    canvas,
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
@@ -4251,51 +4027,7 @@ async function draw() {
     onProgress: (percent, isComplete) => {
       updateRenderProgressToast(percent, isComplete);
     },
-    shouldAbort: () => myGeneration !== renderGeneration,
   });
-
-  if (myGeneration !== renderGeneration) {
-    return;
-  }
-
-  const viewportWidth = Math.max(1, canvas.width);
-  const viewportHeight = Math.max(1, canvas.height);
-  const cropX = Math.max(0, Math.floor((fullCanvas.width - viewportWidth) * 0.5));
-  const cropY = Math.max(0, Math.floor((fullCanvas.height - viewportHeight) * 0.5));
-  const cropW = Math.min(viewportWidth, fullCanvas.width - cropX);
-  const cropH = Math.min(viewportHeight, fullCanvas.height - cropY);
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(fullCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-
-  const fullWorld = frameMetaFull.world;
-  const fullView = frameMetaFull.view;
-  const worldPerPxX = (fullWorld.maxX - fullWorld.minX) / Math.max(1, fullView.width - 1);
-  const worldPerPxY = (fullWorld.maxY - fullWorld.minY) / Math.max(1, fullView.height - 1);
-  const viewWorldMinX = fullWorld.minX + cropX * worldPerPxX;
-  const viewWorldMaxX = viewWorldMinX + worldPerPxX * Math.max(1, cropW - 1);
-  const viewWorldMinY = fullWorld.minY + cropY * worldPerPxY;
-  const viewWorldMaxY = viewWorldMinY + worldPerPxY * Math.max(1, cropH - 1);
-
-  const frameMeta = {
-    ...frameMetaFull,
-    world: {
-      minX: viewWorldMinX,
-      maxX: viewWorldMaxX,
-      minY: viewWorldMinY,
-      maxY: viewWorldMaxY,
-      centerX: (viewWorldMinX + viewWorldMaxX) * 0.5,
-      centerY: (viewWorldMinY + viewWorldMaxY) * 0.5,
-    },
-    view: {
-      width: cropW,
-      height: cropH,
-      centerX: cropW * 0.5,
-      centerY: cropH * 0.5,
-      scaleX: (cropW - 1) / Math.max(viewWorldMaxX - viewWorldMinX, 1e-6),
-      scaleY: (cropH - 1) / Math.max(viewWorldMaxY - viewWorldMinY, 1e-6),
-    },
-  };
 
 
   const now = performance.now();
@@ -4310,18 +4042,6 @@ async function draw() {
     ...frameMeta,
     iterations,
     renderMs: now - startedAt,
-  };
-  lastFullRenderMeta = {
-    ...frameMetaFull,
-    iterations,
-    renderMs: now - startedAt,
-  };
-  renderRevision += 1;
-  exportCacheMeta = {
-    pxW: fullCanvas.width,
-    pxH: fullCanvas.height,
-    updatedAt: performance.now(),
-    renderRevision,
   };
 
   const manualOverlayActive = shouldShowManualOverlay();
@@ -4338,10 +4058,6 @@ async function draw() {
   updateQuickSliderReadout();
   syncDetailedSettingsControls();
   layoutFloatingActions();
-
-  if (shouldShowInterestOverlay()) {
-    scheduleInterestOverlayRecalc({ meta: lastRenderMeta, immediate: false, showProgress: true });
-  }
 
 }
 
@@ -4491,35 +4207,8 @@ function drawScreenshotOverlay(targetCtx, width, height) {
 async function saveBlobToDevice(blob, filename) {
   const file = new File([blob], filename, { type: "image/png" });
   if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: filename });
-      pendingShareFile = null;
-      pendingShareTitle = "";
-      return;
-    } catch (error) {
-      const shareErrorName = String(error?.name || "");
-      const shareErrorMessage = String(error?.message || "");
-      const isUserCancelled = shareErrorName === "AbortError";
-      const requiresFreshTap = shareErrorName === "NotAllowedError"
-        || shareErrorName === "NotSupportedError"
-        || /not allowed|denied|permission|policy|context/i.test(shareErrorMessage);
-
-      if (isUserCancelled) {
-        throw new Error("Share cancelled.");
-      }
-
-      if (!requiresFreshTap) {
-        throw error;
-      }
-
-      pendingShareFile = file;
-      pendingShareTitle = filename;
-      console.info("Web Share API needs a fresh user activation. Waiting for explicit retry tap.", {
-        shareErrorName,
-        shareErrorMessage,
-      });
-      throw new Error("Share needs a fresh tap. Use 'Share prepared screenshot now'.");
-    }
+    await navigator.share({ files: [file], title: filename });
+    return;
   }
 
   const objectUrl = URL.createObjectURL(blob);
@@ -4532,70 +4221,22 @@ async function saveBlobToDevice(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
 }
 
-function syncScreenshotMenuShareRetryUi() {
-  if (!screenshotMenuShareRetryEl) {
-    return;
-  }
-
-  const hasPendingShare = Boolean(pendingShareFile);
-  screenshotMenuShareRetryEl.classList.toggle("is-hidden", !hasPendingShare);
-  if (screenshotMenuShareRetryHintEl) {
-    screenshotMenuShareRetryHintEl.textContent = hasPendingShare
-      ? "Needed when browser requires a second explicit tap to share."
-      : "Shown when share needs a fresh tap.";
-  }
-}
-
-async function retryPendingShare() {
-  if (!pendingShareFile || !navigator.share) {
-    showToast("No prepared screenshot waiting to share.");
-    return;
-  }
-
-  try {
-    await navigator.share({ files: [pendingShareFile], title: pendingShareTitle || pendingShareFile.name });
-    pendingShareFile = null;
-    pendingShareTitle = "";
-    syncScreenshotMenuShareRetryUi();
-    closeScreenshotMenu();
-    showToast("Screenshot shared.");
-  } catch (error) {
-    if (String(error?.name || "") === "AbortError") {
-      showToast("Share cancelled.");
-      return;
-    }
-    console.error(error);
-    showToast(`Share failed: ${error.message}`);
-  }
-}
-
 function getExportWorldFromLiveMeta(exportWidth, exportHeight) {
-  const sourceMeta = lastFullRenderMeta || lastRenderMeta;
-  if (!sourceMeta?.world || !sourceMeta?.view) {
+  if (!lastRenderMeta?.world || !lastRenderMeta?.view) {
     return null;
   }
 
-  const liveView = sourceMeta.view;
-  const liveWorld = sourceMeta.world;
+  const liveView = lastRenderMeta.view;
+  const liveWorld = lastRenderMeta.world;
   const liveSpanX = Math.max(liveWorld.maxX - liveWorld.minX, 1e-6);
   const liveSpanY = Math.max(liveWorld.maxY - liveWorld.minY, 1e-6);
-  const sourceShortSpan = liveView.width <= liveView.height ? liveSpanX : liveSpanY;
-  const targetAspect = Math.max(1e-6, exportWidth / Math.max(1, exportHeight));
+  const worldPerPxX = liveSpanX / Math.max(1, liveView.width - 1);
+  const worldPerPxY = liveSpanY / Math.max(1, liveView.height - 1);
 
-  let exportSpanX;
-  let exportSpanY;
-  if (exportWidth >= exportHeight) {
-    exportSpanY = sourceShortSpan;
-    exportSpanX = exportSpanY * targetAspect;
-  } else {
-    exportSpanX = sourceShortSpan;
-    exportSpanY = exportSpanX / targetAspect;
-  }
-
+  const exportSpanX = worldPerPxX * Math.max(1, exportWidth - 1);
+  const exportSpanY = worldPerPxY * Math.max(1, exportHeight - 1);
   const centerX = Number.isFinite(liveWorld.centerX) ? liveWorld.centerX : (liveWorld.minX + liveWorld.maxX) * 0.5;
   const centerY = Number.isFinite(liveWorld.centerY) ? liveWorld.centerY : (liveWorld.minY + liveWorld.maxY) * 0.5;
-  const worldPerPxX = exportSpanX / Math.max(1, exportWidth - 1);
-  const worldPerPxY = exportSpanY / Math.max(1, exportHeight - 1);
 
   return {
     minX: centerX - exportSpanX * 0.5,
@@ -4607,31 +4248,39 @@ function getExportWorldFromLiveMeta(exportWidth, exportHeight) {
   };
 }
 
-function ensureExportCacheCanvas(width, height) {
-  if (!exportCacheCanvas) {
-    exportCacheCanvas = document.createElement("canvas");
-    exportCacheCtx = exportCacheCanvas.getContext("2d", { willReadFrequently: true });
+async function captureScreenshot(includeOverlay) {
+  if (!canvas) {
+    return;
   }
-  if (!exportCacheCtx) {
+
+  const { pxW, pxH, dpr, isLandscape, hasScreenSize, debug } = getExportSizePx(canvas);
+  const exportWorld = getExportWorldFromLiveMeta(pxW, pxH);
+  if (window.__HOPALONG_SCREENSHOT_DEBUG) {
+    console.info("[screenshot] export sizing", {
+      pxW,
+      pxH,
+      dpr,
+      isLandscape,
+      hasScreenSize,
+      exportWorld,
+      ...debug,
+    });
+  }
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = pxW;
+  exportCanvas.height = pxH;
+  const exportCtx = exportCanvas.getContext("2d", { willReadFrequently: true });
+  if (!exportCtx) {
     throw new Error("Screenshot export context unavailable.");
   }
-  if (exportCacheCanvas.width !== width || exportCacheCanvas.height !== height) {
-    exportCacheCanvas.width = width;
-    exportCacheCanvas.height = height;
-  }
-  return exportCacheCanvas;
-}
 
-async function renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx) {
-  const myGeneration = renderGeneration;
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const scaleMode = getScaleMode();
-  const exportWorld = getExportWorldFromLiveMeta(targetCanvas.width, targetCanvas.height);
 
-  await renderFrame({
-    ctx: targetCtx,
-    canvas: targetCanvas,
+  renderFrame({
+    ctx: exportCtx,
+    canvas: exportCanvas,
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
@@ -4643,170 +4292,85 @@ async function renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx) {
     seed: getSeedForFormula(currentFormulaId),
     renderColoring: getRenderColoringOptions(),
     backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
-    shouldAbort: () => myGeneration !== renderGeneration,
   });
-}
 
-async function refreshExportCacheFromCurrentFrame() {
-  if (!canvas || !lastRenderMeta || !appData || !currentFormulaId) {
-    return;
-  }
-  const { pxW, pxH } = getExportSizePx(canvas);
-  const targetCanvas = ensureExportCacheCanvas(pxW, pxH);
-  await renderCurrentFrameIntoExportCanvas(targetCanvas, exportCacheCtx);
-  exportCacheMeta = {
-    pxW,
-    pxH,
-    updatedAt: performance.now(),
-    renderRevision,
-  };
-}
 
-function makeCanvasClone(sourceCanvas, includeOverlay) {
-  const outputCanvas = document.createElement("canvas");
-  outputCanvas.width = sourceCanvas.width;
-  outputCanvas.height = sourceCanvas.height;
-  const outputCtx = outputCanvas.getContext("2d", { willReadFrequently: true });
-  if (!outputCtx) {
-    throw new Error("Screenshot export context unavailable.");
-  }
-  outputCtx.drawImage(sourceCanvas, 0, 0);
   if (includeOverlay) {
-    drawScreenshotOverlay(outputCtx, outputCanvas.width, outputCanvas.height);
+    drawScreenshotOverlay(exportCtx, exportCanvas.width, exportCanvas.height);
   }
-  return outputCanvas;
-}
 
-async function exportCanvasToBlob(canvasToExport) {
-  const blob = await new Promise((resolve) => canvasToExport.toBlob(resolve, "image/png"));
+  const blob = await new Promise((resolve) => exportCanvas.toBlob(resolve, "image/png"));
   if (!blob) {
     throw new Error("Screenshot export failed.");
   }
-  return blob;
-}
 
-function getLongEdgeExportSize(targetLongEdge) {
-  const size = getExportSizePx(canvas);
-  const longEdge = Math.max(1, Number(targetLongEdge) || 1);
-  const aspect = size.pxW / Math.max(1, size.pxH);
-  if (aspect >= 1) {
-    return { width: longEdge, height: Math.max(1, Math.round(longEdge / aspect)) };
-  }
-  return { width: Math.max(1, Math.round(longEdge * aspect)), height: longEdge };
-}
-
-async function captureCachedScreenshot(includeOverlay) {
-  if (!exportCacheCanvas || !exportCacheMeta) {
-    showToast("Preparing latest screenshot...");
-    await refreshExportCacheFromCurrentFrame();
-  }
-  if (!exportCacheCanvas) {
-    throw new Error("No render cache available yet.");
-  }
-  const outputCanvas = makeCanvasClone(exportCacheCanvas, includeOverlay);
-  const blob = await exportCanvasToBlob(outputCanvas);
   const filename = `hopalong-${includeOverlay ? "overlay" : "clean"}-${formatScreenshotTimestamp(new Date())}.png`;
   await saveBlobToDevice(blob, filename);
-  showToast(includeOverlay ? "Saved overlay screenshot." : "Saved clean screenshot.");
+  showToast(includeOverlay ? "Saved screenshot with parameter overlay." : "Saved clean screenshot.");
 }
 
-async function captureHighResScreenshot(longEdgePx) {
-  const { width, height } = getLongEdgeExportSize(longEdgePx);
-  const targetCanvas = document.createElement("canvas");
-  targetCanvas.width = width;
-  targetCanvas.height = height;
-  const targetCtx = targetCanvas.getContext("2d", { willReadFrequently: true });
-  if (!targetCtx) {
-    throw new Error("Screenshot export context unavailable.");
-  }
-
-  const label = longEdgePx >= 7680 ? "8K" : "4K";
-  const myGeneration = renderGeneration;
-  highResExportInProgress = true;
-  try {
-    await renderFrame({
-      ctx: targetCtx,
-      canvas: targetCanvas,
-      formulaId: currentFormulaId,
-      cmapName: appData.defaults.cmapName,
-      params: getDerivedParams(),
-      iterations: Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max)),
-      burn: Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max)),
-      scaleMode: getScaleMode(),
-      fixedView,
-      worldOverride: getExportWorldFromLiveMeta(width, height),
-      seed: getSeedForFormula(currentFormulaId),
-      renderColoring: getRenderColoringOptions(),
-      backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
-      onProgress: (percent, isComplete) => {
-        updateExportRenderProgressToast(`Rendering ${label} screenshot`, percent, isComplete);
-      },
-      shouldAbort: () => myGeneration !== renderGeneration,
-    });
-    const blob = await exportCanvasToBlob(targetCanvas);
-    const filenameLabel = longEdgePx >= 7680 ? "8k" : "4k";
-    const filename = `hopalong-clean-${filenameLabel}-${formatScreenshotTimestamp(new Date())}.png`;
-    await saveBlobToDevice(blob, filename);
-    showToast(`Saved clean ${label} screenshot.`);
-  } catch (error) {
-    if (isRenderCancelledError(error)) {
-      showToast(`${label} screenshot cancelled.`);
-      return;
-    }
-    throw error;
-  } finally {
-    highResExportInProgress = false;
-    if (drawDirty) {
-      requestDraw();
-    }
+function clearCameraPressState() {
+  if (cameraPressTimer) {
+    window.clearTimeout(cameraPressTimer);
+    cameraPressTimer = null;
   }
 }
 
-function openScreenshotMenu() {
-  syncScreenshotMenuShareRetryUi();
-  screenshotMenuOverlayEl?.classList.add("is-open");
+function clearPendingCameraTap() {
+  if (pendingCameraTapTimer) {
+    window.clearTimeout(pendingCameraTapTimer);
+    pendingCameraTapTimer = null;
+  }
 }
 
-function closeScreenshotMenu() {
-  screenshotMenuOverlayEl?.classList.remove("is-open");
-}
-
-async function captureScreenshotAction(action) {
+async function captureScreenshotSafe(includeOverlay) {
   try {
-    if (action === "clean") {
-      await captureCachedScreenshot(false);
-      return;
-    }
-    if (action === "overlay") {
-      await captureCachedScreenshot(true);
-      return;
-    }
-    if (action === "4k") {
-      showToast("Rendering 4K screenshot. This may take a moment.");
-      await captureHighResScreenshot(3840);
-      return;
-    }
-    if (action === "8k") {
-      showToast("Rendering 8K screenshot. This may take longer.");
-      await captureHighResScreenshot(7680);
-    }
+    await captureScreenshot(includeOverlay);
   } catch (error) {
-    if (isRenderCancelledError(error)) {
-      showToast("Screenshot cancelled.");
-      return;
-    }
-    if (error?.message === "Share cancelled.") {
-      showToast("Share cancelled.");
-      return;
-    }
-    if (error?.message === "Share needs a fresh tap. Use 'Share prepared screenshot now'.") {
-      openScreenshotMenu();
-      showToast("Share needs one more tap. Use 'Share prepared screenshot now'.");
-      return;
-    }
     console.error(error);
-    showToast(`Screenshot failed: ${error.message}`);
+    showToast(`${includeOverlay ? "Overlay screenshot" : "Screenshot"} failed: ${error.message}`);
   }
+}
+
+function beginCameraPress(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  clearCameraPressState();
+  longPressTriggered = false;
+  cameraBtn.classList.add("is-armed");
+
+  cameraPressTimer = window.setTimeout(async () => {
+    longPressTriggered = true;
+    clearPendingCameraTap();
+    await captureScreenshotSafe(true);
+  }, CAMERA_LONG_PRESS_MS);
+}
+
+async function endCameraPress(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  clearCameraPressState();
+  cameraBtn.classList.remove("is-armed");
+
+  if (longPressTriggered) {
+    longPressTriggered = false;
+    return;
+  }
+
+  const now = performance.now();
+  if (now - cameraLastTapTs <= DOUBLE_TAP_MS) {
+    cameraLastTapTs = 0;
+    clearPendingCameraTap();
+    await captureScreenshotSafe(true);
+    return;
+  }
+
+  cameraLastTapTs = now;
+  clearPendingCameraTap();
+  pendingCameraTapTimer = window.setTimeout(() => {
+    pendingCameraTapTimer = null;
+    captureScreenshotSafe(false);
+  }, DOUBLE_TAP_MS + 10);
 }
 
 function registerHandlers() {
@@ -4850,33 +4414,21 @@ function registerHandlers() {
   setupStepHold(qsMinus, -1);
   setupStepHold(qsPlus, 1);
 
-  cameraBtn.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    openScreenshotMenu();
-  });
+  if (window.PointerEvent) {
+    cameraBtn.addEventListener("pointerdown", beginCameraPress);
+    cameraBtn.addEventListener("pointerup", endCameraPress);
+    cameraBtn.addEventListener("pointercancel", () => {
+      clearCameraPressState();
+      cameraBtn.classList.remove("is-armed");
+      longPressTriggered = false;
+    });
+  } else {
+    cameraBtn.addEventListener("touchstart", beginCameraPress, { passive: false });
+    cameraBtn.addEventListener("touchend", endCameraPress, { passive: false });
+    cameraBtn.addEventListener("mousedown", beginCameraPress);
+    cameraBtn.addEventListener("mouseup", endCameraPress);
+  }
   cameraBtn.addEventListener("contextmenu", (event) => event.preventDefault());
-  screenshotMenuCloseEl?.addEventListener("click", () => closeScreenshotMenu());
-  screenshotMenuBackdropEl?.addEventListener("click", () => closeScreenshotMenu());
-  screenshotMenuCleanEl?.addEventListener("click", async () => {
-    closeScreenshotMenu();
-    await captureScreenshotAction("clean");
-  });
-  screenshotMenuOverlayOptionEl?.addEventListener("click", async () => {
-    closeScreenshotMenu();
-    await captureScreenshotAction("overlay");
-  });
-  screenshotMenu4kEl?.addEventListener("click", async () => {
-    closeScreenshotMenu();
-    await captureScreenshotAction("4k");
-  });
-  screenshotMenu8kEl?.addEventListener("click", async () => {
-    closeScreenshotMenu();
-    await captureScreenshotAction("8k");
-  });
-  screenshotMenuShareRetryEl?.addEventListener("click", async () => {
-    await retryPendingShare();
-  });
 
   scaleModeBtn.addEventListener("click", () => {
     const currentlyFixed = getScaleMode() === "fixed";
@@ -4942,7 +4494,6 @@ function registerHandlers() {
   detailInterestOverlayToggleEl?.addEventListener("change", () => applyInterestOverlayEnabled(detailInterestOverlayToggleEl.checked));
   detailInterestGridSizeRangeEl?.addEventListener("input", () => applyInterestGridSize(detailInterestGridSizeRangeEl.value));
   detailInterestScanIterationsRangeEl?.addEventListener("input", () => applyInterestScanIterations(detailInterestScanIterationsRangeEl.value));
-  detailPanZoomIterationCapRangeEl?.addEventListener("input", () => applyPanZoomIterationCap(detailPanZoomIterationCapRangeEl.value));
   detailInterestLyapunovEnabledToggleEl?.addEventListener("change", () => applyInterestLyapunovEnabled(detailInterestLyapunovEnabledToggleEl.checked));
   detailInterestLyapunovMinExponentRangeEl?.addEventListener("input", () => applyInterestLyapunovMinExponent(detailInterestLyapunovMinExponentRangeEl.value));
   detailInterestLyapunovDelta0RangeEl?.addEventListener("input", () => applyInterestLyapunovDelta0(detailInterestLyapunovDelta0RangeEl.value));
@@ -5132,9 +4683,6 @@ async function loadData() {
   if (typeof data.defaults.launchIterationCap !== "number") {
     data.defaults.launchIterationCap = 500000;
   }
-  if (typeof data.defaults.panZoomIterationCap !== "number") {
-    data.defaults.panZoomIterationCap = PAN_ZOOM_ITERATION_CAP_DEFAULT;
-  }
   if (!RENDER_COLOR_MODE_SET.has(data.defaults.renderColorMode)) {
     data.defaults.renderColorMode = RENDER_COLOR_MODES.ITERATION_ORDER;
   }
@@ -5190,7 +4738,6 @@ async function loadData() {
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
   data.defaults.launchIterationCap = Math.round(clamp(data.defaults.launchIterationCap, sliderControls.iters.min, sliderControls.iters.max));
-  data.defaults.panZoomIterationCap = Math.round(clamp(data.defaults.panZoomIterationCap, PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
   data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   data.defaults.renderLogStrength = clamp(data.defaults.renderLogStrength, 0.5, 30);
   data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
@@ -5242,7 +4789,6 @@ async function loadData() {
 
 async function bootstrap() {
   try {
-    installInteractionInterrupts();
     installGlobalZoomBlockers();
     appData = await loadData();
     builtInFormulaRanges = appData.formula_ranges_raw || {};
@@ -5260,7 +4806,6 @@ async function bootstrap() {
     appData.defaults.interestLyapunovRescale = Boolean(appData.defaults.interestLyapunovRescale ?? true);
     appData.defaults.interestLyapunovMaxDistance = clamp(Number(appData.defaults.interestLyapunovMaxDistance ?? INTEREST_LYAPUNOV_MAX_DISTANCE_MAX), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
     appData.defaults.launchIterationCap = Math.round(clamp(Number(appData.defaults.launchIterationCap ?? 500000), sliderControls.iters.min, sliderControls.iters.max));
-    appData.defaults.panZoomIterationCap = Math.round(clamp(Number(appData.defaults.panZoomIterationCap ?? PAN_ZOOM_ITERATION_CAP_DEFAULT), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
     appData.defaults.sliders.iters = Math.min(appData.defaults.sliders.iters, appData.defaults.launchIterationCap);
     appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
     normalizeHoldTimingDefaults();
