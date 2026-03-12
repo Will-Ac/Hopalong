@@ -4395,13 +4395,23 @@ function getExportWorldFromLiveMeta(exportWidth, exportHeight) {
   const liveWorld = sourceMeta.world;
   const liveSpanX = Math.max(liveWorld.maxX - liveWorld.minX, 1e-6);
   const liveSpanY = Math.max(liveWorld.maxY - liveWorld.minY, 1e-6);
-  const worldPerPxX = liveSpanX / Math.max(1, liveView.width - 1);
-  const worldPerPxY = liveSpanY / Math.max(1, liveView.height - 1);
+  const sourceShortSpan = liveView.width <= liveView.height ? liveSpanX : liveSpanY;
+  const targetAspect = Math.max(1e-6, exportWidth / Math.max(1, exportHeight));
 
-  const exportSpanX = worldPerPxX * Math.max(1, exportWidth - 1);
-  const exportSpanY = worldPerPxY * Math.max(1, exportHeight - 1);
+  let exportSpanX;
+  let exportSpanY;
+  if (exportWidth >= exportHeight) {
+    exportSpanY = sourceShortSpan;
+    exportSpanX = exportSpanY * targetAspect;
+  } else {
+    exportSpanX = sourceShortSpan;
+    exportSpanY = exportSpanX / targetAspect;
+  }
+
   const centerX = Number.isFinite(liveWorld.centerX) ? liveWorld.centerX : (liveWorld.minX + liveWorld.maxX) * 0.5;
   const centerY = Number.isFinite(liveWorld.centerY) ? liveWorld.centerY : (liveWorld.minY + liveWorld.maxY) * 0.5;
+  const worldPerPxX = exportSpanX / Math.max(1, exportWidth - 1);
+  const worldPerPxY = exportSpanY / Math.max(1, exportHeight - 1);
 
   return {
     minX: centerX - exportSpanX * 0.5,
