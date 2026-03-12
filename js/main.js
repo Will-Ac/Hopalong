@@ -2315,6 +2315,8 @@ function applyManualModulation(deltaX, deltaY) {
     return false;
   }
 
+  beginPanZoomInteraction();
+
   if (manX) {
     const control = sliderControls[manX];
     appData.defaults.sliders[manX] = clamp(
@@ -3401,6 +3403,7 @@ function stopKeyboardHold() {
   }
   keyHold = { code: null, axis: null, direction: 0, sliderKey: null, interval: null, startMs: 0 };
   isKeyboardManualModulating = false;
+  schedulePanZoomSettledRedraw();
   requestDraw();
 }
 
@@ -3438,6 +3441,7 @@ function onKeyboardArrowDown(event) {
   showKeyboardStepToast(targetSliderKey, mapping.direction, baseStep);
 
   stopKeyboardHold();
+  beginPanZoomInteraction();
   isKeyboardManualModulating = true;
   requestDraw();
   const { holdRepeatMs } = getHoldTimingSettings();
@@ -4184,7 +4188,8 @@ async function draw() {
   const didResize = resizeCanvas();
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const panZoomIterationCap = Math.round(clamp(Number(appData.defaults.panZoomIterationCap ?? PAN_ZOOM_ITERATION_CAP_DEFAULT), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
-  const effectiveIterationSetting = panZoomInteractionActive
+  const cappedInteractionActive = panZoomInteractionActive || isManualModulating || isKeyboardManualModulating;
+  const effectiveIterationSetting = cappedInteractionActive
     ? Math.min(iterationSetting, panZoomIterationCap)
     : iterationSetting;
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
