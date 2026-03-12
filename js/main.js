@@ -55,6 +55,8 @@ const detailInterestGridSizeRangeEl = document.getElementById("detailInterestGri
 const detailInterestGridSizeFormattedEl = document.getElementById("detailInterestGridSizeFormatted");
 const detailInterestScanIterationsRangeEl = document.getElementById("detailInterestScanIterationsRange");
 const detailInterestScanIterationsFormattedEl = document.getElementById("detailInterestScanIterationsFormatted");
+const detailPanZoomIterationCapRangeEl = document.getElementById("detailPanZoomIterationCapRange");
+const detailPanZoomIterationCapFormattedEl = document.getElementById("detailPanZoomIterationCapFormatted");
 const detailInterestLyapunovEnabledToggleEl = document.getElementById("detailInterestLyapunovEnabledToggle");
 const detailInterestLyapunovMinExponentRangeEl = document.getElementById("detailInterestLyapunovMinExponentRange");
 const detailInterestLyapunovMinExponentFormattedEl = document.getElementById("detailInterestLyapunovMinExponentFormatted");
@@ -164,6 +166,10 @@ const INTEREST_GRID_SIZE_MIN = 8;
 const INTEREST_GRID_SIZE_MAX = 256;
 const INTEREST_SCAN_ITERATIONS_MIN = 100;
 const INTEREST_SCAN_ITERATIONS_MAX = 5000;
+const PAN_ZOOM_ITERATION_CAP_DEFAULT = 500000;
+const PAN_ZOOM_ITERATION_CAP_MIN = 10000;
+const PAN_ZOOM_ITERATION_CAP_MAX = 50000000;
+const PAN_ZOOM_SETTLE_MS = 200;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MIN = -1;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MAX = 1;
 const INTEREST_LYAPUNOV_DELTA0_MIN = 1e-7;
@@ -201,9 +207,13 @@ let drawScheduled = false;
 let drawDirty = false;
 let drawInProgress = false;
 let highResExportInProgress = false;
+let panZoomInteractionActive = false;
+let panZoomSettleTimer = null;
 let toastTimer = null;
 let renderProgressHideTimer = null;
 let renderProgressVisible = false;
+let renderProgressStartedAt = 0;
+let renderProgressShownThisDraw = false;
 let lastComputedUiMetrics = { fontSize: null, tileSize: null };
 let lastSizingViewport = { width: 0, height: 0 };
 
@@ -412,12 +422,21 @@ function updateRenderProgressToast(percent, isComplete = false) {
     return;
   }
 
+  const elapsedMs = performance.now() - renderProgressStartedAt;
+  if (!isComplete && elapsedMs < 1000) {
+    return;
+  }
+  if (isComplete && !renderProgressShownThisDraw) {
+    return;
+  }
+
   const normalizedPercent = Math.max(0, Math.min(100, Math.round(percent / 5) * 5));
   window.clearTimeout(renderProgressHideTimer);
   renderProgressHideTimer = null;
-  toastEl.textContent = `Rendering iterations: ${normalizedPercent}%`;
+  toastEl.textContent = `Render ${normalizedPercent}%`;
   toastEl.classList.add("is-visible");
   renderProgressVisible = true;
+  renderProgressShownThisDraw = true;
 
   if (isComplete) {
     renderProgressHideTimer = window.setTimeout(() => {
@@ -1310,6 +1329,7 @@ function syncDetailedSettingsControls() {
   if (detailInterestOverlayToggleEl) detailInterestOverlayToggleEl.checked = Boolean(appData.defaults.interestOverlayEnabled);
   const interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize);
   const interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+  const panZoomIterationCap = Math.round(clamp(Number(appData.defaults.panZoomIterationCap), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
   const interestLyapunovEnabled = Boolean(appData.defaults.interestLyapunovEnabled);
   const interestLyapunovMinExponent = clamp(Number(appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
   const interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
@@ -1319,6 +1339,8 @@ function syncDetailedSettingsControls() {
   if (detailInterestGridSizeFormattedEl) detailInterestGridSizeFormattedEl.textContent = formatNumberForUi(interestGridSize, 0);
   if (detailInterestScanIterationsRangeEl) detailInterestScanIterationsRangeEl.value = String(interestScanIterations);
   if (detailInterestScanIterationsFormattedEl) detailInterestScanIterationsFormattedEl.textContent = formatNumberForUi(interestScanIterations, 0);
+  if (detailPanZoomIterationCapRangeEl) detailPanZoomIterationCapRangeEl.value = String(panZoomIterationCap);
+  if (detailPanZoomIterationCapFormattedEl) detailPanZoomIterationCapFormattedEl.textContent = formatNumberForUi(panZoomIterationCap, 0);
   if (detailInterestLyapunovEnabledToggleEl) detailInterestLyapunovEnabledToggleEl.checked = interestLyapunovEnabled;
   if (detailInterestLyapunovMinExponentRangeEl) detailInterestLyapunovMinExponentRangeEl.value = String(interestLyapunovMinExponent);
   if (detailInterestLyapunovMinExponentFormattedEl) detailInterestLyapunovMinExponentFormattedEl.textContent = formatNumberForUi(interestLyapunovMinExponent, 2);
@@ -1441,6 +1463,13 @@ function applyInterestScanIterations(nextValue) {
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyPanZoomIterationCap(nextValue) {
+  appData.defaults.panZoomIterationCap = Math.round(clamp(Number(nextValue), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
   commitCurrentStateToHistory();
 }
 
@@ -2431,6 +2460,30 @@ function clearTwoFingerGesture() {
   lastTwoDebug = null;
 }
 
+function beginPanZoomInteraction() {
+  panZoomInteractionActive = true;
+  if (panZoomSettleTimer) {
+    window.clearTimeout(panZoomSettleTimer);
+    panZoomSettleTimer = null;
+  }
+}
+
+function schedulePanZoomSettledRedraw() {
+  if (!panZoomInteractionActive) {
+    return;
+  }
+
+  if (panZoomSettleTimer) {
+    window.clearTimeout(panZoomSettleTimer);
+  }
+
+  panZoomSettleTimer = window.setTimeout(() => {
+    panZoomSettleTimer = null;
+    panZoomInteractionActive = false;
+    requestDraw();
+  }, PAN_ZOOM_SETTLE_MS);
+}
+
 function onCanvasPointerDown(event) {
   if (!appData) {
     return;
@@ -2589,10 +2642,12 @@ function onCanvasPointerMove(event) {
   }
 
   if (shouldZoom && Number.isFinite(ratioStep) && ratioStep > 0) {
+    beginPanZoomInteraction();
     applyZoomAtPoint(ratioStep, midpoint.x, midpoint.y);
   }
 
   if (shouldPan) {
+    beginPanZoomInteraction();
     applyPanDelta(dxm, dym);
   }
 
@@ -2614,6 +2669,7 @@ function clearPointerState(pointerId) {
     lastPointerPosition = null;
     isManualModulating = false;
     clearTwoFingerGesture();
+    schedulePanZoomSettledRedraw();
     requestDraw();
     return;
   }
@@ -2657,9 +2713,11 @@ function onCanvasWheel(event) {
     syncFixedViewFromLastRenderMeta();
   }
   setScaleModeFixed("manual pan/zoom");
+  beginPanZoomInteraction();
   const pos = getCanvasPointerPosition(event);
   const zoomFactor = Math.exp(-event.deltaY * 0.0025);
   applyZoomAtPoint(zoomFactor, pos.x, pos.y);
+  schedulePanZoomSettledRedraw();
   suppressHistoryTap = true;
   window.setTimeout(() => {
     suppressHistoryTap = false;
@@ -4125,8 +4183,14 @@ async function draw() {
   const startedAt = performance.now();
   const didResize = resizeCanvas();
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
+  const panZoomIterationCap = Math.round(clamp(Number(appData.defaults.panZoomIterationCap ?? PAN_ZOOM_ITERATION_CAP_DEFAULT), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
+  const effectiveIterationSetting = panZoomInteractionActive
+    ? Math.min(iterationSetting, panZoomIterationCap)
+    : iterationSetting;
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
-  const iterations = iterationSetting;
+  const iterations = effectiveIterationSetting;
+  renderProgressStartedAt = performance.now();
+  renderProgressShownThisDraw = false;
   const { pxW, pxH } = getExportSizePx(canvas);
   const cropScale = Math.max(
     1,
@@ -4825,6 +4889,7 @@ function registerHandlers() {
   detailInterestOverlayToggleEl?.addEventListener("change", () => applyInterestOverlayEnabled(detailInterestOverlayToggleEl.checked));
   detailInterestGridSizeRangeEl?.addEventListener("input", () => applyInterestGridSize(detailInterestGridSizeRangeEl.value));
   detailInterestScanIterationsRangeEl?.addEventListener("input", () => applyInterestScanIterations(detailInterestScanIterationsRangeEl.value));
+  detailPanZoomIterationCapRangeEl?.addEventListener("input", () => applyPanZoomIterationCap(detailPanZoomIterationCapRangeEl.value));
   detailInterestLyapunovEnabledToggleEl?.addEventListener("change", () => applyInterestLyapunovEnabled(detailInterestLyapunovEnabledToggleEl.checked));
   detailInterestLyapunovMinExponentRangeEl?.addEventListener("input", () => applyInterestLyapunovMinExponent(detailInterestLyapunovMinExponentRangeEl.value));
   detailInterestLyapunovDelta0RangeEl?.addEventListener("input", () => applyInterestLyapunovDelta0(detailInterestLyapunovDelta0RangeEl.value));
@@ -5014,6 +5079,9 @@ async function loadData() {
   if (typeof data.defaults.launchIterationCap !== "number") {
     data.defaults.launchIterationCap = 500000;
   }
+  if (typeof data.defaults.panZoomIterationCap !== "number") {
+    data.defaults.panZoomIterationCap = PAN_ZOOM_ITERATION_CAP_DEFAULT;
+  }
   if (!RENDER_COLOR_MODE_SET.has(data.defaults.renderColorMode)) {
     data.defaults.renderColorMode = RENDER_COLOR_MODES.ITERATION_ORDER;
   }
@@ -5069,6 +5137,7 @@ async function loadData() {
   data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
   data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
   data.defaults.launchIterationCap = Math.round(clamp(data.defaults.launchIterationCap, sliderControls.iters.min, sliderControls.iters.max));
+  data.defaults.panZoomIterationCap = Math.round(clamp(data.defaults.panZoomIterationCap, PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
   data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   data.defaults.renderLogStrength = clamp(data.defaults.renderLogStrength, 0.5, 30);
   data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
@@ -5137,6 +5206,7 @@ async function bootstrap() {
     appData.defaults.interestLyapunovRescale = Boolean(appData.defaults.interestLyapunovRescale ?? true);
     appData.defaults.interestLyapunovMaxDistance = clamp(Number(appData.defaults.interestLyapunovMaxDistance ?? INTEREST_LYAPUNOV_MAX_DISTANCE_MAX), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
     appData.defaults.launchIterationCap = Math.round(clamp(Number(appData.defaults.launchIterationCap ?? 500000), sliderControls.iters.min, sliderControls.iters.max));
+    appData.defaults.panZoomIterationCap = Math.round(clamp(Number(appData.defaults.panZoomIterationCap ?? PAN_ZOOM_ITERATION_CAP_DEFAULT), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
     appData.defaults.sliders.iters = Math.min(appData.defaults.sliders.iters, appData.defaults.launchIterationCap);
     appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
     normalizeHoldTimingDefaults();
