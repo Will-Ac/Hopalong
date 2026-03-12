@@ -73,7 +73,17 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {}, backgroundColor = [5, 7, 12], onProgress = null }) {
+function createRenderCancelledError() {
+  const error = new Error("Render cancelled");
+  error.code = "RENDER_CANCELLED";
+  return error;
+}
+
+export function isRenderCancelledError(error) {
+  return Boolean(error && (error.code === "RENDER_CANCELLED" || error.message === "Render cancelled"));
+}
+
+export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 120000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {}, backgroundColor = [5, 7, 12], onProgress = null, shouldAbort = null }) {
   const step = formulaStepById.get(formulaId);
   if (!step) {
     throw new Error(`Unknown formula id: ${formulaId}`);
@@ -98,13 +108,20 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
 
   let nextProgressPercent = 0;
   let lastYieldMs = performance.now();
+  const checkAbort = () => {
+    if (typeof shouldAbort === "function" && shouldAbort()) {
+      throw createRenderCancelledError();
+    }
+  };
   const maybeYieldToBrowser = async () => {
+    checkAbort();
     const now = performance.now();
     if (now - lastYieldMs < 20) {
       return;
     }
     await new Promise((resolve) => window.setTimeout(resolve, 0));
     lastYieldMs = performance.now();
+    checkAbort();
   };
 
   const maybeEmitProgress = (fraction, forceComplete = false) => {
@@ -125,6 +142,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
   };
 
   maybeEmitProgress(0, false);
+  checkAbort();
 
   let x = Number(seed?.x);
   let y = Number(seed?.y);
@@ -132,6 +150,9 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
   if (!Number.isFinite(y)) y = 0;
   const burnSteps = clamp(burn ?? 120, 0, 5000);
   for (let i = 0; i < burnSteps; i += 1) {
+    if (i % 256 === 0) {
+      checkAbort();
+    }
     [x, y] = step(x, y, params.a, params.b, params.c, params.d);
     if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
       x = 0;
@@ -150,6 +171,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
 
   for (let i = 0; i < iterations; i += 1) {
     if (i % 1024 === 0) {
+      checkAbort();
       maybeEmitProgress((i / Math.max(1, iterations)) * 0.7);
       await maybeYieldToBrowser();
     }
@@ -256,6 +278,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
   if (renderMode === "iteration_order") {
     for (let i = 0; i < sampleCount; i += 1) {
       if (i % 2048 === 0) {
+        checkAbort();
         maybeEmitProgress(0.7 + (i / Math.max(1, sampleCount)) * 0.3);
         await maybeYieldToBrowser();
       }
@@ -282,6 +305,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
 
     for (let i = 0; i < sampleCount; i += 1) {
       if (i % 2048 === 0) {
+        checkAbort();
         maybeEmitProgress(0.7 + (i / Math.max(1, sampleCount)) * 0.15);
         await maybeYieldToBrowser();
       }
@@ -324,6 +348,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
 
     for (let pixelIndex = 0; pixelIndex < hitCounts.length; pixelIndex += 1) {
       if (pixelIndex % 4096 === 0) {
+        checkAbort();
         maybeEmitProgress(0.85 + (pixelIndex / Math.max(1, hitCounts.length)) * 0.15);
         await maybeYieldToBrowser();
       }
@@ -359,6 +384,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
     }
   }
 
+  checkAbort();
   maybeEmitProgress(1, true);
   ctx.putImageData(image, 0, 0);
 
@@ -383,7 +409,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
 }
 
 
-export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gridCols = 25, gridRows = 25, iterations = 1200, lyapunov = {}, onProgress = null }) {
+export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gridCols = 25, gridRows = 25, iterations = 1200, lyapunov = {}, onProgress = null, shouldAbort = null }) {
   const step = formulaStepById.get(formulaId);
   if (!step || !plane) {
     return { gridCols: 0, gridRows: 0, highCells: [] };
@@ -425,6 +451,9 @@ export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gri
     let previousDistance = d0;
 
     for (let i = 0; i < sampleIterations; i += 1) {
+      if (i % 256 === 0 && typeof shouldAbort === "function" && shouldAbort()) {
+        throw createRenderCancelledError();
+      }
       [x1, y1] = step(x1, y1, cellParams.a, cellParams.b, cellParams.c, cellParams.d);
       [x2, y2] = step(x2, y2, cellParams.a, cellParams.b, cellParams.c, cellParams.d);
 
@@ -491,6 +520,9 @@ export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gri
   if (plane.mode === "one_axis") {
     const [axisMin, axisMax] = plane.axisRange || [safeBase[plane.axisParam], safeBase[plane.axisParam]];
     for (let col = 0; col < safeGridCols; col += 1) {
+      if (typeof shouldAbort === "function" && shouldAbort()) {
+        throw createRenderCancelledError();
+      }
       const cellParams = { ...safeBase };
       cellParams[plane.axisParam] = sampleAxisValue(axisMin, axisMax, col, safeGridCols);
       const lambda = computeLambdaForParams(cellParams);
@@ -511,7 +543,13 @@ export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gri
   const [yMin, yMax] = plane.axisYRange || [safeBase[plane.axisYParam], safeBase[plane.axisYParam]];
 
   for (let row = 0; row < safeGridRows; row += 1) {
+    if (typeof shouldAbort === "function" && shouldAbort()) {
+      throw createRenderCancelledError();
+    }
     for (let col = 0; col < safeGridCols; col += 1) {
+      if (typeof shouldAbort === "function" && shouldAbort()) {
+        throw createRenderCancelledError();
+      }
       const cellParams = { ...safeBase };
       cellParams[plane.axisXParam] = sampleAxisValue(xMin, xMax, col, safeGridCols);
       cellParams[plane.axisYParam] = sampleAxisValue(yMax, yMin, row, safeGridRows);

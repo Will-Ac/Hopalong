@@ -1,5 +1,5 @@
 import { ColorMapNames, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
-import { renderFrame, getParamsForFormula, classifyInterestGridLyapunov } from "./renderer.js";
+import { renderFrame, getParamsForFormula, classifyInterestGridLyapunov, isRenderCancelledError } from "./renderer.js";
 import {
   FORMULA_METADATA,
   FORMULA_RANGES_RAW,
@@ -255,6 +255,7 @@ let exportCacheCanvas = null;
 let exportCacheCtx = null;
 let exportCacheMeta = null;
 let renderRevision = 0;
+let renderGeneration = 0;
 let pendingShareFile = null;
 let pendingShareTitle = "";
 let isApplyingHistoryState = false;
@@ -350,7 +351,15 @@ function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   return `${normalized.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
 }
 
-function requestDraw() {
+function interruptRunningWork() {
+  renderGeneration += 1;
+}
+
+function requestDraw({ interrupt = true } = {}) {
+  if (interrupt) {
+    interruptRunningWork();
+  }
+
   if (appData) {
     refreshParamButtons();
     updateQuickSliderReadout();
@@ -376,13 +385,26 @@ function requestDraw() {
     drawInProgress = true;
     try {
       await draw();
+    } catch (error) {
+      if (!isRenderCancelledError(error)) {
+        throw error;
+      }
     } finally {
       drawInProgress = false;
       if (drawDirty) {
-        requestDraw();
+        requestDraw({ interrupt: false });
       }
     }
   });
+}
+
+function installInteractionInterrupts() {
+  const interruptEvents = ["pointerdown", "wheel", "keydown", "touchstart", "input", "change", "click"];
+  for (const eventName of interruptEvents) {
+    document.addEventListener(eventName, () => {
+      interruptRunningWork();
+    }, { capture: true, passive: eventName === "wheel" ? false : true });
+  }
 }
 
 function showToast(message) {
@@ -3768,6 +3790,7 @@ async function runInterestOverlayRecalc() {
   }
 
   const jobSeq = ++interestOverlayComputeSeq;
+  const jobGeneration = renderGeneration;
   interestOverlayActiveJobSeq = jobSeq;
   interestOverlayCalcInProgress = true;
   interestOverlayCalcProgressPercent = 0;
@@ -3792,6 +3815,7 @@ async function runInterestOverlayRecalc() {
           interestOverlayLastProgressToastPercent = nextPercent;
         }
       },
+      shouldAbort: () => jobSeq !== interestOverlayActiveJobSeq || jobGeneration !== renderGeneration,
     });
 
     if (jobSeq !== interestOverlayActiveJobSeq) {
@@ -3806,6 +3830,10 @@ async function runInterestOverlayRecalc() {
         gridCols: plan.gridCols,
         gridRows: plan.gridRows,
       };
+    }
+  } catch (error) {
+    if (!isRenderCancelledError(error)) {
+      throw error;
     }
   } finally {
     interestOverlayCalcInProgress = false;
@@ -4185,6 +4213,7 @@ async function draw() {
   }
 
   const startedAt = performance.now();
+  const myGeneration = renderGeneration;
   const didResize = resizeCanvas();
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const panZoomIterationCap = Math.round(clamp(Number(appData.defaults.panZoomIterationCap ?? PAN_ZOOM_ITERATION_CAP_DEFAULT), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
@@ -4222,7 +4251,12 @@ async function draw() {
     onProgress: (percent, isComplete) => {
       updateRenderProgressToast(percent, isComplete);
     },
+    shouldAbort: () => myGeneration !== renderGeneration,
   });
+
+  if (myGeneration !== renderGeneration) {
+    return;
+  }
 
   const viewportWidth = Math.max(1, canvas.width);
   const viewportHeight = Math.max(1, canvas.height);
@@ -4589,6 +4623,7 @@ function ensureExportCacheCanvas(width, height) {
 }
 
 async function renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx) {
+  const myGeneration = renderGeneration;
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const scaleMode = getScaleMode();
@@ -4608,6 +4643,7 @@ async function renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx) {
     seed: getSeedForFormula(currentFormulaId),
     renderColoring: getRenderColoringOptions(),
     backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
+    shouldAbort: () => myGeneration !== renderGeneration,
   });
 }
 
@@ -4685,6 +4721,7 @@ async function captureHighResScreenshot(longEdgePx) {
   }
 
   const label = longEdgePx >= 7680 ? "8K" : "4K";
+  const myGeneration = renderGeneration;
   highResExportInProgress = true;
   try {
     await renderFrame({
@@ -4704,12 +4741,19 @@ async function captureHighResScreenshot(longEdgePx) {
       onProgress: (percent, isComplete) => {
         updateExportRenderProgressToast(`Rendering ${label} screenshot`, percent, isComplete);
       },
+      shouldAbort: () => myGeneration !== renderGeneration,
     });
     const blob = await exportCanvasToBlob(targetCanvas);
     const filenameLabel = longEdgePx >= 7680 ? "8k" : "4k";
     const filename = `hopalong-clean-${filenameLabel}-${formatScreenshotTimestamp(new Date())}.png`;
     await saveBlobToDevice(blob, filename);
     showToast(`Saved clean ${label} screenshot.`);
+  } catch (error) {
+    if (isRenderCancelledError(error)) {
+      showToast(`${label} screenshot cancelled.`);
+      return;
+    }
+    throw error;
   } finally {
     highResExportInProgress = false;
     if (drawDirty) {
@@ -4747,6 +4791,10 @@ async function captureScreenshotAction(action) {
       await captureHighResScreenshot(7680);
     }
   } catch (error) {
+    if (isRenderCancelledError(error)) {
+      showToast("Screenshot cancelled.");
+      return;
+    }
     if (error?.message === "Share cancelled.") {
       showToast("Share cancelled.");
       return;
@@ -5194,6 +5242,7 @@ async function loadData() {
 
 async function bootstrap() {
   try {
+    installInteractionInterrupts();
     installGlobalZoomBlockers();
     appData = await loadData();
     builtInFormulaRanges = appData.formula_ranges_raw || {};
