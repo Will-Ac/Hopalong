@@ -399,7 +399,7 @@ function requestDraw({ interrupt = true } = {}) {
 }
 
 function installInteractionInterrupts() {
-  const interruptEvents = ["pointerdown", "wheel", "keydown", "touchstart", "input", "change", "click"];
+  const interruptEvents = ["pointerdown", "wheel", "keydown", "touchstart"];
   for (const eventName of interruptEvents) {
     document.addEventListener(eventName, () => {
       interruptRunningWork();
