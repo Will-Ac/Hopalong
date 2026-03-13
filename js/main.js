@@ -112,6 +112,7 @@ const qsRange = document.getElementById("qsRange");
 const qsMinus = document.getElementById("qsMinus");
 const qsPlus = document.getElementById("qsPlus");
 const qsClose = document.getElementById("qsClose");
+const qsTop = document.querySelector(".qsTop");
 
 const pickerOverlay = document.getElementById("pickerOverlay");
 const pickerBackdrop = document.getElementById("pickerBackdrop");
@@ -225,6 +226,7 @@ let renderProgressStartedAt = 0;
 let renderProgressShownThisDraw = false;
 let lastComputedUiMetrics = { fontSize: null, tileSize: null };
 let lastSizingViewport = { width: 0, height: 0 };
+let lastQuickSliderTopTapAt = 0;
 
 const HOLD_REPEAT_MS_DEFAULT = 60;
 const HOLD_REPEAT_MS_MIN = 20;
@@ -1456,6 +1458,7 @@ function applyInterestOverlayEnabled(nextValue) {
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
+  showToast(`Interest overlay ${appData.defaults.interestOverlayEnabled ? "enabled" : "disabled"}.`);
   if (appData.defaults.interestOverlayEnabled) {
     scheduleInterestOverlayRecalc({ immediate: true, showProgress: true });
   }
@@ -1467,6 +1470,7 @@ function applyInterestOverlayOpacity(nextValue) {
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
+  showToast(`Interest overlay opacity ${formatNumberForUi(appData.defaults.interestOverlayOpacity, 2)}.`);
   commitCurrentStateToHistory();
 }
 
@@ -3915,13 +3919,6 @@ function drawInterestOverlay(meta) {
     ctx.fillRect(x, y, cellSize, cellSize);
   }
 
-  if (isStaleOverlay) {
-    ctx.fillStyle = "rgba(180, 220, 255, 0.75)";
-    ctx.font = "12px Inter, system-ui, -apple-system, Segoe UI, sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillText("Overlay updating…", 14, 14);
-  }
   ctx.restore();
 }
 
@@ -4854,6 +4851,23 @@ function registerHandlers() {
   qsClose.addEventListener("click", closeSliderFromUi);
   qsClose.addEventListener("pointerup", closeSliderFromUi);
   qsClose.addEventListener("touchend", closeSliderFromUi, { passive: false });
+  const onQuickSliderTopTap = (event) => {
+    if (event.target instanceof Element && event.target.closest("button, input")) {
+      return;
+    }
+    const now = performance.now();
+    const isDoubleTap = now - lastQuickSliderTopTapAt <= DOUBLE_TAP_MS;
+    lastQuickSliderTopTapAt = now;
+    if (!isDoubleTap) {
+      return;
+    }
+    if (["a", "b", "c", "d"].includes(activeSliderKey || "")) {
+      resetParamSliderToZero(activeSliderKey);
+    }
+  };
+  qsTop?.addEventListener("pointerup", onQuickSliderTopTap);
+  quickSliderEl?.setAttribute("draggable", "false");
+  quickSliderEl?.addEventListener("dragstart", (event) => event.preventDefault());
   quickSliderBackdrop.addEventListener("click", () => {
     closeQuickSlider();
   });

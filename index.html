@@ -63,7 +63,7 @@
         margin: 0 auto;
         width: fit-content;
         max-width: min(700px, calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
-        background: rgba(12, 14, 20, 0.3);
+        background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 8px;
         padding: 6px 10px;
@@ -475,10 +475,11 @@
         left: max(6px, env(safe-area-inset-left));
         right: max(6px, env(safe-area-inset-right));
         bottom: calc(56px + env(safe-area-inset-bottom));
-        background: rgba(0, 0, 0, 0.26);
+        background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 10px;
         padding: 4px 7px 5px;
+        touch-action: none;
         pointer-events: auto;
       }
       .qsTop {
