@@ -51,6 +51,8 @@ const holdAccelEndMsRangeEl = document.getElementById("holdAccelEndMsRange");
 const holdAccelEndMsValueEl = document.getElementById("holdAccelEndMsValue");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const detailInterestOverlayToggleEl = document.getElementById("detailInterestOverlayToggle");
+const detailInterestOverlayOpacityRangeEl = document.getElementById("detailInterestOverlayOpacityRange");
+const detailInterestOverlayOpacityFormattedEl = document.getElementById("detailInterestOverlayOpacityFormatted");
 const detailInterestGridSizeRangeEl = document.getElementById("detailInterestGridSizeRange");
 const detailInterestGridSizeFormattedEl = document.getElementById("detailInterestGridSizeFormatted");
 const detailInterestScanIterationsRangeEl = document.getElementById("detailInterestScanIterationsRange");
@@ -166,6 +168,9 @@ const INTEREST_GRID_SIZE_MIN = 8;
 const INTEREST_GRID_SIZE_MAX = 256;
 const INTEREST_SCAN_ITERATIONS_MIN = 100;
 const INTEREST_SCAN_ITERATIONS_MAX = 5000;
+const INTEREST_OVERLAY_OPACITY_MIN = 0.05;
+const INTEREST_OVERLAY_OPACITY_MAX = 0.8;
+const INTEREST_OVERLAY_OPACITY_DEFAULT = 0.2;
 const PAN_ZOOM_ITERATION_CAP_DEFAULT = 500000;
 const PAN_ZOOM_ITERATION_CAP_MIN = 10000;
 const PAN_ZOOM_ITERATION_CAP_MAX = 50000000;
@@ -179,6 +184,10 @@ const INTEREST_LYAPUNOV_MAX_DISTANCE_MAX = 1e6;
 
 function normalizeInterestGridSize(rawValue) {
   return Math.round(clamp(Number(rawValue), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
+}
+
+function normalizeInterestOverlayOpacity(rawValue) {
+  return clamp(Number(rawValue), INTEREST_OVERLAY_OPACITY_MIN, INTEREST_OVERLAY_OPACITY_MAX);
 }
 
 const ctx = canvas.getContext("2d", { alpha: false });
@@ -1327,6 +1336,9 @@ function syncDetailedSettingsControls() {
   if (detailOverlayAlphaRangeEl) detailOverlayAlphaRangeEl.value = String(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1));
   if (detailOverlayAlphaFormattedEl) detailOverlayAlphaFormattedEl.textContent = formatNumberForUi(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1), 2);
   if (detailInterestOverlayToggleEl) detailInterestOverlayToggleEl.checked = Boolean(appData.defaults.interestOverlayEnabled);
+  const interestOverlayOpacity = normalizeInterestOverlayOpacity(appData.defaults.interestOverlayOpacity);
+  if (detailInterestOverlayOpacityRangeEl) detailInterestOverlayOpacityRangeEl.value = String(interestOverlayOpacity);
+  if (detailInterestOverlayOpacityFormattedEl) detailInterestOverlayOpacityFormattedEl.textContent = formatNumberForUi(interestOverlayOpacity, 2);
   const interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize);
   const interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
   const panZoomIterationCap = Math.round(clamp(Number(appData.defaults.panZoomIterationCap), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
@@ -1447,6 +1459,14 @@ function applyInterestOverlayEnabled(nextValue) {
   if (appData.defaults.interestOverlayEnabled) {
     scheduleInterestOverlayRecalc({ immediate: true, showProgress: true });
   }
+  commitCurrentStateToHistory();
+}
+
+function applyInterestOverlayOpacity(nextValue) {
+  appData.defaults.interestOverlayOpacity = normalizeInterestOverlayOpacity(nextValue);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
   commitCurrentStateToHistory();
 }
 
@@ -1786,6 +1806,8 @@ function syncParamModeVisuals() {
     item.dataset.lockState = lockState;
     item.dataset.modAxis = modAxis;
   }
+
+  syncInterestOverlayToggleUi();
 }
 
 function normalizeLegacyModeValue(mode) {
@@ -3842,8 +3864,12 @@ function drawInterestOverlay(meta) {
 
   const { cellSize, offsetX, offsetY } = plan.gridLayout;
 
+  const overlayOpacity = normalizeInterestOverlayOpacity(appData.defaults.interestOverlayOpacity);
+
   ctx.save();
-  ctx.fillStyle = isStaleOverlay ? "rgba(120, 200, 255, 0.12)" : "rgba(120, 200, 255, 0.2)";
+  ctx.fillStyle = isStaleOverlay
+    ? `rgba(120, 200, 255, ${Math.max(INTEREST_OVERLAY_OPACITY_MIN, overlayOpacity * 0.6)})`
+    : `rgba(120, 200, 255, ${overlayOpacity})`;
   for (const cellIndex of scanResult.highCells) {
     const col = cellIndex % plan.gridCols;
     const row = Math.floor(cellIndex / plan.gridCols);
@@ -3864,8 +3890,10 @@ function drawInterestOverlay(meta) {
 
 function syncInterestOverlayToggleUi() {
   const enabled = Boolean(appData?.defaults?.interestOverlayEnabled);
-  overlayToggleBtn?.classList.toggle("is-active", enabled);
-  overlayToggleBtn?.setAttribute("aria-pressed", enabled ? "true" : "false");
+  const showButton = hasAnyManualTargets();
+  overlayToggleBtn?.classList.toggle("is-hidden", !showButton);
+  overlayToggleBtn?.classList.toggle("is-active", enabled && showButton);
+  overlayToggleBtn?.setAttribute("aria-pressed", enabled && showButton ? "true" : "false");
 }
 
 function drawManualParamOverlay(meta) {
@@ -4505,6 +4533,7 @@ function syncScreenshotMenuShareRetryUi() {
       ? "Needed when browser requires a second explicit tap to share."
       : "Shown when share needs a fresh tap.";
   }
+  syncCameraButtonHighlight();
 }
 
 async function retryPendingShare() {
@@ -4713,13 +4742,20 @@ async function captureHighResScreenshot(longEdgePx) {
   }
 }
 
+function syncCameraButtonHighlight() {
+  const shouldHighlight = Boolean(pendingShareFile) || Boolean(screenshotMenuOverlayEl?.classList.contains("is-open"));
+  cameraBtn?.classList.toggle("is-active", shouldHighlight);
+}
+
 function openScreenshotMenu() {
   syncScreenshotMenuShareRetryUi();
   screenshotMenuOverlayEl?.classList.add("is-open");
+  syncCameraButtonHighlight();
 }
 
 function closeScreenshotMenu() {
   screenshotMenuOverlayEl?.classList.remove("is-open");
+  syncCameraButtonHighlight();
 }
 
 async function captureScreenshotAction(action) {
@@ -4887,6 +4923,7 @@ function registerHandlers() {
   detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
   detailOverlayAlphaRangeEl?.addEventListener("input", () => applyOverlayTransparency(detailOverlayAlphaRangeEl.value));
   detailInterestOverlayToggleEl?.addEventListener("change", () => applyInterestOverlayEnabled(detailInterestOverlayToggleEl.checked));
+  detailInterestOverlayOpacityRangeEl?.addEventListener("input", () => applyInterestOverlayOpacity(detailInterestOverlayOpacityRangeEl.value));
   detailInterestGridSizeRangeEl?.addEventListener("input", () => applyInterestGridSize(detailInterestGridSizeRangeEl.value));
   detailInterestScanIterationsRangeEl?.addEventListener("input", () => applyInterestScanIterations(detailInterestScanIterationsRangeEl.value));
   detailPanZoomIterationCapRangeEl?.addEventListener("input", () => applyPanZoomIterationCap(detailPanZoomIterationCapRangeEl.value));
@@ -5100,6 +5137,9 @@ async function loadData() {
   if (typeof data.defaults.interestOverlayEnabled !== "boolean") {
     data.defaults.interestOverlayEnabled = false;
   }
+  if (typeof data.defaults.interestOverlayOpacity !== "number") {
+    data.defaults.interestOverlayOpacity = INTEREST_OVERLAY_OPACITY_DEFAULT;
+  }
   if (typeof data.defaults.interestGridSize !== "number") {
     data.defaults.interestGridSize = 24;
   }
@@ -5143,6 +5183,7 @@ async function loadData() {
   data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
   data.defaults.renderHybridBlend = clamp(data.defaults.renderHybridBlend, 0, 1);
   data.defaults.overlayAlpha = clamp(data.defaults.overlayAlpha, 0.1, 1);
+  data.defaults.interestOverlayOpacity = normalizeInterestOverlayOpacity(data.defaults.interestOverlayOpacity);
   data.defaults.interestGridSize = normalizeInterestGridSize(data.defaults.interestGridSize);
   data.defaults.interestScanIterations = Math.round(clamp(data.defaults.interestScanIterations, INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
   data.defaults.interestLyapunovMinExponent = clamp(data.defaults.interestLyapunovMinExponent, INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
@@ -5198,6 +5239,7 @@ async function bootstrap() {
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
     appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.9), 0.1, 1);
     appData.defaults.interestOverlayEnabled = Boolean(appData.defaults.interestOverlayEnabled);
+    appData.defaults.interestOverlayOpacity = normalizeInterestOverlayOpacity(appData.defaults.interestOverlayOpacity ?? INTEREST_OVERLAY_OPACITY_DEFAULT);
     appData.defaults.interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize ?? 24);
     appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? 1200), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
     appData.defaults.interestLyapunovEnabled = Boolean(appData.defaults.interestLyapunovEnabled);

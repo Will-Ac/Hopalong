@@ -36,5 +36,6 @@
   "interestLyapunovRescale": true,
   "interestLyapunovMaxDistance": 1000000,
   "launchIterationCap": 500000,
-  "panZoomIterationCap": 500000
+  "panZoomIterationCap": 500000,
+  "interestOverlayOpacity": 0.2
 }

@@ -656,9 +656,12 @@
       }
       #screenshotMenuPanel {
         position: absolute;
-        right: max(6px, env(safe-area-inset-right));
-        top: calc(58px + env(safe-area-inset-top));
-        width: min(360px, calc(100vw - 12px));
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: min(420px, calc(100vw - 12px));
+        max-height: calc(100vh - 12px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        overflow: auto;
         background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 10px;
@@ -839,28 +842,25 @@
       }
       #rangesEditorToggle .settingsIcon {
         display: inline-block;
-        font-size: 26px;
+        font-size: 34px;
         line-height: 1;
       }
-      #cameraBtn .cameraIcon {
-        width: 24px;
-        height: 24px;
+      #cameraBtn .cameraIcon,
+      #overlayToggleBtn .eyeIcon {
+        width: 34px;
+        height: 34px;
         display: block;
       }
-      #overlayToggleBtn .eyeIcon {
-        width: 22px;
-        height: 22px;
-        display: block;
+      .topActionBtn.is-hidden {
+        display: none;
       }
       #rangesEditorToggle.is-active,
       #overlayToggleBtn.is-active,
-      #scaleModeBtn.is-active {
+      #scaleModeBtn.is-active,
+      #cameraBtn.is-active {
         background: rgba(255, 255, 255, 0.2);
         color: #fff;
         border-color: rgba(255, 255, 255, 0.9);
-      }
-      #cameraBtn.is-armed {
-        background: rgba(var(--ui-gray-rgb), 0.1);
       }
       @media (max-width: 900px) and (orientation: landscape) {
         .poItem {
@@ -878,11 +878,12 @@
           overflow: hidden;
         }
         #rangesEditorToggle .settingsIcon {
-          font-size: 20px;
+          font-size: 30px;
         }
-        #cameraBtn .cameraIcon {
-          width: 16px;
-          height: 16px;
+        #cameraBtn .cameraIcon,
+        #overlayToggleBtn .eyeIcon {
+          width: 24px;
+          height: 24px;
         }
         #cameraBtn,
         #scaleModeBtn {
@@ -913,11 +914,11 @@
         <p id="debugInfo">Debug off</p>
       </div>
       <div id="topRightActions">
+        <button id="overlayToggleBtn" class="topActionBtn" type="button" aria-label="Toggle interest overlay" title="Interest overlay"><svg class="eyeIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.2 12s3.3-6 9.8-6 9.8 6 9.8 6-3.3 6-9.8 6-9.8-6-9.8-6Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="eyePupil" cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></button>
         <button id="rangesEditorToggle" class="topActionBtn" type="button" aria-label="Open ranges editor" aria-pressed="false"><span class="settingsIcon" aria-hidden="true">⚙</span></button>
-        <button id="overlayToggleBtn" class="topActionBtn" type="button" aria-label="Toggle interest overlay" title="Interest overlay"><svg class="eyeIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.2 12s3.3-6 9.8-6 9.8 6 9.8 6-3.3 6-9.8 6-9.8-6-9.8-6Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle class="eyePupil" cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></button>
         <button id="scaleModeBtn" class="topActionBtn" type="button" aria-label="Toggle auto scale">Auto
 Scale</button>
-        <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
       <aside id="rangesEditorPanel" class="is-hidden" aria-label="Settings editor">
         <div class="rangesEditorHead">
@@ -971,6 +972,13 @@ Scale</button>
         </div>
         <div id="generalTabPanel" class="rangesEditorBody settingsTabPanel is-hidden">
           <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Pan/zoom iteration cap</span></div>
+            <div class="perfControlRow">
+              <input id="detailPanZoomIterationCapRange" class="perfRangeInput" type="range" min="10000" max="50000000" step="1000" />
+              <div id="detailPanZoomIterationCapFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Max random iterations</span><button id="infoMaxRandomIters" class="perfInfoBtn" type="button">i</button></div>
             <div class="perfControlRow">
               <input id="detailMaxRandomItersRange" class="perfRangeInput" type="range" min="1000" max="100000000" step="100" />
@@ -996,6 +1004,13 @@ Scale</button>
             <label class="modeOption"><input id="detailInterestOverlayToggle" type="checkbox" /> Show modulation grid overlay while actively modulating both axes</label>
           </div>
           <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Interest overlay opacity</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestOverlayOpacityRange" class="perfRangeInput" type="range" min="0.05" max="0.8" step="0.01" />
+              <div id="detailInterestOverlayOpacityFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Interest grid size</span></div>
             <div class="perfControlRow">
               <input id="detailInterestGridSizeRange" class="perfRangeInput" type="range" min="8" max="256" step="1" />
@@ -1007,13 +1022,6 @@ Scale</button>
             <div class="perfControlRow">
               <input id="detailInterestScanIterationsRange" class="perfRangeInput" type="range" min="100" max="5000" step="50" />
               <div id="detailInterestScanIterationsFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Pan/zoom iteration cap</span></div>
-            <div class="perfControlRow">
-              <input id="detailPanZoomIterationCapRange" class="perfRangeInput" type="range" min="10000" max="50000000" step="1000" />
-              <div id="detailPanZoomIterationCapFormatted" class="perfFormattedValue">--</div>
             </div>
           </div>
           <div class="perfSettingCard">
