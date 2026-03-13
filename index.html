@@ -482,9 +482,8 @@
         pointer-events: auto;
       }
       .qsTop {
-        position: relative;
-        margin-bottom: 5px;
-        min-height: 24px;
+        margin-bottom: 2px;
+        min-height: 16px;
       }
       .qsReadout {
         display: flex;
@@ -497,11 +496,8 @@
       #qsEquals { font-size: var(--ui-font-size); opacity: 0.85; }
       #qsValue { font-size: var(--ui-font-size); font-variant-numeric: tabular-nums; opacity: 0.95; }
       #qsClose {
-        position: absolute;
-        right: 0;
-        top: 0;
-        min-height: 22px;
-        min-width: 22px;
+        min-height: 28px;
+        min-width: 28px;
         border-radius: 7px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.18);
         background: rgba(var(--ui-gray-rgb), 0.08);
@@ -510,19 +506,19 @@
       }
       .qsControlRow {
         display: grid;
-        grid-template-columns: 42px 1fr 42px;
-        gap: 5px;
+        grid-template-columns: 36px 1fr 36px 28px;
+        gap: 4px;
         align-items: center;
       }
       .qsStepBtn {
-        min-height: 36px;
+        min-height: 28px;
         border-radius: 7px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.18);
         background: rgba(var(--ui-gray-rgb), 0.08);
         color: var(--text);
         font-size: var(--ui-font-size);
       }
-      #qsRange { width: 100%; height: 40px; touch-action: pan-x; }
+      #qsRange { width: 100%; height: 24px; touch-action: pan-x; }
 
       #paramOverlay {
         position: absolute;
@@ -1144,12 +1140,12 @@ Scale</button>
               <span id="qsEquals">=</span>
               <span id="qsValue">0.0</span>
             </div>
-            <button id="qsClose" type="button" aria-label="Close slider">✕</button>
           </div>
           <div class="qsControlRow">
             <button id="qsMinus" class="qsStepBtn" type="button" aria-label="Decrease value">−</button>
             <input id="qsRange" type="range" min="0" max="100" step="0.1" />
             <button id="qsPlus" class="qsStepBtn" type="button" aria-label="Increase value">+</button>
+            <button id="qsClose" type="button" aria-label="Close slider">✕</button>
           </div>
         </div>
       </div>

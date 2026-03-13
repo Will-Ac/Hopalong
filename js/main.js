@@ -3147,6 +3147,37 @@ function openQuickSlider(sliderKey) {
   syncQuickSliderPosition();
 }
 
+function resetParamSliderToZero(sliderKey) {
+  if (!isSliderKeyAvailable(sliderKey)) {
+    showToast(`${sliderKey} is not used by this formula.`);
+    return;
+  }
+
+  const control = sliderControls[sliderKey];
+  if (!control || !["a", "b", "c", "d"].includes(control.paramKey)) {
+    return;
+  }
+
+  const range = getCurrentFormulaRange();
+  const rawBounds = range?.[control.paramKey];
+  const min = Number(rawBounds?.[0]);
+  const max = Number(rawBounds?.[1]);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || Math.abs(max - min) < 1e-9) {
+    return;
+  }
+
+  clearSharedParamsOverride();
+  appData.defaults.sliders[sliderKey] = actualToSliderValue(0, min, max);
+  saveDefaultsToStorage();
+  refreshParamButtons();
+  if (activeSliderKey === sliderKey) {
+    syncQuickSliderPosition();
+  }
+  requestDraw();
+  commitCurrentStateToHistory();
+  showToast(`${control.paramKey} set to 0`);
+}
+
 function onParamPointerDown(event, targetKey) {
   if (event.pointerType === "mouse" && event.button !== 0) {
     return;
@@ -3261,6 +3292,12 @@ function onParamPointerEnd(event) {
       window.clearTimeout(pendingTileTapTimer);
       pendingTileTapTimer = null;
     }
+
+    if (["a", "b", "c", "d"].includes(targetKey)) {
+      resetParamSliderToZero(targetKey);
+      return;
+    }
+
     const modeKey = paramTileTargets[targetKey]?.modeKey;
     if (modeKey) {
       toggleFixRandMode(modeKey);
