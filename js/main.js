@@ -3297,11 +3297,6 @@ function onParamPointerEnd(event) {
       pendingTileTapTimer = null;
     }
 
-    if (["a", "b", "c", "d"].includes(targetKey)) {
-      resetParamSliderToZero(targetKey);
-      return;
-    }
-
     const modeKey = paramTileTargets[targetKey]?.modeKey;
     if (modeKey) {
       toggleFixRandMode(modeKey);
