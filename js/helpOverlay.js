@@ -349,6 +349,17 @@ export function createHelpOverlay(options) {
 
     const leftTap = layouts.find((item) => item.group.id === "canvas-left");
     const rightTap = layouts.find((item) => item.group.id === "canvas-right");
+    const topbarLayout = layouts.find((item) => item.group.id === "topbar");
+    const lowerLayouts = layouts.filter((item) => !["topbar", "canvas-left", "canvas-right", "tile-border-legend"].includes(item.group.id));
+    const lowerTop = lowerLayouts.length ? Math.min(...lowerLayouts.map((item) => item.y)) : Math.round(viewportHeight * 0.55);
+    const upperBottom = topbarLayout ? topbarLayout.y + topbarLayout.height : Math.round(viewportHeight * 0.2);
+    const tapCenterY = Math.round((upperBottom + lowerTop) / 2);
+    if (leftTap && rightTap) {
+      const y = clamp(tapCenterY - Math.max(leftTap.height, rightTap.height) / 2, 12, uiTop - Math.max(leftTap.height, rightTap.height) - 12);
+      leftTap.y = Math.round(y);
+      rightTap.y = Math.round(y);
+    }
+
     const lineCenterY = leftTap && rightTap
       ? Math.round((leftTap.y + leftTap.height / 2 + rightTap.y + rightTap.height / 2) / 2)
       : Math.round(viewportHeight * 0.22);
