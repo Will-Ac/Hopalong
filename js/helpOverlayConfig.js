@@ -10,7 +10,7 @@ export const HELP_OVERLAY_GROUPS = [
       line("Dashed line", "randomised", { delimiter: ":" }),
       line("Vertical lines", "vertical screen control", { delimiter: ":" }),
       line("Horizontal lines", "horizontal screen control", { delimiter: ":" }),
-      line("Dashed & solid on", "mix of random & fixed", { delimiter: ":" }),
+      line("Dashed & solid", "mix of random & fixed", { delimiter: ":" }),
     ],
     label: { x: 0.16, y: 0.18 },
     noArrow: true,
