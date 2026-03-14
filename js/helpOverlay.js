@@ -27,7 +27,7 @@ function unionRects(rects) {
 function pointFromRect(rect, attach = "center") {
   switch (attach) {
     case "top":
-      return { x: rect.left + rect.width / 2, y: rect.top - 14 };
+      return { x: rect.left + rect.width / 2, y: rect.top - 18 };
     case "left":
       return { x: rect.left - 12, y: rect.top + rect.height / 2 };
     case "right":
@@ -115,6 +115,16 @@ function buildGroupLabel(group) {
   return el;
 }
 
+
+function getArrowSourcePoint(labelRect, mode) {
+  if (mode === "bottom-center") {
+    return { x: labelRect.left + labelRect.width / 2, y: labelRect.bottom };
+  }
+  if (mode === "top-center") {
+    return { x: labelRect.left + labelRect.width / 2, y: labelRect.top };
+  }
+  return null;
+}
 function boxesOverlap(a, b, pad = 8) {
   return !(a.right + pad < b.left || a.left > b.right + pad || a.bottom + pad < b.top || a.top > b.bottom + pad);
 }
@@ -194,7 +204,7 @@ export function createHelpOverlay(options) {
 
   function drawBracket(rect, side = "top") {
     if (side === "left") {
-      const x = rect.left - 14;
+      const x = rect.left - 18;
       const top = rect.top;
       const bottom = rect.bottom;
       const path = document.createElementNS(SVG_NS, "path");
@@ -206,7 +216,7 @@ export function createHelpOverlay(options) {
       return { x, y: top + (bottom - top) / 2 };
     }
 
-    const y = rect.top - 18;
+    const y = rect.top - 24;
     const left = rect.left;
     const right = rect.right;
     const path = document.createElementNS(SVG_NS, "path");
@@ -327,7 +337,8 @@ export function createHelpOverlay(options) {
 
       if (!targetPoint) continue;
 
-      const from = lineAttachPoint(labelRect, targetPoint);
+      const forcedSource = getArrowSourcePoint(labelRect, layout.group.arrowFrom);
+      const from = forcedSource || lineAttachPoint(labelRect, targetPoint);
       drawArrow(from, targetPoint);
     }
   }
