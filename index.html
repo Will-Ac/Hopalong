@@ -7,7 +7,8 @@
     <style>
       :root {
         color-scheme: dark;
-        --panel-bg: rgba(12, 14, 20, 0.26);
+        --panel-rgb: 12, 14, 20;
+        --panel-bg: rgba(var(--panel-rgb), var(--dialog-alpha));
         --ui-gray-rgb: 148, 154, 164;
         --panel-border: rgba(var(--ui-gray-rgb), 0.18);
         --param-outline: rgba(var(--ui-gray-rgb), 0.42);
@@ -62,7 +63,7 @@
         margin: 0 auto;
         width: fit-content;
         max-width: min(700px, calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
-        background: rgba(12, 14, 20, 0.3);
+        background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 8px;
         padding: 6px 10px;
@@ -147,7 +148,7 @@
         -webkit-overflow-scrolling: touch;
         border-radius: 10px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.15);
-        background: rgba(8, 10, 15, var(--dialog-alpha));
+        background: var(--panel-bg);
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
         padding: 10px;
@@ -410,7 +411,7 @@
         min-height: 32px;
         border-radius: 6px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.24);
-        background: rgba(8, 10, 15, var(--dialog-alpha));
+        background: var(--panel-bg);
         color: var(--text);
         font-size: var(--ui-font-size);
         padding: 4px 8px;
@@ -474,33 +475,30 @@
         left: max(6px, env(safe-area-inset-left));
         right: max(6px, env(safe-area-inset-right));
         bottom: calc(56px + env(safe-area-inset-bottom));
-        background: rgba(0, 0, 0, 0.26);
+        background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 10px;
-        padding: 7px;
+        padding: 4px 7px 5px;
+        touch-action: none;
         pointer-events: auto;
       }
       .qsTop {
-        position: relative;
-        margin-bottom: 5px;
-        min-height: 24px;
+        margin-bottom: 1px;
+        min-height: 12px;
       }
       .qsReadout {
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 6px;
-        min-height: 24px;
+        min-height: 20px;
       }
       #qsLabel { font-size: var(--ui-font-size); font-weight: var(--ui-font-weight); }
       #qsEquals { font-size: var(--ui-font-size); opacity: 0.85; }
       #qsValue { font-size: var(--ui-font-size); font-variant-numeric: tabular-nums; opacity: 0.95; }
       #qsClose {
-        position: absolute;
-        right: 0;
-        top: 0;
-        min-height: 22px;
-        min-width: 22px;
+        min-height: 28px;
+        min-width: 28px;
         border-radius: 7px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.18);
         background: rgba(var(--ui-gray-rgb), 0.08);
@@ -509,19 +507,23 @@
       }
       .qsControlRow {
         display: grid;
-        grid-template-columns: 42px 1fr 42px;
-        gap: 5px;
+        grid-template-columns: 36px 1fr 36px 18px 28px;
+        gap: 4px;
         align-items: center;
       }
+      .qsSpacer {
+        width: 18px;
+        height: 1px;
+      }
       .qsStepBtn {
-        min-height: 36px;
+        min-height: 28px;
         border-radius: 7px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.18);
         background: rgba(var(--ui-gray-rgb), 0.08);
         color: var(--text);
         font-size: var(--ui-font-size);
       }
-      #qsRange { width: 100%; height: 40px; touch-action: pan-x; }
+      #qsRange { width: 100%; height: 24px; touch-action: pan-x; }
 
       #paramOverlay {
         position: absolute;
@@ -655,10 +657,13 @@
       }
       #screenshotMenuPanel {
         position: absolute;
-        right: max(6px, env(safe-area-inset-right));
-        top: calc(58px + env(safe-area-inset-top));
-        width: min(360px, calc(100vw - 12px));
-        background: rgba(8, 10, 15, var(--dialog-alpha));
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: min(420px, calc(100vw - 12px));
+        max-height: calc(100vh - 12px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        overflow: auto;
+        background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 10px;
         padding: 10px;
@@ -708,7 +713,7 @@
         width: min(648px, calc(100vw - 12px));
         top: calc(58px + env(safe-area-inset-top));
         bottom: calc(98px + env(safe-area-inset-bottom));
-        background: rgba(8, 10, 15, var(--dialog-alpha));
+        background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 10px;
         display: flex;
@@ -775,7 +780,7 @@
         border-radius: 10px;
         border: 2px solid var(--param-outline);
         background: var(--panel-bg);
-        color: rgba(var(--ui-gray-rgb), 0.95);
+        color: var(--text);
         display: inline-grid;
         align-items: center;
         justify-content: center;
@@ -791,7 +796,7 @@
         border-radius: 10px;
         border: 2px solid var(--param-outline);
         background: var(--panel-bg);
-        color: rgba(var(--ui-gray-rgb), 0.95);
+        color: var(--text);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -812,7 +817,7 @@
         min-height: calc(var(--ui-font-size) * 2.1);
         border: 0;
         background: transparent;
-        color: rgba(var(--ui-gray-rgb), 0.95);
+        color: var(--text);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -837,29 +842,41 @@
         border-style: solid;
       }
       #rangesEditorToggle .settingsIcon {
-        display: inline-block;
-        font-size: 26px;
+        width: 30px;
+        height: 30px;
+        display: block;
+      }
+      #cameraBtn .cameraIcon,
+      #overlayToggleBtn .eyeIcon {
+        width: 34px;
+        height: 34px;
+        display: block;
+      }
+      #helpBtn .helpIcon {
+        width: 30px;
+        height: 30px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        font-weight: 700;
         line-height: 1;
       }
-      #cameraBtn .cameraIcon {
-        width: 24px;
-        height: 24px;
-        display: block;
-      }
-      #overlayToggleBtn .eyeIcon {
-        width: 22px;
-        height: 22px;
-        display: block;
+      .topActionBtn.is-hidden {
+        display: none;
       }
       #rangesEditorToggle.is-active,
       #overlayToggleBtn.is-active,
-      #scaleModeBtn.is-active {
+      #scaleModeBtn.is-active,
+      #cameraBtn.is-active {
         background: rgba(255, 255, 255, 0.2);
         color: #fff;
         border-color: rgba(255, 255, 255, 0.9);
       }
-      #cameraBtn.is-armed {
-        background: rgba(var(--ui-gray-rgb), 0.1);
+      #overlayToggleBtn.is-disabled {
+        color: rgba(var(--ui-gray-rgb), 0.45);
+        border-color: rgba(var(--ui-gray-rgb), 0.22);
+        background: rgba(var(--panel-rgb), calc(var(--dialog-alpha) * 0.55));
       }
       @media (max-width: 900px) and (orientation: landscape) {
         .poItem {
@@ -877,11 +894,18 @@
           overflow: hidden;
         }
         #rangesEditorToggle .settingsIcon {
-          font-size: 20px;
+          width: 22px;
+          height: 22px;
         }
-        #cameraBtn .cameraIcon {
-          width: 16px;
-          height: 16px;
+        #cameraBtn .cameraIcon,
+        #overlayToggleBtn .eyeIcon {
+          width: 24px;
+          height: 24px;
+        }
+        #helpBtn .helpIcon {
+          width: 22px;
+          height: 22px;
+          font-size: 16px;
         }
         #cameraBtn,
         #scaleModeBtn {
@@ -912,11 +936,12 @@
         <p id="debugInfo">Debug off</p>
       </div>
       <div id="topRightActions">
-        <button id="rangesEditorToggle" class="topActionBtn" type="button" aria-label="Open ranges editor" aria-pressed="false"><span class="settingsIcon" aria-hidden="true">⚙</span></button>
-        <button id="overlayToggleBtn" class="topActionBtn" type="button" aria-label="Toggle interest overlay" title="Interest overlay"><svg class="eyeIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.2 12s3.3-6 9.8-6 9.8 6 9.8 6-3.3 6-9.8 6-9.8-6-9.8-6Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle class="eyePupil" cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></button>
+        <button id="overlayToggleBtn" class="topActionBtn" type="button" aria-label="Toggle interest overlay" title="Interest overlay"><svg class="eyeIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.2 12s3.3-6 9.8-6 9.8 6 9.8 6-3.3 6-9.8 6-9.8-6-9.8-6Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="eyePupil" cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></button>
+        <button id="helpBtn" class="topActionBtn" type="button" aria-label="Help" aria-pressed="false" title="Help"><span class="helpIcon" aria-hidden="true">?</span></button>
+        <button id="rangesEditorToggle" class="topActionBtn" type="button" aria-label="Open ranges editor" aria-pressed="false"><svg class="settingsIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.2 2.9h3.6l.5 2a7.5 7.5 0 0 1 1.5.6l1.8-1 2.5 2.5-1 1.8c.23.48.43.98.57 1.5l2.05.5v3.6l-2.05.5a7.4 7.4 0 0 1-.57 1.5l1 1.8-2.5 2.5-1.8-1a7.5 7.5 0 0 1-1.5.6l-.5 2h-3.6l-.5-2a7.5 7.5 0 0 1-1.5-.6l-1.8 1-2.5-2.5 1-1.8a7.4 7.4 0 0 1-.57-1.5L2 13.8v-3.6l2.05-.5c.14-.52.34-1.02.57-1.5l-1-1.8 2.5-2.5 1.8 1c.48-.23.98-.43 1.5-.6l.5-2Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.9"/></svg></button>
         <button id="scaleModeBtn" class="topActionBtn" type="button" aria-label="Toggle auto scale">Auto
 Scale</button>
-        <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
       <aside id="rangesEditorPanel" class="is-hidden" aria-label="Settings editor">
         <div class="rangesEditorHead">
@@ -970,6 +995,13 @@ Scale</button>
         </div>
         <div id="generalTabPanel" class="rangesEditorBody settingsTabPanel is-hidden">
           <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Pan/zoom iteration cap</span></div>
+            <div class="perfControlRow">
+              <input id="detailPanZoomIterationCapRange" class="perfRangeInput" type="range" min="10000" max="50000000" step="1000" />
+              <div id="detailPanZoomIterationCapFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Max random iterations</span><button id="infoMaxRandomIters" class="perfInfoBtn" type="button">i</button></div>
             <div class="perfControlRow">
               <input id="detailMaxRandomItersRange" class="perfRangeInput" type="range" min="1000" max="100000000" step="100" />
@@ -995,6 +1027,13 @@ Scale</button>
             <label class="modeOption"><input id="detailInterestOverlayToggle" type="checkbox" /> Show modulation grid overlay while actively modulating both axes</label>
           </div>
           <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Interest overlay opacity</span></div>
+            <div class="perfControlRow">
+              <input id="detailInterestOverlayOpacityRange" class="perfRangeInput" type="range" min="0.05" max="0.8" step="0.01" />
+              <div id="detailInterestOverlayOpacityFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Interest grid size</span></div>
             <div class="perfControlRow">
               <input id="detailInterestGridSizeRange" class="perfRangeInput" type="range" min="8" max="256" step="1" />
@@ -1006,13 +1045,6 @@ Scale</button>
             <div class="perfControlRow">
               <input id="detailInterestScanIterationsRange" class="perfRangeInput" type="range" min="100" max="5000" step="50" />
               <div id="detailInterestScanIterationsFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Pan/zoom iteration cap</span></div>
-            <div class="perfControlRow">
-              <input id="detailPanZoomIterationCapRange" class="perfRangeInput" type="range" min="10000" max="50000000" step="1000" />
-              <div id="detailPanZoomIterationCapFormatted" class="perfFormattedValue">--</div>
             </div>
           </div>
           <div class="perfSettingCard">
@@ -1135,12 +1167,13 @@ Scale</button>
               <span id="qsEquals">=</span>
               <span id="qsValue">0.0</span>
             </div>
-            <button id="qsClose" type="button" aria-label="Close slider">✕</button>
           </div>
           <div class="qsControlRow">
             <button id="qsMinus" class="qsStepBtn" type="button" aria-label="Decrease value">−</button>
             <input id="qsRange" type="range" min="0" max="100" step="0.1" />
             <button id="qsPlus" class="qsStepBtn" type="button" aria-label="Increase value">+</button>
+            <span class="qsSpacer" aria-hidden="true"></span>
+            <button id="qsClose" type="button" aria-label="Close slider">✕</button>
           </div>
         </div>
       </div>
