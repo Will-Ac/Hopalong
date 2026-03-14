@@ -272,8 +272,6 @@ export function createHelpOverlay(options) {
     svgEl.setAttribute("viewBox", `0 0 ${viewportWidth} ${viewportHeight}`);
 
     centerDivider.style.left = `${Math.round(viewportWidth / 2)}px`;
-    centerDivider.style.top = `${Math.round(viewportHeight * 0.14)}px`;
-    centerDivider.style.height = `${Math.round(viewportHeight * 0.15)}px`;
 
     const bracketMidpoints = new Map();
     for (const bracket of HELP_GROUP_BRACKETS) {
@@ -314,6 +312,15 @@ export function createHelpOverlay(options) {
       const maxY = Math.max(12, uiTop - layout.height - 12);
       layout.y = Math.min(layout.y, maxY);
     }
+
+    const leftTap = layouts.find((item) => item.group.id === "canvas-left");
+    const rightTap = layouts.find((item) => item.group.id === "canvas-right");
+    const lineCenterY = leftTap && rightTap
+      ? Math.round((leftTap.y + leftTap.height / 2 + rightTap.y + rightTap.height / 2) / 2)
+      : Math.round(viewportHeight * 0.22);
+    const lineHeight = Math.max(72, Math.round(((leftTap?.height || 44) + (rightTap?.height || 44)) * 1.1));
+    centerDivider.style.top = `${Math.round(lineCenterY - lineHeight / 2)}px`;
+    centerDivider.style.height = `${lineHeight}px`;
 
     for (const layout of layouts) {
       layout.labelEl.style.left = `${layout.x}px`;
