@@ -287,9 +287,8 @@ export function createHelpOverlay(options) {
       labelsLayer.append(labelEl);
 
       const rect = labelEl.getBoundingClientRect();
-      const width = group.variant === "canvasSplit" ? 280 : rect.width;
       if (group.variant === "canvasSplit") {
-        labelEl.style.width = `${width}px`;
+        labelEl.style.width = "auto";
       }
       const measured = labelEl.getBoundingClientRect();
       let x = clamp(group.label.x * viewportWidth - measured.width / 2, 12, viewportWidth - measured.width - 12);
@@ -298,6 +297,32 @@ export function createHelpOverlay(options) {
       }
       const y = clamp(group.label.y * viewportHeight - measured.height / 2, 12, viewportHeight - measured.height - 12);
       layouts.push({ group, labelEl, x: Math.round(x), y: Math.round(y), width: measured.width, height: measured.height });
+    }
+
+    const dividerX = viewportWidth / 2;
+    const canvasLayouts = layouts.filter((item) => item.group.variant === "canvasSplit");
+    if (canvasLayouts.length) {
+      const maxCanvasWidth = Math.max(...canvasLayouts.map((item) => item.width));
+      for (const item of canvasLayouts) {
+        item.labelEl.style.width = `${maxCanvasWidth}px`;
+        const resized = item.labelEl.getBoundingClientRect();
+        item.width = resized.width;
+        item.height = resized.height;
+      }
+      for (const item of layouts) {
+        let x = clamp(item.group.label.x * viewportWidth - item.width / 2, 12, viewportWidth - item.width - 12);
+        if (item.group.align === "leftPinned") x = 16;
+        item.x = Math.round(x);
+      }
+      const leftTap = canvasLayouts.find((item) => item.group.id === "canvas-left");
+      const rightTap = canvasLayouts.find((item) => item.group.id === "canvas-right");
+      const dividerGap = 56;
+      if (leftTap) {
+        leftTap.x = clamp(Math.floor(dividerX - dividerGap / 2 - leftTap.width), 12, viewportWidth - leftTap.width - 12);
+      }
+      if (rightTap) {
+        rightTap.x = clamp(Math.ceil(dividerX + dividerGap / 2), 12, viewportWidth - rightTap.width - 12);
+      }
     }
 
     preventLabelOverlap(layouts, viewportWidth, viewportHeight);
@@ -318,7 +343,7 @@ export function createHelpOverlay(options) {
     const lineCenterY = leftTap && rightTap
       ? Math.round((leftTap.y + leftTap.height / 2 + rightTap.y + rightTap.height / 2) / 2)
       : Math.round(viewportHeight * 0.22);
-    const lineHeight = Math.max(72, Math.round(((leftTap?.height || 44) + (rightTap?.height || 44)) * 1.1));
+    const lineHeight = Math.max(108, Math.round(((leftTap?.height || 44) + (rightTap?.height || 44)) * 1.65));
     centerDivider.style.top = `${Math.round(lineCenterY - lineHeight / 2)}px`;
     centerDivider.style.height = `${lineHeight}px`;
 
