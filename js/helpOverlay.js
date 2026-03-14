@@ -27,17 +27,11 @@ function unionRects(rects) {
 function pointFromRect(rect, attach = "center") {
   switch (attach) {
     case "top":
-      return { x: rect.left + rect.width / 2, y: rect.top - 10 };
-    case "top-left":
-      return { x: rect.left + 8, y: rect.top - 10 };
-    case "top-right":
-      return { x: rect.right - 8, y: rect.top - 10 };
+      return { x: rect.left + rect.width / 2, y: rect.top - 14 };
     case "left":
-      return { x: rect.left - 10, y: rect.top + rect.height / 2 };
+      return { x: rect.left - 12, y: rect.top + rect.height / 2 };
     case "right":
-      return { x: rect.right + 10, y: rect.top + rect.height / 2 };
-    case "bottom":
-      return { x: rect.left + rect.width / 2, y: rect.bottom + 10 };
+      return { x: rect.right + 12, y: rect.top + rect.height / 2 };
     default:
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
   }
@@ -52,45 +46,76 @@ function lineAttachPoint(labelRect, toPoint) {
   if (Math.abs(dx) > Math.abs(dy)) {
     return {
       x: dx >= 0 ? labelRect.right : labelRect.left,
-      y: clamp(toPoint.y, labelRect.top + 10, labelRect.bottom - 10),
+      y: clamp(toPoint.y, labelRect.top + 12, labelRect.bottom - 12),
     };
   }
 
   return {
-    x: clamp(toPoint.x, labelRect.left + 10, labelRect.right - 10),
+    x: clamp(toPoint.x, labelRect.left + 14, labelRect.right - 14),
     y: dy >= 0 ? labelRect.bottom : labelRect.top,
   };
+}
+
+function makeTopbarIcon(iconSelector) {
+  const source = iconSelector ? document.querySelector(iconSelector) : null;
+  const icon = document.createElement("span");
+  icon.className = "helpOverlay__inlineIcon";
+  if (!source) {
+    icon.textContent = "?";
+    return icon;
+  }
+
+  const svg = source.querySelector("svg");
+  if (svg) {
+    icon.innerHTML = svg.outerHTML;
+    return icon;
+  }
+
+  const helpChar = source.querySelector(".helpIcon");
+  if (helpChar) {
+    icon.textContent = helpChar.textContent?.trim() || "?";
+    return icon;
+  }
+
+  icon.textContent = (source.textContent || "").trim().replace(/\s+/g, " ") || "•";
+  return icon;
 }
 
 function buildGroupLabel(group) {
   const el = document.createElement("div");
   el.className = `helpOverlay__label helpOverlay__label--${group.group}`;
+  if (group.variant === "canvasSplit") {
+    el.classList.add("helpOverlay__label--canvasSplit");
+  }
 
   for (const row of group.lines) {
     const rowEl = document.createElement("div");
     rowEl.className = "helpOverlay__row";
+
+    if (row.iconSelector) {
+      rowEl.append(makeTopbarIcon(row.iconSelector));
+    }
+
+    const textWrap = document.createElement("div");
+    textWrap.className = "helpOverlay__rowText";
+
     const actionEl = document.createElement("strong");
     actionEl.textContent = `${row.action};`;
     const bodyEl = document.createElement("span");
     bodyEl.textContent = row.body;
-    rowEl.append(actionEl, bodyEl);
+
+    textWrap.append(actionEl, bodyEl);
+
+    if (group.variant === "canvasSplit") {
+      actionEl.classList.add("helpOverlay__canvasTitle");
+      bodyEl.classList.add("helpOverlay__canvasBody");
+    }
+
+    rowEl.append(textWrap);
     el.append(rowEl);
   }
 
   return el;
-}
-
-function resolveTargetPoint(target, viewportWidth, viewportHeight) {
-  if (target.point) {
-    return {
-      x: target.point.x * viewportWidth,
-      y: target.point.y * viewportHeight,
-    };
-  }
-  if (!target.selector) return null;
-  const rect = getRect(target.selector);
-  if (!rect) return null;
-  return pointFromRect(rect, target.attach);
 }
 
 function boxesOverlap(a, b, pad = 8) {
@@ -160,8 +185,21 @@ export function createHelpOverlay(options) {
     svgEl.append(line);
   }
 
-  function drawBracket(rect) {
-    const y = rect.top - 16;
+  function drawBracket(rect, side = "top") {
+    if (side === "left") {
+      const x = rect.left - 14;
+      const top = rect.top;
+      const bottom = rect.bottom;
+      const path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", `M ${x + 10} ${top} L ${x} ${top} L ${x} ${bottom} L ${x + 10} ${bottom}`);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "rgba(255,255,255,0.92)");
+      path.setAttribute("stroke-width", "1");
+      svgEl.append(path);
+      return { x, y: top + (bottom - top) / 2 };
+    }
+
+    const y = rect.top - 18;
     const left = rect.left;
     const right = rect.right;
     const path = document.createElementNS(SVG_NS, "path");
@@ -170,21 +208,17 @@ export function createHelpOverlay(options) {
     path.setAttribute("stroke", "rgba(255,255,255,0.92)");
     path.setAttribute("stroke-width", "1");
     svgEl.append(path);
-  }
-
-  function resolveGroupLabelPosition(group, labelEl, viewportWidth, viewportHeight) {
-    const lr = labelEl.getBoundingClientRect();
-    const x = clamp(group.label.x * viewportWidth - lr.width / 2, 12, viewportWidth - lr.width - 12);
-    const y = clamp(group.label.y * viewportHeight - lr.height / 2, 12, viewportHeight - lr.height - 12);
-    return { x: Math.round(x), y: Math.round(y), width: lr.width, height: lr.height };
+    return { x: left + (right - left) / 2, y };
   }
 
   function preventLabelOverlap(layouts, viewportWidth, viewportHeight) {
     for (let i = 0; i < layouts.length; i += 1) {
       const current = layouts[i];
+      if (current.group.variant === "canvasSplit") continue;
+
       let moved = true;
       let safety = 0;
-      while (moved && safety < 18) {
+      while (moved && safety < 22) {
         moved = false;
         safety += 1;
         const currentRect = {
@@ -204,7 +238,7 @@ export function createHelpOverlay(options) {
           };
           if (boxesOverlap(currentRect, prevRect, 8)) {
             current.y = clamp(previous.y + previous.height + 10, 12, viewportHeight - current.height - 12);
-            current.x = clamp(current.x + 10, 12, viewportWidth - current.width - 12);
+            current.x = clamp(current.x + 8, 12, viewportWidth - current.width - 12);
             moved = true;
           }
         }
@@ -224,17 +258,28 @@ export function createHelpOverlay(options) {
     centerDivider.style.top = `${Math.round(viewportHeight * 0.14)}px`;
     centerDivider.style.height = `${Math.round(viewportHeight * 0.15)}px`;
 
+    const bracketMidpoints = new Map();
     for (const bracket of HELP_GROUP_BRACKETS) {
       const rect = unionRects(bracket.targetSelectors.map((selector) => getRect(selector)));
-      if (rect) drawBracket(rect);
+      if (!rect) continue;
+      const midpoint = drawBracket(rect, bracket.side);
+      bracketMidpoints.set(bracket.id, midpoint);
     }
 
     const layouts = [];
     for (const group of HELP_OVERLAY_GROUPS) {
       const labelEl = buildGroupLabel(group);
       labelsLayer.append(labelEl);
-      const layout = resolveGroupLabelPosition(group, labelEl, viewportWidth, viewportHeight);
-      layouts.push({ ...layout, group, labelEl });
+
+      const rect = labelEl.getBoundingClientRect();
+      const width = group.variant === "canvasSplit" ? 280 : rect.width;
+      if (group.variant === "canvasSplit") {
+        labelEl.style.width = `${width}px`;
+      }
+      const measured = labelEl.getBoundingClientRect();
+      const x = clamp(group.label.x * viewportWidth - measured.width / 2, 12, viewportWidth - measured.width - 12);
+      const y = clamp(group.label.y * viewportHeight - measured.height / 2, 12, viewportHeight - measured.height - 12);
+      layouts.push({ group, labelEl, x: Math.round(x), y: Math.round(y), width: measured.width, height: measured.height });
     }
 
     preventLabelOverlap(layouts, viewportWidth, viewportHeight);
@@ -242,14 +287,27 @@ export function createHelpOverlay(options) {
     for (const layout of layouts) {
       layout.labelEl.style.left = `${layout.x}px`;
       layout.labelEl.style.top = `${layout.y}px`;
-      const labelRect = layout.labelEl.getBoundingClientRect();
 
-      for (const target of layout.group.targets) {
-        const targetPoint = resolveTargetPoint(target, viewportWidth, viewportHeight);
-        if (!targetPoint) continue;
-        const fromPoint = lineAttachPoint(labelRect, targetPoint);
-        drawArrow(fromPoint, targetPoint);
+      if (layout.group.noArrow) {
+        continue;
       }
+
+      const labelRect = layout.labelEl.getBoundingClientRect();
+      let targetPoint = null;
+
+      if (layout.group.target?.bracketId) {
+        targetPoint = bracketMidpoints.get(layout.group.target.bracketId) || null;
+      } else if (layout.group.target?.selector) {
+        const targetRect = getRect(layout.group.target.selector);
+        if (targetRect) {
+          targetPoint = pointFromRect(targetRect, layout.group.target.attach);
+        }
+      }
+
+      if (!targetPoint) continue;
+
+      const from = lineAttachPoint(labelRect, targetPoint);
+      drawArrow(from, targetPoint);
     }
   }
 

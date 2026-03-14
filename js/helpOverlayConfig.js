@@ -1,38 +1,34 @@
-const line = (action, body) => ({ action, body });
+const line = (action, body, options = {}) => ({ action, body, ...options });
 
 export const HELP_OVERLAY_GROUPS = [
   {
     id: "canvas-left",
     group: "canvas",
+    variant: "canvasSplit",
     lines: [line("Tap left", "previous item in history.")],
-    label: { x: 0.30, y: 0.22 },
-    targets: [{ point: { x: 0.24, y: 0.50 } }],
+    label: { x: 0.36, y: 0.23 },
+    noArrow: true,
   },
   {
     id: "canvas-right",
     group: "canvas",
-    lines: [line("Tap right", "next item in history or random next, depending on mode.")],
-    label: { x: 0.59, y: 0.22 },
-    targets: [{ point: { x: 0.76, y: 0.50 } }],
+    variant: "canvasSplit",
+    lines: [line("Tap right", "next item in history\nor random next, depending on mode.")],
+    label: { x: 0.64, y: 0.23 },
+    noArrow: true,
   },
   {
     id: "topbar",
     group: "topbar",
     lines: [
-      line("View", "show Lyapunov overlay in screen control mode."),
-      line("Help", "open or close this help."),
-      line("Settings", "open or close app settings."),
-      line("Auto Scale", "fit content to screen automatically."),
-      line("Camera", "save image."),
+      line("View", "show Lyapunov overlay in screen control mode.", { iconSelector: "#overlayToggleBtn" }),
+      line("Help", "open or close this help.", { iconSelector: "#helpBtn" }),
+      line("Settings", "open or close app settings.", { iconSelector: "#rangesEditorToggle" }),
+      line("Auto Scale", "fit content to screen automatically.", { iconSelector: "#scaleModeBtn" }),
+      line("Camera", "save image.", { iconSelector: "#cameraBtn" }),
     ],
-    label: { x: 0.84, y: 0.24 },
-    targets: [
-      { selector: "#overlayToggleBtn", attach: "left" },
-      { selector: "#helpBtn", attach: "left" },
-      { selector: "#rangesEditorToggle", attach: "left" },
-      { selector: "#scaleModeBtn", attach: "left" },
-      { selector: "#cameraBtn", attach: "left" },
-    ],
+    label: { x: 0.82, y: 0.27 },
+    target: { bracketId: "topbar-group" },
   },
   {
     id: "slider",
@@ -42,12 +38,8 @@ export const HELP_OVERLAY_GROUPS = [
       line("Double-tap header", "set a, b, c or d to zero."),
       line("Tap − or +", "fine control."),
     ],
-    label: { x: 0.50, y: 0.70 },
-    targets: [
-      { selector: "#quickSlider", attach: "top" },
-      { selector: "#quickSlider .qsTop", attach: "top-left" },
-      { selector: "#quickSlider .qsControlRow", attach: "top-right" },
-    ],
+    label: { x: 0.34, y: 0.77 },
+    target: { selector: "#quickSlider .qsTop", attach: "top" },
   },
   {
     id: "formula-cmap",
@@ -56,11 +48,8 @@ export const HELP_OVERLAY_GROUPS = [
       line("Tap tile", "open selection list and adjust settings."),
       line("Double-tap tile", "toggle fixed or random."),
     ],
-    label: { x: 0.14, y: 0.74 },
-    targets: [
-      { selector: "#formulaBtn", attach: "top" },
-      { selector: "#cmapBtn", attach: "top" },
-    ],
+    label: { x: 0.16, y: 0.68 },
+    target: { bracketId: "formula-cmap-group" },
   },
   {
     id: "params",
@@ -72,13 +61,8 @@ export const HELP_OVERLAY_GROUPS = [
       line("Swipe left or right", "assign horizontal screen control."),
       line("Long press", "clear screen control assignment."),
     ],
-    label: { x: 0.45, y: 0.73 },
-    targets: [
-      { selector: "#btnAlpha", attach: "top" },
-      { selector: "#btnBeta", attach: "top" },
-      { selector: "#btnDelta", attach: "top" },
-      { selector: "#btnGamma", attach: "top" },
-    ],
+    label: { x: 0.61, y: 0.57 },
+    target: { bracketId: "params-group" },
   },
   {
     id: "iter",
@@ -87,25 +71,32 @@ export const HELP_OVERLAY_GROUPS = [
       line("Tap tile", "assign to slider control."),
       line("Double-tap tile", "toggle fixed or random."),
     ],
-    label: { x: 0.73, y: 0.74 },
-    targets: [{ selector: "#btnIters", attach: "top" }],
+    label: { x: 0.78, y: 0.86 },
+    target: { selector: "#btnIters", attach: "top" },
   },
   {
     id: "random",
     group: "random",
-    lines: [line("Double-tap this tile", "toggles all tiles to random or fixed.")],
-    label: { x: 0.90, y: 0.74 },
-    targets: [{ selector: "#randomModeBtn", attach: "top" }],
+    lines: [line("Double tap", "toggles all random or fixed")],
+    label: { x: 0.90, y: 0.58 },
+    target: { selector: "#randomModeBtn", attach: "top" },
   },
 ];
 
 export const HELP_GROUP_BRACKETS = [
   {
+    id: "topbar-group",
+    targetSelectors: ["#overlayToggleBtn", "#helpBtn", "#rangesEditorToggle", "#scaleModeBtn", "#cameraBtn"],
+    side: "left",
+  },
+  {
     id: "formula-cmap-group",
     targetSelectors: ["#formulaBtn", "#cmapBtn"],
+    side: "top",
   },
   {
     id: "params-group",
     targetSelectors: ["#btnAlpha", "#btnBeta", "#btnDelta", "#btnGamma"],
+    side: "top",
   },
 ];
