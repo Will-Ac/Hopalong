@@ -867,17 +867,78 @@
       }
       #rangesEditorToggle.is-active,
       #overlayToggleBtn.is-active,
+      #helpBtn.is-active,
       #scaleModeBtn.is-active,
       #cameraBtn.is-active {
         background: rgba(255, 255, 255, 0.2);
         color: #fff;
         border-color: rgba(255, 255, 255, 0.9);
       }
+
+      #helpOverlay {
+        position: fixed;
+        inset: 0;
+        z-index: 58;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 180ms ease;
+      }
+      #helpOverlay.is-open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .helpOverlay__dimmer {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.58);
+      }
+      .helpOverlay__lines {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .helpOverlay__labels {
+        position: absolute;
+        inset: 0;
+      }
+      .helpOverlay__label {
+        position: absolute;
+        max-width: min(360px, calc(100vw - 24px));
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        background: rgba(5, 10, 18, 0.86);
+        color: #f2f5ff;
+        font-size: clamp(12px, 1.1vw, 14px);
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+      .helpOverlay__label strong {
+        font-weight: 800;
+      }
+      .helpOverlay__centerDivider {
+        position: absolute;
+        width: 0;
+        border-left: 1px dashed rgba(255, 255, 255, 0.85);
+        transform: translateX(-0.5px);
+      }
+      body.helpOverlay-active #helpBtn {
+        position: relative;
+        z-index: 64;
+      }
       #overlayToggleBtn.is-disabled {
         color: rgba(var(--ui-gray-rgb), 0.45);
         border-color: rgba(var(--ui-gray-rgb), 0.22);
         background: rgba(var(--panel-rgb), calc(var(--dialog-alpha) * 0.55));
       }
+      @media (max-width: 900px) {
+        .helpOverlay__label {
+          max-width: min(300px, calc(100vw - 20px));
+          font-size: 12px;
+        }
+      }
+
       @media (max-width: 900px) and (orientation: landscape) {
         .poItem {
           padding: 3px;
