@@ -2224,6 +2224,17 @@ function randomChoice(items) {
 
 function randomizeAllParameters() {
   clearSharedParamsOverride();
+  const preservedFixedSliderValues = {};
+
+  for (const [sliderKey, control] of Object.entries(sliderControls)) {
+    if (sliderKey === "burn") {
+      continue;
+    }
+
+    if (!isRandomizedParam(control.paramKey)) {
+      preservedFixedSliderValues[sliderKey] = appData.defaults.sliders[sliderKey];
+    }
+  }
 
   if (isRandomizedParam("formula")) {
     const previousFormulaId = currentFormulaId;
@@ -2251,6 +2262,10 @@ function randomizeAllParameters() {
       continue;
     }
     appData.defaults.sliders[sliderKey] = Number((Math.random() * (control.max - control.min) + control.min).toFixed(4));
+  }
+
+  for (const [sliderKey, preservedValue] of Object.entries(preservedFixedSliderValues)) {
+    appData.defaults.sliders[sliderKey] = preservedValue;
   }
 
   saveDefaultsToStorage();
