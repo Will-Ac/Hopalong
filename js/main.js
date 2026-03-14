@@ -20,6 +20,7 @@ const debugInfoEl = document.getElementById("debugInfo");
 const debugPanelEl = document.getElementById("debugPanel");
 const rangesEditorToggleEl = document.getElementById("rangesEditorToggle");
 const overlayToggleBtn = document.getElementById("overlayToggleBtn");
+const helpBtn = document.getElementById("helpBtn");
 const rangesEditorPanelEl = document.getElementById("rangesEditorPanel");
 const rangesEditorCloseEl = document.getElementById("rangesEditorClose");
 const formulaSettingsPanelEl = document.getElementById("formulaSettingsPanel");
@@ -3919,10 +3920,10 @@ function drawInterestOverlay(meta) {
 
 function syncInterestOverlayToggleUi() {
   const enabled = Boolean(appData?.defaults?.interestOverlayEnabled);
-  const showButton = hasAnyManualTargets();
-  overlayToggleBtn?.classList.toggle("is-hidden", !showButton);
-  overlayToggleBtn?.classList.toggle("is-active", enabled && showButton);
-  overlayToggleBtn?.setAttribute("aria-pressed", enabled && showButton ? "true" : "false");
+  const hasManualTargets = hasAnyManualTargets();
+  overlayToggleBtn?.classList.toggle("is-disabled", !hasManualTargets);
+  overlayToggleBtn?.classList.toggle("is-active", enabled && hasManualTargets);
+  overlayToggleBtn?.setAttribute("aria-pressed", enabled && hasManualTargets ? "true" : "false");
 }
 
 function drawManualParamOverlay(meta) {
@@ -4921,7 +4922,17 @@ function registerHandlers() {
   });
 
   overlayToggleBtn?.addEventListener("click", () => {
+    if (!hasAnyManualTargets()) {
+      showToast("Overlay inactive: assign ManX and/or ManY first.");
+      return;
+    }
     applyInterestOverlayEnabled(!Boolean(appData.defaults.interestOverlayEnabled));
+  });
+
+  helpBtn?.addEventListener("click", () => {
+    const isActive = helpBtn.classList.toggle("is-active");
+    helpBtn.setAttribute("aria-pressed", isActive ? "true" : "false");
+    showToast(isActive ? "Help placeholder enabled." : "Help placeholder disabled.");
   });
 
   const toggleRandomMode = (event) => {

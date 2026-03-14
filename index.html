@@ -852,6 +852,16 @@
         height: 34px;
         display: block;
       }
+      #helpBtn .helpIcon {
+        width: 30px;
+        height: 30px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1;
+      }
       .topActionBtn.is-hidden {
         display: none;
       }
@@ -862,6 +872,11 @@
         background: rgba(255, 255, 255, 0.2);
         color: #fff;
         border-color: rgba(255, 255, 255, 0.9);
+      }
+      #overlayToggleBtn.is-disabled {
+        color: rgba(var(--ui-gray-rgb), 0.45);
+        border-color: rgba(var(--ui-gray-rgb), 0.22);
+        background: rgba(var(--panel-rgb), calc(var(--dialog-alpha) * 0.55));
       }
       @media (max-width: 900px) and (orientation: landscape) {
         .poItem {
@@ -886,6 +901,11 @@
         #overlayToggleBtn .eyeIcon {
           width: 24px;
           height: 24px;
+        }
+        #helpBtn .helpIcon {
+          width: 22px;
+          height: 22px;
+          font-size: 16px;
         }
         #cameraBtn,
         #scaleModeBtn {
@@ -917,6 +937,7 @@
       </div>
       <div id="topRightActions">
         <button id="overlayToggleBtn" class="topActionBtn" type="button" aria-label="Toggle interest overlay" title="Interest overlay"><svg class="eyeIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.2 12s3.3-6 9.8-6 9.8 6 9.8 6-3.3 6-9.8 6-9.8-6-9.8-6Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="eyePupil" cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></button>
+        <button id="helpBtn" class="topActionBtn" type="button" aria-label="Help" aria-pressed="false" title="Help"><span class="helpIcon" aria-hidden="true">?</span></button>
         <button id="rangesEditorToggle" class="topActionBtn" type="button" aria-label="Open ranges editor" aria-pressed="false"><svg class="settingsIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.2 2.9h3.6l.5 2a7.5 7.5 0 0 1 1.5.6l1.8-1 2.5 2.5-1 1.8c.23.48.43.98.57 1.5l2.05.5v3.6l-2.05.5a7.4 7.4 0 0 1-.57 1.5l1 1.8-2.5 2.5-1.8-1a7.5 7.5 0 0 1-1.5.6l-.5 2h-3.6l-.5-2a7.5 7.5 0 0 1-1.5-.6l-1.8 1-2.5-2.5 1-1.8a7.4 7.4 0 0 1-.57-1.5L2 13.8v-3.6l2.05-.5c.14-.52.34-1.02.57-1.5l-1-1.8 2.5-2.5 1.8 1c.48-.23.98-.43 1.5-.6l.5-2Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.9"/></svg></button>
         <button id="scaleModeBtn" class="topActionBtn" type="button" aria-label="Toggle auto scale">Auto
 Scale</button>
