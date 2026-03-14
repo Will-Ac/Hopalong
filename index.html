@@ -927,23 +927,21 @@
         gap: 8px;
       }
       .helpOverlay__rowText {
-        display: grid;
-        gap: 1px;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        white-space: nowrap;
       }
       .helpOverlay__rowText strong,
       .helpOverlay__rowText span {
         font-size: inherit;
         line-height: inherit;
       }
+      .helpOverlay__rowText span {
+        font-weight: 500;
+      }
       .helpOverlay__label strong {
-        font-weight: 800;
-      }
-      .helpOverlay__canvasTitle {
-        text-align: center;
-      }
-      .helpOverlay__canvasBody {
-        text-align: center;
-        white-space: pre-line;
+        font-weight: 700;
       }
       .helpOverlay__inlineIcon {
         width: 22px;
@@ -956,8 +954,6 @@
         align-items: center;
         justify-content: center;
         overflow: hidden;
-      }
-      .helpOverlay__inlineIcon {
         font-size: 9px;
         font-weight: 700;
         line-height: 1;
@@ -975,9 +971,12 @@
         border-left: 1px dashed rgba(255, 255, 255, 0.85);
         transform: translateX(-0.5px);
       }
+      body.helpOverlay-active #topRightActions {
+        z-index: 64;
+      }
       body.helpOverlay-active #helpBtn {
         position: relative;
-        z-index: 64;
+        z-index: 65;
       }
       #overlayToggleBtn.is-disabled {
         color: rgba(var(--ui-gray-rgb), 0.45);

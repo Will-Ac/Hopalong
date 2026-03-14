@@ -32,6 +32,8 @@ function pointFromRect(rect, attach = "center") {
       return { x: rect.left - 12, y: rect.top + rect.height / 2 };
     case "right":
       return { x: rect.right + 12, y: rect.top + rect.height / 2 };
+    case "bottom":
+      return { x: rect.left + rect.width / 2, y: rect.bottom + 12 };
     default:
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
   }
@@ -106,11 +108,6 @@ function buildGroupLabel(group) {
 
     textWrap.append(actionEl, bodyEl);
 
-    if (group.variant === "canvasSplit") {
-      actionEl.classList.add("helpOverlay__canvasTitle");
-      bodyEl.classList.add("helpOverlay__canvasBody");
-    }
-
     rowEl.append(textWrap);
     el.append(rowEl);
   }
@@ -168,6 +165,16 @@ export function createHelpOverlay(options) {
     helpButton?.setAttribute("aria-pressed", active ? "true" : "false");
   }
 
+
+  function isHelpButtonEvent(event) {
+    if (!helpButton || !event) return false;
+    const target = event.target;
+    if (target instanceof Element && target.closest("#helpBtn")) return true;
+    if (typeof event.composedPath === "function") {
+      return event.composedPath().includes(helpButton);
+    }
+    return false;
+  }
   function clearGraphics() {
     labelsLayer.innerHTML = "";
     svgEl.querySelectorAll("line,path:not(defs path)").forEach((node) => node.remove());
@@ -277,12 +284,26 @@ export function createHelpOverlay(options) {
         labelEl.style.width = `${width}px`;
       }
       const measured = labelEl.getBoundingClientRect();
-      const x = clamp(group.label.x * viewportWidth - measured.width / 2, 12, viewportWidth - measured.width - 12);
+      let x = clamp(group.label.x * viewportWidth - measured.width / 2, 12, viewportWidth - measured.width - 12);
+      if (group.align === "leftPinned") {
+        x = 16;
+      }
       const y = clamp(group.label.y * viewportHeight - measured.height / 2, 12, viewportHeight - measured.height - 12);
       layouts.push({ group, labelEl, x: Math.round(x), y: Math.round(y), width: measured.width, height: measured.height });
     }
 
     preventLabelOverlap(layouts, viewportWidth, viewportHeight);
+
+    const paramOverlayRect = getRect("#paramOverlay");
+    const quickSliderRect = getRect("#quickSlider");
+    const uiTop = Math.min(
+      Number.isFinite(paramOverlayRect?.top) ? paramOverlayRect.top : viewportHeight,
+      Number.isFinite(quickSliderRect?.top) ? quickSliderRect.top : viewportHeight,
+    );
+    for (const layout of layouts) {
+      const maxY = Math.max(12, uiTop - layout.height - 12);
+      layout.y = Math.min(layout.y, maxY);
+    }
 
     for (const layout of layouts) {
       layout.labelEl.style.left = `${layout.x}px`;
@@ -314,7 +335,7 @@ export function createHelpOverlay(options) {
   const blockers = ["pointerdown", "pointerup", "click", "dblclick", "contextmenu", "touchstart", "touchmove", "touchend", "wheel"];
   const blockEvents = (event) => {
     if (!open) return;
-    if (event.target?.closest?.("#helpBtn")) return;
+    if (isHelpButtonEvent(event)) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation?.();
@@ -327,7 +348,7 @@ export function createHelpOverlay(options) {
       close();
       return;
     }
-    if (event.target?.closest?.("#helpBtn")) return;
+    if (isHelpButtonEvent(event)) return;
     event.preventDefault();
     event.stopPropagation();
   };
