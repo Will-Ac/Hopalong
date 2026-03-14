@@ -21,6 +21,11 @@ const debugPanelEl = document.getElementById("debugPanel");
 const rangesEditorToggleEl = document.getElementById("rangesEditorToggle");
 const overlayToggleBtn = document.getElementById("overlayToggleBtn");
 const helpBtn = document.getElementById("helpBtn");
+const helpOverlayEl = document.getElementById("helpOverlay");
+const helpBackdropEl = document.getElementById("helpBackdrop");
+const helpCloseBtnEl = document.getElementById("helpCloseBtn");
+const helpStyleAEl = document.getElementById("helpStyleA");
+const helpStyleBEl = document.getElementById("helpStyleB");
 const rangesEditorPanelEl = document.getElementById("rangesEditorPanel");
 const rangesEditorCloseEl = document.getElementById("rangesEditorClose");
 const formulaSettingsPanelEl = document.getElementById("formulaSettingsPanel");
@@ -218,6 +223,7 @@ let drawScheduled = false;
 let drawDirty = false;
 let drawInProgress = false;
 let highResExportInProgress = false;
+let helpOverlayStyle = "a";
 let panZoomInteractionActive = false;
 let panZoomSettleTimer = null;
 let toastTimer = null;
@@ -2263,7 +2269,51 @@ function isEventInsideInteractiveUi(eventTarget) {
     return false;
   }
 
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #colorSettingsPanel, #rangesEditorToggle"));
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #colorSettingsPanel, #rangesEditorToggle, #helpOverlay"));
+}
+
+function syncHelpStyleButtons() {
+  helpStyleAEl?.classList.toggle("is-active", helpOverlayStyle === "a");
+  helpStyleBEl?.classList.toggle("is-active", helpOverlayStyle === "b");
+  if (helpOverlayEl) {
+    helpOverlayEl.dataset.helpStyle = helpOverlayStyle;
+  }
+}
+
+function closeHelpOverlay() {
+  if (!helpOverlayEl) {
+    return;
+  }
+
+  helpOverlayEl.classList.remove("is-open");
+  helpOverlayEl.setAttribute("aria-hidden", "true");
+  helpBtn?.classList.remove("is-active");
+  helpBtn?.setAttribute("aria-pressed", "false");
+}
+
+function openHelpOverlay() {
+  if (!helpOverlayEl) {
+    return;
+  }
+
+  helpOverlayEl.classList.add("is-open");
+  helpOverlayEl.setAttribute("aria-hidden", "false");
+  helpBtn?.classList.add("is-active");
+  helpBtn?.setAttribute("aria-pressed", "true");
+  syncHelpStyleButtons();
+}
+
+function toggleHelpOverlay() {
+  if (!helpOverlayEl) {
+    return;
+  }
+
+  const isOpen = helpOverlayEl.classList.contains("is-open");
+  if (isOpen) {
+    closeHelpOverlay();
+    return;
+  }
+  openHelpOverlay();
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -3471,6 +3521,12 @@ function showKeyboardStepToast(sliderKey, direction, stepSize) {
 }
 
 function onKeyboardArrowDown(event) {
+  if (event.code === "Escape" && helpOverlayEl?.classList.contains("is-open")) {
+    closeHelpOverlay();
+    event.preventDefault();
+    return;
+  }
+
   const mapping = getArrowMapping(event.code);
   if (!mapping) {
     return;
@@ -4930,9 +4986,17 @@ function registerHandlers() {
   });
 
   helpBtn?.addEventListener("click", () => {
-    const isActive = helpBtn.classList.toggle("is-active");
-    helpBtn.setAttribute("aria-pressed", isActive ? "true" : "false");
-    showToast(isActive ? "Help placeholder enabled." : "Help placeholder disabled.");
+    toggleHelpOverlay();
+  });
+  helpBackdropEl?.addEventListener("click", () => closeHelpOverlay());
+  helpCloseBtnEl?.addEventListener("click", () => closeHelpOverlay());
+  helpStyleAEl?.addEventListener("click", () => {
+    helpOverlayStyle = "a";
+    syncHelpStyleButtons();
+  });
+  helpStyleBEl?.addEventListener("click", () => {
+    helpOverlayStyle = "b";
+    syncHelpStyleButtons();
   });
 
   const toggleRandomMode = (event) => {

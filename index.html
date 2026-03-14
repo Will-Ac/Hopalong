@@ -926,6 +926,131 @@
         }
       }
 
+      #helpOverlay {
+        position: absolute;
+        inset: 0;
+        z-index: 60;
+        display: none;
+        color: #f2f4ff;
+      }
+      #helpOverlay.is-open {
+        display: block;
+      }
+      .helpBackdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(3, 6, 12, 0.78);
+      }
+      .helpOverlayPanel {
+        position: absolute;
+        inset: 0;
+      }
+      .helpControls {
+        position: absolute;
+        top: calc(8px + env(safe-area-inset-top));
+        left: max(8px, env(safe-area-inset-left));
+        z-index: 3;
+        display: inline-flex;
+        gap: 6px;
+        pointer-events: auto;
+      }
+      .helpCtlBtn {
+        min-height: 34px;
+        border-radius: 8px;
+        border: 1px solid rgba(220, 227, 255, 0.55);
+        background: rgba(8, 12, 24, 0.85);
+        color: #f2f4ff;
+        padding: 0 12px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .helpCtlBtn.is-active {
+        background: rgba(95, 118, 190, 0.75);
+      }
+      .helpGuideLine {
+        position: absolute;
+        top: 12%;
+        bottom: 34%;
+        left: 50%;
+        width: 1px;
+        border-left: 2px dashed rgba(230, 236, 255, 0.56);
+        transform: translateX(-50%);
+      }
+      .helpNote {
+        position: absolute;
+        z-index: 2;
+        max-width: min(32vw, 460px);
+        padding: 6px 10px;
+        border-radius: 8px;
+        background: rgba(12, 16, 30, 0.92);
+        border: 1px solid rgba(223, 230, 255, 0.35);
+        font-size: 13px;
+        line-height: 1.3;
+        white-space: nowrap;
+        pointer-events: none;
+      }
+      .helpNote p {
+        margin: 0;
+      }
+      .helpNote + .helpNote {
+        margin-top: 4px;
+      }
+      .helpAction {
+        font-weight: 800;
+      }
+      .helpArrow {
+        position: absolute;
+        z-index: 1;
+        height: 2px;
+        background: rgba(235, 240, 255, 0.9);
+        transform-origin: left center;
+      }
+      .helpArrow::after {
+        content: "";
+        position: absolute;
+        right: -7px;
+        top: -4px;
+        border-top: 5px solid transparent;
+        border-bottom: 5px solid transparent;
+        border-left: 8px solid rgba(235, 240, 255, 0.9);
+      }
+      #helpOverlay[data-help-style="b"] {
+        color: #ffffff;
+      }
+      #helpOverlay[data-help-style="b"] .helpBackdrop {
+        background: rgba(1, 2, 7, 0.84);
+      }
+      #helpOverlay[data-help-style="b"] .helpNote {
+        font-family: "Comic Sans MS", "Bradley Hand", "Segoe Print", cursive;
+        font-weight: 600;
+        border: 2px dashed rgba(255, 255, 255, 0.72);
+        background: rgba(10, 10, 18, 0.5);
+      }
+      #helpOverlay[data-help-style="b"] .helpArrow {
+        height: 3px;
+        background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.98) 0 11px, transparent 11px 15px);
+      }
+      #helpOverlay[data-help-style="b"] .helpArrow::after {
+        border-left-color: rgba(255, 255, 255, 0.95);
+      }
+      #helpOverlay[data-help-style="b"] .helpGuideLine {
+        border-left-style: dotted;
+      }
+
+      @media (max-width: 1200px) {
+        .helpNote {
+          font-size: 12px;
+          max-width: 46vw;
+        }
+      }
+
+      @media (max-width: 900px) {
+        .helpNote {
+          white-space: normal;
+          max-width: 44vw;
+        }
+      }
+
     </style>
   </head>
   <body>
@@ -942,6 +1067,55 @@
         <button id="scaleModeBtn" class="topActionBtn" type="button" aria-label="Toggle auto scale">Auto
 Scale</button>
         <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      <div id="helpOverlay" aria-hidden="true" data-help-style="a">
+        <div id="helpBackdrop" class="helpBackdrop"></div>
+        <div class="helpOverlayPanel">
+          <div class="helpControls" role="group" aria-label="Help overlay style">
+            <button id="helpStyleA" class="helpCtlBtn is-active" type="button">Style A</button>
+            <button id="helpStyleB" class="helpCtlBtn" type="button">Style B</button>
+            <button id="helpCloseBtn" class="helpCtlBtn" type="button">Close</button>
+          </div>
+          <div class="helpGuideLine" aria-hidden="true"></div>
+
+          <div class="helpNote" style="left:14%;top:11%;"><p><span class="helpAction">Tap left</span> previous item in history.</p></div>
+          <div class="helpNote" style="left:54%;top:11%;"><p><span class="helpAction">Tap right</span> next/history or random next by mode.</p></div>
+
+          <div class="helpNote" style="right:14px;top:20%;"><p><span class="helpAction">View icon</span> Lyapunov overlay in screen control mode.</p></div>
+          <div class="helpNote" style="right:14px;top:25%;"><p><span class="helpAction">Help icon</span> opens this help overlay.</p></div>
+          <div class="helpNote" style="right:14px;top:30%;"><p><span class="helpAction">Settings icon</span> adjust app settings.</p></div>
+          <div class="helpNote" style="right:14px;top:35%;"><p><span class="helpAction">Auto Scale</span> fit content to screen automatically.</p></div>
+          <div class="helpNote" style="right:14px;top:40%;"><p><span class="helpAction">Camera</span> save image.</p></div>
+
+          <div class="helpNote" style="left:2%;bottom:176px;"><p><span class="helpAction">Short tap Formula/Color map</span> open list and adjust settings.</p></div>
+          <div class="helpNote" style="left:2%;bottom:150px;"><p><span class="helpAction">Double-tap Formula/Color map</span> toggle fixed (solid) or random (dotted).</p></div>
+
+          <div class="helpNote" style="left:26%;bottom:176px;"><p><span class="helpAction">Short tap a/b/c/d or iter</span> assign tile to slider control.</p></div>
+          <div class="helpNote" style="left:26%;bottom:150px;"><p><span class="helpAction">Double-tap tile</span> toggle fixed (solid) or random (dotted).</p></div>
+          <div class="helpNote" style="left:26%;bottom:124px;"><p><span class="helpAction">Swipe up/down</span> assign vertical screen control bars.</p></div>
+          <div class="helpNote" style="left:26%;bottom:98px;"><p><span class="helpAction">Swipe left/right</span> assign horizontal screen control bars.</p></div>
+          <div class="helpNote" style="left:26%;bottom:72px;"><p><span class="helpAction">Long press tile</span> unassign screen control (full outline).</p></div>
+
+          <div class="helpNote" style="left:50%;bottom:212px;transform:translateX(-50%);"><p><span class="helpAction">Short tap slider</span> open list and adjust fixed value.</p></div>
+          <div class="helpNote" style="left:50%;bottom:186px;transform:translateX(-50%);"><p><span class="helpAction">Drag slider thumb</span> change assigned parameter value.</p></div>
+          <div class="helpNote" style="left:50%;bottom:160px;transform:translateX(-50%);"><p><span class="helpAction">Double-tap slider header</span> set a, b, c, d to zero.</p></div>
+          <div class="helpNote" style="left:50%;bottom:134px;transform:translateX(-50%);"><p><span class="helpAction">Tap − or +</span> fine control adjustments.</p></div>
+
+          <div class="helpNote" style="right:3%;bottom:168px;"><p><span class="helpAction">Double-tap Random all</span> set all tiles random (dotted).</p></div>
+          <div class="helpNote" style="right:3%;bottom:142px;"><p><span class="helpAction">Double-tap Fix all</span> set all tiles fixed (solid).</p></div>
+
+          <div class="helpArrow" style="left:32%;top:13%;width:17%;transform:rotate(0deg);"></div>
+          <div class="helpArrow" style="left:51%;top:13%;width:17%;transform:rotate(0deg);"></div>
+          <div class="helpArrow" style="left:76%;top:22.5%;width:10%;transform:rotate(-17deg);"></div>
+          <div class="helpArrow" style="left:76%;top:27.5%;width:10%;transform:rotate(-12deg);"></div>
+          <div class="helpArrow" style="left:76%;top:32.5%;width:10%;transform:rotate(-6deg);"></div>
+          <div class="helpArrow" style="left:76%;top:37.5%;width:10%;transform:rotate(2deg);"></div>
+          <div class="helpArrow" style="left:76%;top:42.5%;width:10%;transform:rotate(8deg);"></div>
+          <div class="helpArrow" style="left:9%;bottom:162px;width:8%;transform:rotate(78deg);"></div>
+          <div class="helpArrow" style="left:37%;bottom:154px;width:10%;transform:rotate(74deg);"></div>
+          <div class="helpArrow" style="left:50%;bottom:126px;width:2%;transform:rotate(90deg);"></div>
+          <div class="helpArrow" style="right:11%;bottom:156px;width:7%;transform:rotate(76deg);"></div>
+        </div>
       </div>
       <aside id="rangesEditorPanel" class="is-hidden" aria-label="Settings editor">
         <div class="rangesEditorHead">
