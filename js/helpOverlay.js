@@ -102,7 +102,16 @@ function buildGroupLabel(group) {
     textWrap.className = "helpOverlay__rowText";
 
     const actionEl = document.createElement("strong");
-    actionEl.textContent = `${row.action};`;
+    const delimiter = row.delimiter ?? ";";
+    actionEl.textContent = `${row.action}${delimiter}`;
+
+    if (row.heading) {
+      textWrap.append(actionEl);
+      rowEl.append(textWrap);
+      el.append(rowEl);
+      continue;
+    }
+
     const bodyEl = document.createElement("span");
     bodyEl.textContent = row.body;
 

@@ -2,6 +2,20 @@ const line = (action, body, options = {}) => ({ action, body, ...options });
 
 export const HELP_OVERLAY_GROUPS = [
   {
+    id: "tile-border-legend",
+    group: "legend",
+    lines: [
+      line("Tile borders status meaning", "", { delimiter: "", heading: true }),
+      line("Solid line", "fixed", { delimiter: ":" }),
+      line("Dashed line", "randomised", { delimiter: ":" }),
+      line("Vertical lines", "vertical screen control", { delimiter: ":" }),
+      line("Horizontal lines", "horizontal screen control", { delimiter: ":" }),
+      line("Dashed & solid on", "mix of random & fixed", { delimiter: ":" }),
+    ],
+    label: { x: 0.16, y: 0.18 },
+    noArrow: true,
+  },
+  {
     id: "topbar",
     group: "topbar",
     lines: [
