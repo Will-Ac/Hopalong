@@ -990,14 +990,26 @@
         border-width: 1.5px;
       }
       .helpOverlay__tilePreview--side {
-        border-top: 0;
-        border-bottom: 0;
+        border: 0;
         border-radius: 0;
+        background:
+          linear-gradient(
+            to right,
+            rgba(255, 255, 255, 0.82) 0 2px,
+            transparent 2px calc(100% - 2px),
+            rgba(255, 255, 255, 0.82) calc(100% - 2px) 100%
+          );
       }
       .helpOverlay__tilePreview--upperLower {
-        border-left: 0;
-        border-right: 0;
+        border: 0;
         border-radius: 0;
+        background:
+          linear-gradient(
+            to bottom,
+            rgba(255, 255, 255, 0.82) 0 2px,
+            transparent 2px calc(100% - 2px),
+            rgba(255, 255, 255, 0.82) calc(100% - 2px) 100%
+          );
       }
       .helpOverlay__centerDivider {
         position: absolute;
