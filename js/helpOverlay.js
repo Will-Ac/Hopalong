@@ -446,7 +446,7 @@ export function createHelpOverlay(options) {
     if (topRightActionsRect && topbarLayout) {
       const topbarY = Math.round(clamp(topRightActionsRect.bottom + (isMobile ? 6 : 10), margin, uiTop - topbarLayout.height - margin));
       topbarLayout.y = topbarY;
-      if (legendLayout && !isMobile) {
+      if (legendLayout) {
         legendLayout.y = topbarY;
       }
     }
@@ -458,14 +458,22 @@ export function createHelpOverlay(options) {
       if (formulaLayout) {
         formulaLayout.x = clamp(alignedLeft, margin, viewportWidth - formulaLayout.width - margin);
       }
-      if (legendLayout && !isMobile) {
-        legendLayout.x = clamp(alignedLeft, margin, viewportWidth - legendLayout.width - margin);
-      }
     }
 
     const minLeftBound = formulaTileRect
       ? clamp(Math.round(formulaTileRect.left), margin, viewportWidth - margin)
       : margin;
+
+    if (topbarLayout && legendLayout) {
+      const pairGap = 10;
+      const proposedLegendX = topbarLayout.x - legendLayout.width - pairGap;
+      if (proposedLegendX >= minLeftBound) {
+        legendLayout.x = proposedLegendX;
+      } else {
+        legendLayout.x = minLeftBound;
+      }
+      legendLayout.y = topbarLayout.y;
+    }
 
     if (isMobile) {
       const topbar = layouts.find((item) => item.group.id === "topbar");
@@ -490,9 +498,15 @@ export function createHelpOverlay(options) {
         stackY = topbar.y + topbar.height + 8;
       }
       if (legend) {
-        legend.x = minLeftBound;
-        legend.y = clamp(stackY, margin, uiTop - legend.height - margin);
-        stackY = Math.max(legend.y + legend.height + 8, topbar ? topbar.y + topbar.height + 8 : stackY);
+        const pairGap = 10;
+        const sideBySideLegendX = topbar
+          ? topbar.x - legend.width - pairGap
+          : minLeftBound;
+        legend.x = clamp(sideBySideLegendX, minLeftBound, viewportWidth - legend.width - margin);
+        legend.y = topbar ? topbar.y : clamp(stackY, margin, uiTop - legend.height - margin);
+        const legendBottom = legend.y + legend.height;
+        const topbarBottom = topbar ? topbar.y + topbar.height : stackY;
+        stackY = Math.max(stackY, legendBottom + 8, topbarBottom + 8);
       }
       if (leftTapLayout && rightTapLayout) {
         const tapY = clamp(stackY, margin, uiTop - Math.max(leftTapLayout.height, rightTapLayout.height) - margin);
@@ -575,20 +589,14 @@ export function createHelpOverlay(options) {
       rightTap.y = Math.round(y);
     }
 
-    if (isMobile && leftTap && rightTap) {
-      const lineTop = Math.round(leftTap.y + Math.max(leftTap.height, rightTap.height) + 6);
-      const lineBottom = Math.round(uiTop - 8);
-      const lineHeight = Math.max(0, lineBottom - lineTop);
-      centerDivider.style.top = `${lineTop}px`;
-      centerDivider.style.height = `${lineHeight}px`;
-    } else {
-      const lineCenterY = leftTap && rightTap
-        ? Math.round((leftTap.y + leftTap.height / 2 + rightTap.y + rightTap.height / 2) / 2)
-        : Math.round(viewportHeight * 0.22);
-      const lineHeight = Math.max(108, Math.round(((leftTap?.height || 44) + (rightTap?.height || 44)) * 1.65));
-      centerDivider.style.top = `${Math.round(lineCenterY - lineHeight / 2)}px`;
-      centerDivider.style.height = `${lineHeight}px`;
-    }
+    const tapLineCenterY = leftTap && rightTap
+      ? Math.round((leftTap.y + leftTap.height / 2 + rightTap.y + rightTap.height / 2) / 2)
+      : Math.round(viewportHeight * 0.22);
+    const tapLineHeight = leftTap && rightTap
+      ? Math.round(Math.max(leftTap.height, rightTap.height) * 2)
+      : 108;
+    centerDivider.style.top = `${Math.round(tapLineCenterY - tapLineHeight / 2)}px`;
+    centerDivider.style.height = `${tapLineHeight}px`;
 
     for (const layout of layouts) {
       layout.labelEl.style.left = `${layout.x}px`;
