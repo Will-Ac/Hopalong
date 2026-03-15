@@ -25,6 +25,7 @@ export const HELP_OVERLAY_GROUPS = [
     ],
     label: { x: 0.82, y: 0.18 },
     target: { selector: "#topRightActions", attach: "bottom" },
+    noArrow: true,
   },
   {
     id: "canvas-left",

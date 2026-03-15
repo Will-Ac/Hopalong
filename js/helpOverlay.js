@@ -522,6 +522,13 @@ export function createHelpOverlay(options) {
         if (viewportHeight <= 380) {
           params.x = clamp(viewportWidth - params.width - margin, minLeftBound, viewportWidth - params.width - margin);
         }
+        if (slider) {
+          const rightParamsX = viewportWidth - params.width - margin;
+          const hasRoomForLeftSlider = rightParamsX - slider.width - 8 >= minLeftBound;
+          if (hasRoomForLeftSlider) {
+            params.x = clamp(rightParamsX, minLeftBound, viewportWidth - params.width - margin);
+          }
+        }
       }
       if (iter) {
         iter.x = clamp(viewportWidth - iter.width - margin, minLeftBound, viewportWidth - iter.width - margin);
@@ -549,6 +556,61 @@ export function createHelpOverlay(options) {
           || rightTapLayout.y > params.y + params.height + 4);
         if (overlapsRight) {
           rightTapLayout.x = clamp(params.x - rightTapLayout.width - 8, minLeftBound, viewportWidth - rightTapLayout.width - margin);
+        }
+      }
+
+      const doLayoutsOverlap = (a, b, gap = 4) => {
+        if (!a || !b) return false;
+        return !(a.x + a.width + gap < b.x
+          || a.x > b.x + b.width + gap
+          || a.y + a.height + gap < b.y
+          || a.y > b.y + b.height + gap);
+      };
+
+      if (viewportWidth > viewportHeight && topbar && legend && leftTapLayout && rightTapLayout) {
+        const horizontalGap = topbar.x - (legend.x + legend.width);
+        const requiredGap = leftTapLayout.width + rightTapLayout.width + 16;
+        if (horizontalGap >= requiredGap) {
+          const tapRowY = clamp(topbar.y + topbar.height - Math.max(leftTapLayout.height, rightTapLayout.height), margin, uiTop - Math.max(leftTapLayout.height, rightTapLayout.height) - margin);
+          const leftTargetX = clamp(legend.x + legend.width + 6, minLeftBound, viewportWidth - leftTapLayout.width - margin);
+          const rightTargetX = clamp(topbar.x - rightTapLayout.width - 6, minLeftBound, viewportWidth - rightTapLayout.width - margin);
+
+          const prevLeft = { x: leftTapLayout.x, y: leftTapLayout.y };
+          const prevRight = { x: rightTapLayout.x, y: rightTapLayout.y };
+          leftTapLayout.x = leftTargetX;
+          leftTapLayout.y = tapRowY;
+          rightTapLayout.x = rightTargetX;
+          rightTapLayout.y = tapRowY;
+
+          const tapOverlapOthers = layouts.some((item) => {
+            if (item === leftTapLayout || item === rightTapLayout) return false;
+            return doLayoutsOverlap(leftTapLayout, item) || doLayoutsOverlap(rightTapLayout, item);
+          });
+
+          if (tapOverlapOthers || doLayoutsOverlap(leftTapLayout, rightTapLayout, 10)) {
+            leftTapLayout.x = prevLeft.x;
+            leftTapLayout.y = prevLeft.y;
+            rightTapLayout.x = prevRight.x;
+            rightTapLayout.y = prevRight.y;
+          }
+        }
+      }
+
+      if (slider && params) {
+        const candidateX = params.x - slider.width - 8;
+        if (candidateX >= minLeftBound) {
+          const prevSlider = { x: slider.x, y: slider.y };
+          slider.x = clamp(candidateX, minLeftBound, viewportWidth - slider.width - margin);
+
+          const sliderOverlaps = layouts.some((item) => {
+            if (item === slider) return false;
+            return doLayoutsOverlap(slider, item);
+          });
+
+          if (sliderOverlaps) {
+            slider.x = prevSlider.x;
+            slider.y = prevSlider.y;
+          }
         }
       }
 
