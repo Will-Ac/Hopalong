@@ -7,6 +7,7 @@ import {
   FORMULA_DEFAULT_SEEDS,
   FORMULA_UI_EQUATIONS,
 } from "./formulas.js";
+import { createHelpOverlay } from "./helpOverlay.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
@@ -228,6 +229,7 @@ let renderProgressShownThisDraw = false;
 let lastComputedUiMetrics = { fontSize: null, tileSize: null };
 let lastSizingViewport = { width: 0, height: 0 };
 let lastQuickSliderTopTapAt = 0;
+let helpOverlayController = null;
 
 const HOLD_REPEAT_MS_DEFAULT = 60;
 const HOLD_REPEAT_MS_MIN = 20;
@@ -2770,6 +2772,7 @@ function closeQuickSlider() {
   activeSliderKey = null;
   quickSliderOverlay.classList.remove("is-open");
   quickSliderOverlay.setAttribute("aria-hidden", "true");
+  helpOverlayController?.render();
 }
 
 function alignQuickSliderAboveBottomBar() {
@@ -3165,6 +3168,7 @@ function openQuickSlider(sliderKey) {
     qsRange.step = String(control.sliderStep);
   }
   syncQuickSliderPosition();
+  helpOverlayController?.render();
 }
 
 function resetParamSliderToZero(sliderKey) {
@@ -4837,6 +4841,38 @@ async function captureScreenshotAction(action) {
   }
 }
 
+
+function ensureHelpSliderOpen() {
+  if (quickSliderOverlay.classList.contains("is-open")) {
+    return;
+  }
+
+  const preferred = ["a", "b", "c", "d", "iters"];
+  const sliderKey = preferred.find((key) => isSliderKeyAvailable(key));
+  if (sliderKey) {
+    openQuickSlider(sliderKey);
+  }
+}
+
+function initHelpOverlay() {
+  if (!helpBtn || helpOverlayController) {
+    return;
+  }
+
+  helpOverlayController = createHelpOverlay({
+    helpButton: helpBtn,
+    isSliderOpen: () => quickSliderOverlay.classList.contains("is-open"),
+    ensureSliderOpen: ensureHelpSliderOpen,
+    closeSlider: closeQuickSlider,
+    onOpened: () => {
+      showToast("Help mode enabled.");
+    },
+    onClosed: () => {
+      showToast("Help mode closed.");
+    },
+  });
+}
+
 function registerHandlers() {
   pickerClose.addEventListener("click", () => closePicker());
   pickerBackdrop.addEventListener("click", () => closePicker());
@@ -4945,9 +4981,10 @@ function registerHandlers() {
   });
 
   helpBtn?.addEventListener("click", () => {
-    const isActive = helpBtn.classList.toggle("is-active");
-    helpBtn.setAttribute("aria-pressed", isActive ? "true" : "false");
-    showToast(isActive ? "Help placeholder enabled." : "Help placeholder disabled.");
+    if (!helpOverlayController) {
+      return;
+    }
+    helpOverlayController.toggle();
   });
 
   const toggleRandomMode = (event) => {
@@ -5355,6 +5392,7 @@ async function bootstrap() {
     saveDefaultsToStorage();
 
     registerHandlers();
+    initHelpOverlay();
     maybeShowLandscapeHint();
     commitCurrentStateToHistory();
     requestDraw();
