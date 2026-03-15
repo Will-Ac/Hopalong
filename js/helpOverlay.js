@@ -470,6 +470,14 @@ export function createHelpOverlay(options) {
       randomLayoutGlobal.x = clamp(Math.round(randomTileRectGlobal.right - randomLayoutGlobal.width), minLeftBound, viewportWidth - randomLayoutGlobal.width);
     }
 
+    const doLayoutsOverlap = (a, b, gap = 4) => {
+      if (!a || !b) return false;
+      return !(a.x + a.width + gap < b.x
+        || a.x > b.x + b.width + gap
+        || a.y + a.height + gap < b.y
+        || a.y > b.y + b.height + gap);
+    };
+
     if (isMobile) {
       const topbar = layouts.find((item) => item.group.id === "topbar");
       const legend = layouts.find((item) => item.group.id === "tile-border-legend");
@@ -563,14 +571,6 @@ export function createHelpOverlay(options) {
           rightTapLayout.x = clamp(params.x - rightTapLayout.width - 8, minLeftBound, viewportWidth - rightTapLayout.width - margin);
         }
       }
-
-      const doLayoutsOverlap = (a, b, gap = 4) => {
-        if (!a || !b) return false;
-        return !(a.x + a.width + gap < b.x
-          || a.x > b.x + b.width + gap
-          || a.y + a.height + gap < b.y
-          || a.y > b.y + b.height + gap);
-      };
 
       if (viewportWidth > viewportHeight && topbar && legend && leftTapLayout && rightTapLayout) {
         const horizontalGap = topbar.x - (legend.x + legend.width);
@@ -699,6 +699,48 @@ export function createHelpOverlay(options) {
         horizontalMargin: margin,
         gap: 10,
       });
+    }
+
+    if (viewportWidth > viewportHeight) {
+      const slider = layouts.find((item) => item.group.id === "slider");
+      const params = layouts.find((item) => item.group.id === "params");
+      if (slider && params) {
+        const diagonalGapX = 10;
+        const diagonalGapY = 8;
+        const availableWidth = viewportWidth - margin - minLeftBound;
+        const diagonalWidth = slider.width + diagonalGapX + params.width;
+        const maxParamsTop = uiTop - margin - params.height - diagonalGapY - slider.height;
+        if (availableWidth >= diagonalWidth && maxParamsTop >= margin) {
+          const baseParamsTop = clamp(params.y, margin, maxParamsTop);
+          const centeredSliderX = minLeftBound + Math.max(0, Math.floor((availableWidth - diagonalWidth) / 2));
+          const shifts = [0, -24, 24, -40, 40, -56, 56];
+          const prevSlider = { x: slider.x, y: slider.y };
+          const prevParams = { x: params.x, y: params.y };
+          let placed = false;
+          for (const shift of shifts) {
+            slider.x = clamp(centeredSliderX + shift, minLeftBound, viewportWidth - slider.width - margin);
+            slider.y = clamp(baseParamsTop + params.height + diagonalGapY, margin, uiTop - slider.height - margin);
+            params.x = clamp(slider.x + slider.width + diagonalGapX, minLeftBound, viewportWidth - params.width - margin);
+            params.y = clamp(baseParamsTop, margin, uiTop - params.height - margin);
+
+            const overlaps = layouts.some((item) => {
+              if (item === slider || item === params) return false;
+              return doLayoutsOverlap(slider, item) || doLayoutsOverlap(params, item);
+            }) || doLayoutsOverlap(slider, params, 6);
+
+            if (!overlaps && slider.x < params.x && slider.y > params.y) {
+              placed = true;
+              break;
+            }
+          }
+          if (!placed) {
+            slider.x = prevSlider.x;
+            slider.y = prevSlider.y;
+            params.x = prevParams.x;
+            params.y = prevParams.y;
+          }
+        }
+      }
     }
 
     const leftTap = layouts.find((item) => item.group.id === "canvas-left");
