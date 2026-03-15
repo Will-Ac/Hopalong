@@ -414,8 +414,8 @@ export function createHelpOverlay(options) {
             targetPoint.y = alignedBottomGuideY;
           }
           if (layout.group.id === "slider") {
-            targetPoint.x -= 24;
-            targetPoint.y += 8;
+            targetPoint.x -= 14;
+            targetPoint.y += 14;
           }
         }
       }
