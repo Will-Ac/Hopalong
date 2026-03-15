@@ -17,7 +17,7 @@ export const HELP_OVERLAY_GROUPS = [
     id: "topbar",
     group: "topbar",
     lines: [
-      line("", "show Lyapunov overlay in screen control mode", { iconSelector: "#overlayToggleBtn", noAction: true }),
+      line("", "show interest overlay in screen control mode", { iconSelector: "#overlayToggleBtn", noAction: true }),
       line("", "open or close this help", { iconSelector: "#helpBtn", noAction: true }),
       line("", "open or close app settings", { iconSelector: "#rangesEditorToggle", noAction: true }),
       line("", "fit content to screen automatically", { iconSelector: "#scaleModeBtn", noAction: true }),
