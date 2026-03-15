@@ -288,7 +288,8 @@ export function createHelpOverlay(options) {
       Number.isFinite(paramOverlayRect?.top) ? paramOverlayRect.top : viewportHeight,
       Number.isFinite(quickSliderRect?.top) ? quickSliderRect.top : viewportHeight,
     );
-    const alignedBottomGuideY = Math.round(uiTop - 5);
+    const tileTopEdge = Number.isFinite(paramOverlayRect?.top) ? paramOverlayRect.top : uiTop;
+    const alignedBottomGuideY = Math.round(tileTopEdge - 5);
 
     const bracketMidpoints = new Map();
     for (const bracket of HELP_GROUP_BRACKETS) {
@@ -361,6 +362,18 @@ export function createHelpOverlay(options) {
       }
     }
 
+    const formulaTileRect = getRect("#formulaBtn");
+    if (formulaTileRect) {
+      const alignedLeft = clamp(Math.round(formulaTileRect.left), 12, viewportWidth - 24);
+      const formulaLayout = layouts.find((item) => item.group.id === "formula-cmap");
+      if (formulaLayout) {
+        formulaLayout.x = clamp(alignedLeft, 12, viewportWidth - formulaLayout.width - 12);
+      }
+      if (legendLayout) {
+        legendLayout.x = clamp(alignedLeft, 12, viewportWidth - legendLayout.width - 12);
+      }
+    }
+
     const leftTap = layouts.find((item) => item.group.id === "canvas-left");
     const rightTap = layouts.find((item) => item.group.id === "canvas-right");
     const lowerLayouts = layouts.filter((item) => !["topbar", "canvas-left", "canvas-right", "tile-border-legend"].includes(item.group.id));
@@ -397,7 +410,7 @@ export function createHelpOverlay(options) {
         const targetRect = getRect(layout.group.target.selector);
         if (targetRect) {
           targetPoint = pointFromRect(targetRect, layout.group.target.attach);
-          if (layout.group.id !== "slider" && layout.group.target.attach === "top" && targetRect.top >= uiTop - 2) {
+          if (layout.group.id !== "slider" && layout.group.target.attach === "top" && targetRect.top >= tileTopEdge - 2) {
             targetPoint.y = alignedBottomGuideY;
           }
           if (layout.group.id === "slider") {
