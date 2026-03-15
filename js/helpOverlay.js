@@ -138,6 +138,31 @@ function boxesOverlap(a, b, pad = 8) {
   return !(a.right + pad < b.left || a.left > b.right + pad || a.bottom + pad < b.top || a.top > b.bottom + pad);
 }
 
+function layoutOverlapsAny(layout, layouts, index, pad = 8) {
+  const currentRect = {
+    left: layout.x,
+    top: layout.y,
+    right: layout.x + layout.width,
+    bottom: layout.y + layout.height,
+  };
+
+  for (let i = 0; i < layouts.length; i += 1) {
+    if (i === index) continue;
+    const other = layouts[i];
+    const otherRect = {
+      left: other.x,
+      top: other.y,
+      right: other.x + other.width,
+      bottom: other.y + other.height,
+    };
+    if (boxesOverlap(currentRect, otherRect, pad)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function createHelpOverlay(options) {
   const { helpButton, ensureSliderOpen, isSliderOpen, onOpened, onClosed } = options;
 
@@ -237,40 +262,77 @@ export function createHelpOverlay(options) {
     return { x: left + (right - left) / 2, y };
   }
 
-  function preventLabelOverlap(layouts, viewportWidth, viewportHeight) {
+  function preventLabelOverlap(layouts, viewportWidth, viewportHeight, options = {}) {
+    const {
+      startY = 12,
+      bottomLimit = viewportHeight - 12,
+      horizontalMargin = 12,
+      gap = 10,
+    } = options;
+    const usableBottom = Math.max(startY + 24, bottomLimit);
+
+    layouts.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+
     for (let i = 0; i < layouts.length; i += 1) {
       const current = layouts[i];
       if (current.group.variant === "canvasSplit") continue;
 
-      let moved = true;
+      let targetX = clamp(current.x, horizontalMargin, viewportWidth - current.width - horizontalMargin);
+      let targetY = clamp(current.y, startY, usableBottom - current.height);
+
+      let adjusted = false;
       let safety = 0;
-      while (moved && safety < 22) {
-        moved = false;
+      while (safety < 40) {
         safety += 1;
-        const currentRect = {
-          left: current.x,
-          top: current.y,
-          right: current.x + current.width,
-          bottom: current.y + current.height,
+        let collisionIndex = -1;
+        const candidateRect = {
+          left: targetX,
+          top: targetY,
+          right: targetX + current.width,
+          bottom: targetY + current.height,
         };
 
         for (let j = 0; j < i; j += 1) {
           const previous = layouts[j];
+          if (previous.group.variant === "canvasSplit") continue;
           const prevRect = {
             left: previous.x,
             top: previous.y,
             right: previous.x + previous.width,
             bottom: previous.y + previous.height,
           };
-          if (boxesOverlap(currentRect, prevRect, 8)) {
-            current.y = clamp(previous.y + previous.height + 10, 12, viewportHeight - current.height - 12);
-            current.x = clamp(current.x + 8, 12, viewportWidth - current.width - 12);
-            moved = true;
+          if (boxesOverlap(candidateRect, prevRect, 8)) {
+            collisionIndex = j;
+            break;
           }
         }
+
+        if (collisionIndex === -1) break;
+
+        const blocker = layouts[collisionIndex];
+        const nextY = blocker.y + blocker.height + gap;
+        if (nextY + current.height <= usableBottom) {
+          targetY = nextY;
+          targetX = clamp(targetX + 4, horizontalMargin, viewportWidth - current.width - horizontalMargin);
+          adjusted = true;
+          continue;
+        }
+
+        targetY = startY;
+        targetX = clamp(targetX + current.width + gap, horizontalMargin, viewportWidth - current.width - horizontalMargin);
+        adjusted = true;
+      }
+
+      current.x = Math.round(targetX);
+      current.y = Math.round(targetY);
+
+      if (adjusted && layoutOverlapsAny(current, layouts, i, 6)) {
+        current.x = Math.round(clamp(horizontalMargin, horizontalMargin, viewportWidth - current.width - horizontalMargin));
+        current.y = Math.round(clamp(startY + i * (current.height + gap), startY, usableBottom - current.height));
       }
     }
   }
+
 
   function render() {
     if (!open) return;
@@ -278,6 +340,9 @@ export function createHelpOverlay(options) {
     clearGraphics();
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+    const isMobile = viewportWidth <= 900;
+    const isLandscape = viewportWidth > viewportHeight;
+    const margin = isMobile ? 8 : 12;
     svgEl.setAttribute("viewBox", `0 0 ${viewportWidth} ${viewportHeight}`);
 
     centerDivider.style.left = `${Math.round(viewportWidth / 2)}px`;
@@ -305,16 +370,18 @@ export function createHelpOverlay(options) {
       const labelEl = buildGroupLabel(group);
       labelsLayer.append(labelEl);
 
-      const rect = labelEl.getBoundingClientRect();
+      if (isMobile) {
+        labelEl.style.maxWidth = `${Math.max(180, viewportWidth - margin * 2)}px`;
+      }
       if (group.variant === "canvasSplit") {
         labelEl.style.width = "auto";
       }
       const measured = labelEl.getBoundingClientRect();
-      let x = clamp(group.label.x * viewportWidth - measured.width / 2, 12, viewportWidth - measured.width - 12);
+      let x = clamp(group.label.x * viewportWidth - measured.width / 2, margin, viewportWidth - measured.width - margin);
       if (group.align === "leftPinned") {
-        x = 16;
+        x = margin;
       }
-      const y = clamp(group.label.y * viewportHeight - measured.height / 2, 12, viewportHeight - measured.height - 12);
+      const y = clamp(group.label.y * viewportHeight - measured.height / 2, margin, viewportHeight - measured.height - margin);
       layouts.push({ group, labelEl, x: Math.round(x), y: Math.round(y), width: measured.width, height: measured.height });
     }
 
@@ -329,25 +396,30 @@ export function createHelpOverlay(options) {
         item.height = resized.height;
       }
       for (const item of layouts) {
-        let x = clamp(item.group.label.x * viewportWidth - item.width / 2, 12, viewportWidth - item.width - 12);
-        if (item.group.align === "leftPinned") x = 16;
+        let x = clamp(item.group.label.x * viewportWidth - item.width / 2, margin, viewportWidth - item.width - margin);
+        if (item.group.align === "leftPinned") x = margin;
         item.x = Math.round(x);
       }
       const leftTap = canvasLayouts.find((item) => item.group.id === "canvas-left");
       const rightTap = canvasLayouts.find((item) => item.group.id === "canvas-right");
       const dividerGap = 56;
       if (leftTap) {
-        leftTap.x = clamp(Math.floor(dividerX - dividerGap / 2 - leftTap.width), 12, viewportWidth - leftTap.width - 12);
+        leftTap.x = clamp(Math.floor(dividerX - dividerGap / 2 - leftTap.width), margin, viewportWidth - leftTap.width - margin);
       }
       if (rightTap) {
-        rightTap.x = clamp(Math.ceil(dividerX + dividerGap / 2), 12, viewportWidth - rightTap.width - 12);
+        rightTap.x = clamp(Math.ceil(dividerX + dividerGap / 2), margin, viewportWidth - rightTap.width - margin);
       }
     }
 
-    preventLabelOverlap(layouts, viewportWidth, viewportHeight);
+    preventLabelOverlap(layouts, viewportWidth, viewportHeight, {
+      startY: margin,
+      bottomLimit: uiTop - margin,
+      horizontalMargin: margin,
+      gap: isMobile ? 8 : 10,
+    });
 
     for (const layout of layouts) {
-      const maxY = Math.max(12, uiTop - layout.height - 12);
+      const maxY = Math.max(margin, uiTop - layout.height - margin);
       layout.y = Math.min(layout.y, maxY);
     }
 
@@ -355,23 +427,87 @@ export function createHelpOverlay(options) {
     const topbarLayout = layouts.find((item) => item.group.id === "topbar");
     const legendLayout = layouts.find((item) => item.group.id === "tile-border-legend");
     if (topRightActionsRect && topbarLayout) {
-      const topbarY = Math.round(clamp(topRightActionsRect.bottom + 10, 12, uiTop - topbarLayout.height - 12));
+      const topbarY = Math.round(clamp(topRightActionsRect.bottom + (isMobile ? 6 : 10), margin, uiTop - topbarLayout.height - margin));
       topbarLayout.y = topbarY;
-      if (legendLayout) {
+      if (legendLayout && !isMobile) {
         legendLayout.y = topbarY;
       }
     }
 
     const formulaTileRect = getRect("#formulaBtn");
     if (formulaTileRect) {
-      const alignedLeft = clamp(Math.round(formulaTileRect.left), 12, viewportWidth - 24);
+      const alignedLeft = clamp(Math.round(formulaTileRect.left), margin, viewportWidth - 24);
       const formulaLayout = layouts.find((item) => item.group.id === "formula-cmap");
       if (formulaLayout) {
-        formulaLayout.x = clamp(alignedLeft, 12, viewportWidth - formulaLayout.width - 12);
+        formulaLayout.x = clamp(alignedLeft, margin, viewportWidth - formulaLayout.width - margin);
       }
-      if (legendLayout) {
-        legendLayout.x = clamp(alignedLeft, 12, viewportWidth - legendLayout.width - 12);
+      if (legendLayout && !isMobile) {
+        legendLayout.x = clamp(alignedLeft, margin, viewportWidth - legendLayout.width - margin);
       }
+    }
+
+
+    if (isMobile) {
+      const topbar = layouts.find((item) => item.group.id === "topbar");
+      const legend = layouts.find((item) => item.group.id === "tile-border-legend");
+      const formula = layouts.find((item) => item.group.id === "formula-cmap");
+      const params = layouts.find((item) => item.group.id === "params");
+      const iter = layouts.find((item) => item.group.id === "iter");
+      const random = layouts.find((item) => item.group.id === "random");
+      const slider = layouts.find((item) => item.group.id === "slider");
+      const leftTapLayout = layouts.find((item) => item.group.id === "canvas-left");
+      const rightTapLayout = layouts.find((item) => item.group.id === "canvas-right");
+
+      const topStart = topRightActionsRect
+        ? clamp(topRightActionsRect.bottom + 6, margin, uiTop - margin)
+        : margin;
+      let stackY = topStart;
+      if (topbar) {
+        topbar.x = margin;
+        topbar.y = clamp(stackY, margin, uiTop - topbar.height - margin);
+        stackY = topbar.y + topbar.height + 8;
+      }
+      if (legend) {
+        legend.x = margin;
+        legend.y = clamp(stackY, margin, uiTop - legend.height - margin);
+        stackY = legend.y + legend.height + 8;
+      }
+      if (leftTapLayout && rightTapLayout) {
+        leftTapLayout.y = clamp(stackY, margin, uiTop - leftTapLayout.height - margin);
+        rightTapLayout.y = leftTapLayout.y;
+        stackY = leftTapLayout.y + Math.max(leftTapLayout.height, rightTapLayout.height) + 8;
+      }
+
+      if (random) {
+        random.x = clamp(viewportWidth - random.width - margin, margin, viewportWidth - random.width - margin);
+        random.y = clamp(stackY, margin, uiTop - random.height - margin);
+      }
+      if (formula) {
+        formula.x = margin;
+        formula.y = clamp((random ? random.y + random.height + 8 : stackY), margin, uiTop - formula.height - margin);
+      }
+      if (params) {
+        params.x = margin;
+        const paramsTop = formula ? formula.y + formula.height + 8 : stackY;
+        params.y = clamp(paramsTop, margin, uiTop - params.height - margin);
+      }
+      if (iter) {
+        iter.x = clamp(viewportWidth - iter.width - margin, margin, viewportWidth - iter.width - margin);
+        const iterTop = params ? params.y + params.height + 8 : (formula ? formula.y + formula.height + 8 : stackY);
+        iter.y = clamp(iterTop, margin, uiTop - iter.height - margin);
+      }
+      if (slider) {
+        slider.x = clamp(viewportWidth - slider.width - margin, margin, viewportWidth - slider.width - margin);
+        const sliderTop = Math.max((iter ? iter.y + iter.height + 8 : stackY), (params ? params.y + params.height + 8 : stackY));
+        slider.y = clamp(sliderTop, margin, uiTop - slider.height - margin);
+      }
+    } else {
+      preventLabelOverlap(layouts, viewportWidth, viewportHeight, {
+        startY: margin,
+        bottomLimit: uiTop - margin,
+        horizontalMargin: margin,
+        gap: 10,
+      });
     }
 
     const leftTap = layouts.find((item) => item.group.id === "canvas-left");
@@ -381,7 +517,11 @@ export function createHelpOverlay(options) {
     const upperBottom = topbarLayout ? topbarLayout.y + topbarLayout.height : Math.round(viewportHeight * 0.2);
     const tapCenterY = Math.round((upperBottom + lowerTop) / 2);
     if (leftTap && rightTap) {
-      const y = clamp(tapCenterY - Math.max(leftTap.height, rightTap.height) / 2, 12, uiTop - Math.max(leftTap.height, rightTap.height) - 12);
+      let y = clamp(tapCenterY - Math.max(leftTap.height, rightTap.height) / 2, margin, uiTop - Math.max(leftTap.height, rightTap.height) - margin);
+      if (isMobile) {
+        const topGuide = topbarLayout ? topbarLayout.y + topbarLayout.height + 8 : Math.round(viewportHeight * (isLandscape ? 0.2 : 0.16));
+        y = clamp(topGuide, margin, uiTop - Math.max(leftTap.height, rightTap.height) - margin);
+      }
       leftTap.y = Math.round(y);
       rightTap.y = Math.round(y);
     }
