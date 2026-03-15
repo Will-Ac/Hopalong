@@ -86,6 +86,12 @@ function makeTopbarIcon(iconSelector) {
   return icon;
 }
 
+function makeTilePreviewIcon(style = "solid") {
+  const tile = document.createElement("span");
+  tile.className = `helpOverlay__tilePreview helpOverlay__tilePreview--${style}`;
+  return tile;
+}
+
 function buildGroupLabel(group) {
   const el = document.createElement("div");
   el.className = `helpOverlay__label helpOverlay__label--${group.group}`;
@@ -100,25 +106,34 @@ function buildGroupLabel(group) {
     if (row.iconSelector) {
       rowEl.append(makeTopbarIcon(row.iconSelector));
     }
+    if (row.tilePreview) {
+      rowEl.append(makeTilePreviewIcon(row.tilePreview));
+    }
 
     const textWrap = document.createElement("div");
     textWrap.className = "helpOverlay__rowText";
 
-    const actionEl = document.createElement("strong");
-    const delimiter = row.delimiter ?? ":";
-    actionEl.textContent = `${row.action}${delimiter}`;
-
     if (row.heading) {
-      textWrap.append(actionEl);
+      const headingEl = document.createElement("strong");
+      const headingDelimiter = row.delimiter ?? ":";
+      headingEl.textContent = `${row.action}${headingDelimiter}`;
+      textWrap.append(headingEl);
       rowEl.append(textWrap);
       el.append(rowEl);
       continue;
     }
 
+    const hasAction = !row.noAction && Boolean(row.action);
+    if (hasAction) {
+      const actionEl = document.createElement("strong");
+      const delimiter = row.delimiter ?? ":";
+      actionEl.textContent = `${row.action}${delimiter}`;
+      textWrap.append(actionEl);
+    }
+
     const bodyEl = document.createElement("span");
     bodyEl.textContent = row.body;
-
-    textWrap.append(actionEl, bodyEl);
+    textWrap.append(bodyEl);
 
     rowEl.append(textWrap);
     el.append(rowEl);
