@@ -62,6 +62,9 @@ function makeTopbarIcon(iconSelector) {
   const source = iconSelector ? document.querySelector(iconSelector) : null;
   const icon = document.createElement("span");
   icon.className = "helpOverlay__inlineIcon";
+  if (iconSelector === "#scaleModeBtn") {
+    icon.classList.add("is-autoscale");
+  }
   if (!source) {
     icon.textContent = "?";
     return icon;
@@ -102,7 +105,7 @@ function buildGroupLabel(group) {
     textWrap.className = "helpOverlay__rowText";
 
     const actionEl = document.createElement("strong");
-    const delimiter = row.delimiter ?? ";";
+    const delimiter = row.delimiter ?? ":";
     actionEl.textContent = `${row.action}${delimiter}`;
 
     if (row.heading) {
