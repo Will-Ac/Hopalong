@@ -340,8 +340,7 @@ export function createHelpOverlay(options) {
     clearGraphics();
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const isMobile = viewportWidth <= 900;
-    const isLandscape = viewportWidth > viewportHeight;
+    const isMobile = Math.min(viewportWidth, viewportHeight) <= 430;
     const margin = isMobile ? 8 : 12;
     svgEl.setAttribute("viewBox", `0 0 ${viewportWidth} ${viewportHeight}`);
 
@@ -446,6 +445,9 @@ export function createHelpOverlay(options) {
       }
     }
 
+    const minLeftBound = formulaTileRect
+      ? clamp(Math.round(formulaTileRect.left), margin, viewportWidth - margin)
+      : margin;
 
     if (isMobile) {
       const topbar = layouts.find((item) => item.group.id === "topbar");
@@ -458,48 +460,81 @@ export function createHelpOverlay(options) {
       const leftTapLayout = layouts.find((item) => item.group.id === "canvas-left");
       const rightTapLayout = layouts.find((item) => item.group.id === "canvas-right");
 
+      const cameraRect = getRect("#cameraBtn");
+      const rightEdge = cameraRect?.right ?? topRightActionsRect?.right ?? (viewportWidth - margin);
       const topStart = topRightActionsRect
-        ? clamp(topRightActionsRect.bottom + 6, margin, uiTop - margin)
+        ? clamp(topRightActionsRect.bottom + 3, margin, uiTop - margin)
         : margin;
       let stackY = topStart;
       if (topbar) {
-        topbar.x = margin;
-        topbar.y = clamp(stackY, margin, uiTop - topbar.height - margin);
+        topbar.x = clamp(Math.round(rightEdge - topbar.width), minLeftBound, viewportWidth - topbar.width);
+        topbar.y = topStart;
         stackY = topbar.y + topbar.height + 8;
       }
       if (legend) {
-        legend.x = margin;
+        legend.x = minLeftBound;
         legend.y = clamp(stackY, margin, uiTop - legend.height - margin);
-        stackY = legend.y + legend.height + 8;
+        stackY = Math.max(legend.y + legend.height + 8, topbar ? topbar.y + topbar.height + 8 : stackY);
       }
       if (leftTapLayout && rightTapLayout) {
-        leftTapLayout.y = clamp(stackY, margin, uiTop - leftTapLayout.height - margin);
-        rightTapLayout.y = leftTapLayout.y;
-        stackY = leftTapLayout.y + Math.max(leftTapLayout.height, rightTapLayout.height) + 8;
+        const tapY = clamp(stackY, margin, uiTop - Math.max(leftTapLayout.height, rightTapLayout.height) - margin);
+        leftTapLayout.x = clamp(leftTapLayout.x, minLeftBound, viewportWidth - leftTapLayout.width - margin);
+        rightTapLayout.x = clamp(rightTapLayout.x, minLeftBound, viewportWidth - rightTapLayout.width - margin);
+        leftTapLayout.y = tapY;
+        rightTapLayout.y = tapY;
+        stackY = tapY + Math.max(leftTapLayout.height, rightTapLayout.height) + 8;
       }
 
       if (random) {
-        random.x = clamp(viewportWidth - random.width - margin, margin, viewportWidth - random.width - margin);
+        random.x = clamp(viewportWidth - random.width - margin, minLeftBound, viewportWidth - random.width - margin);
         random.y = clamp(stackY, margin, uiTop - random.height - margin);
       }
       if (formula) {
-        formula.x = margin;
+        formula.x = minLeftBound;
         formula.y = clamp((random ? random.y + random.height + 8 : stackY), margin, uiTop - formula.height - margin);
       }
       if (params) {
-        params.x = margin;
+        params.x = minLeftBound;
         const paramsTop = formula ? formula.y + formula.height + 8 : stackY;
         params.y = clamp(paramsTop, margin, uiTop - params.height - margin);
+        if (viewportHeight <= 380) {
+          params.x = clamp(viewportWidth - params.width - margin, minLeftBound, viewportWidth - params.width - margin);
+        }
       }
       if (iter) {
-        iter.x = clamp(viewportWidth - iter.width - margin, margin, viewportWidth - iter.width - margin);
+        iter.x = clamp(viewportWidth - iter.width - margin, minLeftBound, viewportWidth - iter.width - margin);
         const iterTop = params ? params.y + params.height + 8 : (formula ? formula.y + formula.height + 8 : stackY);
         iter.y = clamp(iterTop, margin, uiTop - iter.height - margin);
       }
       if (slider) {
-        slider.x = clamp(viewportWidth - slider.width - margin, margin, viewportWidth - slider.width - margin);
+        slider.x = clamp(viewportWidth - slider.width - margin, minLeftBound, viewportWidth - slider.width - margin);
         const sliderTop = Math.max((iter ? iter.y + iter.height + 8 : stackY), (params ? params.y + params.height + 8 : stackY));
         slider.y = clamp(sliderTop, margin, uiTop - slider.height - margin);
+      }
+      if (leftTapLayout && params) {
+        const overlapsLeft = !(leftTapLayout.x + leftTapLayout.width + 4 < params.x
+          || leftTapLayout.x > params.x + params.width + 4
+          || leftTapLayout.y + leftTapLayout.height + 4 < params.y
+          || leftTapLayout.y > params.y + params.height + 4);
+        if (overlapsLeft) {
+          leftTapLayout.x = clamp(params.x - leftTapLayout.width - 8, minLeftBound, viewportWidth - leftTapLayout.width - margin);
+        }
+      }
+      if (rightTapLayout && params) {
+        const overlapsRight = !(rightTapLayout.x + rightTapLayout.width + 4 < params.x
+          || rightTapLayout.x > params.x + params.width + 4
+          || rightTapLayout.y + rightTapLayout.height + 4 < params.y
+          || rightTapLayout.y > params.y + params.height + 4);
+        if (overlapsRight) {
+          rightTapLayout.x = clamp(params.x - rightTapLayout.width - 8, minLeftBound, viewportWidth - rightTapLayout.width - margin);
+        }
+      }
+
+      for (const layout of layouts) {
+        const maxX = layout.group.id === "topbar"
+          ? viewportWidth - layout.width
+          : viewportWidth - layout.width - margin;
+        layout.x = clamp(layout.x, minLeftBound, maxX);
       }
     } else {
       preventLabelOverlap(layouts, viewportWidth, viewportHeight, {
@@ -516,22 +551,26 @@ export function createHelpOverlay(options) {
     const lowerTop = lowerLayouts.length ? Math.min(...lowerLayouts.map((item) => item.y)) : Math.round(viewportHeight * 0.55);
     const upperBottom = topbarLayout ? topbarLayout.y + topbarLayout.height : Math.round(viewportHeight * 0.2);
     const tapCenterY = Math.round((upperBottom + lowerTop) / 2);
-    if (leftTap && rightTap) {
-      let y = clamp(tapCenterY - Math.max(leftTap.height, rightTap.height) / 2, margin, uiTop - Math.max(leftTap.height, rightTap.height) - margin);
-      if (isMobile) {
-        const topGuide = topbarLayout ? topbarLayout.y + topbarLayout.height + 8 : Math.round(viewportHeight * (isLandscape ? 0.2 : 0.16));
-        y = clamp(topGuide, margin, uiTop - Math.max(leftTap.height, rightTap.height) - margin);
-      }
+    if (leftTap && rightTap && !isMobile) {
+      const y = clamp(tapCenterY - Math.max(leftTap.height, rightTap.height) / 2, margin, uiTop - Math.max(leftTap.height, rightTap.height) - margin);
       leftTap.y = Math.round(y);
       rightTap.y = Math.round(y);
     }
 
-    const lineCenterY = leftTap && rightTap
-      ? Math.round((leftTap.y + leftTap.height / 2 + rightTap.y + rightTap.height / 2) / 2)
-      : Math.round(viewportHeight * 0.22);
-    const lineHeight = Math.max(108, Math.round(((leftTap?.height || 44) + (rightTap?.height || 44)) * 1.65));
-    centerDivider.style.top = `${Math.round(lineCenterY - lineHeight / 2)}px`;
-    centerDivider.style.height = `${lineHeight}px`;
+    if (isMobile && leftTap && rightTap) {
+      const lineTop = Math.round(leftTap.y + Math.max(leftTap.height, rightTap.height) + 6);
+      const lineBottom = Math.round(uiTop - 8);
+      const lineHeight = Math.max(0, lineBottom - lineTop);
+      centerDivider.style.top = `${lineTop}px`;
+      centerDivider.style.height = `${lineHeight}px`;
+    } else {
+      const lineCenterY = leftTap && rightTap
+        ? Math.round((leftTap.y + leftTap.height / 2 + rightTap.y + rightTap.height / 2) / 2)
+        : Math.round(viewportHeight * 0.22);
+      const lineHeight = Math.max(108, Math.round(((leftTap?.height || 44) + (rightTap?.height || 44)) * 1.65));
+      centerDivider.style.top = `${Math.round(lineCenterY - lineHeight / 2)}px`;
+      centerDivider.style.height = `${lineHeight}px`;
+    }
 
     for (const layout of layouts) {
       layout.labelEl.style.left = `${layout.x}px`;
