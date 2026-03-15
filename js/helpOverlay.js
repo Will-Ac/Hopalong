@@ -443,6 +443,7 @@ export function createHelpOverlay(options) {
     const topRightActionsRect = getRect("#topRightActions");
     const topbarLayout = layouts.find((item) => item.group.id === "topbar");
     const legendLayout = layouts.find((item) => item.group.id === "tile-border-legend");
+    let liftTapGroupForSpace = false;
     if (topRightActionsRect && topbarLayout) {
       const topbarY = Math.round(clamp(topRightActionsRect.bottom + (isMobile ? 6 : 10), margin, uiTop - topbarLayout.height - margin));
       topbarLayout.y = topbarY;
@@ -613,7 +614,7 @@ export function createHelpOverlay(options) {
           params.y = clamp(paramsY, margin, uiTop - params.height - margin);
 
           const overlaps = layouts.some((item) => {
-            if (item === slider || item === params || item === random) return false;
+            if (item === slider || item === params) return false;
             return doLayoutsOverlap(slider, item) || doLayoutsOverlap(params, item);
           }) || doLayoutsOverlap(slider, params, 6);
 
@@ -632,31 +633,42 @@ export function createHelpOverlay(options) {
         const isLandscape = viewportWidth > viewportHeight;
 
         if (isLandscape) {
-          const diagonalGapX = 10;
-          const diagonalGapY = 8;
-          const diagonalWidth = slider.width + diagonalGapX + params.width;
-          const hasDiagonalRoom = availableWidth >= diagonalWidth;
-          const maxParamsTop = uiTop - margin - params.height - diagonalGapY - slider.height;
-          const paramsTop = clamp(baseTop, margin, maxParamsTop);
+          const pairGapX = 10;
+          const pairGapY = 8;
+          const dividerCenterX = Math.round(viewportWidth / 2);
+          const sideBySideWidth = slider.width + pairGapX + params.width;
+          const sideBySideY = clamp(baseTop, margin, uiTop - Math.max(slider.height, params.height) - margin);
 
-          if (hasDiagonalRoom && maxParamsTop >= margin) {
-            const centeredSliderX = minLeftBound + Math.max(0, Math.floor((availableWidth - diagonalWidth) / 2));
-            const candidateShifts = [0, -24, 24, -40, 40];
-            for (const shift of candidateShifts) {
-              const sliderX = centeredSliderX + shift;
-              const paramsX = sliderX + slider.width + diagonalGapX;
-              if (canPlacePair(sliderX, paramsTop + params.height + diagonalGapY, paramsX, paramsTop)) {
+          if (availableWidth >= sideBySideWidth) {
+            const preferredParamsX = dividerCenterX + 16;
+            const preferredSliderX = dividerCenterX - 16 - slider.width;
+            const shifts = [0, -24, 24, -40, 40, -56, 56];
+            for (const shift of shifts) {
+              if (canPlacePair(preferredSliderX + shift, sideBySideY, preferredParamsX + shift, sideBySideY)) {
                 pairPlaced = true;
                 break;
+              }
+            }
+
+            if (pairPlaced) {
+              const respectsCenterSplit = slider.x + slider.width <= dividerCenterX - 1
+                && params.x >= dividerCenterX + 1;
+              if (!respectsCenterSplit) {
+                pairPlaced = false;
               }
             }
           }
 
           if (!pairPlaced) {
-            const centeredParamsX = minLeftBound + Math.max(0, Math.floor((availableWidth - params.width) / 2));
-            const sliderTop = paramsTop + params.height + diagonalGapY;
-            const sliderX = centeredParamsX - Math.max(12, Math.round(slider.width * 0.1));
-            pairPlaced = canPlacePair(sliderX, sliderTop, centeredParamsX, paramsTop);
+            const paramsTop = clamp(baseTop, margin, uiTop - params.height - pairGapY - slider.height - margin);
+            const sliderTop = paramsTop + params.height + pairGapY;
+            const stackedParamsX = dividerCenterX + 8;
+            const stackedSliderX = dividerCenterX - 8 - slider.width;
+            pairPlaced = canPlacePair(stackedSliderX, sliderTop, stackedParamsX, paramsTop);
+          }
+
+          if (!pairPlaced) {
+            liftTapGroupForSpace = true;
           }
         }
 
@@ -677,6 +689,53 @@ export function createHelpOverlay(options) {
           while ((doLayoutsOverlap(random, params, 4) || doLayoutsOverlap(random, slider, 4)) && random.y > minRandomY) {
             random.y = Math.max(minRandomY, random.y - 2);
           }
+        }
+
+        if (isLandscape && liftTapGroupForSpace && topbar) {
+          const tapHeight = Math.max(leftTapLayout?.height || 0, rightTapLayout?.height || 0);
+          const minParamsY = Math.round(topbar.y + topbar.height + tapHeight + 12);
+          if (params.y < minParamsY) {
+            const deltaY = minParamsY - params.y;
+            params.y += deltaY;
+            slider.y += deltaY;
+            if (slider.y + slider.height > uiTop - margin) {
+              slider.y = uiTop - slider.height - margin;
+              params.y = Math.max(margin, slider.y - params.height - 8);
+            }
+          }
+        }
+
+        if (doLayoutsOverlap(slider, params, 2)) {
+          const dividerCenterX = Math.round(viewportWidth / 2);
+          const paramsX = dividerCenterX + 8;
+          const sliderX = dividerCenterX - 8 - slider.width;
+          const baseParamsTop = topbar ? topbar.y + topbar.height + 8 : baseTop;
+          const topAttempts = [
+            baseParamsTop,
+            baseParamsTop + 14,
+            baseParamsTop + 28,
+            baseParamsTop + 42,
+            baseTop,
+          ];
+
+          for (const candidateTop of topAttempts) {
+            const paramsTop = clamp(candidateTop, margin, uiTop - params.height - slider.height - 10 - margin);
+            if (canPlacePair(sliderX, paramsTop + params.height + 8, paramsX, paramsTop)) {
+              break;
+            }
+          }
+
+          if (doLayoutsOverlap(slider, params, 2)) {
+            const scanTopStart = margin;
+            const scanTopEnd = Math.max(margin, uiTop - params.height - slider.height - 10 - margin);
+            for (let paramsTop = scanTopStart; paramsTop <= scanTopEnd; paramsTop += 6) {
+              if (canPlacePair(sliderX, paramsTop + params.height + 8, paramsX, paramsTop)) {
+                break;
+              }
+            }
+          }
+
+          liftTapGroupForSpace = true;
         }
       }
 
@@ -706,18 +765,31 @@ export function createHelpOverlay(options) {
       leftTap.x = dividerCenterX - 15 - leftTap.width;
       rightTap.x = dividerCenterX + 15;
 
-      let targetCenterY = tapCenterY;
-      if (isMobile && viewportWidth > viewportHeight && topbarLayout && legendLayout) {
-        const roomBetween = (legendLayout.x + legendLayout.width + 8 <= leftTap.x)
-          && (rightTap.x + rightTap.width + 8 <= topbarLayout.x);
-        if (roomBetween) {
-          targetCenterY = topbarLayout.y + topbarLayout.height / 2;
-        }
+      let targetY = Math.round(tapCenterY - Math.max(leftTap.height, rightTap.height) / 2);
+      if (isMobile && viewportWidth > viewportHeight && topbarLayout && liftTapGroupForSpace) {
+        targetY = Math.round(topbarLayout.y);
       }
 
-      const y = clamp(targetCenterY - Math.max(leftTap.height, rightTap.height) / 2, margin, uiTop - Math.max(leftTap.height, rightTap.height) - margin);
+      const y = clamp(targetY, margin, uiTop - Math.max(leftTap.height, rightTap.height) - margin);
       leftTap.y = Math.round(y);
       rightTap.y = Math.round(y);
+
+      if (isMobile && viewportWidth > viewportHeight) {
+        const paramsLayout = layouts.find((item) => item.group.id === "params");
+        const sliderLayout = layouts.find((item) => item.group.id === "slider");
+        const tapBottom = Math.max(leftTap.y + leftTap.height, rightTap.y + rightTap.height) + 8;
+        if (paramsLayout && paramsLayout.y < tapBottom) {
+          const shiftDown = tapBottom - paramsLayout.y;
+          paramsLayout.y += shiftDown;
+          if (sliderLayout) {
+            sliderLayout.y += shiftDown;
+          }
+          if (sliderLayout && sliderLayout.y + sliderLayout.height > uiTop - margin) {
+            sliderLayout.y = uiTop - sliderLayout.height - margin;
+            paramsLayout.y = Math.max(tapBottom, sliderLayout.y - paramsLayout.height - 8);
+          }
+        }
+      }
     }
 
     const tapLineCenterY = leftTap && rightTap
