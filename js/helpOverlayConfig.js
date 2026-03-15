@@ -77,7 +77,7 @@ export const HELP_OVERLAY_GROUPS = [
       line("Tap − or +", "fine control."),
     ],
     label: { x: 0.34, y: 0.62 },
-    target: { selector: "#quickSlider .qsTop", attach: "top" },
+    target: { selector: "#qsLabel", attach: "top" },
     arrowFrom: "bottom-center",
   },
   {

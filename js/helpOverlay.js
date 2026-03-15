@@ -211,7 +211,7 @@ export function createHelpOverlay(options) {
     svgEl.append(line);
   }
 
-  function drawBracket(rect, side = "top") {
+  function drawBracket(rect, side = "top", forcedTopY = null) {
     if (side === "left") {
       const x = rect.left - 18;
       const top = rect.top;
@@ -225,7 +225,7 @@ export function createHelpOverlay(options) {
       return { x, y: top + (bottom - top) / 2 };
     }
 
-    const y = rect.top - 24;
+    const y = Number.isFinite(forcedTopY) ? forcedTopY : rect.top - 24;
     const left = rect.left;
     const right = rect.right;
     const path = document.createElementNS(SVG_NS, "path");
@@ -282,11 +282,20 @@ export function createHelpOverlay(options) {
 
     centerDivider.style.left = `${Math.round(viewportWidth / 2)}px`;
 
+    const paramOverlayRect = getRect("#paramOverlay");
+    const quickSliderRect = getRect("#quickSlider");
+    const uiTop = Math.min(
+      Number.isFinite(paramOverlayRect?.top) ? paramOverlayRect.top : viewportHeight,
+      Number.isFinite(quickSliderRect?.top) ? quickSliderRect.top : viewportHeight,
+    );
+    const alignedBottomGuideY = Math.round(uiTop - 5);
+
     const bracketMidpoints = new Map();
     for (const bracket of HELP_GROUP_BRACKETS) {
       const rect = unionRects(bracket.targetSelectors.map((selector) => getRect(selector)));
       if (!rect) continue;
-      const midpoint = drawBracket(rect, bracket.side);
+      const useAlignedTop = bracket.side === "top";
+      const midpoint = drawBracket(rect, bracket.side, useAlignedTop ? alignedBottomGuideY : null);
       bracketMidpoints.set(bracket.id, midpoint);
     }
 
@@ -336,20 +345,24 @@ export function createHelpOverlay(options) {
 
     preventLabelOverlap(layouts, viewportWidth, viewportHeight);
 
-    const paramOverlayRect = getRect("#paramOverlay");
-    const quickSliderRect = getRect("#quickSlider");
-    const uiTop = Math.min(
-      Number.isFinite(paramOverlayRect?.top) ? paramOverlayRect.top : viewportHeight,
-      Number.isFinite(quickSliderRect?.top) ? quickSliderRect.top : viewportHeight,
-    );
     for (const layout of layouts) {
       const maxY = Math.max(12, uiTop - layout.height - 12);
       layout.y = Math.min(layout.y, maxY);
     }
 
+    const topRightActionsRect = getRect("#topRightActions");
+    const topbarLayout = layouts.find((item) => item.group.id === "topbar");
+    const legendLayout = layouts.find((item) => item.group.id === "tile-border-legend");
+    if (topRightActionsRect && topbarLayout) {
+      const topbarY = Math.round(clamp(topRightActionsRect.bottom + 10, 12, uiTop - topbarLayout.height - 12));
+      topbarLayout.y = topbarY;
+      if (legendLayout) {
+        legendLayout.y = topbarY;
+      }
+    }
+
     const leftTap = layouts.find((item) => item.group.id === "canvas-left");
     const rightTap = layouts.find((item) => item.group.id === "canvas-right");
-    const topbarLayout = layouts.find((item) => item.group.id === "topbar");
     const lowerLayouts = layouts.filter((item) => !["topbar", "canvas-left", "canvas-right", "tile-border-legend"].includes(item.group.id));
     const lowerTop = lowerLayouts.length ? Math.min(...lowerLayouts.map((item) => item.y)) : Math.round(viewportHeight * 0.55);
     const upperBottom = topbarLayout ? topbarLayout.y + topbarLayout.height : Math.round(viewportHeight * 0.2);
@@ -384,6 +397,13 @@ export function createHelpOverlay(options) {
         const targetRect = getRect(layout.group.target.selector);
         if (targetRect) {
           targetPoint = pointFromRect(targetRect, layout.group.target.attach);
+          if (layout.group.id !== "slider" && layout.group.target.attach === "top" && targetRect.top >= uiTop - 2) {
+            targetPoint.y = alignedBottomGuideY;
+          }
+          if (layout.group.id === "slider") {
+            targetPoint.x -= 24;
+            targetPoint.y += 8;
+          }
         }
       }
 
