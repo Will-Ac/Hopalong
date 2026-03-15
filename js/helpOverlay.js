@@ -635,13 +635,34 @@ export function createHelpOverlay(options) {
         };
 
         let pairPlaced = false;
-        const canStackVertically = baseTop + params.height + 8 + slider.height <= uiTop - margin;
+        const isLandscape = viewportWidth > viewportHeight;
 
-        if (!canStackVertically && hasSideBySideRoom) {
-          const rightAlignedParamsX = viewportWidth - params.width - margin;
-          const leftSliderX = rightAlignedParamsX - slider.width - 8;
-          if (leftSliderX >= minLeftBound) {
-            pairPlaced = canPlacePair(leftSliderX, baseTop, rightAlignedParamsX, baseTop);
+        if (isLandscape) {
+          const diagonalGapX = 10;
+          const diagonalGapY = 8;
+          const diagonalWidth = slider.width + diagonalGapX + params.width;
+          const hasDiagonalRoom = availableWidth >= diagonalWidth;
+          const maxParamsTop = uiTop - margin - params.height - diagonalGapY - slider.height;
+          const paramsTop = clamp(baseTop, margin, maxParamsTop);
+
+          if (hasDiagonalRoom && maxParamsTop >= margin) {
+            const centeredSliderX = minLeftBound + Math.max(0, Math.floor((availableWidth - diagonalWidth) / 2));
+            const candidateShifts = [0, -24, 24, -40, 40];
+            for (const shift of candidateShifts) {
+              const sliderX = centeredSliderX + shift;
+              const paramsX = sliderX + slider.width + diagonalGapX;
+              if (canPlacePair(sliderX, paramsTop + params.height + diagonalGapY, paramsX, paramsTop)) {
+                pairPlaced = true;
+                break;
+              }
+            }
+          }
+
+          if (!pairPlaced) {
+            const centeredParamsX = minLeftBound + Math.max(0, Math.floor((availableWidth - params.width) / 2));
+            const sliderTop = paramsTop + params.height + diagonalGapY;
+            const sliderX = centeredParamsX - Math.max(12, Math.round(slider.width * 0.1));
+            pairPlaced = canPlacePair(sliderX, sliderTop, centeredParamsX, paramsTop);
           }
         }
 
