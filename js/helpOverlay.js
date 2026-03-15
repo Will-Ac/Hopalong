@@ -465,13 +465,7 @@ export function createHelpOverlay(options) {
       : margin;
 
     if (topbarLayout && legendLayout) {
-      const pairGap = 10;
-      const proposedLegendX = topbarLayout.x - legendLayout.width - pairGap;
-      if (proposedLegendX >= minLeftBound) {
-        legendLayout.x = proposedLegendX;
-      } else {
-        legendLayout.x = minLeftBound;
-      }
+      legendLayout.x = minLeftBound;
       legendLayout.y = topbarLayout.y;
     }
 
@@ -498,11 +492,7 @@ export function createHelpOverlay(options) {
         stackY = topbar.y + topbar.height + 8;
       }
       if (legend) {
-        const pairGap = 10;
-        const sideBySideLegendX = topbar
-          ? topbar.x - legend.width - pairGap
-          : minLeftBound;
-        legend.x = clamp(sideBySideLegendX, minLeftBound, viewportWidth - legend.width - margin);
+        legend.x = minLeftBound;
         legend.y = topbar ? topbar.y : clamp(stackY, margin, uiTop - legend.height - margin);
         const legendBottom = legend.y + legend.height;
         const topbarBottom = topbar ? topbar.y + topbar.height : stackY;
