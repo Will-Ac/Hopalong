@@ -399,6 +399,51 @@ function requestDraw() {
   });
 }
 
+function isHelpOverlayOpen() {
+  return Boolean(helpOverlayController?.isOpen?.());
+}
+
+function positionToastForTopActions() {
+  if (!toastEl) {
+    return false;
+  }
+
+  toastEl.classList.remove("is-below-actions");
+  toastEl.style.removeProperty("--toast-below-top");
+
+  const actionsEl = document.getElementById("topRightActions");
+  if (!actionsEl) {
+    return false;
+  }
+
+  const toastRect = toastEl.getBoundingClientRect();
+  const actionsRect = actionsEl.getBoundingClientRect();
+  const overlaps = !(
+    toastRect.right < actionsRect.left
+    || toastRect.left > actionsRect.right
+    || toastRect.bottom < actionsRect.top
+    || toastRect.top > actionsRect.bottom
+  );
+
+  if (!overlaps) {
+    return false;
+  }
+
+  toastEl.classList.add("is-below-actions");
+  toastEl.style.setProperty("--toast-below-top", `${Math.round(actionsRect.bottom + 8)}px`);
+  return true;
+}
+
+function suppressToastWhenHelpOpenAndBelowActions() {
+  if (!toastEl) {
+    return;
+  }
+
+  if (isHelpOverlayOpen() && toastEl.classList.contains("is-below-actions")) {
+    toastEl.classList.remove("is-visible");
+  }
+}
+
 function showToast(message) {
   if (!toastEl) {
     return;
@@ -410,6 +455,8 @@ function showToast(message) {
   window.clearTimeout(toastTimer);
   toastEl.textContent = message;
   toastEl.classList.add("is-visible");
+  positionToastForTopActions();
+  suppressToastWhenHelpOpenAndBelowActions();
 
   toastTimer = window.setTimeout(() => {
     toastEl.classList.remove("is-visible");
@@ -425,6 +472,8 @@ function hideRenderProgressToast() {
   window.clearTimeout(renderProgressHideTimer);
   renderProgressHideTimer = null;
   toastEl.classList.remove("is-visible");
+  toastEl.classList.remove("is-below-actions");
+  toastEl.style.removeProperty("--toast-below-top");
 }
 
 function updateRenderProgressToast(percent, isComplete = false) {
@@ -449,6 +498,8 @@ function updateRenderProgressToast(percent, isComplete = false) {
   renderProgressHideTimer = null;
   toastEl.textContent = `Render ${normalizedPercent}%`;
   toastEl.classList.add("is-visible");
+  positionToastForTopActions();
+  suppressToastWhenHelpOpenAndBelowActions();
   renderProgressVisible = true;
   renderProgressShownThisDraw = true;
 
@@ -469,6 +520,8 @@ function updateExportRenderProgressToast(label, percent, isComplete = false) {
   renderProgressHideTimer = null;
   toastEl.textContent = `${label}: ${normalizedPercent}%`;
   toastEl.classList.add("is-visible");
+  positionToastForTopActions();
+  suppressToastWhenHelpOpenAndBelowActions();
   renderProgressVisible = true;
 
   if (isComplete) {
@@ -5171,6 +5224,10 @@ function registerHandlers() {
       layoutFormulaSettingsPanel();
       layoutColorSettingsPanel();
       layoutFloatingActions();
+      if (toastEl?.classList.contains("is-visible")) {
+        positionToastForTopActions();
+        suppressToastWhenHelpOpenAndBelowActions();
+      }
       requestDraw();
     },
     { passive: true },
@@ -5187,6 +5244,10 @@ function registerHandlers() {
       layoutFormulaSettingsPanel();
       layoutColorSettingsPanel();
       layoutFloatingActions();
+      if (toastEl?.classList.contains("is-visible")) {
+        positionToastForTopActions();
+        suppressToastWhenHelpOpenAndBelowActions();
+      }
       requestDraw();
     },
     { passive: true },
