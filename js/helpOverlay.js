@@ -477,10 +477,13 @@ function generateCandidates(layout, ctx) {
 
   if (id === 'topbar') {
     if (topbarRect) {
-      candidates.push(candidateRect(topbarRect.right - layout.width, topbarRect.bottom + LAYOUT.topbarDesktopGap, layout.width, layout.height));
-      candidates.push(candidateRect(topbarRect.left - layout.width - 8, topbarRect.bottom + 4, layout.width, layout.height));
+      const rightAlignedX = topbarRect.right - layout.width;
+      candidates.push(candidateRect(rightAlignedX, topbarRect.bottom + LAYOUT.topbarDesktopGap, layout.width, layout.height));
+      candidates.push(candidateRect(rightAlignedX, topbarRect.bottom + 4, layout.width, layout.height));
+      candidates.push(candidateRect(rightAlignedX, yTop, layout.width, layout.height));
+    } else {
+      candidates.push(candidateRect(viewportWidth - margin - layout.width, yTop, layout.width, layout.height));
     }
-    candidates.push(candidateRect(viewportWidth - margin - layout.width, yTop, layout.width, layout.height));
   } else if (id === 'tile-border-legend') {
     const preferredY = topbarPlaced ? topbarPlaced.y : yTop;
     candidates.push(candidateRect(anchorLeft, preferredY, layout.width, layout.height));
@@ -528,10 +531,15 @@ function generateCandidates(layout, ctx) {
 }
 
 function scoreCandidate(layout, candidate, ctx) {
-  const { forbiddenRegions, viewportWidth, viewportHeight, margin, uiTop, placedRects, placed } = ctx;
+  const { forbiddenRegions, viewportWidth, margin, uiTop, placedRects, placed } = ctx;
   const rect = { left: candidate.x, top: candidate.y, right: candidate.x + layout.width, bottom: candidate.y + layout.height };
+  const strictHorizontal = layout.group.id === 'formula-cmap'
+    || layout.group.id === 'random'
+    || (layout.group.id === 'topbar' && Boolean(ctx.rects.get('topRightActions')));
+  const minX = strictHorizontal ? 0 : margin;
+  const maxX = strictHorizontal ? viewportWidth : viewportWidth - margin;
 
-  if (rect.left < margin || rect.right > viewportWidth - margin || rect.top < margin || rect.bottom > uiTop - margin) {
+  if (rect.left < minX || rect.right > maxX || rect.top < margin || rect.bottom > uiTop - margin) {
     return { valid: false, score: Number.POSITIVE_INFINITY };
   }
 
@@ -594,12 +602,32 @@ function findFirstFreeSpot(layout, ctx, placedRects) {
   return null;
 }
 
+function findFirstFreeYAtX(layout, ctx, placedRects, fixedX) {
+  const step = 10;
+  const maxY = Math.max(ctx.margin, ctx.uiTop - layout.height - ctx.margin);
+  for (let y = ctx.margin; y <= maxY; y += step) {
+    const rect = { left: fixedX, top: y, right: fixedX + layout.width, bottom: y + layout.height };
+    const blockedByUi = ctx.forbiddenRegions.some((region) => overlapArea(rect, region) > 0);
+    if (blockedByUi) continue;
+    const blockedByLabels = placedRects.some((placedRect) => overlapArea(rect, placedRect.rect) > 0);
+    if (blockedByLabels) continue;
+    return { x: fixedX, y };
+  }
+  return null;
+}
+
 function placeGroupsInPriorityOrder(ctx) {
   const sorted = [...ctx.layouts].sort((a, b) => a.item.placement.priority - b.item.placement.priority || a.group.id.localeCompare(b.group.id));
   const placed = new Map();
   const placedRects = [];
 
   const placeOne = (layout) => {
+    const strictHorizontalById = {
+      topbar: ctx.rects.get('topRightActions') ? (ctx.rects.get('topRightActions').right - layout.width) : null,
+      'formula-cmap': ctx.anchorLeft,
+      random: ctx.anchorRight - layout.width,
+    };
+    const lockedX = strictHorizontalById[layout.group.id] ?? null;
     let best = null;
     for (const variant of placementVariants(layout)) {
       setLabelMeasureStyle(layout, variant, ctx.viewportWidth);
@@ -614,11 +642,15 @@ function placeGroupsInPriorityOrder(ctx) {
 
     if (!best) {
       setLabelMeasureStyle(layout, { wrapped: true, fontScale: 0.86 }, ctx.viewportWidth);
-      const free = findFirstFreeSpot(layout, ctx, placedRects);
+      const free = Number.isFinite(lockedX)
+        ? findFirstFreeYAtX(layout, ctx, placedRects, lockedX)
+        : findFirstFreeSpot(layout, ctx, placedRects);
       if (free) {
         best = { x: free.x, y: free.y, score: 9e5 };
       } else {
-        const fallbackX = clamp(layout.x, ctx.margin, ctx.viewportWidth - layout.width - ctx.margin);
+        const fallbackX = Number.isFinite(lockedX)
+          ? lockedX
+          : clamp(layout.x, ctx.margin, ctx.viewportWidth - layout.width - ctx.margin);
         const fallbackY = clamp(ctx.margin, ctx.margin, ctx.uiTop - layout.height - ctx.margin);
         best = { x: fallbackX, y: fallbackY, score: 1e6 };
       }
@@ -652,7 +684,14 @@ function placeGroupsInPriorityOrder(ctx) {
 
 function clampPlacedGroupsToViewport(ctx) {
   for (const layout of ctx.layouts) {
-    layout.x = clamp(layout.x, ctx.margin, ctx.viewportWidth - layout.width - ctx.margin);
+    const strictHorizontal = layout.group.id === 'formula-cmap'
+      || layout.group.id === 'random'
+      || (layout.group.id === 'topbar' && Boolean(ctx.rects.get('topRightActions')));
+    const minX = strictHorizontal ? 0 : ctx.margin;
+    const maxX = strictHorizontal
+      ? ctx.viewportWidth - layout.width
+      : ctx.viewportWidth - layout.width - ctx.margin;
+    layout.x = clamp(layout.x, minX, maxX);
     layout.y = clamp(layout.y, ctx.margin, ctx.uiTop - layout.height - ctx.margin);
   }
 }
@@ -739,8 +778,8 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
     const models = buildLabelModels(activeItems);
     const layouts = createOrMeasureLabels({ models, viewportWidth, margin });
 
-    const anchorLeft = clamp(Math.round((rects.get('formulaTile')?.left ?? margin)), margin, viewportWidth - margin);
-    const anchorRight = clamp(Math.round((rects.get('randomTile')?.right ?? (viewportWidth - margin))), margin, viewportWidth - margin);
+    const anchorLeft = clamp((rects.get('formulaTile')?.left ?? margin), 0, viewportWidth);
+    const anchorRight = clamp((rects.get('randomTile')?.right ?? viewportWidth), 0, viewportWidth);
 
     const forbiddenRegions = buildUiForbiddenRegions(rects, uiTop, viewportWidth, margin);
 
@@ -756,7 +795,7 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
       forbiddenRegions,
     });
 
-    clampPlacedGroupsToViewport({ layouts, viewportWidth, margin, uiTop });
+    clampPlacedGroupsToViewport({ layouts, viewportWidth, margin, uiTop, rects });
 
     const bracketMidpoints = new Map();
     for (const bracket of HELP_GROUP_BRACKETS) {
