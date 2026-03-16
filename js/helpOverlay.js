@@ -356,112 +356,148 @@ function layoutRect(layout) {
 const HELP_PLACEMENT_POLICY = {
   topbar: {
     priority: 1,
-    preferredPlacement: "belowTargetRightAligned",
-    fallbackPlacements: ["belowTargetRightAlignedTight", "topBandRightAligned"],
     wrappingAllowed: true,
     shrinkAllowed: true,
-    strictHorizontal: "targetRight",
-    targetKey: "topRightActions",
-    preferredBand: "top",
-    visibleWhen: ({ rects }) => rects.has("topRightActions"),
+    requiredTargets: ["topRightActions"],
+    constraints: {
+      strictHorizontalFromAnchor: "topbarRight",
+    },
+    preferredPlacement: { primitive: "targetAligned", targetKey: "topRightActions", xAlign: "right", yFrom: "bottom", offsetY: LAYOUT.topbarGap },
+    fallbackPlacements: [
+      { primitive: "targetAligned", targetKey: "topRightActions", xAlign: "right", yFrom: "bottom", offsetY: 4 },
+      { primitive: "anchorBand", anchorKey: "topbarRight", xAlign: "right", band: "top", offsetY: 0 },
+    ],
   },
   "tile-border-legend": {
     priority: 2,
-    preferredPlacement: "topBandLeftAnchorAlignedToTopbar",
-    fallbackPlacements: ["belowGroup:topbar", "topBandLeftAnchor"],
     wrappingAllowed: true,
     shrinkAllowed: true,
-    anchorRelationship: "leftBottomTile",
-    preferredBand: "top",
+    anchors: { primary: "leftBottomTile" },
+    preferredPlacement: { primitive: "anchorBand", anchorKey: "leftBottomTile", xAlign: "left", band: "alignWithGroup", groupId: "topbar" },
+    fallbackPlacements: [
+      { primitive: "relativeToGroup", groupId: "topbar", relation: "below", xFromAnchor: "leftBottomTile", xAlign: "left", gap: 8 },
+      { primitive: "anchorBand", anchorKey: "leftBottomTile", xAlign: "left", band: "top" },
+    ],
   },
   "canvas-left": {
     priority: 3,
-    preferredPlacement: "centerSplitLeft",
-    fallbackPlacements: ["centerSplitLeft"],
     wrappingAllowed: true,
     maxLines: 2,
     shrinkAllowed: true,
-    preferredBand: "middle",
+    constraints: { preserveSideOfCenter: "left" },
+    preferredPlacement: { primitive: "centerSplit", side: "left", yMode: "betweenTopAndUi", avoidAboveGroupId: "tile-border-legend" },
+    fallbackPlacements: [
+      { primitive: "centerSplit", side: "left", yMode: "betweenTopAndUi", avoidAboveGroupId: "tile-border-legend" },
+    ],
   },
   "canvas-right": {
     priority: 3,
-    preferredPlacement: "centerSplitRight",
-    fallbackPlacements: ["centerSplitRight"],
     wrappingAllowed: true,
     maxLines: 2,
     shrinkAllowed: true,
-    preferredBand: "middle",
     dependencyIds: ["canvas-left"],
+    constraints: { preserveSideOfCenter: "right" },
+    preferredPlacement: { primitive: "centerSplit", side: "right", yMode: "matchGroup", groupId: "canvas-left" },
+    fallbackPlacements: [
+      { primitive: "centerSplit", side: "right", yMode: "matchGroup", groupId: "canvas-left" },
+    ],
   },
   params: {
     priority: 4,
-    preferredPlacement: "aboveAndRightOfSlider",
-    fallbackPlacements: ["belowGroup:slider", "centerBand"],
     wrappingAllowed: true,
     shrinkAllowed: true,
-    preferredBand: "middle",
+    preferredPlacement: { primitive: "relativeToTarget", targetKey: "quickSlider", relation: "aboveRight", offsetX: 14, offsetY: 12 },
+    fallbackPlacements: [
+      { primitive: "relativeToGroup", groupId: "slider", relation: "aboveRight", gap: 10 },
+      { primitive: "viewportBand", xAlign: "center", band: "middle", offsetX: 24 },
+      { primitive: "relativeToGroup", groupId: "slider", relation: "below", gap: 10 },
+    ],
   },
   slider: {
     priority: 5,
-    preferredPlacement: "leftAndBelowParams",
-    fallbackPlacements: ["aboveGroup:params", "leftOfQuickSlider"],
     wrappingAllowed: true,
     shrinkAllowed: true,
-    preferredBand: "middle",
+    preferredPlacement: { primitive: "relativeToGroup", groupId: "params", relation: "leftBelow", gap: 8 },
+    fallbackPlacements: [
+      { primitive: "relativeToGroup", groupId: "params", relation: "leftAbove", gap: 8 },
+      { primitive: "relativeToTarget", targetKey: "quickSlider", relation: "leftAbove", offsetX: 8, offsetY: 8 },
+    ],
   },
   "formula-cmap": {
     priority: 6,
-    preferredPlacement: "leftAnchorNearSliderBand",
-    fallbackPlacements: ["leftAnchorHigherBand", "leftAnchorUiTop"],
     wrappingAllowed: true,
     shrinkAllowed: true,
-    strictHorizontal: "anchorLeft",
-    preferredBand: "bottom",
+    anchors: { primary: "leftBottomTile" },
+    constraints: { strictHorizontalFromAnchor: "leftBottomTile" },
+    preferredPlacement: { primitive: "anchorBand", anchorKey: "leftBottomTile", xAlign: "left", band: "nearRefGroupTop", bandRefGroupId: "params" },
+    fallbackPlacements: [
+      { primitive: "anchorBand", anchorKey: "leftBottomTile", xAlign: "left", band: "higherRefGroup", bandRefGroupId: "topbar" },
+      { primitive: "anchorBand", anchorKey: "leftBottomTile", xAlign: "left", band: "uiTop" },
+    ],
   },
   random: {
     priority: 7,
-    preferredPlacement: "rightAnchorNearSliderBand",
-    fallbackPlacements: ["rightAnchorHigherBand", "rightAnchorUiTop"],
     wrappingAllowed: true,
     shrinkAllowed: true,
-    strictHorizontal: "anchorRight",
-    preferredBand: "bottom",
+    anchors: { primary: "rightBottomTile" },
+    constraints: { strictHorizontalFromAnchor: "rightBottomTile" },
+    preferredPlacement: { primitive: "anchorBand", anchorKey: "rightBottomTile", xAlign: "right", band: "nearRefGroupTop", bandRefGroupId: "params" },
+    fallbackPlacements: [
+      { primitive: "anchorBand", anchorKey: "rightBottomTile", xAlign: "right", band: "higherRefGroup", bandRefGroupId: "topbar" },
+      { primitive: "anchorBand", anchorKey: "rightBottomTile", xAlign: "right", band: "uiTop" },
+    ],
   },
 };
+
+const ANCHOR_RESOLVERS = {
+  leftBottomTile: ({ rects, margin }) => ({ x: rects.get("formulaTile")?.left ?? margin }),
+  rightBottomTile: ({ rects, viewportWidth }) => ({ x: rects.get("randomTile")?.right ?? viewportWidth }),
+  topbarRight: ({ rects, viewportWidth, margin }) => ({ x: rects.get("topRightActions")?.right ?? (viewportWidth - margin) }),
+  viewportCenter: ({ viewportWidth }) => ({ x: viewportWidth / 2 }),
+};
+
+function resolveAnchors(ctx) {
+  const anchors = new Map();
+  for (const [key, resolver] of Object.entries(ANCHOR_RESOLVERS)) {
+    anchors.set(key, resolver(ctx));
+  }
+  return anchors;
+}
 
 function buildHelpItemRegistry() {
   return HELP_OVERLAY_GROUPS.map((group) => {
     const policy = HELP_PLACEMENT_POLICY[group.id] || {
       priority: 50,
-      preferredPlacement: "centerBand",
-      fallbackPlacements: ["centerBand"],
       wrappingAllowed: true,
       shrinkAllowed: true,
+      preferredPlacement: { primitive: "viewportBand", xAlign: "center", band: "middle" },
+      fallbackPlacements: [{ primitive: "viewportBand", xAlign: "center", band: "middle" }],
     };
-
     return {
       id: group.id,
       group,
       policy,
-      visibleWhen: policy.visibleWhen || (() => true),
       dependencyIds: policy.dependencyIds || [],
+      visibleWhen: policy.visibleWhen || (() => true),
     };
   });
 }
 
 function resolveActiveItems(registry, rects) {
-  const active = [];
+  const initiallyActive = registry.filter((item) => {
+    if (!item.visibleWhen({ rects })) return false;
+    const requiredTargets = item.policy.requiredTargets || [];
+    if (requiredTargets.some((key) => !rects.has(key))) return false;
+    const directTargetSelector = item.group.target?.selector;
+    if (directTargetSelector) {
+      const targetKey = SELECTOR_TO_TARGET_KEY[directTargetSelector];
+      if (!rects.has(targetKey)) return false;
+    }
+    return true;
+  });
 
-  for (const item of registry) {
-    if (!item.visibleWhen({ rects })) continue;
-    const targetSelector = item.group.target?.selector;
-    const targetRect = targetSelector ? rects.get(SELECTOR_TO_TARGET_KEY[targetSelector]) : null;
-    if (targetSelector && !targetRect) continue;
-    active.push(item);
-  }
-
-  const activeIds = new Set(active.map((it) => it.id));
-  return active.filter((item) => item.dependencyIds.every((depId) => activeIds.has(depId)));
+  const activeIds = new Set(initiallyActive.map((item) => item.id));
+  return initiallyActive.filter((item) => item.dependencyIds.every((depId) => activeIds.has(depId)));
 }
 
 function buildLabelModels(activeItems) {
@@ -555,17 +591,6 @@ function placementVariants(layout) {
   return variants;
 }
 
-function getStrictX(layout, ctx) {
-  const mode = layout.item.policy.strictHorizontal;
-  if (mode === "targetRight") {
-    const targetRect = ctx.rects.get(layout.item.policy.targetKey || "");
-    return targetRect ? targetRect.right - layout.width : null;
-  }
-  if (mode === "anchorLeft") return ctx.anchorLeft;
-  if (mode === "anchorRight") return ctx.anchorRight - layout.width;
-  return null;
-}
-
 function candidateRect(x, y, width, height) {
   return {
     x: Math.round(x),
@@ -579,101 +604,125 @@ function candidateRect(x, y, width, height) {
   };
 }
 
-function candidateFromType(layout, type, ctx) {
-  const { rects, placed, margin, uiTop, viewportWidth } = ctx;
-  const centerX = viewportWidth / 2;
-  const topRect = rects.get("topRightActions");
-  const quickSliderRect = rects.get("quickSlider");
-  const legendPlaced = placed.get("tile-border-legend");
-  const topbarPlaced = placed.get("topbar");
-  const paramsPlaced = placed.get("params");
-  const sliderPlaced = placed.get("slider");
-  const lockX = getStrictX(layout, ctx);
+function resolveBandY(layout, placement, ctx) {
+  const { margin, uiTop, placed } = ctx;
 
-  if (type.startsWith("belowGroup:")) {
-    const dep = placed.get(type.split(":")[1]);
-    if (!dep) return null;
-    return candidateRect(lockX ?? dep.x, dep.y + dep.height + 8, layout.width, layout.height);
+  if (placement.band === "top") return margin + (placement.offsetY || 0);
+  if (placement.band === "middle") return Math.max(margin, uiTop - layout.height - 12) + (placement.offsetY || 0);
+  if (placement.band === "uiTop") return uiTop - layout.height - 8 + (placement.offsetY || 0);
+  if (placement.band === "nearRefGroupTop") {
+    const ref = placed.get(placement.bandRefGroupId || "");
+    return Math.max((ref?.y || uiTop) - layout.height - 10, margin) + (placement.offsetY || 0);
   }
-  if (type.startsWith("aboveGroup:")) {
-    const dep = placed.get(type.split(":")[1]);
-    if (!dep) return null;
-    return candidateRect(lockX ?? dep.x, dep.y - layout.height - 8, layout.width, layout.height);
+  if (placement.band === "higherRefGroup") {
+    const ref = placed.get(placement.bandRefGroupId || "");
+    return Math.max(margin, (ref?.y || uiTop * 0.4)) + (placement.offsetY || 0);
+  }
+  if (placement.band === "alignWithGroup") {
+    const group = placed.get(placement.groupId || "");
+    return (group ? group.y : margin) + (placement.offsetY || 0);
   }
 
-  const builders = {
-    belowTargetRightAligned: () => {
-      if (!topRect) return null;
-      const x = lockX ?? (topRect.right - layout.width);
-      return candidateRect(x, topRect.bottom + LAYOUT.topbarGap, layout.width, layout.height);
-    },
-    belowTargetRightAlignedTight: () => {
-      if (!topRect) return null;
-      const x = lockX ?? (topRect.right - layout.width);
-      return candidateRect(x, topRect.bottom + 4, layout.width, layout.height);
-    },
-    topBandRightAligned: () => candidateRect(lockX ?? (viewportWidth - margin - layout.width), margin, layout.width, layout.height),
-    topBandLeftAnchorAlignedToTopbar: () => {
-      const y = topbarPlaced ? topbarPlaced.y : margin;
-      return candidateRect(ctx.anchorLeft, y, layout.width, layout.height);
-    },
-    topBandLeftAnchor: () => candidateRect(ctx.anchorLeft, margin, layout.width, layout.height),
-    centerSplitLeft: () => {
-      const minY = legendPlaced ? legendPlaced.y + legendPlaced.height + 8 : margin + 34;
-      const maxY = Math.max(minY, uiTop - layout.height - 10);
-      const y = clamp((minY + maxY) / 2, minY, maxY);
-      return candidateRect(centerX - LAYOUT.dividerTapGap - layout.width, y, layout.width, layout.height);
-    },
-    centerSplitRight: () => {
-      const left = placed.get("canvas-left");
-      if (!left) return null;
-      return candidateRect(centerX + LAYOUT.dividerTapGap, left.y, layout.width, layout.height);
-    },
-    aboveAndRightOfSlider: () => {
-      if (quickSliderRect) {
-        return candidateRect(quickSliderRect.right + 14, quickSliderRect.top - layout.height - 12, layout.width, layout.height);
-      }
-      return candidateRect(centerX - layout.width / 2 + 24, uiTop - layout.height - 14, layout.width, layout.height);
-    },
-    centerBand: () => candidateRect(centerX - layout.width / 2, uiTop - layout.height - 12, layout.width, layout.height),
-    leftAndBelowParams: () => {
-      if (!paramsPlaced) return null;
-      return candidateRect(paramsPlaced.x - layout.width - 14, paramsPlaced.y + paramsPlaced.height + 8, layout.width, layout.height);
-    },
-    leftOfQuickSlider: () => {
-      if (!quickSliderRect) return null;
-      return candidateRect(quickSliderRect.left - layout.width - 8, quickSliderRect.top - layout.height - 8, layout.width, layout.height);
-    },
-    leftAnchorNearSliderBand: () => {
-      const yBase = Math.max((paramsPlaced?.y || uiTop) - layout.height - 10, margin);
-      return candidateRect(lockX ?? ctx.anchorLeft, yBase, layout.width, layout.height);
-    },
-    leftAnchorHigherBand: () => {
-      const y = sliderPlaced ? sliderPlaced.y : Math.max(margin, uiTop * 0.4);
-      return candidateRect(lockX ?? ctx.anchorLeft, y, layout.width, layout.height);
-    },
-    leftAnchorUiTop: () => candidateRect(lockX ?? ctx.anchorLeft, uiTop - layout.height - 8, layout.width, layout.height),
-    rightAnchorNearSliderBand: () => {
-      const yBase = Math.max((paramsPlaced?.y || uiTop) - layout.height - 10, margin);
-      return candidateRect(lockX ?? (ctx.anchorRight - layout.width), yBase, layout.width, layout.height);
-    },
-    rightAnchorHigherBand: () => {
-      const y = topbarPlaced ? topbarPlaced.y + topbarPlaced.height + 8 : Math.max(margin, uiTop * 0.4);
-      return candidateRect(lockX ?? (ctx.anchorRight - layout.width), y, layout.width, layout.height);
-    },
-    rightAnchorUiTop: () => candidateRect(lockX ?? (ctx.anchorRight - layout.width), uiTop - layout.height - 8, layout.width, layout.height),
-  };
+  return margin;
+}
 
-  const builder = builders[type];
-  return builder ? builder() : null;
+function resolveAlignedX(layout, placement, ctx, anchorX = null, targetRect = null, groupRect = null) {
+  const { viewportWidth, margin } = ctx;
+  if (placement.xAlign === "left") return (anchorX ?? targetRect?.left ?? groupRect?.x ?? margin) + (placement.offsetX || 0);
+  if (placement.xAlign === "right") {
+    const rightRef = anchorX ?? targetRect?.right ?? (groupRect ? groupRect.x + groupRect.width : viewportWidth - margin);
+    return rightRef - layout.width + (placement.offsetX || 0);
+  }
+  return (targetRect ? targetRect.left + (targetRect.width - layout.width) / 2 : viewportWidth / 2 - layout.width / 2) + (placement.offsetX || 0);
+}
+
+function buildCandidate(layout, placement, ctx) {
+  const { rects, placed, anchors, viewportWidth, margin, uiTop } = ctx;
+  const targetRect = placement.targetKey ? rects.get(placement.targetKey) : null;
+  const groupRect = placement.groupId ? placed.get(placement.groupId) : null;
+  const anchor = placement.anchorKey ? anchors.get(placement.anchorKey) : null;
+  const anchorX = anchor?.x;
+  const centerX = anchors.get("viewportCenter")?.x ?? (viewportWidth / 2);
+
+  if (placement.primitive === "targetAligned") {
+    if (!targetRect) return null;
+    const x = resolveAlignedX(layout, placement, ctx, anchorX, targetRect, null);
+    const yBase = placement.yFrom === "bottom" ? targetRect.bottom : targetRect.top;
+    const y = yBase + (placement.offsetY || 0);
+    return candidateRect(x, y, layout.width, layout.height);
+  }
+
+  if (placement.primitive === "anchorBand") {
+    const x = resolveAlignedX(layout, placement, ctx, anchorX, null, null);
+    const y = resolveBandY(layout, placement, ctx);
+    return candidateRect(x, y, layout.width, layout.height);
+  }
+
+  if (placement.primitive === "viewportBand") {
+    const x = resolveAlignedX(layout, placement, ctx, null, null, null);
+    const y = resolveBandY(layout, placement, ctx);
+    return candidateRect(x, y, layout.width, layout.height);
+  }
+
+  if (placement.primitive === "relativeToTarget") {
+    if (!targetRect) return null;
+    const rel = placement.relation;
+    const relationMap = {
+      aboveRight: { x: targetRect.right + (placement.offsetX || 0), y: targetRect.top - layout.height - (placement.offsetY || 0) },
+      leftAbove: { x: targetRect.left - layout.width - (placement.offsetX || 0), y: targetRect.top - layout.height - (placement.offsetY || 0) },
+    };
+    const pos = relationMap[rel];
+    return pos ? candidateRect(pos.x, pos.y, layout.width, layout.height) : null;
+  }
+
+  if (placement.primitive === "relativeToGroup") {
+    if (!groupRect) return null;
+    const gap = placement.gap || 8;
+    const anchorAlignedX = placement.xFromAnchor ? resolveAlignedX(layout, { ...placement, xAlign: placement.xAlign || "left" }, ctx, anchors.get(placement.xFromAnchor)?.x) : null;
+    const relationMap = {
+      below: { x: anchorAlignedX ?? groupRect.x, y: groupRect.y + groupRect.height + gap },
+      aboveRight: { x: groupRect.x + groupRect.width + gap, y: groupRect.y - layout.height - gap },
+      leftBelow: { x: groupRect.x - layout.width - gap, y: groupRect.y + groupRect.height + gap },
+      leftAbove: { x: groupRect.x - layout.width - gap, y: groupRect.y - layout.height - gap },
+    };
+    const pos = relationMap[placement.relation];
+    return pos ? candidateRect(pos.x, pos.y, layout.width, layout.height) : null;
+  }
+
+  if (placement.primitive === "centerSplit") {
+    const side = placement.side;
+    const y = placement.yMode === "matchGroup"
+      ? (groupRect ? groupRect.y : margin)
+      : (() => {
+        const avoidGroup = placed.get(placement.avoidAboveGroupId || "");
+        const minY = avoidGroup ? avoidGroup.y + avoidGroup.height + 8 : margin + 34;
+        const maxY = Math.max(minY, uiTop - layout.height - 10);
+        return clamp((minY + maxY) / 2, minY, maxY);
+      })();
+    const x = side === "left"
+      ? centerX - LAYOUT.dividerTapGap - layout.width
+      : centerX + LAYOUT.dividerTapGap;
+    return candidateRect(x, y, layout.width, layout.height);
+  }
+
+  return null;
 }
 
 function generateCandidates(layout, ctx) {
   const { preferredPlacement, fallbackPlacements = [] } = layout.item.policy;
   const ordered = [preferredPlacement, ...fallbackPlacements];
-  return ordered
-    .map((type) => candidateFromType(layout, type, ctx))
-    .filter(Boolean);
+  return ordered.map((placement) => buildCandidate(layout, placement, ctx)).filter(Boolean);
+}
+
+function getStrictX(layout, ctx) {
+  const strictAnchor = layout.item.policy.constraints?.strictHorizontalFromAnchor;
+  if (!strictAnchor) return null;
+  const anchor = ctx.anchors.get(strictAnchor);
+  if (!anchor) return null;
+  const preferred = layout.item.policy.preferredPlacement;
+  if (preferred?.xAlign === "right") return anchor.x - layout.width;
+  if (preferred?.xAlign === "left") return anchor.x;
+  return null;
 }
 
 function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
@@ -699,8 +748,10 @@ function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
     if (overlapArea(rect, placedRect.rect) > 0) return { valid: false, score: Number.POSITIVE_INFINITY };
   }
 
-  if (layout.group.id === "canvas-left" && rect.right > viewportWidth / 2) return { valid: false, score: Number.POSITIVE_INFINITY };
-  if (layout.group.id === "canvas-right" && rect.left < viewportWidth / 2) return { valid: false, score: Number.POSITIVE_INFINITY };
+  const side = layout.item.policy.constraints?.preserveSideOfCenter;
+  const centerX = ctx.anchors.get("viewportCenter")?.x ?? (viewportWidth / 2);
+  if (side === "left" && rect.right > centerX) return { valid: false, score: Number.POSITIVE_INFINITY };
+  if (side === "right" && rect.left < centerX) return { valid: false, score: Number.POSITIVE_INFINITY };
 
   let score = 0;
   if (preferredCandidate) score += Math.abs(candidate.x - preferredCandidate.x) + Math.abs(candidate.y - preferredCandidate.y);
@@ -732,7 +783,7 @@ function findFirstFreeSpot(layout, ctx, placedRects, lockX = null) {
       if (ctx.forbiddenRegions.some((region) => overlapArea(rect, region) > 0)) continue;
       if (placedRects.some((placedRect) => overlapArea(rect, placedRect.rect) > 0)) continue;
       return { x, y };
-      }
+    }
   }
 
   return null;
@@ -747,7 +798,7 @@ function placeGroupsInPriorityOrder(ctx) {
     if (!layout.item.dependencyIds.every((id) => placed.has(id))) continue;
 
     let best = null;
-    const preferredCandidate = candidateFromType(layout, layout.item.policy.preferredPlacement, { ...ctx, placed });
+    const preferredCandidate = buildCandidate(layout, layout.item.policy.preferredPlacement, { ...ctx, placed });
 
     for (const variant of placementVariants(layout)) {
       setLabelMeasureStyle(layout, variant, ctx.viewportWidth);
@@ -875,10 +926,8 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
     const models = buildLabelModels(activeItems);
     const layouts = createOrMeasureLabels({ models, viewportWidth, margin });
 
-    const anchorLeft = clamp((rects.get('formulaTile')?.left ?? margin), 0, viewportWidth);
-    const anchorRight = clamp((rects.get('randomTile')?.right ?? viewportWidth), 0, viewportWidth);
-
     const forbiddenRegions = buildUiForbiddenRegions(rects, uiTop, viewportWidth, margin);
+    const anchors = resolveAnchors({ rects, viewportWidth, viewportHeight, margin, uiTop });
 
     placeGroupsInPriorityOrder({
       layouts,
@@ -887,12 +936,11 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
       viewportHeight,
       margin,
       uiTop,
-      anchorLeft,
-      anchorRight,
       forbiddenRegions,
+      anchors,
     });
 
-    clampPlacedGroupsToViewport({ layouts, viewportWidth, margin, uiTop, rects });
+    clampPlacedGroupsToViewport({ layouts, viewportWidth, margin, uiTop, rects, anchors });
 
     const bracketMidpoints = new Map();
     for (const bracket of HELP_GROUP_BRACKETS) {
