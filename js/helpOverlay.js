@@ -164,7 +164,6 @@ export function createHelpOverlay(options) {
   };
 
   const targetCache = new Map();
-  const labelCache = new Map();
   const dom = {
     rootEl: null,
     dimmerEl: null,
@@ -449,44 +448,7 @@ export function createHelpOverlay(options) {
       }
     }
 
-    if (isMobile) {
-      const paramsLayout = layouts.find((item) => item.group.id === "params");
-      const sliderLayout = layouts.find((item) => item.group.id === "slider");
-      if (paramsLayout && sliderLayout && doLayoutsOverlap(sliderLayout, paramsLayout, 2)) {
-        const maxSliderY = uiTop - sliderLayout.height - margin;
-        const desiredSliderY = paramsLayout.y + paramsLayout.height + 10;
-        if (desiredSliderY > maxSliderY) {
-          const requiredShiftUp = desiredSliderY - maxSliderY;
-          const maxParamsY = uiTop - margin - paramsLayout.height - sliderLayout.height - 10;
-          paramsLayout.y = clamp(paramsLayout.y - requiredShiftUp, margin, Math.max(margin, maxParamsY));
-        }
-
-        sliderLayout.y = clamp(paramsLayout.y + paramsLayout.height + 10, margin, maxSliderY);
-        if (doLayoutsOverlap(sliderLayout, paramsLayout, 2)) {
-          sliderLayout.x = clamp(
-            paramsLayout.x - sliderLayout.width - 10,
-            horizontalMargin,
-            viewportWidth - sliderLayout.width - margin,
-          );
-        }
-        if (doLayoutsOverlap(sliderLayout, paramsLayout, 2)) {
-          sliderLayout.x = clamp(
-            paramsLayout.x + paramsLayout.width + 10,
-            horizontalMargin,
-            viewportWidth - sliderLayout.width - margin,
-          );
-        }
-      }
-
-      const formulaLayout = layouts.find((item) => item.group.id === "formula-cmap");
-      if (formulaLayout && sliderLayout && doLayoutsOverlap(formulaLayout, sliderLayout, 2)) {
-        sliderLayout.x = clamp(
-          formulaLayout.x + formulaLayout.width + 10,
-          horizontalMargin,
-          viewportWidth - sliderLayout.width - margin,
-        );
-      }
-    }
+    applyItemSpecificLayoutRepairs(ctx, { horizontalMargin });
   }
 
   function buildLabelModels() {
@@ -499,7 +461,6 @@ export function createHelpOverlay(options) {
     for (const model of models) {
       const { group } = model;
       const labelEl = buildGroupLabel(group);
-      labelCache.set(group.id, labelEl);
       dom.labelsLayer.append(labelEl);
 
       if (isMobile) {
@@ -621,18 +582,39 @@ export function createHelpOverlay(options) {
     const { layouts, viewportWidth, viewportHeight, margin, uiTop, minLeftBound, rects } = ctx;
     if (!ctx.isMobile) return;
 
-    const topbar = layouts.find((item) => item.group.id === "topbar");
-    const legend = layouts.find((item) => item.group.id === "tile-border-legend");
-    const formula = layouts.find((item) => item.group.id === "formula-cmap");
-    const params = layouts.find((item) => item.group.id === "params");
-    const iter = layouts.find((item) => item.group.id === "iter");
-    const random = layouts.find((item) => item.group.id === "random");
-    const slider = layouts.find((item) => item.group.id === "slider");
-    const leftTapLayout = layouts.find((item) => item.group.id === "canvas-left");
-    const rightTapLayout = layouts.find((item) => item.group.id === "canvas-right");
+    const refs = {
+      topbar: layouts.find((item) => item.group.id === "topbar"),
+      legend: layouts.find((item) => item.group.id === "tile-border-legend"),
+      formula: layouts.find((item) => item.group.id === "formula-cmap"),
+      params: layouts.find((item) => item.group.id === "params"),
+      iter: layouts.find((item) => item.group.id === "iter"),
+      random: layouts.find((item) => item.group.id === "random"),
+      slider: layouts.find((item) => item.group.id === "slider"),
+      leftTapLayout: layouts.find((item) => item.group.id === "canvas-left"),
+      rightTapLayout: layouts.find((item) => item.group.id === "canvas-right"),
+    };
 
     const topRightActionsRect = rects.get("topRightActions") || null;
     const cameraRect = rects.get("cameraButton") || null;
+
+    const stackState = applyTopbarAdjustments({
+      ...ctx,
+      refs,
+      topRightActionsRect,
+      cameraRect,
+    });
+    applyBottomGroupAdjustments({
+      ...ctx,
+      refs,
+      stackY: stackState.stackY,
+    });
+    applyCanvasTapAdjustments({ ...ctx, refs });
+    applyLandscapeSpecificAdjustments({ ...ctx, refs });
+  }
+
+  function applyTopbarAdjustments(ctx) {
+    const { viewportWidth, margin, uiTop, minLeftBound, refs, topRightActionsRect, cameraRect } = ctx;
+    const { topbar, legend, leftTapLayout, rightTapLayout } = refs;
     const rightEdge = cameraRect?.right ?? topRightActionsRect?.right ?? (viewportWidth - margin);
     const topStart = topRightActionsRect ? clamp(topRightActionsRect.bottom + 3, margin, uiTop - margin) : margin;
 
@@ -656,6 +638,14 @@ export function createHelpOverlay(options) {
       stackY = tapY + Math.max(leftTapLayout.height, rightTapLayout.height) + 8;
     }
 
+    return { stackY };
+  }
+
+  function applyBottomGroupAdjustments(ctx) {
+    const { viewportWidth, margin, uiTop, minLeftBound, rects, refs, stackY } = ctx;
+    const {
+      formula, params, iter, random, slider,
+    } = refs;
     if (random) {
       random.x = clamp(viewportWidth - random.width - margin, minLeftBound, viewportWidth - random.width - margin);
       random.y = clamp(stackY, margin, uiTop - random.height - margin);
@@ -691,14 +681,26 @@ export function createHelpOverlay(options) {
       const sliderTop = Math.max((iter ? iter.y + iter.height + 8 : stackY), (params ? params.y + params.height + 8 : stackY));
       slider.y = clamp(sliderTop, margin, uiTop - slider.height - margin);
     }
+  }
 
+  function applyCanvasTapAdjustments(ctx) {
+    const { viewportWidth, margin, minLeftBound, refs } = ctx;
+    const { leftTapLayout, rightTapLayout, params } = refs;
     if (leftTapLayout && params && doLayoutsOverlap(leftTapLayout, params, 4)) {
       leftTapLayout.x = clamp(params.x - leftTapLayout.width - 8, minLeftBound, viewportWidth - leftTapLayout.width - margin);
     }
     if (rightTapLayout && params && doLayoutsOverlap(rightTapLayout, params, 4)) {
       rightTapLayout.x = clamp(params.x - rightTapLayout.width - 8, minLeftBound, viewportWidth - rightTapLayout.width - margin);
     }
+  }
 
+  function applyLandscapeSpecificAdjustments(ctx) {
+    const {
+      layouts, viewportWidth, viewportHeight, margin, uiTop, minLeftBound, refs,
+    } = ctx;
+    const {
+      topbar, legend, leftTapLayout, rightTapLayout,
+    } = refs;
     if (viewportWidth > viewportHeight && topbar && legend && leftTapLayout && rightTapLayout) {
       const horizontalGap = topbar.x - (legend.x + legend.width);
       const requiredGap = leftTapLayout.width + rightTapLayout.width + 16;
@@ -730,6 +732,49 @@ export function createHelpOverlay(options) {
           rightTapLayout.y = prevRight.y;
         }
       }
+    }
+  }
+
+  function applyItemSpecificLayoutRepairs(ctx, options = {}) {
+    const { layouts, viewportWidth, margin, uiTop, isMobile } = ctx;
+    if (!isMobile) return;
+
+    const horizontalMargin = options.horizontalMargin ?? margin;
+    const paramsLayout = layouts.find((item) => item.group.id === "params");
+    const sliderLayout = layouts.find((item) => item.group.id === "slider");
+    if (paramsLayout && sliderLayout && doLayoutsOverlap(sliderLayout, paramsLayout, 2)) {
+      const maxSliderY = uiTop - sliderLayout.height - margin;
+      const desiredSliderY = paramsLayout.y + paramsLayout.height + 10;
+      if (desiredSliderY > maxSliderY) {
+        const requiredShiftUp = desiredSliderY - maxSliderY;
+        const maxParamsY = uiTop - margin - paramsLayout.height - sliderLayout.height - 10;
+        paramsLayout.y = clamp(paramsLayout.y - requiredShiftUp, margin, Math.max(margin, maxParamsY));
+      }
+
+      sliderLayout.y = clamp(paramsLayout.y + paramsLayout.height + 10, margin, maxSliderY);
+      if (doLayoutsOverlap(sliderLayout, paramsLayout, 2)) {
+        sliderLayout.x = clamp(
+          paramsLayout.x - sliderLayout.width - 10,
+          horizontalMargin,
+          viewportWidth - sliderLayout.width - margin,
+        );
+      }
+      if (doLayoutsOverlap(sliderLayout, paramsLayout, 2)) {
+        sliderLayout.x = clamp(
+          paramsLayout.x + paramsLayout.width + 10,
+          horizontalMargin,
+          viewportWidth - sliderLayout.width - margin,
+        );
+      }
+    }
+
+    const formulaLayout = layouts.find((item) => item.group.id === "formula-cmap");
+    if (formulaLayout && sliderLayout && doLayoutsOverlap(formulaLayout, sliderLayout, 2)) {
+      sliderLayout.x = clamp(
+        formulaLayout.x + formulaLayout.width + 10,
+        horizontalMargin,
+        viewportWidth - sliderLayout.width - margin,
+      );
     }
   }
 
@@ -974,7 +1019,6 @@ export function createHelpOverlay(options) {
   function destroy() {
     close();
     unbindEvents();
-    labelCache.clear();
     targetCache.clear();
     dom.rootEl?.remove();
     state.domReady = false;
