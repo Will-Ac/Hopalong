@@ -360,25 +360,25 @@ const HELP_PLACEMENT_POLICY = {
     shrinkAllowed: true,
     requiredTargets: ["topRightActions"],
     constraints: {
-      lockAxis: { axis: "x", source: "anchor", anchorKey: "topbarRight", selfEdge: "right" },
+      lockAxis: { axis: "x", lockToSourceType: "anchor", lockToSourceKey: "topbarRight", lockToEdge: "right" },
     },
     preferredPlacement: {
       primitive: "targetAligned",
       targetKey: "topRightActions",
-      alignment: { source: "target", edge: "right", selfEdge: "right", offset: 0 },
+      alignment: { sourceType: "target", sourceEdge: "right", selfEdge: "right", offset: 0 },
       vertical: { sourceEdge: "bottom", offset: LAYOUT.topbarGap },
     },
     fallbackPlacements: [
       {
         primitive: "targetAligned",
         targetKey: "topRightActions",
-        alignment: { source: "target", edge: "right", selfEdge: "right", offset: 0 },
+        alignment: { sourceType: "target", sourceEdge: "right", selfEdge: "right", offset: 0 },
         vertical: { sourceEdge: "bottom", offset: 4 },
       },
       {
         primitive: "anchorBand",
-        alignment: { source: "anchor", anchorKey: "topbarRight", edge: "x", selfEdge: "right", offset: 0 },
-        band: { mode: "fixed", y: 0 },
+        alignment: { sourceType: "anchor", sourceKey: "topbarRight", sourceEdge: "x", selfEdge: "right", offset: 0 },
+        band: { sourceType: "viewport", position: "top", offset: 0 },
       },
     ],
   },
@@ -388,22 +388,22 @@ const HELP_PLACEMENT_POLICY = {
     shrinkAllowed: true,
     preferredPlacement: {
       primitive: "anchorBand",
-      alignment: { source: "anchor", anchorKey: "leftBottomTile", edge: "x", selfEdge: "left", offset: 0 },
-      band: { mode: "groupAlign", groupId: "topbar", offset: 0 },
+      alignment: { sourceType: "anchor", sourceKey: "leftBottomTile", sourceEdge: "x", selfEdge: "left", offset: 0 },
+      band: { sourceType: "group", sourceGroup: "topbar", position: "alignTop", offset: 0 },
     },
     fallbackPlacements: [
       {
         primitive: "relativeToGroup",
         groupId: "topbar",
         relation: {
-          x: { source: "anchor", anchorKey: "leftBottomTile", edge: "x", selfEdge: "left", offset: 0 },
+          x: { sourceType: "anchor", sourceKey: "leftBottomTile", sourceEdge: "x", selfEdge: "left", offset: 0 },
           y: { sourceEdge: "bottom", selfEdge: "top", offset: 8 },
         },
       },
       {
         primitive: "anchorBand",
-        alignment: { source: "anchor", anchorKey: "leftBottomTile", edge: "x", selfEdge: "left", offset: 0 },
-        band: { mode: "fixed", y: 0 },
+        alignment: { sourceType: "anchor", sourceKey: "leftBottomTile", sourceEdge: "x", selfEdge: "left", offset: 0 },
+        band: { sourceType: "viewport", position: "top", offset: 0 },
       },
     ],
   },
@@ -418,7 +418,7 @@ const HELP_PLACEMENT_POLICY = {
       centerAnchorKey: "viewportCenter",
       side: "left",
       gap: LAYOUT.dividerTapGap,
-      band: { mode: "between", avoidGroupId: "tile-border-legend", minY: 34, bottomPadding: 10 },
+      band: { sourceType: "between", sourceGroup: "tile-border-legend", position: "center", minY: 34, bottomPadding: 10 },
     },
     fallbackPlacements: [
       {
@@ -426,7 +426,7 @@ const HELP_PLACEMENT_POLICY = {
         centerAnchorKey: "viewportCenter",
         side: "left",
         gap: LAYOUT.dividerTapGap,
-        band: { mode: "between", avoidGroupId: "tile-border-legend", minY: 34, bottomPadding: 10 },
+        band: { sourceType: "between", sourceGroup: "tile-border-legend", position: "center", minY: 34, bottomPadding: 10 },
       },
     ],
   },
@@ -442,7 +442,7 @@ const HELP_PLACEMENT_POLICY = {
       centerAnchorKey: "viewportCenter",
       side: "right",
       gap: LAYOUT.dividerTapGap,
-      band: { mode: "groupAlign", groupId: "canvas-left", offset: 0 },
+      band: { sourceType: "group", sourceGroup: "canvas-left", position: "alignTop", offset: 0 },
     },
     fallbackPlacements: [
       {
@@ -450,7 +450,7 @@ const HELP_PLACEMENT_POLICY = {
         centerAnchorKey: "viewportCenter",
         side: "right",
         gap: LAYOUT.dividerTapGap,
-        band: { mode: "groupAlign", groupId: "canvas-left", offset: 0 },
+        band: { sourceType: "group", sourceGroup: "canvas-left", position: "alignTop", offset: 0 },
       },
     ],
   },
@@ -477,8 +477,8 @@ const HELP_PLACEMENT_POLICY = {
       },
       {
         primitive: "viewportBand",
-        alignment: { source: "viewport", edge: "center", selfEdge: "center", offset: 24 },
-        band: { mode: "middle", offset: 0 },
+        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 24 },
+        band: { sourceType: "viewport", position: "middle", offset: 0 },
       },
       {
         primitive: "relativeToGroup",
@@ -526,23 +526,23 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     shrinkAllowed: true,
     constraints: {
-      lockAxis: { axis: "x", source: "anchor", anchorKey: "leftBottomTile", selfEdge: "left" },
+      lockAxis: { axis: "x", lockToSourceType: "anchor", lockToSourceKey: "leftBottomTile", lockToEdge: "left" },
     },
     preferredPlacement: {
       primitive: "anchorBand",
-      alignment: { source: "anchor", anchorKey: "leftBottomTile", edge: "x", selfEdge: "left", offset: 0 },
-      band: { mode: "groupTopOffset", groupId: "params", offset: 10 },
+      alignment: { sourceType: "anchor", sourceKey: "leftBottomTile", sourceEdge: "x", selfEdge: "left", offset: 0 },
+      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 10 },
     },
     fallbackPlacements: [
       {
         primitive: "anchorBand",
-        alignment: { source: "anchor", anchorKey: "leftBottomTile", edge: "x", selfEdge: "left", offset: 0 },
-        band: { mode: "groupYOrRatio", groupId: "topbar", ratio: 0.4, offset: 0 },
+        alignment: { sourceType: "anchor", sourceKey: "leftBottomTile", sourceEdge: "x", selfEdge: "left", offset: 0 },
+        band: { sourceType: "groupOrViewportRatio", sourceGroup: "topbar", position: "alignTop", ratio: 0.4, offset: 0 },
       },
       {
         primitive: "anchorBand",
-        alignment: { source: "anchor", anchorKey: "leftBottomTile", edge: "x", selfEdge: "left", offset: 0 },
-        band: { mode: "uiTopOffset", offset: 8 },
+        alignment: { sourceType: "anchor", sourceKey: "leftBottomTile", sourceEdge: "x", selfEdge: "left", offset: 0 },
+        band: { sourceType: "uiTop", position: "above", offset: 8 },
       },
     ],
   },
@@ -551,23 +551,23 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     shrinkAllowed: true,
     constraints: {
-      lockAxis: { axis: "x", source: "anchor", anchorKey: "rightBottomTile", selfEdge: "right" },
+      lockAxis: { axis: "x", lockToSourceType: "anchor", lockToSourceKey: "rightBottomTile", lockToEdge: "right" },
     },
     preferredPlacement: {
       primitive: "anchorBand",
-      alignment: { source: "anchor", anchorKey: "rightBottomTile", edge: "x", selfEdge: "right", offset: 0 },
-      band: { mode: "groupTopOffset", groupId: "params", offset: 10 },
+      alignment: { sourceType: "anchor", sourceKey: "rightBottomTile", sourceEdge: "x", selfEdge: "right", offset: 0 },
+      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 10 },
     },
     fallbackPlacements: [
       {
         primitive: "anchorBand",
-        alignment: { source: "anchor", anchorKey: "rightBottomTile", edge: "x", selfEdge: "right", offset: 0 },
-        band: { mode: "groupYOrRatio", groupId: "topbar", ratio: 0.4, offset: 0 },
+        alignment: { sourceType: "anchor", sourceKey: "rightBottomTile", sourceEdge: "x", selfEdge: "right", offset: 0 },
+        band: { sourceType: "groupOrViewportRatio", sourceGroup: "topbar", position: "alignTop", ratio: 0.4, offset: 0 },
       },
       {
         primitive: "anchorBand",
-        alignment: { source: "anchor", anchorKey: "rightBottomTile", edge: "x", selfEdge: "right", offset: 0 },
-        band: { mode: "uiTopOffset", offset: 8 },
+        alignment: { sourceType: "anchor", sourceKey: "rightBottomTile", sourceEdge: "x", selfEdge: "right", offset: 0 },
+        band: { sourceType: "uiTop", position: "above", offset: 8 },
       },
     ],
   },
@@ -748,31 +748,37 @@ function getSelfEdgeOffset(layout, selfEdge) {
   return 0;
 }
 
+// Generic interpreter for policy-defined vertical band parameters; avoid item-specific rules here.
 function resolveBandY(layout, bandSpec = {}, ctx) {
   const { margin, uiTop, placed } = ctx;
-  const mode = bandSpec.mode || "fixed";
+  const sourceType = bandSpec.sourceType || "viewport";
+  const position = bandSpec.position || "top";
   const offset = bandSpec.offset || 0;
 
-  if (mode === "fixed") return margin + offset + (bandSpec.y || 0);
-  if (mode === "middle") return Math.max(margin, uiTop - layout.height - 12) + offset;
-  if (mode === "uiTopOffset") return uiTop - layout.height - offset;
-  if (mode === "groupTopOffset") {
-    const ref = placed.get(bandSpec.groupId || "");
-    const refTop = ref?.y ?? uiTop;
-    return Math.max(refTop - layout.height - offset, margin);
+  if (sourceType === "viewport") {
+    if (position === "middle") return Math.max(margin, uiTop - layout.height - 12) + offset;
+    return margin + offset + (bandSpec.y || 0);
   }
-  if (mode === "groupYOrRatio") {
-    const ref = placed.get(bandSpec.groupId || "");
-    const fallback = uiTop * (bandSpec.ratio ?? 0.4);
-    return Math.max(ref?.y ?? fallback, margin) + offset;
+
+  if (sourceType === "uiTop") {
+    return uiTop - layout.height - offset;
   }
-  if (mode === "groupAlign") {
-    const group = placed.get(bandSpec.groupId || "");
+
+  if (sourceType === "group") {
+    const group = placed.get(bandSpec.sourceGroup || "");
+    if (position === "above") return Math.max((group?.y ?? uiTop) - layout.height - offset, margin);
     return (group ? group.y : margin) + offset;
   }
-  if (mode === "between") {
-    const avoidGroup = placed.get(bandSpec.avoidGroupId || "");
-    const minY = (avoidGroup ? avoidGroup.y + avoidGroup.height + 8 : margin + (bandSpec.minY || 34));
+
+  if (sourceType === "groupOrViewportRatio") {
+    const group = placed.get(bandSpec.sourceGroup || "");
+    const fallback = uiTop * (bandSpec.ratio ?? 0.4);
+    return Math.max(group?.y ?? fallback, margin) + offset;
+  }
+
+  if (sourceType === "between") {
+    const avoidGroup = placed.get(bandSpec.sourceGroup || "");
+    const minY = avoidGroup ? avoidGroup.y + avoidGroup.height + 8 : margin + (bandSpec.minY || 34);
     const maxY = Math.max(minY, uiTop - layout.height - (bandSpec.bottomPadding || 10));
     return clamp((minY + maxY) / 2, minY, maxY) + offset;
   }
@@ -780,20 +786,26 @@ function resolveBandY(layout, bandSpec = {}, ctx) {
   return margin;
 }
 
+// Generic interpreter for policy-defined horizontal alignment parameters; avoid item-specific rules here.
 function resolveAlignedX(layout, alignment = {}, ctx, refs = {}) {
   const { viewportWidth, margin, anchors } = ctx;
   const { targetRect = null, groupRect = null } = refs;
 
-  const source = alignment.source || "viewport";
-  const sourceEdge = alignment.edge || "left";
+  const sourceType = alignment.sourceType || "viewport";
+  const sourceEdge = alignment.sourceEdge || "left";
   const selfEdge = alignment.selfEdge || "left";
   const offset = alignment.offset || 0;
 
   let sourceValue = null;
-  if (source === "anchor") sourceValue = anchors.get(alignment.anchorKey || "")?.x ?? null;
-  if (source === "target") sourceValue = getRectEdge(targetRect, sourceEdge);
-  if (source === "group") sourceValue = getRectEdge(groupRect ? { left: groupRect.x, top: groupRect.y, width: groupRect.width, height: groupRect.height, right: groupRect.x + groupRect.width, bottom: groupRect.y + groupRect.height } : null, sourceEdge);
-  if (source === "viewport") {
+  if (sourceType === "anchor") sourceValue = anchors.get(alignment.sourceKey || "")?.x ?? null;
+  if (sourceType === "target") sourceValue = getRectEdge(targetRect, sourceEdge);
+  if (sourceType === "group") {
+    const rect = groupRect
+      ? { left: groupRect.x, top: groupRect.y, width: groupRect.width, height: groupRect.height, right: groupRect.x + groupRect.width, bottom: groupRect.y + groupRect.height }
+      : null;
+    sourceValue = getRectEdge(rect, sourceEdge);
+  }
+  if (sourceType === "viewport") {
     if (sourceEdge === "right") sourceValue = viewportWidth - margin;
     else if (sourceEdge === "center") sourceValue = viewportWidth / 2;
     else sourceValue = margin;
@@ -803,17 +815,18 @@ function resolveAlignedX(layout, alignment = {}, ctx, refs = {}) {
   return sourceValue - getSelfEdgeOffset(layout, selfEdge) + offset;
 }
 
+// Generic interpreter for policy-defined axis-lock constraints; avoid item-specific rules here.
 function resolveAxisLock(layout, ctx) {
   const lock = layout.item.policy.constraints?.lockAxis;
   if (!lock || lock.axis !== "x") return null;
 
-  const source = lock.source || "anchor";
+  const sourceType = lock.lockToSourceType || "anchor";
   let sourceValue = null;
-  if (source === "anchor") sourceValue = ctx.anchors.get(lock.anchorKey || "")?.x ?? null;
-  if (source === "viewportCenter") sourceValue = ctx.anchors.get("viewportCenter")?.x ?? (ctx.viewportWidth / 2);
+  if (sourceType === "anchor") sourceValue = ctx.anchors.get(lock.lockToSourceKey || "")?.x ?? null;
+  if (sourceType === "viewportCenter") sourceValue = ctx.anchors.get("viewportCenter")?.x ?? (ctx.viewportWidth / 2);
 
   if (!Number.isFinite(sourceValue)) return null;
-  return sourceValue - getSelfEdgeOffset(layout, lock.selfEdge || "left") + (lock.offset || 0);
+  return sourceValue - getSelfEdgeOffset(layout, lock.lockToEdge || "left") + (lock.lockOffset || 0);
 }
 
 function resolveRelationAxis(layout, relationAxis = {}, sourceRect, ctx) {
@@ -865,7 +878,7 @@ function buildCandidate(layout, placement, ctx) {
       width: groupRect.width,
       height: groupRect.height,
     };
-    const x = relation.x?.source === "anchor"
+    const x = relation.x?.sourceType === "anchor"
       ? resolveAlignedX(layout, relation.x, ctx)
       : resolveRelationAxis(layout, relation.x, sourceRect, ctx);
     const y = resolveRelationAxis(layout, relation.y, sourceRect, ctx);
