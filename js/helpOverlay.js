@@ -360,23 +360,51 @@ const HELP_PLACEMENT_POLICY = {
     shrinkAllowed: true,
     requiredTargets: ["topRightActions"],
     constraints: {
-      strictHorizontalFromAnchor: "topbarRight",
+      lockAxis: { axis: "x", source: "anchor", anchorKey: "topbarRight", selfEdge: "right" },
     },
-    preferredPlacement: { primitive: "targetAligned", targetKey: "topRightActions", xAlign: "right", yFrom: "bottom", offsetY: LAYOUT.topbarGap },
+    preferredPlacement: {
+      primitive: "targetAligned",
+      targetKey: "topRightActions",
+      alignment: { source: "target", edge: "right", selfEdge: "right", offset: 0 },
+      vertical: { sourceEdge: "bottom", offset: LAYOUT.topbarGap },
+    },
     fallbackPlacements: [
-      { primitive: "targetAligned", targetKey: "topRightActions", xAlign: "right", yFrom: "bottom", offsetY: 4 },
-      { primitive: "anchorBand", anchorKey: "topbarRight", xAlign: "right", band: "top", offsetY: 0 },
+      {
+        primitive: "targetAligned",
+        targetKey: "topRightActions",
+        alignment: { source: "target", edge: "right", selfEdge: "right", offset: 0 },
+        vertical: { sourceEdge: "bottom", offset: 4 },
+      },
+      {
+        primitive: "anchorBand",
+        alignment: { source: "anchor", anchorKey: "topbarRight", edge: "x", selfEdge: "right", offset: 0 },
+        band: { mode: "fixed", y: 0 },
+      },
     ],
   },
   "tile-border-legend": {
     priority: 2,
     wrappingAllowed: true,
     shrinkAllowed: true,
-    anchors: { primary: "leftBottomTile" },
-    preferredPlacement: { primitive: "anchorBand", anchorKey: "leftBottomTile", xAlign: "left", band: "alignWithGroup", groupId: "topbar" },
+    preferredPlacement: {
+      primitive: "anchorBand",
+      alignment: { source: "anchor", anchorKey: "leftBottomTile", edge: "x", selfEdge: "left", offset: 0 },
+      band: { mode: "groupAlign", groupId: "topbar", offset: 0 },
+    },
     fallbackPlacements: [
-      { primitive: "relativeToGroup", groupId: "topbar", relation: "below", xFromAnchor: "leftBottomTile", xAlign: "left", gap: 8 },
-      { primitive: "anchorBand", anchorKey: "leftBottomTile", xAlign: "left", band: "top" },
+      {
+        primitive: "relativeToGroup",
+        groupId: "topbar",
+        relation: {
+          x: { source: "anchor", anchorKey: "leftBottomTile", edge: "x", selfEdge: "left", offset: 0 },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 8 },
+        },
+      },
+      {
+        primitive: "anchorBand",
+        alignment: { source: "anchor", anchorKey: "leftBottomTile", edge: "x", selfEdge: "left", offset: 0 },
+        band: { mode: "fixed", y: 0 },
+      },
     ],
   },
   "canvas-left": {
@@ -385,9 +413,21 @@ const HELP_PLACEMENT_POLICY = {
     maxLines: 2,
     shrinkAllowed: true,
     constraints: { preserveSideOfCenter: "left" },
-    preferredPlacement: { primitive: "centerSplit", side: "left", yMode: "betweenTopAndUi", avoidAboveGroupId: "tile-border-legend" },
+    preferredPlacement: {
+      primitive: "centerSplit",
+      centerAnchorKey: "viewportCenter",
+      side: "left",
+      gap: LAYOUT.dividerTapGap,
+      band: { mode: "between", avoidGroupId: "tile-border-legend", minY: 34, bottomPadding: 10 },
+    },
     fallbackPlacements: [
-      { primitive: "centerSplit", side: "left", yMode: "betweenTopAndUi", avoidAboveGroupId: "tile-border-legend" },
+      {
+        primitive: "centerSplit",
+        centerAnchorKey: "viewportCenter",
+        side: "left",
+        gap: LAYOUT.dividerTapGap,
+        band: { mode: "between", avoidGroupId: "tile-border-legend", minY: 34, bottomPadding: 10 },
+      },
     ],
   },
   "canvas-right": {
@@ -397,54 +437,138 @@ const HELP_PLACEMENT_POLICY = {
     shrinkAllowed: true,
     dependencyIds: ["canvas-left"],
     constraints: { preserveSideOfCenter: "right" },
-    preferredPlacement: { primitive: "centerSplit", side: "right", yMode: "matchGroup", groupId: "canvas-left" },
+    preferredPlacement: {
+      primitive: "centerSplit",
+      centerAnchorKey: "viewportCenter",
+      side: "right",
+      gap: LAYOUT.dividerTapGap,
+      band: { mode: "groupAlign", groupId: "canvas-left", offset: 0 },
+    },
     fallbackPlacements: [
-      { primitive: "centerSplit", side: "right", yMode: "matchGroup", groupId: "canvas-left" },
+      {
+        primitive: "centerSplit",
+        centerAnchorKey: "viewportCenter",
+        side: "right",
+        gap: LAYOUT.dividerTapGap,
+        band: { mode: "groupAlign", groupId: "canvas-left", offset: 0 },
+      },
     ],
   },
   params: {
     priority: 4,
     wrappingAllowed: true,
     shrinkAllowed: true,
-    preferredPlacement: { primitive: "relativeToTarget", targetKey: "quickSlider", relation: "aboveRight", offsetX: 14, offsetY: 12 },
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "quickSlider",
+      relation: {
+        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: 12 },
+      },
+    },
     fallbackPlacements: [
-      { primitive: "relativeToGroup", groupId: "slider", relation: "aboveRight", gap: 10 },
-      { primitive: "viewportBand", xAlign: "center", band: "middle", offsetX: 24 },
-      { primitive: "relativeToGroup", groupId: "slider", relation: "below", gap: 10 },
+      {
+        primitive: "relativeToGroup",
+        groupId: "slider",
+        relation: {
+          x: { sourceEdge: "right", selfEdge: "left", offset: 10 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
+        },
+      },
+      {
+        primitive: "viewportBand",
+        alignment: { source: "viewport", edge: "center", selfEdge: "center", offset: 24 },
+        band: { mode: "middle", offset: 0 },
+      },
+      {
+        primitive: "relativeToGroup",
+        groupId: "slider",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+        },
+      },
     ],
   },
   slider: {
     priority: 5,
     wrappingAllowed: true,
     shrinkAllowed: true,
-    preferredPlacement: { primitive: "relativeToGroup", groupId: "params", relation: "leftBelow", gap: 8 },
+    preferredPlacement: {
+      primitive: "relativeToGroup",
+      groupId: "params",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "right", offset: 8 },
+        y: { sourceEdge: "bottom", selfEdge: "top", offset: 8 },
+      },
+    },
     fallbackPlacements: [
-      { primitive: "relativeToGroup", groupId: "params", relation: "leftAbove", gap: 8 },
-      { primitive: "relativeToTarget", targetKey: "quickSlider", relation: "leftAbove", offsetX: 8, offsetY: 8 },
+      {
+        primitive: "relativeToGroup",
+        groupId: "params",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "right", offset: 8 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: 8 },
+        },
+      },
+      {
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "right", offset: 8 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: 8 },
+        },
+      },
     ],
   },
   "formula-cmap": {
     priority: 6,
     wrappingAllowed: true,
     shrinkAllowed: true,
-    anchors: { primary: "leftBottomTile" },
-    constraints: { strictHorizontalFromAnchor: "leftBottomTile" },
-    preferredPlacement: { primitive: "anchorBand", anchorKey: "leftBottomTile", xAlign: "left", band: "nearRefGroupTop", bandRefGroupId: "params" },
+    constraints: {
+      lockAxis: { axis: "x", source: "anchor", anchorKey: "leftBottomTile", selfEdge: "left" },
+    },
+    preferredPlacement: {
+      primitive: "anchorBand",
+      alignment: { source: "anchor", anchorKey: "leftBottomTile", edge: "x", selfEdge: "left", offset: 0 },
+      band: { mode: "groupTopOffset", groupId: "params", offset: 10 },
+    },
     fallbackPlacements: [
-      { primitive: "anchorBand", anchorKey: "leftBottomTile", xAlign: "left", band: "higherRefGroup", bandRefGroupId: "topbar" },
-      { primitive: "anchorBand", anchorKey: "leftBottomTile", xAlign: "left", band: "uiTop" },
+      {
+        primitive: "anchorBand",
+        alignment: { source: "anchor", anchorKey: "leftBottomTile", edge: "x", selfEdge: "left", offset: 0 },
+        band: { mode: "groupYOrRatio", groupId: "topbar", ratio: 0.4, offset: 0 },
+      },
+      {
+        primitive: "anchorBand",
+        alignment: { source: "anchor", anchorKey: "leftBottomTile", edge: "x", selfEdge: "left", offset: 0 },
+        band: { mode: "uiTopOffset", offset: 8 },
+      },
     ],
   },
   random: {
     priority: 7,
     wrappingAllowed: true,
     shrinkAllowed: true,
-    anchors: { primary: "rightBottomTile" },
-    constraints: { strictHorizontalFromAnchor: "rightBottomTile" },
-    preferredPlacement: { primitive: "anchorBand", anchorKey: "rightBottomTile", xAlign: "right", band: "nearRefGroupTop", bandRefGroupId: "params" },
+    constraints: {
+      lockAxis: { axis: "x", source: "anchor", anchorKey: "rightBottomTile", selfEdge: "right" },
+    },
+    preferredPlacement: {
+      primitive: "anchorBand",
+      alignment: { source: "anchor", anchorKey: "rightBottomTile", edge: "x", selfEdge: "right", offset: 0 },
+      band: { mode: "groupTopOffset", groupId: "params", offset: 10 },
+    },
     fallbackPlacements: [
-      { primitive: "anchorBand", anchorKey: "rightBottomTile", xAlign: "right", band: "higherRefGroup", bandRefGroupId: "topbar" },
-      { primitive: "anchorBand", anchorKey: "rightBottomTile", xAlign: "right", band: "uiTop" },
+      {
+        primitive: "anchorBand",
+        alignment: { source: "anchor", anchorKey: "rightBottomTile", edge: "x", selfEdge: "right", offset: 0 },
+        band: { mode: "groupYOrRatio", groupId: "topbar", ratio: 0.4, offset: 0 },
+      },
+      {
+        primitive: "anchorBand",
+        alignment: { source: "anchor", anchorKey: "rightBottomTile", edge: "x", selfEdge: "right", offset: 0 },
+        band: { mode: "uiTopOffset", offset: 8 },
+      },
     ],
   },
 };
@@ -604,104 +728,156 @@ function candidateRect(x, y, width, height) {
   };
 }
 
-function resolveBandY(layout, placement, ctx) {
-  const { margin, uiTop, placed } = ctx;
+function getRectEdge(rect, edge) {
+  if (!rect) return null;
+  if (edge === "left") return rect.left;
+  if (edge === "right") return rect.right;
+  if (edge === "top") return rect.top;
+  if (edge === "bottom") return rect.bottom;
+  if (edge === "centerX" || edge === "center") return rect.left + rect.width / 2;
+  if (edge === "centerY") return rect.top + rect.height / 2;
+  return null;
+}
 
-  if (placement.band === "top") return margin + (placement.offsetY || 0);
-  if (placement.band === "middle") return Math.max(margin, uiTop - layout.height - 12) + (placement.offsetY || 0);
-  if (placement.band === "uiTop") return uiTop - layout.height - 8 + (placement.offsetY || 0);
-  if (placement.band === "nearRefGroupTop") {
-    const ref = placed.get(placement.bandRefGroupId || "");
-    return Math.max((ref?.y || uiTop) - layout.height - 10, margin) + (placement.offsetY || 0);
+function getSelfEdgeOffset(layout, selfEdge) {
+  if (selfEdge === "left" || selfEdge === "top") return 0;
+  if (selfEdge === "right") return layout.width;
+  if (selfEdge === "bottom") return layout.height;
+  if (selfEdge === "center" || selfEdge === "centerX") return layout.width / 2;
+  if (selfEdge === "centerY") return layout.height / 2;
+  return 0;
+}
+
+function resolveBandY(layout, bandSpec = {}, ctx) {
+  const { margin, uiTop, placed } = ctx;
+  const mode = bandSpec.mode || "fixed";
+  const offset = bandSpec.offset || 0;
+
+  if (mode === "fixed") return margin + offset + (bandSpec.y || 0);
+  if (mode === "middle") return Math.max(margin, uiTop - layout.height - 12) + offset;
+  if (mode === "uiTopOffset") return uiTop - layout.height - offset;
+  if (mode === "groupTopOffset") {
+    const ref = placed.get(bandSpec.groupId || "");
+    const refTop = ref?.y ?? uiTop;
+    return Math.max(refTop - layout.height - offset, margin);
   }
-  if (placement.band === "higherRefGroup") {
-    const ref = placed.get(placement.bandRefGroupId || "");
-    return Math.max(margin, (ref?.y || uiTop * 0.4)) + (placement.offsetY || 0);
+  if (mode === "groupYOrRatio") {
+    const ref = placed.get(bandSpec.groupId || "");
+    const fallback = uiTop * (bandSpec.ratio ?? 0.4);
+    return Math.max(ref?.y ?? fallback, margin) + offset;
   }
-  if (placement.band === "alignWithGroup") {
-    const group = placed.get(placement.groupId || "");
-    return (group ? group.y : margin) + (placement.offsetY || 0);
+  if (mode === "groupAlign") {
+    const group = placed.get(bandSpec.groupId || "");
+    return (group ? group.y : margin) + offset;
+  }
+  if (mode === "between") {
+    const avoidGroup = placed.get(bandSpec.avoidGroupId || "");
+    const minY = (avoidGroup ? avoidGroup.y + avoidGroup.height + 8 : margin + (bandSpec.minY || 34));
+    const maxY = Math.max(minY, uiTop - layout.height - (bandSpec.bottomPadding || 10));
+    return clamp((minY + maxY) / 2, minY, maxY) + offset;
   }
 
   return margin;
 }
 
-function resolveAlignedX(layout, placement, ctx, anchorX = null, targetRect = null, groupRect = null) {
-  const { viewportWidth, margin } = ctx;
-  if (placement.xAlign === "left") return (anchorX ?? targetRect?.left ?? groupRect?.x ?? margin) + (placement.offsetX || 0);
-  if (placement.xAlign === "right") {
-    const rightRef = anchorX ?? targetRect?.right ?? (groupRect ? groupRect.x + groupRect.width : viewportWidth - margin);
-    return rightRef - layout.width + (placement.offsetX || 0);
+function resolveAlignedX(layout, alignment = {}, ctx, refs = {}) {
+  const { viewportWidth, margin, anchors } = ctx;
+  const { targetRect = null, groupRect = null } = refs;
+
+  const source = alignment.source || "viewport";
+  const sourceEdge = alignment.edge || "left";
+  const selfEdge = alignment.selfEdge || "left";
+  const offset = alignment.offset || 0;
+
+  let sourceValue = null;
+  if (source === "anchor") sourceValue = anchors.get(alignment.anchorKey || "")?.x ?? null;
+  if (source === "target") sourceValue = getRectEdge(targetRect, sourceEdge);
+  if (source === "group") sourceValue = getRectEdge(groupRect ? { left: groupRect.x, top: groupRect.y, width: groupRect.width, height: groupRect.height, right: groupRect.x + groupRect.width, bottom: groupRect.y + groupRect.height } : null, sourceEdge);
+  if (source === "viewport") {
+    if (sourceEdge === "right") sourceValue = viewportWidth - margin;
+    else if (sourceEdge === "center") sourceValue = viewportWidth / 2;
+    else sourceValue = margin;
   }
-  return (targetRect ? targetRect.left + (targetRect.width - layout.width) / 2 : viewportWidth / 2 - layout.width / 2) + (placement.offsetX || 0);
+
+  if (!Number.isFinite(sourceValue)) sourceValue = margin;
+  return sourceValue - getSelfEdgeOffset(layout, selfEdge) + offset;
+}
+
+function resolveAxisLock(layout, ctx) {
+  const lock = layout.item.policy.constraints?.lockAxis;
+  if (!lock || lock.axis !== "x") return null;
+
+  const source = lock.source || "anchor";
+  let sourceValue = null;
+  if (source === "anchor") sourceValue = ctx.anchors.get(lock.anchorKey || "")?.x ?? null;
+  if (source === "viewportCenter") sourceValue = ctx.anchors.get("viewportCenter")?.x ?? (ctx.viewportWidth / 2);
+
+  if (!Number.isFinite(sourceValue)) return null;
+  return sourceValue - getSelfEdgeOffset(layout, lock.selfEdge || "left") + (lock.offset || 0);
+}
+
+function resolveRelationAxis(layout, relationAxis = {}, sourceRect, ctx) {
+  if (!sourceRect) return null;
+  const sourceEdge = relationAxis.sourceEdge || "left";
+  const selfEdge = relationAxis.selfEdge || "left";
+  const sourceValue = getRectEdge(sourceRect, sourceEdge);
+  if (!Number.isFinite(sourceValue)) return null;
+  return sourceValue - getSelfEdgeOffset(layout, selfEdge) + (relationAxis.offset || 0);
 }
 
 function buildCandidate(layout, placement, ctx) {
-  const { rects, placed, anchors, viewportWidth, margin, uiTop } = ctx;
+  const { rects, placed, anchors, viewportWidth, margin } = ctx;
   const targetRect = placement.targetKey ? rects.get(placement.targetKey) : null;
   const groupRect = placement.groupId ? placed.get(placement.groupId) : null;
-  const anchor = placement.anchorKey ? anchors.get(placement.anchorKey) : null;
-  const anchorX = anchor?.x;
-  const centerX = anchors.get("viewportCenter")?.x ?? (viewportWidth / 2);
+  const centerX = anchors.get(placement.centerAnchorKey || "viewportCenter")?.x ?? (viewportWidth / 2);
 
   if (placement.primitive === "targetAligned") {
     if (!targetRect) return null;
-    const x = resolveAlignedX(layout, placement, ctx, anchorX, targetRect, null);
-    const yBase = placement.yFrom === "bottom" ? targetRect.bottom : targetRect.top;
-    const y = yBase + (placement.offsetY || 0);
+    const x = resolveAlignedX(layout, placement.alignment, ctx, { targetRect });
+    const vertical = placement.vertical || { sourceEdge: "bottom", offset: 0 };
+    const y = getRectEdge(targetRect, vertical.sourceEdge || "bottom") + (vertical.offset || 0) - getSelfEdgeOffset(layout, vertical.selfEdge || "top");
     return candidateRect(x, y, layout.width, layout.height);
   }
 
-  if (placement.primitive === "anchorBand") {
-    const x = resolveAlignedX(layout, placement, ctx, anchorX, null, null);
-    const y = resolveBandY(layout, placement, ctx);
-    return candidateRect(x, y, layout.width, layout.height);
-  }
-
-  if (placement.primitive === "viewportBand") {
-    const x = resolveAlignedX(layout, placement, ctx, null, null, null);
-    const y = resolveBandY(layout, placement, ctx);
+  if (placement.primitive === "anchorBand" || placement.primitive === "viewportBand") {
+    const x = resolveAlignedX(layout, placement.alignment, ctx, { targetRect, groupRect });
+    const y = resolveBandY(layout, placement.band, ctx);
     return candidateRect(x, y, layout.width, layout.height);
   }
 
   if (placement.primitive === "relativeToTarget") {
     if (!targetRect) return null;
-    const rel = placement.relation;
-    const relationMap = {
-      aboveRight: { x: targetRect.right + (placement.offsetX || 0), y: targetRect.top - layout.height - (placement.offsetY || 0) },
-      leftAbove: { x: targetRect.left - layout.width - (placement.offsetX || 0), y: targetRect.top - layout.height - (placement.offsetY || 0) },
-    };
-    const pos = relationMap[rel];
-    return pos ? candidateRect(pos.x, pos.y, layout.width, layout.height) : null;
+    const relation = placement.relation || {};
+    const x = resolveRelationAxis(layout, relation.x, targetRect, ctx);
+    const y = resolveRelationAxis(layout, relation.y, targetRect, ctx);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return candidateRect(x, y, layout.width, layout.height);
   }
 
   if (placement.primitive === "relativeToGroup") {
     if (!groupRect) return null;
-    const gap = placement.gap || 8;
-    const anchorAlignedX = placement.xFromAnchor ? resolveAlignedX(layout, { ...placement, xAlign: placement.xAlign || "left" }, ctx, anchors.get(placement.xFromAnchor)?.x) : null;
-    const relationMap = {
-      below: { x: anchorAlignedX ?? groupRect.x, y: groupRect.y + groupRect.height + gap },
-      aboveRight: { x: groupRect.x + groupRect.width + gap, y: groupRect.y - layout.height - gap },
-      leftBelow: { x: groupRect.x - layout.width - gap, y: groupRect.y + groupRect.height + gap },
-      leftAbove: { x: groupRect.x - layout.width - gap, y: groupRect.y - layout.height - gap },
+    const relation = placement.relation || {};
+    const sourceRect = {
+      left: groupRect.x,
+      right: groupRect.x + groupRect.width,
+      top: groupRect.y,
+      bottom: groupRect.y + groupRect.height,
+      width: groupRect.width,
+      height: groupRect.height,
     };
-    const pos = relationMap[placement.relation];
-    return pos ? candidateRect(pos.x, pos.y, layout.width, layout.height) : null;
+    const x = relation.x?.source === "anchor"
+      ? resolveAlignedX(layout, relation.x, ctx)
+      : resolveRelationAxis(layout, relation.x, sourceRect, ctx);
+    const y = resolveRelationAxis(layout, relation.y, sourceRect, ctx);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return candidateRect(x, y, layout.width, layout.height);
   }
 
   if (placement.primitive === "centerSplit") {
-    const side = placement.side;
-    const y = placement.yMode === "matchGroup"
-      ? (groupRect ? groupRect.y : margin)
-      : (() => {
-        const avoidGroup = placed.get(placement.avoidAboveGroupId || "");
-        const minY = avoidGroup ? avoidGroup.y + avoidGroup.height + 8 : margin + 34;
-        const maxY = Math.max(minY, uiTop - layout.height - 10);
-        return clamp((minY + maxY) / 2, minY, maxY);
-      })();
-    const x = side === "left"
-      ? centerX - LAYOUT.dividerTapGap - layout.width
-      : centerX + LAYOUT.dividerTapGap;
+    const x = placement.side === "left"
+      ? centerX - (placement.gap || LAYOUT.dividerTapGap) - layout.width
+      : centerX + (placement.gap || LAYOUT.dividerTapGap);
+    const y = resolveBandY(layout, placement.band, ctx);
     return candidateRect(x, y, layout.width, layout.height);
   }
 
@@ -715,14 +891,7 @@ function generateCandidates(layout, ctx) {
 }
 
 function getStrictX(layout, ctx) {
-  const strictAnchor = layout.item.policy.constraints?.strictHorizontalFromAnchor;
-  if (!strictAnchor) return null;
-  const anchor = ctx.anchors.get(strictAnchor);
-  if (!anchor) return null;
-  const preferred = layout.item.policy.preferredPlacement;
-  if (preferred?.xAlign === "right") return anchor.x - layout.width;
-  if (preferred?.xAlign === "left") return anchor.x;
-  return null;
+  return resolveAxisLock(layout, ctx);
 }
 
 function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
