@@ -418,7 +418,7 @@ const HELP_PLACEMENT_POLICY = {
       centerAnchorKey: "viewportCenter",
       side: "left",
       gap: LAYOUT.dividerTapGap,
-      band: { sourceType: "between", sourceGroup: "topbar", position: "center", minY: 8, bottomPadding: 180 },
+      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 12 },
     },
     fallbackPlacements: [
       {
@@ -426,7 +426,7 @@ const HELP_PLACEMENT_POLICY = {
         centerAnchorKey: "viewportCenter",
         side: "left",
         gap: LAYOUT.dividerTapGap,
-        band: { sourceType: "between", sourceGroup: "topbar", position: "center", minY: 8, bottomPadding: 180 },
+        band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 12 },
       },
     ],
   },
@@ -435,14 +435,13 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     maxLines: 2,
     shrinkAllowed: true,
-    dependencyIds: ["canvas-left"],
     constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "centerSplit",
       centerAnchorKey: "viewportCenter",
       side: "right",
       gap: LAYOUT.dividerTapGap,
-      band: { sourceType: "group", sourceGroup: "canvas-left", position: "alignTop", offset: 0 },
+      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 12 },
     },
     fallbackPlacements: [
       {
@@ -450,7 +449,7 @@ const HELP_PLACEMENT_POLICY = {
         centerAnchorKey: "viewportCenter",
         side: "right",
         gap: LAYOUT.dividerTapGap,
-        band: { sourceType: "group", sourceGroup: "canvas-left", position: "alignTop", offset: 0 },
+        band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 12 },
       },
     ],
   },
