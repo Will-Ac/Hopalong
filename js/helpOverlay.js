@@ -418,7 +418,7 @@ const HELP_PLACEMENT_POLICY = {
       centerAnchorKey: "viewportCenter",
       side: "left",
       gap: LAYOUT.dividerTapGap,
-      band: { sourceType: "between", sourceGroup: "tile-border-legend", position: "center", minY: 34, bottomPadding: 10 },
+      band: { sourceType: "between", sourceGroup: "topbar", position: "center", minY: 8, bottomPadding: 180 },
     },
     fallbackPlacements: [
       {
@@ -426,7 +426,7 @@ const HELP_PLACEMENT_POLICY = {
         centerAnchorKey: "viewportCenter",
         side: "left",
         gap: LAYOUT.dividerTapGap,
-        band: { sourceType: "between", sourceGroup: "tile-border-legend", position: "center", minY: 34, bottomPadding: 10 },
+        band: { sourceType: "between", sourceGroup: "topbar", position: "center", minY: 8, bottomPadding: 180 },
       },
     ],
   },
@@ -459,33 +459,22 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     shrinkAllowed: true,
     preferredPlacement: {
-      primitive: "relativeToTarget",
-      targetKey: "quickSlider",
-      relation: {
-        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
-        y: { sourceEdge: "top", selfEdge: "bottom", offset: 12 },
-      },
+      primitive: "viewportBand",
+      alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: -120 },
+      band: { sourceType: "viewport", position: "top", y: 34, offset: 0 },
     },
     fallbackPlacements: [
       {
-        primitive: "relativeToGroup",
-        groupId: "slider",
-        relation: {
-          x: { sourceEdge: "right", selfEdge: "left", offset: 10 },
-          y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
-        },
-      },
-      {
         primitive: "viewportBand",
-        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 24 },
-        band: { sourceType: "viewport", position: "middle", offset: 0 },
+        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: -120 },
+        band: { sourceType: "viewport", position: "middle", offset: -60 },
       },
       {
-        primitive: "relativeToGroup",
-        groupId: "slider",
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
         relation: {
-          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: 12 },
         },
       },
     ],
@@ -498,8 +487,8 @@ const HELP_PLACEMENT_POLICY = {
       primitive: "relativeToGroup",
       groupId: "params",
       relation: {
-        x: { sourceEdge: "left", selfEdge: "right", offset: 8 },
-        y: { sourceEdge: "bottom", selfEdge: "top", offset: 8 },
+        x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+        y: { sourceEdge: "bottom", selfEdge: "top", offset: 20 },
       },
     },
     fallbackPlacements: [
@@ -507,17 +496,14 @@ const HELP_PLACEMENT_POLICY = {
         primitive: "relativeToGroup",
         groupId: "params",
         relation: {
-          x: { sourceEdge: "left", selfEdge: "right", offset: 8 },
-          y: { sourceEdge: "top", selfEdge: "bottom", offset: 8 },
+          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 36 },
         },
       },
       {
-        primitive: "relativeToTarget",
-        targetKey: "quickSlider",
-        relation: {
-          x: { sourceEdge: "left", selfEdge: "right", offset: 8 },
-          y: { sourceEdge: "top", selfEdge: "bottom", offset: 8 },
-        },
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: -120 },
+        band: { sourceType: "viewport", position: "top", y: 250, offset: 0 },
       },
     ],
   },
@@ -531,18 +517,18 @@ const HELP_PLACEMENT_POLICY = {
     preferredPlacement: {
       primitive: "anchorBand",
       alignment: { sourceType: "anchor", sourceKey: "leftBottomTile", sourceEdge: "x", selfEdge: "left", offset: 0 },
-      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 10 },
+      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 12 },
     },
     fallbackPlacements: [
       {
         primitive: "anchorBand",
         alignment: { sourceType: "anchor", sourceKey: "leftBottomTile", sourceEdge: "x", selfEdge: "left", offset: 0 },
-        band: { sourceType: "groupOrViewportRatio", sourceGroup: "topbar", position: "alignTop", ratio: 0.4, offset: 0 },
+        band: { sourceType: "uiTop", position: "above", offset: 14 },
       },
       {
         primitive: "anchorBand",
         alignment: { sourceType: "anchor", sourceKey: "leftBottomTile", sourceEdge: "x", selfEdge: "left", offset: 0 },
-        band: { sourceType: "uiTop", position: "above", offset: 8 },
+        band: { sourceType: "groupOrViewportRatio", sourceGroup: "topbar", position: "alignTop", ratio: 0.5, offset: 0 },
       },
     ],
   },
@@ -556,18 +542,18 @@ const HELP_PLACEMENT_POLICY = {
     preferredPlacement: {
       primitive: "anchorBand",
       alignment: { sourceType: "anchor", sourceKey: "rightBottomTile", sourceEdge: "x", selfEdge: "right", offset: 0 },
-      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 10 },
+      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 12 },
     },
     fallbackPlacements: [
       {
         primitive: "anchorBand",
         alignment: { sourceType: "anchor", sourceKey: "rightBottomTile", sourceEdge: "x", selfEdge: "right", offset: 0 },
-        band: { sourceType: "groupOrViewportRatio", sourceGroup: "topbar", position: "alignTop", ratio: 0.4, offset: 0 },
+        band: { sourceType: "uiTop", position: "above", offset: 14 },
       },
       {
         primitive: "anchorBand",
         alignment: { sourceType: "anchor", sourceKey: "rightBottomTile", sourceEdge: "x", selfEdge: "right", offset: 0 },
-        band: { sourceType: "uiTop", position: "above", offset: 8 },
+        band: { sourceType: "groupOrViewportRatio", sourceGroup: "topbar", position: "alignTop", ratio: 0.5, offset: 0 },
       },
     ],
   },
