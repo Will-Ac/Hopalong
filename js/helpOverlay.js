@@ -412,6 +412,7 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     maxLines: 2,
     shrinkAllowed: true,
+    dependencyIds: ["params"],
     constraints: { preserveSideOfCenter: "left" },
     preferredPlacement: {
       primitive: "centerSplit",
@@ -435,6 +436,7 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     maxLines: 2,
     shrinkAllowed: true,
+    dependencyIds: ["params"],
     constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "centerSplit",
