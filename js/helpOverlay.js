@@ -460,9 +460,12 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     shrinkAllowed: true,
     preferredPlacement: {
-      primitive: "viewportBand",
-      alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: -120 },
-      band: { sourceType: "viewport", position: "top", y: 34, offset: 0 },
+      primitive: "relativeToTarget",
+      targetKey: "quickSlider",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: 8 },
+      },
     },
     fallbackPlacements: [
       {
@@ -485,14 +488,22 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     shrinkAllowed: true,
     preferredPlacement: {
-      primitive: "relativeToGroup",
-      groupId: "params",
+      primitive: "relativeToTarget",
+      targetKey: "quickSlider",
       relation: {
-        x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-        y: { sourceEdge: "bottom", selfEdge: "top", offset: 20 },
+        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: 8 },
       },
     },
     fallbackPlacements: [
+      {
+        primitive: "relativeToGroup",
+        groupId: "params",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 20 },
+        },
+      },
       {
         primitive: "relativeToGroup",
         groupId: "params",
