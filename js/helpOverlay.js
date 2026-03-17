@@ -383,7 +383,7 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   "tile-border-legend": {
-    priority: 2,
+    priority: 7,
     wrappingAllowed: true,
     shrinkAllowed: true,
     preferredPlacement: {
@@ -408,11 +408,12 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   "canvas-left": {
-    priority: 3,
-    wrappingAllowed: true,
+    priority: 4,
+    wrappingAllowed: false,
     maxLines: 2,
-    shrinkAllowed: true,
-    dependencyIds: ["params"],
+    shrinkAllowed: false,
+    sharedWidthGroup: "canvas-center-pair",
+    dependencyIds: ["slider", "params"],
     constraints: { preserveSideOfCenter: "left" },
     preferredPlacement: {
       primitive: "centerSplit",
@@ -432,11 +433,12 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   "canvas-right": {
-    priority: 3,
-    wrappingAllowed: true,
+    priority: 4,
+    wrappingAllowed: false,
     maxLines: 2,
-    shrinkAllowed: true,
-    dependencyIds: ["params"],
+    shrinkAllowed: false,
+    sharedWidthGroup: "canvas-center-pair",
+    dependencyIds: ["slider", "params"],
     constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "centerSplit",
@@ -456,35 +458,7 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   params: {
-    priority: 4,
-    wrappingAllowed: true,
-    shrinkAllowed: true,
-    preferredPlacement: {
-      primitive: "relativeToTarget",
-      targetKey: "quickSlider",
-      relation: {
-        x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
-        y: { sourceEdge: "top", selfEdge: "bottom", offset: 8 },
-      },
-    },
-    fallbackPlacements: [
-      {
-        primitive: "viewportBand",
-        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: -120 },
-        band: { sourceType: "viewport", position: "middle", offset: -60 },
-      },
-      {
-        primitive: "relativeToTarget",
-        targetKey: "quickSlider",
-        relation: {
-          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
-          y: { sourceEdge: "top", selfEdge: "bottom", offset: 12 },
-        },
-      },
-    ],
-  },
-  slider: {
-    priority: 5,
+    priority: 3,
     wrappingAllowed: true,
     shrinkAllowed: true,
     preferredPlacement: {
@@ -498,19 +472,36 @@ const HELP_PLACEMENT_POLICY = {
     fallbackPlacements: [
       {
         primitive: "relativeToGroup",
-        groupId: "params",
+        groupId: "slider",
         relation: {
-          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-          y: { sourceEdge: "bottom", selfEdge: "top", offset: 20 },
+          x: { sourceEdge: "right", selfEdge: "right", offset: 0 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -10 },
         },
       },
       {
-        primitive: "relativeToGroup",
-        groupId: "params",
-        relation: {
-          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-          y: { sourceEdge: "bottom", selfEdge: "top", offset: 36 },
-        },
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
+        band: { sourceType: "viewport", position: "middle", offset: -60 },
+      },
+    ],
+  },
+  slider: {
+    priority: 2,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "quickSlider",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: 8 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "left", selfEdge: "left", offset: 18 },
+        band: { sourceType: "viewport", position: "middle", offset: -60 },
       },
       {
         primitive: "viewportBand",
@@ -520,7 +511,7 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   "formula-cmap": {
-    priority: 6,
+    priority: 5,
     wrappingAllowed: true,
     shrinkAllowed: true,
     constraints: {
@@ -545,7 +536,7 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   random: {
-    priority: 7,
+    priority: 6,
     wrappingAllowed: true,
     shrinkAllowed: true,
     constraints: {
@@ -651,6 +642,28 @@ function createOrMeasureLabels({ models, viewportWidth, margin }) {
   }
 
   return layouts;
+}
+
+function applySharedWidthPolicy(layouts) {
+  const groups = new Map();
+
+  for (const layout of layouts) {
+    const key = layout.item.policy.sharedWidthGroup;
+    if (!key) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(layout);
+  }
+
+  for (const groupedLayouts of groups.values()) {
+    if (groupedLayouts.length < 2) continue;
+    const sharedWidth = Math.max(...groupedLayouts.map((layout) => layout.width));
+
+    for (const layout of groupedLayouts) {
+      layout.labelEl.style.width = `${Math.ceil(sharedWidth)}px`;
+      layout.width = Math.ceil(sharedWidth);
+      layout.height = layout.labelEl.getBoundingClientRect().height;
+    }
+  }
 }
 
 function setLabelMeasureStyle(layout, variant, viewportWidth) {
@@ -1105,6 +1118,7 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
     const activeItems = resolveActiveItems(registry, rects);
     const models = buildLabelModels(activeItems);
     const layouts = createOrMeasureLabels({ models, viewportWidth, margin });
+    applySharedWidthPolicy(layouts);
 
     const forbiddenRegions = buildUiForbiddenRegions(rects, uiTop, viewportWidth, margin);
     const anchors = resolveAnchors({ rects, viewportWidth, viewportHeight, margin, uiTop });
