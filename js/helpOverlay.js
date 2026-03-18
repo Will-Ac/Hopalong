@@ -462,12 +462,11 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     shrinkAllowed: true,
     preferredPlacement: {
-      primitive: "relativeToTarget",
-      targetKey: "quickSlider",
-      relation: {
-        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
-        y: { sourceEdge: "top", selfEdge: "bottom", offset: 8 },
-      },
+      primitive: "centerSplit",
+      centerAnchorKey: "viewportCenter",
+      side: "right",
+      gap: 12,
+      band: { sourceType: "uiTop", position: "above", offset: 8 },
     },
     fallbackPlacements: [
       {
@@ -490,12 +489,11 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     shrinkAllowed: true,
     preferredPlacement: {
-      primitive: "relativeToTarget",
-      targetKey: "quickSlider",
-      relation: {
-        x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
-        y: { sourceEdge: "top", selfEdge: "bottom", offset: 8 },
-      },
+      primitive: "centerSplit",
+      centerAnchorKey: "viewportCenter",
+      side: "left",
+      gap: 12,
+      band: { sourceType: "uiTop", position: "above", offset: 8 },
     },
     fallbackPlacements: [
       {
