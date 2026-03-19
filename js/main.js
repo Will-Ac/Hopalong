@@ -2858,15 +2858,20 @@ function layoutPickerPanel() {
   if (formulaTile && cmapTile) {
     const firstRect = formulaTile.getBoundingClientRect();
     const secondRect = cmapTile.getBoundingClientRect();
-    const left = clamp(firstRect.left, margin, viewportWidth - margin - 180);
-    const width = clamp(secondRect.right - firstRect.left, 180, viewportWidth - margin * 2);
-    pickerPanel.style.width = `${width}px`;
-    pickerPanel.style.left = `${left}px`;
+    const baseWidth = secondRect.right - firstRect.left;
+    const minWidth = activePicker === "cmap" ? 280 : 180;
+    const targetWidth = activePicker === "cmap" ? baseWidth * 1.5 : baseWidth;
+    const width = clamp(targetWidth, minWidth, viewportWidth - margin * 2);
+    const maxLeft = Math.max(margin, viewportWidth - margin - width);
+    const left = clamp(firstRect.left, margin, maxLeft);
+    pickerPanel.style.width = `${Math.round(width)}px`;
+    pickerPanel.style.left = `${Math.round(left)}px`;
     pickerPanel.style.transform = "none";
     return;
   }
 
-  pickerPanel.style.width = `${Math.min(320, viewportWidth - margin * 2)}px`;
+  const fallbackWidth = activePicker === "cmap" ? 420 : 320;
+  pickerPanel.style.width = `${Math.min(fallbackWidth, viewportWidth - margin * 2)}px`;
   pickerPanel.style.left = `${margin}px`;
   pickerPanel.style.transform = "none";
 }
