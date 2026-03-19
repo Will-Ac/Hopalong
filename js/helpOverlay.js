@@ -383,7 +383,7 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   "tile-border-legend": {
-    priority: 7,
+    priority: 8,
     wrappingAllowed: true,
     shrinkAllowed: true,
     preferredPlacement: {
@@ -408,12 +408,11 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   "canvas-left": {
-    priority: 4,
+    priority: 2,
     wrappingAllowed: false,
     maxLines: 2,
     shrinkAllowed: false,
     sharedWidthGroup: "canvas-center-pair",
-    dependencyIds: ["slider", "params"],
     constraints: { preserveSideOfCenter: "left" },
     preferredPlacement: {
       primitive: "centerSplit",
@@ -433,12 +432,11 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   "canvas-right": {
-    priority: 4,
+    priority: 3,
     wrappingAllowed: false,
     maxLines: 2,
     shrinkAllowed: false,
     sharedWidthGroup: "canvas-center-pair",
-    dependencyIds: ["slider", "params"],
     constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "centerSplit",
@@ -458,7 +456,7 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   params: {
-    priority: 3,
+    priority: 5,
     wrappingAllowed: true,
     shrinkAllowed: true,
     preferredPlacement: {
@@ -485,7 +483,7 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   slider: {
-    priority: 2,
+    priority: 4,
     wrappingAllowed: true,
     shrinkAllowed: true,
     preferredPlacement: {
@@ -509,7 +507,7 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   "formula-cmap": {
-    priority: 5,
+    priority: 6,
     wrappingAllowed: true,
     shrinkAllowed: true,
     constraints: {
@@ -534,7 +532,7 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   random: {
-    priority: 6,
+    priority: 7,
     wrappingAllowed: true,
     shrinkAllowed: true,
     constraints: {
