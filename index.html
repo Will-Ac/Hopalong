@@ -21,6 +21,7 @@
         --help-label-font-size: clamp(12px, 1.1vw, 14px);
         --help-label-padding-y: 8px;
         --help-label-padding-x: 12px;
+        --cmap-bar-width: 97px;
       }
       *, *::before, *::after {
         box-sizing: border-box;
@@ -766,12 +767,12 @@
       .formulaName { font-weight: var(--ui-font-weight); }
       .cmapRow {
         display: grid;
-        grid-template-columns: 108px 1fr;
+        grid-template-columns: minmax(0, 1fr) var(--cmap-bar-width);
         gap: 10px;
         align-items: center;
       }
       .cmapBar {
-        width: 108px;
+        width: var(--cmap-bar-width);
         justify-self: end;
         height: 12px;
         border-radius: 999px;
