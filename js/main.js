@@ -2853,7 +2853,10 @@ function layoutPickerPanel() {
   const formulaTile = formulaBtn?.closest(".poItem");
   const cmapTile = cmapBtn?.closest(".poItem");
   const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
   const margin = 6;
+  let width = Math.min(activePicker === "cmap" ? 420 : 320, viewportWidth - margin * 2);
+  let left = margin;
 
   if (formulaTile && cmapTile) {
     const firstRect = formulaTile.getBoundingClientRect();
@@ -2861,18 +2864,26 @@ function layoutPickerPanel() {
     const baseWidth = secondRect.right - firstRect.left;
     const minWidth = activePicker === "cmap" ? 280 : 180;
     const targetWidth = activePicker === "cmap" ? baseWidth * 1.5 : baseWidth;
-    const width = clamp(targetWidth, minWidth, viewportWidth - margin * 2);
+    width = clamp(targetWidth, minWidth, viewportWidth - margin * 2);
     const maxLeft = Math.max(margin, viewportWidth - margin - width);
-    const left = clamp(firstRect.left, margin, maxLeft);
-    pickerPanel.style.width = `${Math.round(width)}px`;
-    pickerPanel.style.left = `${Math.round(left)}px`;
-    pickerPanel.style.transform = "none";
-    return;
+    left = clamp(firstRect.left, margin, maxLeft);
   }
 
-  const fallbackWidth = activePicker === "cmap" ? 420 : 320;
-  pickerPanel.style.width = `${Math.min(fallbackWidth, viewportWidth - margin * 2)}px`;
-  pickerPanel.style.left = `${margin}px`;
+  const topActionsRect = topRightActionsEl?.getBoundingClientRect();
+  const bottomOverlayRect = paramOverlayEl?.getBoundingClientRect();
+  const pickerRight = left + width;
+  const isLandscape = viewportWidth > viewportHeight;
+  const canAlignToTopEdge = isLandscape && (!topActionsRect || pickerRight <= topActionsRect.left - margin);
+  const top = canAlignToTopEdge
+    ? margin
+    : Math.max(margin, Math.round((topActionsRect?.bottom || 0) + margin));
+  const bottomLimit = bottomOverlayRect ? Math.max(top + 160, bottomOverlayRect.top - margin) : viewportHeight - margin;
+  const bottom = Math.max(margin, Math.round(viewportHeight - bottomLimit));
+
+  pickerPanel.style.width = `${Math.round(width)}px`;
+  pickerPanel.style.left = `${Math.round(left)}px`;
+  pickerPanel.style.top = `${top}px`;
+  pickerPanel.style.bottom = `${bottom}px`;
   pickerPanel.style.transform = "none";
 }
 
@@ -2989,6 +3000,7 @@ function renderColorMapPicker() {
     row.className = "cmapRow";
 
     const name = document.createElement("span");
+    name.className = "cmapName";
     name.textContent = clampLabel(cmapName);
 
     const bar = document.createElement("div");
