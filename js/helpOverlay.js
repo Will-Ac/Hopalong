@@ -413,13 +413,14 @@ const HELP_PLACEMENT_POLICY = {
     maxLines: 2,
     shrinkAllowed: false,
     sharedWidthGroup: "canvas-center-pair",
+    dependencyIds: ["slider", "params"],
     constraints: { preserveSideOfCenter: "left" },
     preferredPlacement: {
       primitive: "centerSplit",
       centerAnchorKey: "viewportCenter",
       side: "left",
       gap: LAYOUT.dividerTapGap,
-      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 12 },
+      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 8 },
     },
     fallbackPlacements: [
       {
@@ -427,7 +428,7 @@ const HELP_PLACEMENT_POLICY = {
         centerAnchorKey: "viewportCenter",
         side: "left",
         gap: LAYOUT.dividerTapGap,
-        band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 12 },
+        band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 8 },
       },
     ],
   },
@@ -437,13 +438,14 @@ const HELP_PLACEMENT_POLICY = {
     maxLines: 2,
     shrinkAllowed: false,
     sharedWidthGroup: "canvas-center-pair",
+    dependencyIds: ["slider", "params"],
     constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "centerSplit",
       centerAnchorKey: "viewportCenter",
       side: "right",
       gap: LAYOUT.dividerTapGap,
-      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 12 },
+      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 8 },
     },
     fallbackPlacements: [
       {
@@ -451,7 +453,7 @@ const HELP_PLACEMENT_POLICY = {
         centerAnchorKey: "viewportCenter",
         side: "right",
         gap: LAYOUT.dividerTapGap,
-        band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 12 },
+        band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 8 },
       },
     ],
   },
@@ -982,42 +984,53 @@ function placeGroupsInPriorityOrder(ctx) {
   const sorted = [...ctx.layouts].sort((a, b) => a.item.policy.priority - b.item.policy.priority || a.group.id.localeCompare(b.group.id));
   const placed = new Map();
   const placedRects = [];
+  const pending = new Set(sorted.map((layout) => layout.group.id));
 
-  for (const layout of sorted) {
-    if (!layout.item.dependencyIds.every((id) => placed.has(id))) continue;
+  while (pending.size) {
+    let progress = false;
 
-    let best = null;
-    const preferredCandidate = buildCandidate(layout, layout.item.policy.preferredPlacement, { ...ctx, placed });
+    for (const layout of sorted) {
+      if (!pending.has(layout.group.id)) continue;
+      if (!layout.item.dependencyIds.every((id) => placed.has(id))) continue;
 
-    for (const variant of placementVariants(layout)) {
-      setLabelMeasureStyle(layout, variant, ctx.viewportWidth);
-      const candidates = generateCandidates(layout, { ...ctx, placed });
-      for (const candidate of candidates) {
-        const scored = scoreCandidate(layout, candidate, { ...ctx, placedRects, placed }, preferredCandidate);
-        if (!scored.valid) continue;
-        if (!best || scored.score < best.score) best = { ...candidate, score: scored.score };
+      let best = null;
+      const preferredCandidate = buildCandidate(layout, layout.item.policy.preferredPlacement, { ...ctx, placed });
+
+      for (const variant of placementVariants(layout)) {
+        setLabelMeasureStyle(layout, variant, ctx.viewportWidth);
+        const candidates = generateCandidates(layout, { ...ctx, placed });
+        for (const candidate of candidates) {
+          const scored = scoreCandidate(layout, candidate, { ...ctx, placedRects, placed }, preferredCandidate);
+          if (!scored.valid) continue;
+          if (!best || scored.score < best.score) best = { ...candidate, score: scored.score };
+        }
+        if (best && variant.fontScale === 1) break;
       }
-      if (best && variant.fontScale === 1) break;
+
+      if (!best) {
+        setLabelMeasureStyle(layout, { wrapped: true, fontScale: 0.86 }, ctx.viewportWidth);
+        const lockX = getStrictX(layout, ctx);
+        const free = findFirstFreeSpot(layout, ctx, placedRects, lockX);
+        if (free) {
+          best = free;
+        } else {
+          best = {
+            x: Number.isFinite(lockX) ? lockX : clamp(layout.x, ctx.margin, ctx.viewportWidth - layout.width - ctx.margin),
+            y: clamp(ctx.margin, ctx.margin, ctx.uiTop - layout.height - ctx.margin),
+          };
+        }
+      }
+
+      layout.x = Math.round(best.x);
+      layout.y = Math.round(best.y);
+      placed.set(layout.group.id, layout);
+      placedRects.push({ id: layout.group.id, rect: layoutRect(layout) });
+      pending.delete(layout.group.id);
+      progress = true;
+      break;
     }
 
-    if (!best) {
-      setLabelMeasureStyle(layout, { wrapped: true, fontScale: 0.86 }, ctx.viewportWidth);
-      const lockX = getStrictX(layout, ctx);
-      const free = findFirstFreeSpot(layout, ctx, placedRects, lockX);
-      if (free) {
-        best = free;
-      } else {
-        best = {
-          x: Number.isFinite(lockX) ? lockX : clamp(layout.x, ctx.margin, ctx.viewportWidth - layout.width - ctx.margin),
-          y: clamp(ctx.margin, ctx.margin, ctx.uiTop - layout.height - ctx.margin),
-        };
-      }
-    }
-
-    layout.x = Math.round(best.x);
-    layout.y = Math.round(best.y);
-    placed.set(layout.group.id, layout);
-    placedRects.push({ id: layout.group.id, rect: layoutRect(layout) });
+    if (!progress) break;
   }
 }
 
