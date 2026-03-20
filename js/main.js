@@ -342,6 +342,7 @@ let exportCacheCtx = null;
 let exportCacheMeta = null;
 let renderRevision = 0;
 let currentRenderCache = null;
+let activePanZoomCacheEntry = null;
 const historyRenderCache = new Map();
 let pendingShareFile = null;
 let pendingShareTitle = "";
@@ -563,8 +564,8 @@ function drawInteractionFrameFromCache(frameEntry) {
     return false;
   }
   const zoomRatio = targetZoom / sourceZoom;
-  const centerShiftX = (fixedView.offsetX || 0) - (frameEntry.sourceFixedView.offsetX || 0);
-  const centerShiftY = (fixedView.offsetY || 0) - (frameEntry.sourceFixedView.offsetY || 0);
+  const centerShiftX = (frameEntry.sourceFixedView.offsetX || 0) - (fixedView.offsetX || 0);
+  const centerShiftY = (frameEntry.sourceFixedView.offsetY || 0) - (fixedView.offsetY || 0);
   const viewportWidth = Math.max(1, canvas.width);
   const viewportHeight = Math.max(1, canvas.height);
   const cropX = Math.max(0, Math.floor((frameEntry.canvas.width - viewportWidth) * 0.5));
@@ -2872,28 +2873,52 @@ function clearTwoFingerGesture() {
   lastTwoDebug = null;
 }
 
-function syncCurrentRenderCacheSourceView() {
-  if (!currentRenderCache) {
-    return;
+function cloneFixedViewSnapshot(view = fixedView) {
+  return {
+    offsetX: Number.isFinite(view?.offsetX) ? view.offsetX : 0,
+    offsetY: Number.isFinite(view?.offsetY) ? view.offsetY : 0,
+    zoom: Number.isFinite(view?.zoom) && view.zoom > 0 ? view.zoom : 1,
+  };
+}
+
+function ensurePanZoomCacheBase() {
+  if (activePanZoomCacheEntry?.canvas) {
+    return activePanZoomCacheEntry;
   }
 
-  currentRenderCache.sourceFixedView = {
-    offsetX: Number.isFinite(fixedView?.offsetX) ? fixedView.offsetX : 0,
-    offsetY: Number.isFinite(fixedView?.offsetY) ? fixedView.offsetY : 0,
-    zoom: Number.isFinite(fixedView?.zoom) && fixedView.zoom > 0 ? fixedView.zoom : 1,
+  if (!currentRenderCache?.canvas) {
+    return null;
+  }
+
+  activePanZoomCacheEntry = {
+    key: currentRenderCache.key,
+    canvas: currentRenderCache.canvas,
+    meta: currentRenderCache.meta,
+    fullMeta: currentRenderCache.fullMeta,
+    sourceFixedView: cloneFixedViewSnapshot(),
   };
+
+  return activePanZoomCacheEntry;
+}
+
+function clearPanZoomInteractionCache() {
+  activePanZoomCacheEntry = null;
 }
 
 function prepareFixedViewForPanZoom(reason = "manual pan/zoom") {
   if (isAutoScale()) {
     syncFixedViewFromLastRenderMeta();
-    syncCurrentRenderCacheSourceView();
   }
   setScaleModeFixed(reason);
 }
 
-function beginPanZoomInteraction() {
+function beginPanZoomInteraction(baseCacheEntry = null) {
   panZoomInteractionActive = true;
+  if (baseCacheEntry?.canvas) {
+    activePanZoomCacheEntry = baseCacheEntry;
+  } else {
+    ensurePanZoomCacheBase();
+  }
   if (panZoomSettleTimer) {
     window.clearTimeout(panZoomSettleTimer);
     panZoomSettleTimer = null;
@@ -2945,6 +2970,7 @@ function onCanvasPointerDown(event) {
 
   if (event.pointerType === "mouse" && event.button === 2) {
     prepareFixedViewForPanZoom("manual pan/zoom");
+    beginPanZoomInteraction();
     interactionState = INTERACTION_STATE.PAN_MOUSE_RMB;
     primaryPointerId = event.pointerId;
     const pos = getCanvasPointerPosition(event);
@@ -3053,17 +3079,16 @@ function onCanvasPointerMove(event) {
   };
 
   if (!twoFingerGesture.isArmed) {
-    if (shouldZoom || shouldPan) {
-      twoFingerGesture.isArmed = true;
+    if (!shouldZoom && !shouldPan) {
+      twoFingerGesture.lastD = distance;
+      twoFingerGesture.lastMX = midpoint.x;
+      twoFingerGesture.lastMY = midpoint.y;
+      return;
     }
-    twoFingerGesture.lastD = distance;
-    twoFingerGesture.lastMX = midpoint.x;
-    twoFingerGesture.lastMY = midpoint.y;
-    return;
-  }
 
-  if (shouldZoom || shouldPan) {
     prepareFixedViewForPanZoom("manual pan/zoom");
+    twoFingerGesture.isArmed = true;
+    beginPanZoomInteraction();
   }
 
   if (shouldZoom && Number.isFinite(ratioStep) && ratioStep > 0) {
@@ -4656,7 +4681,7 @@ async function draw() {
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const iterations = iterationSetting;
-  if (panZoomInteractionActive && !didResize && currentRenderCache && drawInteractionFrameFromCache(currentRenderCache)) {
+  if (panZoomInteractionActive && !didResize && activePanZoomCacheEntry && drawInteractionFrameFromCache(activePanZoomCacheEntry)) {
     drawDebugOverlay(lastRenderMeta);
     drawInterestOverlay(lastRenderMeta);
     drawManualParamOverlay(lastRenderMeta);
@@ -4759,6 +4784,7 @@ async function draw() {
     frameMeta: lastRenderMeta,
     sourceFixedView: fixedView,
   });
+  clearPanZoomInteractionCache();
   renderRevision += 1;
   exportCacheMeta = {
     pxW: fullCanvas.width,
