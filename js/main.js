@@ -23,7 +23,6 @@ const rangesEditorToggleEl = document.getElementById("rangesEditorToggle");
 const overlayToggleBtn = document.getElementById("overlayToggleBtn");
 const helpBtn = document.getElementById("helpBtn");
 const rangesEditorPanelEl = document.getElementById("rangesEditorPanel");
-const rangesEditorCloseEl = document.getElementById("rangesEditorClose");
 const formulaSettingsPanelEl = document.getElementById("formulaSettingsPanel");
 const formulaSettingsCloseEl = document.getElementById("formulaSettingsClose");
 const formulaSettingsCloseBottomEl = document.getElementById("formulaSettingsCloseBottom");
@@ -84,6 +83,7 @@ const detailBackgroundColorEl = document.getElementById("detailBackgroundColor")
 const detailBackgroundColorValueEl = document.getElementById("detailBackgroundColorValue");
 const colorSettingsPanelEl = document.getElementById("colorSettingsPanel");
 const colorSettingsCloseEl = document.getElementById("colorSettingsClose");
+const modeSettingsPanelEl = document.getElementById("modeSettingsPanel");
 const colorSettingsNameEl = document.getElementById("colorSettingsName");
 const colorSettingsPreviewEl = document.getElementById("colorSettingsPreview");
 const colorStopsListEl = document.getElementById("colorStopsList");
@@ -122,8 +122,6 @@ const qsTop = document.querySelector(".qsTop");
 
 const pickerOverlay = document.getElementById("pickerOverlay");
 const pickerBackdrop = document.getElementById("pickerBackdrop");
-const pickerTitle = document.getElementById("pickerTitle");
-const pickerClose = document.getElementById("pickerClose");
 const pickerList = document.getElementById("pickerList");
 const pickerPanel = document.getElementById("pickerPanel");
 const paramOverlayEl = document.getElementById("paramOverlay");
@@ -272,6 +270,8 @@ let activeSliderKey = null;
 let activePicker = null;
 let activeColorSettingsMap = null;
 let activePickerTrigger = null;
+let activeInfoAnchorEl = null;
+let activeInfoPanelEl = null;
 let holdInterval = null;
 let lastRenderMeta = null;
 let lastFullRenderMeta = null;
@@ -1591,6 +1591,8 @@ function openRangesEditor() {
   }
 
   closeFormulaSettingsPanel();
+  closeColorSettingsPanel();
+  closeModeSettingsPanel();
   rangesEditorPanelEl.classList.remove("is-hidden");
   rangesEditorToggleEl?.classList.add("is-active");
   rangesEditorToggleEl?.setAttribute("aria-pressed", "true");
@@ -1614,6 +1616,8 @@ function openFormulaSettingsPanel(formulaId = null) {
   }
 
   closeRangesEditor();
+  closeColorSettingsPanel();
+  closeModeSettingsPanel();
   formulaSettingsPanelEl.classList.remove("is-hidden");
   const targetFormulaId = formulaId || getSelectedRangesEditorFormulaId();
   loadFormulaRangesIntoEditor(targetFormulaId);
@@ -1625,6 +1629,44 @@ function openFormulaSettingsPanel(formulaId = null) {
 function closeFormulaSettingsPanel() {
   formulaSettingsPanelEl?.classList.add("is-hidden");
   helpOverlayController?.render();
+}
+
+function openModeSettingsPanel() {
+  if (!modeSettingsPanelEl) {
+    return;
+  }
+
+  modeSettingsPanelEl.classList.remove("is-hidden");
+  layoutModeSettingsPanel();
+  helpOverlayController?.render();
+}
+
+function closeModeSettingsPanel() {
+  modeSettingsPanelEl?.classList.add("is-hidden");
+  helpOverlayController?.render();
+}
+
+function isPanelOpen(panelEl) {
+  return Boolean(panelEl && !panelEl.classList.contains("is-hidden"));
+}
+
+function closeDismissablePanelsForTarget(target) {
+  if (!(target instanceof Element)) {
+    return;
+  }
+
+  if (isPanelOpen(modeSettingsPanelEl) && !target.closest("#modeSettingsPanel, #modeSettingsToggle, #pickerModeSettingsProxy, #settingsInfoPopup")) {
+    closeModeSettingsPanel();
+  }
+  if (isPanelOpen(colorSettingsPanelEl) && !target.closest("#colorSettingsPanel, #pickerOverlay, #settingsInfoPopup")) {
+    closeColorSettingsPanel();
+  }
+  if (isPanelOpen(formulaSettingsPanelEl) && !target.closest("#formulaSettingsPanel, #pickerOverlay")) {
+    closeFormulaSettingsPanel();
+  }
+  if (isPanelOpen(rangesEditorPanelEl) && !target.closest("#rangesEditorPanel, #rangesEditorToggle, #settingsInfoPopup")) {
+    closeRangesEditor();
+  }
 }
 
 
@@ -1737,6 +1779,12 @@ function syncDetailedSettingsControls() {
   if (detailHybridBlendFormattedEl) detailHybridBlendFormattedEl.textContent = formatNumberForUi(appData.defaults.renderHybridBlend, 2);
   if (detailBackgroundColorEl) detailBackgroundColorEl.value = appData.defaults.backgroundColor || "#05070c";
   if (detailBackgroundColorValueEl) detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor || "#05070c";
+  const pickerModeSelectEl = document.getElementById("pickerColorModeProxy");
+  if (pickerModeSelectEl) pickerModeSelectEl.value = appData.defaults.renderColorMode;
+  const pickerBackgroundInputEl = document.getElementById("pickerBackgroundColorProxy");
+  const pickerBackgroundValueEl = document.getElementById("pickerBackgroundColorValueProxy");
+  if (pickerBackgroundInputEl) pickerBackgroundInputEl.value = appData.defaults.backgroundColor || "#05070c";
+  if (pickerBackgroundValueEl) pickerBackgroundValueEl.textContent = appData.defaults.backgroundColor || "#05070c";
 }
 
 function applyHoldSpeedScale(nextValue) {
@@ -1926,21 +1974,26 @@ function getRenderColoringOptions() {
   };
 }
 
-function showSettingsInfo(message, anchorEl = null) {
+function showSettingsInfo(message, anchorEl = null, panelEl = null) {
   if (!settingsInfoPopupEl || !settingsInfoTextEl) return;
+  if (activeInfoAnchorEl === anchorEl && !settingsInfoPopupEl.classList.contains("is-hidden")) {
+    hideSettingsInfo();
+    return;
+  }
+
+  activeInfoAnchorEl = anchorEl;
+  activeInfoPanelEl = panelEl || anchorEl?.closest("#rangesEditorPanel, #colorSettingsPanel, #modeSettingsPanel") || rangesEditorPanelEl;
   settingsInfoTextEl.textContent = message;
   settingsInfoPopupEl.classList.remove("is-hidden");
 
-  const panelRect = rangesEditorPanelEl?.getBoundingClientRect();
+  const panelRect = activeInfoPanelEl?.getBoundingClientRect();
   const anchorRect = anchorEl?.getBoundingClientRect();
   if (panelRect && anchorRect) {
-    const anchorInColorTab = Boolean(colorTabPanelEl && anchorEl && colorTabPanelEl.contains(anchorEl));
-    const left = anchorInColorTab
-      ? 8
-      : Math.max(8, Math.min(panelRect.width - 290, anchorRect.left - panelRect.left - 240));
+    const left = Math.max(8, Math.min(panelRect.width - 290, anchorRect.left - panelRect.left - 240));
     const top = Math.max(8, Math.min(panelRect.height - 120, anchorRect.top - panelRect.top + 28));
     settingsInfoPopupEl.style.left = `${left}px`;
     settingsInfoPopupEl.style.top = `${top}px`;
+    activeInfoPanelEl.append(settingsInfoPopupEl);
   } else {
     settingsInfoPopupEl.style.left = "10px";
     settingsInfoPopupEl.style.top = "10px";
@@ -1948,6 +2001,8 @@ function showSettingsInfo(message, anchorEl = null) {
 }
 
 function hideSettingsInfo() {
+  activeInfoAnchorEl = null;
+  activeInfoPanelEl = null;
   settingsInfoPopupEl?.classList.add("is-hidden");
 }
 
@@ -2683,7 +2738,7 @@ function isEventInsideInteractiveUi(eventTarget) {
     return false;
   }
 
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #colorSettingsPanel, #rangesEditorToggle"));
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #colorSettingsPanel, #modeSettingsPanel, #rangesEditorToggle"));
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -3257,6 +3312,7 @@ function layoutPickerPanel() {
   const formulaTile = formulaBtn?.closest(".poItem");
   const cmapTile = cmapBtn?.closest(".poItem");
   const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
   const margin = 6;
 
   if (formulaTile && cmapTile) {
@@ -3271,6 +3327,15 @@ function layoutPickerPanel() {
     pickerPanel.style.width = `${Math.round(width)}px`;
     pickerPanel.style.left = `${Math.round(left)}px`;
     pickerPanel.style.transform = "none";
+    const actionBottom = topRightActionsEl?.getBoundingClientRect()?.bottom ?? 0;
+    const preferredTop = margin;
+    const fallbackTop = Math.max(margin, Math.round(actionBottom + 6));
+    const panelHeight = Math.min(viewportHeight - margin * 2, Math.max(220, viewportHeight - 104));
+    const useFallbackTop = activePicker !== "formula" && activePicker !== "cmap"
+      ? false
+      : preferredTop + panelHeight > viewportHeight - margin;
+    pickerPanel.style.top = `${useFallbackTop ? fallbackTop : preferredTop}px`;
+    pickerPanel.style.bottom = `${margin}px`;
     helpOverlayController?.scheduleRender();
     return;
   }
@@ -3279,6 +3344,8 @@ function layoutPickerPanel() {
   pickerPanel.style.width = `${Math.min(fallbackWidth, viewportWidth - margin * 2)}px`;
   pickerPanel.style.left = `${margin}px`;
   pickerPanel.style.transform = "none";
+  pickerPanel.style.top = `${margin}px`;
+  pickerPanel.style.bottom = `${margin}px`;
   helpOverlayController?.scheduleRender();
 }
 
@@ -3317,8 +3384,25 @@ function layoutColorSettingsPanel() {
   helpOverlayController?.scheduleRender();
 }
 
+function layoutModeSettingsPanel() {
+  if (!modeSettingsPanelEl || modeSettingsPanelEl.classList.contains("is-hidden")) {
+    return;
+  }
+
+  const margin = 8;
+  const viewportWidth = window.innerWidth;
+  const anchorRect = document.getElementById("pickerModeSettingsProxy")?.getBoundingClientRect();
+  const parentRect = anchorRect ? pickerPanel?.getBoundingClientRect() : colorSettingsPanelEl?.getBoundingClientRect();
+  const panelWidth = modeSettingsPanelEl.getBoundingClientRect().width || Math.min(380, viewportWidth - margin * 2);
+  const targetLeft = parentRect && anchorRect
+    ? Math.max(margin, parentRect.left - panelWidth - 8)
+    : margin;
+  modeSettingsPanelEl.style.left = `${Math.round(Math.min(targetLeft, viewportWidth - panelWidth - margin))}px`;
+  modeSettingsPanelEl.style.right = "auto";
+  modeSettingsPanelEl.style.top = parentRect ? `${Math.round(parentRect.top)}px` : `${margin}px`;
+}
+
 function renderFormulaPicker() {
-  pickerTitle.textContent = "Select formula";
   pickerList.innerHTML = "";
 
   for (const formula of appData.formulas) {
@@ -3382,8 +3466,75 @@ function renderFormulaPicker() {
 }
 
 function renderColorMapPicker() {
-  pickerTitle.textContent = "Select color map";
   pickerList.innerHTML = "";
+
+  const topSection = document.createElement("div");
+  topSection.className = "colorPanelTopSection";
+  topSection.innerHTML = `
+    <div class="perfSettingCard">
+      <div class="perfSettingHead"><span class="perfSettingLabel">Background color</span></div>
+      <div class="perfControlRow">
+        <input id="pickerBackgroundColorProxy" class="perfRangeInput" type="color" aria-label="Background color" />
+        <div id="pickerBackgroundColorValueProxy" class="perfFormattedValue"></div>
+      </div>
+    </div>
+    <div class="perfSettingCard">
+      <div class="modeRow">
+        <span class="perfSettingLabel modeRowLabel">Mode</span>
+        <select id="pickerColorModeProxy" class="perfSelect" aria-label="Mode">
+          <option value="iteration_order">Iteration order</option>
+          <option value="hit_density_linear">Hit density (linear)</option>
+          <option value="hit_density_log">Hit density (log)</option>
+          <option value="hit_density_gamma">Hit density (gamma)</option>
+          <option value="hit_density_percentile">Hit density (percentile)</option>
+          <option value="hybrid_density_age">Hybrid (density + recency)</option>
+        </select>
+        <button id="pickerInfoColorModeProxy" class="perfInfoBtn" type="button" aria-label="Mode help">i</button>
+        <button id="pickerModeSettingsProxy" class="compactIconBtn" type="button" aria-label="Open mode settings">⚙</button>
+      </div>
+    </div>
+  `;
+  pickerList.append(topSection);
+
+  const backgroundInput = topSection.querySelector("#pickerBackgroundColorProxy");
+  const backgroundValue = topSection.querySelector("#pickerBackgroundColorValueProxy");
+  const modeSelect = topSection.querySelector("#pickerColorModeProxy");
+  const infoBtn = topSection.querySelector("#pickerInfoColorModeProxy");
+  const modeSettingsBtn = topSection.querySelector("#pickerModeSettingsProxy");
+
+  if (backgroundInput && backgroundValue) {
+    backgroundInput.value = appData.defaults.backgroundColor || "#05070c";
+    backgroundValue.textContent = appData.defaults.backgroundColor || "#05070c";
+    backgroundInput.addEventListener("input", (event) => {
+      appData.defaults.backgroundColor = event.target.value;
+      if (detailBackgroundColorValueEl) detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor;
+      backgroundValue.textContent = appData.defaults.backgroundColor;
+      if (detailBackgroundColorEl) detailBackgroundColorEl.value = appData.defaults.backgroundColor;
+      applyBackgroundTheme();
+      requestDraw();
+      saveDefaultsToStorage();
+    });
+  }
+
+  if (modeSelect) {
+    modeSelect.value = appData.defaults.renderColorMode;
+    modeSelect.addEventListener("change", () => {
+      applyRenderColorMode(modeSelect.value);
+    });
+  }
+
+  infoBtn?.addEventListener("click", (event) => {
+    showSettingsInfo("Switch between iteration-order and density-based coloring methods to emphasize different structure in the attractor.", event.currentTarget, pickerPanel);
+  });
+  modeSettingsBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (isPanelOpen(modeSettingsPanelEl)) {
+      closeModeSettingsPanel();
+    } else {
+      openModeSettingsPanel();
+    }
+  });
 
   for (const cmapName of appData.colormaps) {
     const button = document.createElement("button");
@@ -3435,6 +3586,10 @@ function renderColorMapPicker() {
     rowWrap.className = "pickerOptionRow";
     rowWrap.append(button, settingsButton);
     pickerList.append(rowWrap);
+  }
+
+  if (isPanelOpen(modeSettingsPanelEl)) {
+    layoutModeSettingsPanel();
   }
 }
 
@@ -3531,6 +3686,8 @@ function openColorSettingsPanel(cmapName) {
   activeColorSettingsMap = cmapName;
   colorSettingsNameEl.textContent = cmapName;
   colorSettingsPreviewEl.style.background = buildColorMapGradient(cmapName);
+  closeRangesEditor();
+  closeFormulaSettingsPanel();
   colorSettingsPanelEl.classList.remove("is-hidden");
   renderColorStopsEditor();
   layoutColorSettingsPanel();
@@ -3538,6 +3695,7 @@ function openColorSettingsPanel(cmapName) {
 }
 
 function closeColorSettingsPanel() {
+  closeModeSettingsPanel();
   activeColorSettingsMap = null;
   colorSettingsPanelEl?.classList.add("is-hidden");
   saveDefaultsToStorage();
@@ -5390,7 +5548,6 @@ function initHelpOverlay() {
 }
 
 function registerHandlers() {
-  pickerClose.addEventListener("click", () => closePicker());
   pickerBackdrop.addEventListener("click", () => closePicker());
   for (const [targetKey, target] of Object.entries(paramTileTargets)) {
     const tile = target.button.closest(".poItem");
@@ -5533,7 +5690,6 @@ function registerHandlers() {
       closeRangesEditor();
     }
   });
-  rangesEditorCloseEl?.addEventListener("click", closeRangesEditor);
   formulaSettingsCloseEl?.addEventListener("click", closeFormulaSettingsPanel);
   formulaSettingsCloseBottomEl?.addEventListener("click", closeFormulaSettingsPanel);
 
@@ -5632,7 +5788,17 @@ function registerHandlers() {
   infoHybridBlendEl?.addEventListener("click", (event) => {
     showSettingsInfo("Hybrid age blend mixes density color with recency color. Increase to make newer orbit paths more visible.", event.currentTarget);
   });
-  settingsInfoPopupEl?.addEventListener("click", hideSettingsInfo);
+  window.addEventListener("pointerdown", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    if (activeInfoAnchorEl && !target.closest("#settingsInfoPopup, .perfInfoBtn")) {
+      hideSettingsInfo();
+    }
+    closeDismissablePanelsForTarget(target);
+  });
 
   canvas.style.touchAction = "none";
   canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: false });
@@ -5688,6 +5854,7 @@ function registerHandlers() {
       }
       layoutFormulaSettingsPanel();
       layoutColorSettingsPanel();
+      layoutModeSettingsPanel();
       layoutFloatingActions();
       if (toastEl?.classList.contains("is-visible")) {
         positionToastForTopActions();
@@ -5708,6 +5875,7 @@ function registerHandlers() {
       }
       layoutFormulaSettingsPanel();
       layoutColorSettingsPanel();
+      layoutModeSettingsPanel();
       layoutFloatingActions();
       if (toastEl?.classList.contains("is-visible")) {
         positionToastForTopActions();
