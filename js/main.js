@@ -558,28 +558,47 @@ function drawInteractionFrameFromCache(frameEntry) {
   if (!frameEntry?.canvas || !frameEntry.sourceFixedView || !fixedView) {
     return false;
   }
+  const viewportWidth = Math.max(1, canvas.width);
+  const viewportHeight = Math.max(1, canvas.height);
   const sourceZoom = Number(frameEntry.sourceFixedView.zoom) || 1;
   const targetZoom = Number(fixedView.zoom) || 1;
   if (sourceZoom <= 0 || targetZoom <= 0) {
     return false;
   }
   const zoomRatio = targetZoom / sourceZoom;
-  const centerShiftX = (frameEntry.sourceFixedView.offsetX || 0) - (fixedView.offsetX || 0);
-  const centerShiftY = (frameEntry.sourceFixedView.offsetY || 0) - (fixedView.offsetY || 0);
-  const viewportWidth = Math.max(1, canvas.width);
-  const viewportHeight = Math.max(1, canvas.height);
-  const cropX = Math.max(0, Math.floor((frameEntry.canvas.width - viewportWidth) * 0.5));
-  const cropY = Math.max(0, Math.floor((frameEntry.canvas.height - viewportHeight) * 0.5));
-  const cropW = Math.min(viewportWidth, frameEntry.canvas.width - cropX);
-  const cropH = Math.min(viewportHeight, frameEntry.canvas.height - cropY);
+  if (!Number.isFinite(zoomRatio) || zoomRatio <= 0) {
+    return false;
+  }
+
+  const cropX = Math.max(0, (frameEntry.canvas.width - viewportWidth) * 0.5);
+  const cropY = Math.max(0, (frameEntry.canvas.height - viewportHeight) * 0.5);
+  const sourceRectWidth = viewportWidth / zoomRatio;
+  const sourceRectHeight = viewportHeight / zoomRatio;
+  const sourceRectX = cropX + viewportWidth * 0.5 + (frameEntry.sourceFixedView.offsetX || 0)
+    - (viewportWidth * 0.5 + (fixedView.offsetX || 0)) / zoomRatio;
+  const sourceRectY = cropY + viewportHeight * 0.5 + (frameEntry.sourceFixedView.offsetY || 0)
+    - (viewportHeight * 0.5 + (fixedView.offsetY || 0)) / zoomRatio;
+
+  const clippedX = clamp(sourceRectX, 0, frameEntry.canvas.width);
+  const clippedY = clamp(sourceRectY, 0, frameEntry.canvas.height);
+  const clippedMaxX = clamp(sourceRectX + sourceRectWidth, 0, frameEntry.canvas.width);
+  const clippedMaxY = clamp(sourceRectY + sourceRectHeight, 0, frameEntry.canvas.height);
+  const clippedWidth = clippedMaxX - clippedX;
+  const clippedHeight = clippedMaxY - clippedY;
+  if (clippedWidth <= 0 || clippedHeight <= 0) {
+    return false;
+  }
+
+  const destScaleX = viewportWidth / sourceRectWidth;
+  const destScaleY = viewportHeight / sourceRectHeight;
+  const destX = (clippedX - sourceRectX) * destScaleX;
+  const destY = (clippedY - sourceRectY) * destScaleY;
+  const destWidth = clippedWidth * destScaleX;
+  const destHeight = clippedHeight * destScaleY;
+
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.save();
   ctx.imageSmoothingEnabled = true;
-  ctx.translate(canvas.width * 0.5 + centerShiftX, canvas.height * 0.5 + centerShiftY);
-  ctx.scale(zoomRatio, zoomRatio);
-  ctx.translate(-canvas.width * 0.5, -canvas.height * 0.5);
-  ctx.drawImage(frameEntry.canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-  ctx.restore();
+  ctx.drawImage(frameEntry.canvas, clippedX, clippedY, clippedWidth, clippedHeight, destX, destY, destWidth, destHeight);
   if (frameEntry.meta) {
     lastRenderMeta = frameEntry.meta;
     lastFullRenderMeta = frameEntry.fullMeta || frameEntry.meta;
@@ -3111,6 +3130,8 @@ function clearPointerState(pointerId) {
     return;
   }
 
+  const endingTwoFingerGesture = interactionState === INTERACTION_STATE.TWO_ACTIVE || Boolean(twoFingerGesture);
+  const endingPanZoomGesture = endingTwoFingerGesture || interactionState === INTERACTION_STATE.PAN_MOUSE_RMB || panZoomInteractionActive;
   activePointers.delete(pointerId);
 
   if (activePointers.size === 0) {
@@ -3119,8 +3140,22 @@ function clearPointerState(pointerId) {
     lastPointerPosition = null;
     isManualModulating = false;
     clearTwoFingerGesture();
+    if (endingPanZoomGesture) {
+      schedulePanZoomSettledRedraw();
+    } else {
+      requestDraw();
+    }
+    return;
+  }
+
+  if (activePointers.size === 1 && endingTwoFingerGesture) {
+    activePointers.clear();
+    interactionState = INTERACTION_STATE.NONE;
+    primaryPointerId = null;
+    lastPointerPosition = null;
+    isManualModulating = false;
+    clearTwoFingerGesture();
     schedulePanZoomSettledRedraw();
-    requestDraw();
     return;
   }
 
