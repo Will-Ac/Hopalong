@@ -18,6 +18,7 @@
   "iterationAbsoluteMax": 100000000,
   "iterationStartupDefault": 500000,
   "maxRandomIters": 500000,
+  "historyCacheSize": 6,
   "renderColorMode": "iteration_order",
   "renderLogStrength": 9,
   "renderDensityGamma": 0.6,
@@ -37,6 +38,5 @@
   "interestLyapunovDelta0": 1e-06,
   "interestLyapunovRescale": true,
   "interestLyapunovMaxDistance": 1000000,
-  "panZoomIterationCap": 500000,
   "interestOverlayOpacity": 0.2
 }

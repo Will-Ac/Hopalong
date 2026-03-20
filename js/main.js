@@ -1,5 +1,5 @@
 import { ColorMapNames, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
-import { renderFrame, getParamsForFormula, classifyInterestGridLyapunov } from "./renderer.js";
+import { renderFrame, getParamsForFormula, classifyInterestGridLyapunov, isRenderCancelledError } from "./renderer.js";
 import {
   FORMULA_METADATA,
   FORMULA_RANGES_RAW,
@@ -43,6 +43,8 @@ const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomIter
 const detailMaxRandomItersFormattedEl = document.getElementById("detailMaxRandomItersFormatted");
 const detailIterationAbsoluteMaxRangeEl = document.getElementById("detailIterationAbsoluteMaxRange");
 const detailIterationAbsoluteMaxFormattedEl = document.getElementById("detailIterationAbsoluteMaxFormatted");
+const detailHistoryCacheSizeRangeEl = document.getElementById("detailHistoryCacheSizeRange");
+const detailHistoryCacheSizeFormattedEl = document.getElementById("detailHistoryCacheSizeFormatted");
 const detailBurnRangeEl = document.getElementById("detailBurnRange");
 const detailBurnFormattedEl = document.getElementById("detailBurnFormatted");
 const detailOverlayAlphaRangeEl = document.getElementById("detailOverlayAlphaRange");
@@ -63,8 +65,6 @@ const detailInterestGridSizeRangeEl = document.getElementById("detailInterestGri
 const detailInterestGridSizeFormattedEl = document.getElementById("detailInterestGridSizeFormatted");
 const detailInterestScanIterationsRangeEl = document.getElementById("detailInterestScanIterationsRange");
 const detailInterestScanIterationsFormattedEl = document.getElementById("detailInterestScanIterationsFormatted");
-const detailPanZoomIterationCapRangeEl = document.getElementById("detailPanZoomIterationCapRange");
-const detailPanZoomIterationCapFormattedEl = document.getElementById("detailPanZoomIterationCapFormatted");
 const detailInterestLyapunovEnabledToggleEl = document.getElementById("detailInterestLyapunovEnabledToggle");
 const detailInterestLyapunovMinExponentRangeEl = document.getElementById("detailInterestLyapunovMinExponentRange");
 const detailInterestLyapunovMinExponentFormattedEl = document.getElementById("detailInterestLyapunovMinExponentFormatted");
@@ -144,12 +144,13 @@ const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
 const randomModeTile = document.getElementById("randomModeTile");
 
-const ITERATION_FALLBACK_ABSOLUTE_MAX = 100000000;
+const ITERATION_FALLBACK_ABSOLUTE_MAX = 1000000000;
 const ITERATION_FALLBACK_STARTUP_DEFAULT = 500000;
 const ITERATION_FALLBACK_RANDOM_MAX = 500000;
-const ITERATION_FALLBACK_PAN_ZOOM_CAP = 500000;
+const HISTORY_CACHE_SIZE_DEFAULT = 6;
+const HISTORY_CACHE_SIZE_MIN = 1;
+const HISTORY_CACHE_SIZE_MAX = 20;
 const ITERATION_MIN = 1000;
-const PAN_ZOOM_ITERATION_CAP_MIN = 10000;
 
 const sliderControls = {
   a: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
@@ -223,9 +224,8 @@ function getRandomIterationCap(defaults = appData?.defaults) {
   return normalizeIterationValue(defaults?.maxRandomIters, ITERATION_FALLBACK_RANDOM_MAX, ITERATION_MIN, absoluteMax);
 }
 
-function getPanZoomIterationCap(defaults = appData?.defaults) {
-  const absoluteMax = getIterationAbsoluteMax(defaults);
-  return normalizeIterationValue(defaults?.panZoomIterationCap, ITERATION_FALLBACK_PAN_ZOOM_CAP, PAN_ZOOM_ITERATION_CAP_MIN, absoluteMax);
+function getHistoryCacheSize(defaults = appData?.defaults) {
+  return Math.round(clamp(Number(defaults?.historyCacheSize), HISTORY_CACHE_SIZE_MIN, HISTORY_CACHE_SIZE_MAX)) || HISTORY_CACHE_SIZE_DEFAULT;
 }
 
 function normalizeIterationSettings(defaults = appData?.defaults) {
@@ -234,7 +234,7 @@ function normalizeIterationSettings(defaults = appData?.defaults) {
       iterationAbsoluteMax: ITERATION_FALLBACK_ABSOLUTE_MAX,
       iterationStartupDefault: ITERATION_FALLBACK_STARTUP_DEFAULT,
       maxRandomIters: ITERATION_FALLBACK_RANDOM_MAX,
-      panZoomIterationCap: ITERATION_FALLBACK_PAN_ZOOM_CAP,
+      historyCacheSize: HISTORY_CACHE_SIZE_DEFAULT,
       currentIterations: ITERATION_FALLBACK_STARTUP_DEFAULT,
     };
   }
@@ -243,8 +243,9 @@ function normalizeIterationSettings(defaults = appData?.defaults) {
   defaults.iterationAbsoluteMax = iterationAbsoluteMax;
   defaults.iterationStartupDefault = getIterationStartupDefault(defaults);
   defaults.maxRandomIters = getRandomIterationCap(defaults);
-  defaults.panZoomIterationCap = getPanZoomIterationCap(defaults);
+  defaults.historyCacheSize = getHistoryCacheSize(defaults);
   delete defaults.launchIterationCap;
+  delete defaults.panZoomIterationCap;
   defaults.sliders = defaults.sliders || {};
 
   const iterationsRaw = defaults.sliders.iters;
@@ -259,7 +260,7 @@ function normalizeIterationSettings(defaults = appData?.defaults) {
     iterationAbsoluteMax,
     iterationStartupDefault: defaults.iterationStartupDefault,
     maxRandomIters: defaults.maxRandomIters,
-    panZoomIterationCap: defaults.panZoomIterationCap,
+    historyCacheSize: defaults.historyCacheSize,
     currentIterations: defaults.sliders.iters,
   };
 }
@@ -340,6 +341,10 @@ let exportCacheCanvas = null;
 let exportCacheCtx = null;
 let exportCacheMeta = null;
 let renderRevision = 0;
+let renderGeneration = 0;
+let currentRenderCache = null;
+let activePanZoomCacheEntry = null;
+const historyRenderCache = new Map();
 let pendingShareFile = null;
 let pendingShareTitle = "";
 let isApplyingHistoryState = false;
@@ -435,13 +440,25 @@ function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   return `${normalized.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
 }
 
-function requestDraw() {
+function invalidatePendingRenders() {
+  renderGeneration += 1;
+  return renderGeneration;
+}
+
+function isRenderGenerationCurrent(generation) {
+  return generation === renderGeneration;
+}
+
+function requestDraw({ invalidate = true } = {}) {
   if (appData) {
     refreshParamButtons();
     updateQuickSliderReadout();
     syncDetailedSettingsControls();
   }
 
+  if (invalidate) {
+    invalidatePendingRenders();
+  }
   drawDirty = true;
   if (highResExportInProgress) {
     return;
@@ -464,10 +481,190 @@ function requestDraw() {
     } finally {
       drawInProgress = false;
       if (drawDirty) {
-        requestDraw();
+        requestDraw({ invalidate: false });
       }
     }
   });
+}
+
+function stableStringify(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function createFrameCacheCanvas(width, height) {
+  const frameCanvas = document.createElement("canvas");
+  frameCanvas.width = width;
+  frameCanvas.height = height;
+  return frameCanvas;
+}
+
+function cloneFrameCanvas(sourceCanvas) {
+  const frameCanvas = createFrameCacheCanvas(sourceCanvas.width, sourceCanvas.height);
+  const frameCtx = frameCanvas.getContext("2d", { willReadFrequently: true });
+  if (!frameCtx) {
+    throw new Error("Frame cache context unavailable.");
+  }
+  frameCtx.drawImage(sourceCanvas, 0, 0);
+  return frameCanvas;
+}
+
+function getRenderStateKey(stateLike = captureCurrentState()) {
+  const state = stateLike || {};
+  return stableStringify({
+    formulaId: state.formulaId ?? currentFormulaId,
+    cmapName: state.cmapName ?? appData?.defaults?.cmapName,
+    sliders: state.sliders ?? appData?.defaults?.sliders,
+    derivedParams: state.derivedParams ?? getDerivedParams(),
+    iterationAbsoluteMax: state.iterationAbsoluteMax ?? getIterationAbsoluteMax(),
+    iterations: state.sliders?.iters ?? appData?.defaults?.sliders?.iters,
+    burn: state.sliders?.burn ?? appData?.defaults?.sliders?.burn,
+    scaleMode: state.scaleMode ?? getScaleMode(),
+    fixedView: state.fixedView ?? fixedView,
+    seed: state.seed ?? getSeedForFormula(state.formulaId ?? currentFormulaId),
+    renderColoring: state.renderColoring ?? getRenderColoringOptions(),
+    backgroundColor: state.backgroundColor ?? appData?.defaults?.backgroundColor,
+    rangesOverridesByFormula: state.rangesOverridesByFormula ?? appData?.defaults?.rangesOverridesByFormula,
+    formulaParamDefaultsByFormula: state.formulaParamDefaultsByFormula ?? appData?.defaults?.formulaParamDefaultsByFormula,
+    formulaSeeds: state.formulaSeeds ?? appData?.defaults?.formulaSeeds,
+    colorMapStopOverrides: state.colorMapStopOverrides ?? getColorMapStopOverrides(),
+  });
+}
+
+function drawCachedFrameEntry(frameEntry, { syncExport = true } = {}) {
+  if (!frameEntry?.canvas) {
+    return false;
+  }
+  const viewportWidth = Math.max(1, canvas.width);
+  const viewportHeight = Math.max(1, canvas.height);
+  const cropX = Math.max(0, Math.floor((frameEntry.canvas.width - viewportWidth) * 0.5));
+  const cropY = Math.max(0, Math.floor((frameEntry.canvas.height - viewportHeight) * 0.5));
+  const cropW = Math.min(viewportWidth, frameEntry.canvas.width - cropX);
+  const cropH = Math.min(viewportHeight, frameEntry.canvas.height - cropY);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(frameEntry.canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+  if (frameEntry.meta) {
+    lastRenderMeta = frameEntry.meta;
+    lastFullRenderMeta = frameEntry.fullMeta || frameEntry.meta;
+  }
+  if (syncExport) {
+    const targetCanvas = ensureExportCacheCanvas(frameEntry.canvas.width, frameEntry.canvas.height);
+    exportCacheCtx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+    exportCacheCtx.drawImage(frameEntry.canvas, 0, 0);
+    exportCacheMeta = {
+      pxW: targetCanvas.width,
+      pxH: targetCanvas.height,
+      updatedAt: performance.now(),
+      renderRevision,
+    };
+  }
+  return true;
+}
+
+function drawInteractionFrameFromCache(frameEntry) {
+  if (!frameEntry?.canvas || !frameEntry.sourceFixedView || !fixedView) {
+    return false;
+  }
+  const viewportWidth = Math.max(1, canvas.width);
+  const viewportHeight = Math.max(1, canvas.height);
+  const sourceZoom = Number(frameEntry.sourceFixedView.zoom) || 1;
+  const targetZoom = Number(fixedView.zoom) || 1;
+  if (sourceZoom <= 0 || targetZoom <= 0) {
+    return false;
+  }
+  const zoomRatio = targetZoom / sourceZoom;
+  if (!Number.isFinite(zoomRatio) || zoomRatio <= 0) {
+    return false;
+  }
+
+  const cropX = Math.max(0, (frameEntry.canvas.width - viewportWidth) * 0.5);
+  const cropY = Math.max(0, (frameEntry.canvas.height - viewportHeight) * 0.5);
+  const sourceRectWidth = viewportWidth / zoomRatio;
+  const sourceRectHeight = viewportHeight / zoomRatio;
+  const sourceRectX = cropX + viewportWidth * 0.5 + (frameEntry.sourceFixedView.offsetX || 0)
+    - (viewportWidth * 0.5 + (fixedView.offsetX || 0)) / zoomRatio;
+  const sourceRectY = cropY + viewportHeight * 0.5 + (frameEntry.sourceFixedView.offsetY || 0)
+    - (viewportHeight * 0.5 + (fixedView.offsetY || 0)) / zoomRatio;
+
+  const clippedX = clamp(sourceRectX, 0, frameEntry.canvas.width);
+  const clippedY = clamp(sourceRectY, 0, frameEntry.canvas.height);
+  const clippedMaxX = clamp(sourceRectX + sourceRectWidth, 0, frameEntry.canvas.width);
+  const clippedMaxY = clamp(sourceRectY + sourceRectHeight, 0, frameEntry.canvas.height);
+  const clippedWidth = clippedMaxX - clippedX;
+  const clippedHeight = clippedMaxY - clippedY;
+  if (clippedWidth <= 0 || clippedHeight <= 0) {
+    return false;
+  }
+
+  const destScaleX = viewportWidth / sourceRectWidth;
+  const destScaleY = viewportHeight / sourceRectHeight;
+  const destX = (clippedX - sourceRectX) * destScaleX;
+  const destY = (clippedY - sourceRectY) * destScaleY;
+  const destWidth = clippedWidth * destScaleX;
+  const destHeight = clippedHeight * destScaleY;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(frameEntry.canvas, clippedX, clippedY, clippedWidth, clippedHeight, destX, destY, destWidth, destHeight);
+  if (frameEntry.meta) {
+    lastRenderMeta = frameEntry.meta;
+    lastFullRenderMeta = frameEntry.fullMeta || frameEntry.meta;
+  }
+  return true;
+}
+
+function pruneHistoryRenderCache() {
+  const maxEntries = getHistoryCacheSize();
+  while (historyRenderCache.size > maxEntries) {
+    const oldestKey = historyRenderCache.keys().next().value;
+    if (!oldestKey) {
+      break;
+    }
+    if (currentRenderCache && oldestKey === currentRenderCache.key && historyRenderCache.size > 1) {
+      const currentEntry = historyRenderCache.get(oldestKey);
+      historyRenderCache.delete(oldestKey);
+      historyRenderCache.set(oldestKey, currentEntry);
+      continue;
+    }
+    historyRenderCache.delete(oldestKey);
+  }
+}
+
+function getHistoryCachedFrame(key) {
+  if (!key || !historyRenderCache.has(key)) {
+    return null;
+  }
+  const entry = historyRenderCache.get(key);
+  historyRenderCache.delete(key);
+  historyRenderCache.set(key, entry);
+  return entry;
+}
+
+function cacheAccurateFrame({ key, fullCanvas, fullMeta, frameMeta, sourceFixedView }) {
+  if (!key || !fullCanvas || !fullMeta || !frameMeta) {
+    return null;
+  }
+  const cloneMeta = (value) => (typeof structuredClone === "function"
+    ? structuredClone(value)
+    : JSON.parse(JSON.stringify(value)));
+  const entry = {
+    key,
+    canvas: cloneFrameCanvas(fullCanvas),
+    fullMeta: cloneMeta(fullMeta),
+    meta: cloneMeta(frameMeta),
+    sourceFixedView: { ...(sourceFixedView || fixedView) },
+  };
+  currentRenderCache = entry;
+  historyRenderCache.delete(key);
+  historyRenderCache.set(key, entry);
+  pruneHistoryRenderCache();
+  return entry;
 }
 
 function isHelpOverlayOpen() {
@@ -1465,7 +1662,7 @@ function syncDetailedSettingsControls() {
     iterationAbsoluteMax,
     iterationStartupDefault,
     maxRandomIters,
-    panZoomIterationCap,
+    historyCacheSize,
   } = normalizeIterationSettings();
   const burnValue = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   if (detailStartupIterationsRangeEl) {
@@ -1486,6 +1683,12 @@ function syncDetailedSettingsControls() {
     detailIterationAbsoluteMaxRangeEl.value = String(iterationAbsoluteMax);
   }
   if (detailIterationAbsoluteMaxFormattedEl) detailIterationAbsoluteMaxFormattedEl.textContent = formatNumberForUi(iterationAbsoluteMax, 0);
+  if (detailHistoryCacheSizeRangeEl) {
+    detailHistoryCacheSizeRangeEl.min = String(HISTORY_CACHE_SIZE_MIN);
+    detailHistoryCacheSizeRangeEl.max = String(HISTORY_CACHE_SIZE_MAX);
+    detailHistoryCacheSizeRangeEl.value = String(historyCacheSize);
+  }
+  if (detailHistoryCacheSizeFormattedEl) detailHistoryCacheSizeFormattedEl.textContent = formatNumberForUi(historyCacheSize, 0);
   if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
   if (detailBurnFormattedEl) detailBurnFormattedEl.textContent = formatNumberForUi(burnValue, 0);
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
@@ -1506,12 +1709,6 @@ function syncDetailedSettingsControls() {
   if (detailInterestGridSizeFormattedEl) detailInterestGridSizeFormattedEl.textContent = formatNumberForUi(interestGridSize, 0);
   if (detailInterestScanIterationsRangeEl) detailInterestScanIterationsRangeEl.value = String(interestScanIterations);
   if (detailInterestScanIterationsFormattedEl) detailInterestScanIterationsFormattedEl.textContent = formatNumberForUi(interestScanIterations, 0);
-  if (detailPanZoomIterationCapRangeEl) {
-    detailPanZoomIterationCapRangeEl.min = String(PAN_ZOOM_ITERATION_CAP_MIN);
-    detailPanZoomIterationCapRangeEl.max = String(iterationAbsoluteMax);
-    detailPanZoomIterationCapRangeEl.value = String(panZoomIterationCap);
-  }
-  if (detailPanZoomIterationCapFormattedEl) detailPanZoomIterationCapFormattedEl.textContent = formatNumberForUi(panZoomIterationCap, 0);
   if (detailInterestLyapunovEnabledToggleEl) detailInterestLyapunovEnabledToggleEl.checked = interestLyapunovEnabled;
   if (detailInterestLyapunovMinExponentRangeEl) detailInterestLyapunovMinExponentRangeEl.value = String(interestLyapunovMinExponent);
   if (detailInterestLyapunovMinExponentFormattedEl) detailInterestLyapunovMinExponentFormattedEl.textContent = formatNumberForUi(interestLyapunovMinExponent, 2);
@@ -1605,6 +1802,14 @@ function applyIterationAbsoluteMax(nextValue) {
   commitCurrentStateToHistory();
 }
 
+function applyHistoryCacheSize(nextValue) {
+  appData.defaults.historyCacheSize = getHistoryCacheSize({ historyCacheSize: nextValue });
+  pruneHistoryRenderCache();
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  commitCurrentStateToHistory();
+}
+
 function applyRenderColorMode(mode) {
   const normalizedMode = String(mode || "").trim();
   appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(normalizedMode)
@@ -1661,13 +1866,6 @@ function applyInterestScanIterations(nextValue) {
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
-  commitCurrentStateToHistory();
-}
-
-function applyPanZoomIterationCap(nextValue) {
-  appData.defaults.panZoomIterationCap = normalizeIterationValue(nextValue, getPanZoomIterationCap(), PAN_ZOOM_ITERATION_CAP_MIN, getIterationAbsoluteMax());
-  syncDetailedSettingsControls();
-  saveDefaultsToStorage();
   commitCurrentStateToHistory();
 }
 
@@ -2261,6 +2459,7 @@ function loadDefaultsFromStorage() {
 }
 
 function captureCurrentState() {
+  const derivedParams = getDerivedParams();
   return {
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
@@ -2268,7 +2467,7 @@ function captureCurrentState() {
     iterationAbsoluteMax: appData.defaults.iterationAbsoluteMax,
     iterationStartupDefault: appData.defaults.iterationStartupDefault,
     maxRandomIters: appData.defaults.maxRandomIters,
-    panZoomIterationCap: appData.defaults.panZoomIterationCap,
+    historyCacheSize: appData.defaults.historyCacheSize,
     renderColorMode: appData.defaults.renderColorMode,
     renderLogStrength: appData.defaults.renderLogStrength,
     renderDensityGamma: appData.defaults.renderDensityGamma,
@@ -2289,6 +2488,10 @@ function captureCurrentState() {
     backgroundColor: appData.defaults.backgroundColor,
     colorMapStopOverrides: JSON.parse(JSON.stringify(appData.defaults.colorMapStopOverrides || {})),
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
+    derivedParams,
+    scaleMode: getScaleMode(),
+    seed: getSeedForFormula(currentFormulaId),
+    renderColoring: getRenderColoringOptions(),
     fixedView: { ...fixedView },
     viewport: {
       canvasWidth: canvas.width,
@@ -2318,6 +2521,9 @@ function commitCurrentStateToHistory() {
   }
 
   if (historyIndex < historyStates.length - 1) {
+    for (const state of historyStates.slice(historyIndex + 1)) {
+      historyRenderCache.delete(getRenderStateKey(state));
+    }
     historyStates = historyStates.slice(0, historyIndex + 1);
   }
 
@@ -2335,6 +2541,7 @@ function applyState(state) {
     return;
   }
 
+  invalidatePendingRenders();
   isApplyingHistoryState = true;
   currentFormulaId = state.formulaId;
   appData.defaults.cmapName = state.cmapName;
@@ -2346,9 +2553,7 @@ function applyState(state) {
   }
   appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
   appData.defaults.maxRandomIters = state.maxRandomIters ?? appData.defaults.maxRandomIters;
-  if (state.panZoomIterationCap != null) {
-    appData.defaults.panZoomIterationCap = state.panZoomIterationCap;
-  }
+  appData.defaults.historyCacheSize = state.historyCacheSize ?? appData.defaults.historyCacheSize;
   appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(state.renderColorMode)
     ? state.renderColorMode
     : appData.defaults.renderColorMode;
@@ -2396,7 +2601,20 @@ function applyState(state) {
   syncQuickSliderPosition();
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
-  requestDraw();
+  const cacheKey = getRenderStateKey(state);
+  const cachedFrame = getHistoryCachedFrame(cacheKey);
+  if (cachedFrame && drawCachedFrameEntry(cachedFrame)) {
+    currentRenderCache = cachedFrame;
+    drawDirty = false;
+    drawDebugOverlay(lastRenderMeta);
+    drawInterestOverlay(lastRenderMeta);
+    drawManualParamOverlay(lastRenderMeta);
+    refreshParamButtons();
+    updateQuickSliderReadout();
+    layoutFloatingActions();
+  } else {
+    requestDraw();
+  }
   isApplyingHistoryState = false;
 }
 
@@ -2689,8 +2907,52 @@ function clearTwoFingerGesture() {
   lastTwoDebug = null;
 }
 
-function beginPanZoomInteraction() {
+function cloneFixedViewSnapshot(view = fixedView) {
+  return {
+    offsetX: Number.isFinite(view?.offsetX) ? view.offsetX : 0,
+    offsetY: Number.isFinite(view?.offsetY) ? view.offsetY : 0,
+    zoom: Number.isFinite(view?.zoom) && view.zoom > 0 ? view.zoom : 1,
+  };
+}
+
+function ensurePanZoomCacheBase() {
+  if (activePanZoomCacheEntry?.canvas) {
+    return activePanZoomCacheEntry;
+  }
+
+  if (!currentRenderCache?.canvas) {
+    return null;
+  }
+
+  activePanZoomCacheEntry = {
+    key: currentRenderCache.key,
+    canvas: currentRenderCache.canvas,
+    meta: currentRenderCache.meta,
+    fullMeta: currentRenderCache.fullMeta,
+    sourceFixedView: cloneFixedViewSnapshot(),
+  };
+
+  return activePanZoomCacheEntry;
+}
+
+function clearPanZoomInteractionCache() {
+  activePanZoomCacheEntry = null;
+}
+
+function prepareFixedViewForPanZoom(reason = "manual pan/zoom") {
+  if (isAutoScale()) {
+    syncFixedViewFromLastRenderMeta();
+  }
+  setScaleModeFixed(reason);
+}
+
+function beginPanZoomInteraction(baseCacheEntry = null) {
   panZoomInteractionActive = true;
+  if (baseCacheEntry?.canvas) {
+    activePanZoomCacheEntry = baseCacheEntry;
+  } else {
+    ensurePanZoomCacheBase();
+  }
   if (panZoomSettleTimer) {
     window.clearTimeout(panZoomSettleTimer);
     panZoomSettleTimer = null;
@@ -2718,6 +2980,7 @@ function onCanvasPointerDown(event) {
     return;
   }
 
+  const isDirectTouchPointer = event.pointerType !== "mouse";
   if (event.pointerType !== "mouse") {
     event.preventDefault();
   }
@@ -2741,10 +3004,8 @@ function onCanvasPointerDown(event) {
   };
 
   if (event.pointerType === "mouse" && event.button === 2) {
-    if (isAutoScale()) {
-      syncFixedViewFromLastRenderMeta();
-    }
-    setScaleModeFixed("manual pan/zoom");
+    prepareFixedViewForPanZoom("manual pan/zoom");
+    beginPanZoomInteraction();
     interactionState = INTERACTION_STATE.PAN_MOUSE_RMB;
     primaryPointerId = event.pointerId;
     const pos = getCanvasPointerPosition(event);
@@ -2760,14 +3021,15 @@ function onCanvasPointerDown(event) {
     isManualModulating = false;
     const pos = getCanvasPointerPosition(event);
     lastPointerPosition = { x: pos.x, y: pos.y };
-    requestDraw();
+    if (!isDirectTouchPointer) {
+      requestDraw();
+    }
     return;
   }
 
   if (activePointers.size === 2) {
     const pointers = Array.from(activePointers.values());
     initializeTwoFingerGesture(pointers[0].pointerId, pointers[1].pointerId);
-    requestDraw();
   }
 }
 
@@ -2803,6 +3065,7 @@ function onCanvasPointerMove(event) {
       lastPointerPosition = { x: pos.x, y: pos.y };
       return;
     }
+    beginPanZoomInteraction();
     applyPanDelta(pos.x - lastPointerPosition.x, pos.y - lastPointerPosition.y);
     lastPointerPosition = { x: pos.x, y: pos.y };
     return;
@@ -2852,22 +3115,16 @@ function onCanvasPointerMove(event) {
   };
 
   if (!twoFingerGesture.isArmed) {
-    if (shouldZoom || shouldPan) {
-      twoFingerGesture.isArmed = true;
+    if (!shouldZoom && !shouldPan) {
+      twoFingerGesture.lastD = distance;
+      twoFingerGesture.lastMX = midpoint.x;
+      twoFingerGesture.lastMY = midpoint.y;
+      return;
     }
-    twoFingerGesture.lastD = distance;
-    twoFingerGesture.lastMX = midpoint.x;
-    twoFingerGesture.lastMY = midpoint.y;
-    return;
-  }
 
-  if ((shouldZoom || shouldPan) && isAutoScale()) {
-    syncFixedViewFromLastRenderMeta();
-    setScaleModeFixed("manual pan/zoom");
-    twoFingerGesture.lastD = distance;
-    twoFingerGesture.lastMX = midpoint.x;
-    twoFingerGesture.lastMY = midpoint.y;
-    return;
+    prepareFixedViewForPanZoom("manual pan/zoom");
+    twoFingerGesture.isArmed = true;
+    beginPanZoomInteraction();
   }
 
   if (shouldZoom && Number.isFinite(ratioStep) && ratioStep > 0) {
@@ -2890,6 +3147,8 @@ function clearPointerState(pointerId) {
     return;
   }
 
+  const endingTwoFingerGesture = interactionState === INTERACTION_STATE.TWO_ACTIVE || Boolean(twoFingerGesture);
+  const endingPanZoomGesture = endingTwoFingerGesture || interactionState === INTERACTION_STATE.PAN_MOUSE_RMB || panZoomInteractionActive;
   activePointers.delete(pointerId);
 
   if (activePointers.size === 0) {
@@ -2898,8 +3157,22 @@ function clearPointerState(pointerId) {
     lastPointerPosition = null;
     isManualModulating = false;
     clearTwoFingerGesture();
+    if (endingPanZoomGesture) {
+      schedulePanZoomSettledRedraw();
+    } else {
+      requestDraw();
+    }
+    return;
+  }
+
+  if (activePointers.size === 1 && endingTwoFingerGesture) {
+    activePointers.clear();
+    interactionState = INTERACTION_STATE.NONE;
+    primaryPointerId = null;
+    lastPointerPosition = null;
+    isManualModulating = false;
+    clearTwoFingerGesture();
     schedulePanZoomSettledRedraw();
-    requestDraw();
     return;
   }
 
@@ -2938,10 +3211,7 @@ function onCanvasPointerUp(event) {
 
 function onCanvasWheel(event) {
   event.preventDefault();
-  if (isAutoScale()) {
-    syncFixedViewFromLastRenderMeta();
-  }
-  setScaleModeFixed("manual pan/zoom");
+  prepareFixedViewForPanZoom("manual pan/zoom");
   beginPanZoomInteraction();
   const pos = getCanvasPointerPosition(event);
   const zoomFactor = Math.exp(-event.deltaY * 0.0025);
@@ -4458,15 +4728,19 @@ async function draw() {
     return;
   }
 
+  const renderGenerationAtStart = renderGeneration;
   const startedAt = performance.now();
   const didResize = resizeCanvas();
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  const panZoomIterationCap = getPanZoomIterationCap();
-  const effectiveIterationSetting = panZoomInteractionActive
-    ? Math.min(iterationSetting, panZoomIterationCap)
-    : iterationSetting;
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
-  const iterations = effectiveIterationSetting;
+  const iterations = iterationSetting;
+  if (panZoomInteractionActive && !didResize && activePanZoomCacheEntry && drawInteractionFrameFromCache(activePanZoomCacheEntry)) {
+    drawDebugOverlay(lastRenderMeta);
+    drawInterestOverlay(lastRenderMeta);
+    drawManualParamOverlay(lastRenderMeta);
+    layoutFloatingActions();
+    return;
+  }
   renderProgressStartedAt = performance.now();
   renderProgressShownThisDraw = false;
   const { pxW, pxH } = getExportSizePx(canvas);
@@ -4479,23 +4753,38 @@ async function draw() {
     Math.max(1, Math.round(pxW * cropScale)),
     Math.max(1, Math.round(pxH * cropScale)),
   );
-  const frameMetaFull = await renderFrame({
-    ctx: exportCacheCtx,
-    canvas: fullCanvas,
-    formulaId: currentFormulaId,
-    cmapName: appData.defaults.cmapName,
-    params: getDerivedParams(),
-    iterations: didResize ? Math.max(10000, Math.round(iterations * 0.6)) : iterations,
-    burn: burnSetting,
-    scaleMode: getScaleMode(),
-    fixedView,
-    seed: getSeedForFormula(currentFormulaId),
-    renderColoring: getRenderColoringOptions(),
-    backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
-    onProgress: (percent, isComplete) => {
-      updateRenderProgressToast(percent, isComplete);
-    },
-  });
+  let frameMetaFull;
+  try {
+    frameMetaFull = await renderFrame({
+      ctx: exportCacheCtx,
+      canvas: fullCanvas,
+      formulaId: currentFormulaId,
+      cmapName: appData.defaults.cmapName,
+      params: getDerivedParams(),
+      iterations,
+      burn: burnSetting,
+      scaleMode: getScaleMode(),
+      fixedView,
+      seed: getSeedForFormula(currentFormulaId),
+      renderColoring: getRenderColoringOptions(),
+      backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
+      onProgress: (percent, isComplete) => {
+        if (isRenderGenerationCurrent(renderGenerationAtStart)) {
+          updateRenderProgressToast(percent, isComplete);
+        }
+      },
+      isCancelled: () => !isRenderGenerationCurrent(renderGenerationAtStart),
+    });
+  } catch (error) {
+    if (isRenderCancelledError(error)) {
+      return;
+    }
+    throw error;
+  }
+
+  if (!isRenderGenerationCurrent(renderGenerationAtStart)) {
+    return;
+  }
 
   const viewportWidth = Math.max(1, canvas.width);
   const viewportHeight = Math.max(1, canvas.height);
@@ -4555,6 +4844,15 @@ async function draw() {
     iterations,
     renderMs: now - startedAt,
   };
+  const stateKey = getRenderStateKey();
+  cacheAccurateFrame({
+    key: stateKey,
+    fullCanvas,
+    fullMeta: lastFullRenderMeta,
+    frameMeta: lastRenderMeta,
+    sourceFixedView: fixedView,
+  });
+  clearPanZoomInteractionCache();
   renderRevision += 1;
   exportCacheMeta = {
     pxW: fullCanvas.width,
@@ -5249,13 +5547,13 @@ function registerHandlers() {
   detailStartupIterationsRangeEl?.addEventListener("input", () => applyIterationStartupDefault(detailStartupIterationsRangeEl.value));
   detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
   detailIterationAbsoluteMaxRangeEl?.addEventListener("input", () => applyIterationAbsoluteMax(detailIterationAbsoluteMaxRangeEl.value));
+  detailHistoryCacheSizeRangeEl?.addEventListener("input", () => applyHistoryCacheSize(detailHistoryCacheSizeRangeEl.value));
   detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
   detailOverlayAlphaRangeEl?.addEventListener("input", () => applyOverlayTransparency(detailOverlayAlphaRangeEl.value));
   detailInterestOverlayToggleEl?.addEventListener("change", () => applyInterestOverlayEnabled(detailInterestOverlayToggleEl.checked));
   detailInterestOverlayOpacityRangeEl?.addEventListener("input", () => applyInterestOverlayOpacity(detailInterestOverlayOpacityRangeEl.value));
   detailInterestGridSizeRangeEl?.addEventListener("input", () => applyInterestGridSize(detailInterestGridSizeRangeEl.value));
   detailInterestScanIterationsRangeEl?.addEventListener("input", () => applyInterestScanIterations(detailInterestScanIterationsRangeEl.value));
-  detailPanZoomIterationCapRangeEl?.addEventListener("input", () => applyPanZoomIterationCap(detailPanZoomIterationCapRangeEl.value));
   detailInterestLyapunovEnabledToggleEl?.addEventListener("change", () => applyInterestLyapunovEnabled(detailInterestLyapunovEnabledToggleEl.checked));
   detailInterestLyapunovMinExponentRangeEl?.addEventListener("input", () => applyInterestLyapunovMinExponent(detailInterestLyapunovMinExponentRangeEl.value));
   detailInterestLyapunovDelta0RangeEl?.addEventListener("input", () => applyInterestLyapunovDelta0(detailInterestLyapunovDelta0RangeEl.value));

@@ -50,6 +50,12 @@ const LUT_SIZE = 2048;
 const ESCAPE_ABS_BOUND = 1e6;
 
 const formulaStepById = new Map(VARIANTS.map((formula) => [formula.id, formula.step]));
+const DEFAULT_RENDER_ITERATIONS = 500000;
+const RENDER_CANCELLED_ERROR = new Error("Render cancelled");
+
+export function isRenderCancelledError(error) {
+  return error === RENDER_CANCELLED_ERROR;
+}
 
 
 export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
@@ -73,11 +79,17 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = 1000, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {}, backgroundColor = [5, 7, 12], onProgress = null }) {
+export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = DEFAULT_RENDER_ITERATIONS, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {}, backgroundColor = [5, 7, 12], onProgress = null, isCancelled = null }) {
   const step = formulaStepById.get(formulaId);
   if (!step) {
     throw new Error(`Unknown formula id: ${formulaId}`);
   }
+
+  const throwIfCancelled = () => {
+    if (typeof isCancelled === "function" && isCancelled()) {
+      throw RENDER_CANCELLED_ERROR;
+    }
+  };
 
   const width = canvas.width;
   const height = canvas.height;
@@ -99,12 +111,14 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
   let nextProgressPercent = 0;
   let lastYieldMs = performance.now();
   const maybeYieldToBrowser = async () => {
+    throwIfCancelled();
     const now = performance.now();
     if (now - lastYieldMs < 20) {
       return;
     }
     await new Promise((resolve) => window.setTimeout(resolve, 0));
     lastYieldMs = performance.now();
+    throwIfCancelled();
   };
 
   const maybeEmitProgress = (fraction, forceComplete = false) => {
@@ -125,6 +139,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
   };
 
   maybeEmitProgress(0, false);
+  throwIfCancelled();
 
   let x = Number(seed?.x);
   let y = Number(seed?.y);
