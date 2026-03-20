@@ -142,7 +142,8 @@
 
       #rangesEditorPanel,
       #formulaSettingsPanel,
-      #colorSettingsPanel {
+      #colorSettingsPanel,
+      #colorModeSettingsPanel {
         position: absolute;
         top: calc(84px + env(safe-area-inset-top));
         right: max(8px, env(safe-area-inset-right));
@@ -162,17 +163,20 @@
       }
       #rangesEditorPanel.is-hidden,
       #formulaSettingsPanel.is-hidden,
-      #colorSettingsPanel.is-hidden {
+      #colorSettingsPanel.is-hidden,
+      #colorModeSettingsPanel.is-hidden {
         display: none;
       }
 
       #formulaSettingsPanel,
       #rangesEditorPanel,
-      #colorSettingsPanel {
+      #colorSettingsPanel,
+      #colorModeSettingsPanel {
         z-index: 42;
       }
       #formulaSettingsPanel,
-      #colorSettingsPanel {
+      #colorSettingsPanel,
+      #colorModeSettingsPanel {
         z-index: 49;
       }
       .rangesEditorHead {
@@ -221,18 +225,9 @@
         gap: 8px;
         align-items: stretch;
       }
-      .formulaPickerSettingsBtn {
-        min-width: 34px;
-        min-height: 34px;
-        border-radius: 10px;
-        border: 2px solid var(--param-outline);
-        background: var(--panel-bg);
-        color: var(--text);
-        font-size: var(--ui-font-size);
-        line-height: 1;
-      }
-      
-      .colorPickerSettingsBtn {
+      .formulaPickerSettingsBtn,
+      .colorPickerSettingsBtn,
+      .pickerSettingsBtn {
         min-width: 34px;
         min-height: 34px;
         border-radius: 10px;
@@ -253,6 +248,36 @@
       .colorStopTile.is-transparent::after { transform:rotate(35deg); }
       .colorStopActions { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; }
 
+      .pickerSection {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+        border-bottom: 1px solid rgba(var(--ui-gray-rgb), 0.12);
+      }
+      .pickerSection.is-hidden,
+      .pickerBodyHeading.is-hidden {
+        display: none;
+      }
+      .pickerSectionLabelRow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .pickerSectionLabel {
+        font-size: var(--ui-font-size);
+        font-weight: var(--ui-font-weight);
+      }
+      .pickerSectionActions {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .pickerBodyHeading {
+        padding: 10px 10px 0;
+        font-size: var(--ui-font-size);
+        font-weight: var(--ui-font-weight);
+      }
 
       .rangeInput {
         width: 100%;
@@ -1150,7 +1175,8 @@
       @media (max-width: 900px), (max-height: 430px) {
         #rangesEditorPanel,
         #formulaSettingsPanel,
-        #colorSettingsPanel {
+        #colorSettingsPanel,
+        #colorModeSettingsPanel {
           top: auto;
           right: max(6px, env(safe-area-inset-right));
           left: max(6px, env(safe-area-inset-left));
@@ -1192,38 +1218,6 @@ Scale</button>
             <div class="perfControlRow">
               <input id="detailBackgroundColor" class="perfRangeInput" type="color" aria-label="Background color" />
               <div id="detailBackgroundColorValue" class="perfFormattedValue">#05070c</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Coloring mode</span><button id="infoColorMode" class="perfInfoBtn" type="button">i</button></div>
-            <select id="detailColorModeSelect" class="perfSelect" aria-label="Coloring mode">
-              <option value="iteration_order">Iteration order</option>
-              <option value="hit_density_linear">Hit density (linear)</option>
-              <option value="hit_density_log">Hit density (log)</option>
-              <option value="hit_density_gamma">Hit density (gamma)</option>
-              <option value="hit_density_percentile">Hit density (percentile)</option>
-              <option value="hybrid_density_age">Hybrid (density + recency)</option>
-            </select>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Log strength</span><button id="infoLogStrength" class="perfInfoBtn" type="button">i</button></div>
-            <div class="perfControlRow">
-              <input id="detailLogStrengthRange" class="perfRangeInput" type="range" min="0.5" max="30" step="0.1" />
-              <div id="detailLogStrengthFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Gamma</span><button id="infoDensityGamma" class="perfInfoBtn" type="button">i</button></div>
-            <div class="perfControlRow">
-              <input id="detailDensityGammaRange" class="perfRangeInput" type="range" min="0.2" max="2" step="0.01" />
-              <div id="detailDensityGammaFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Hybrid age blend</span><button id="infoHybridBlend" class="perfInfoBtn" type="button">i</button></div>
-            <div class="perfControlRow">
-              <input id="detailHybridBlendRange" class="perfRangeInput" type="range" min="0" max="1" step="0.01" />
-              <div id="detailHybridBlendFormatted" class="perfFormattedValue">--</div>
             </div>
           </div>
         </div>
@@ -1392,6 +1386,35 @@ Scale</button>
           <p id="rangesEditorWarning" aria-live="polite"></p>
         </div>
       </aside>
+      <aside id="colorModeSettingsPanel" class="is-hidden" aria-label="Coloring mode settings">
+        <div class="rangesEditorHead">
+          <strong>Coloring mode settings</strong>
+          <button id="colorModeSettingsClose" type="button" aria-label="Close coloring mode settings">✕</button>
+        </div>
+        <div class="rangesEditorBody">
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Log strength</span><button id="infoLogStrength" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfControlRow">
+              <input id="detailLogStrengthRange" class="perfRangeInput" type="range" min="0.5" max="30" step="0.1" />
+              <div id="detailLogStrengthFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Gamma</span><button id="infoDensityGamma" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfControlRow">
+              <input id="detailDensityGammaRange" class="perfRangeInput" type="range" min="0.2" max="2" step="0.01" />
+              <div id="detailDensityGammaFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Hybrid age blend</span><button id="infoHybridBlend" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfControlRow">
+              <input id="detailHybridBlendRange" class="perfRangeInput" type="range" min="0" max="1" step="0.01" />
+              <div id="detailHybridBlendFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+        </div>
+      </aside>
       <aside id="colorSettingsPanel" class="is-hidden" aria-label="Color map editor">
         <div class="rangesEditorHead">
           <strong id="colorSettingsName">Color map</strong>
@@ -1433,6 +1456,24 @@ Scale</button>
             <span id="pickerTitle">Pick</span>
             <button id="pickerClose" type="button" aria-label="Close picker">✕</button>
           </div>
+          <div id="colorModePickerSection" class="pickerSection is-hidden">
+            <div class="pickerSectionLabelRow">
+              <span class="pickerSectionLabel">Coloring mode</span>
+              <div class="pickerSectionActions">
+                <button id="infoColorMode" class="perfInfoBtn" type="button" aria-label="Coloring mode information">i</button>
+                <button id="colorModeSettingsToggle" class="pickerSettingsBtn" type="button" aria-label="Open coloring mode settings">⚙</button>
+              </div>
+            </div>
+            <select id="detailColorModeSelect" class="perfSelect" aria-label="Coloring mode">
+              <option value="iteration_order">Iteration order</option>
+              <option value="hit_density_linear">Hit density (linear)</option>
+              <option value="hit_density_log">Hit density (log)</option>
+              <option value="hit_density_gamma">Hit density (gamma)</option>
+              <option value="hit_density_percentile">Hit density (percentile)</option>
+              <option value="hybrid_density_age">Hybrid (density + recency)</option>
+            </select>
+          </div>
+          <div id="pickerBodyHeading" class="pickerBodyHeading is-hidden">Select color map</div>
           <div id="pickerList"></div>
         </div>
       </div>

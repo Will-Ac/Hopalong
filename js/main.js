@@ -126,6 +126,11 @@ const pickerTitle = document.getElementById("pickerTitle");
 const pickerClose = document.getElementById("pickerClose");
 const pickerList = document.getElementById("pickerList");
 const pickerPanel = document.getElementById("pickerPanel");
+const pickerBodyHeadingEl = document.getElementById("pickerBodyHeading");
+const colorModePickerSectionEl = document.getElementById("colorModePickerSection");
+const colorModeSettingsPanelEl = document.getElementById("colorModeSettingsPanel");
+const colorModeSettingsCloseEl = document.getElementById("colorModeSettingsClose");
+const colorModeSettingsToggleEl = document.getElementById("colorModeSettingsToggle");
 const paramOverlayEl = document.getElementById("paramOverlay");
 const paramRowEl = document.getElementById("paramRow");
 const bottomBarEl = document.querySelector(".bottomBar");
@@ -301,6 +306,7 @@ let lastComputedUiMetrics = { fontSize: null, tileSize: null };
 let lastSizingViewport = { width: 0, height: 0 };
 let lastQuickSliderTopTapAt = 0;
 let helpOverlayController = null;
+let activeInfoAnchorEl = null;
 
 const HOLD_REPEAT_MS_DEFAULT = 60;
 const HOLD_REPEAT_MS_MIN = 20;
@@ -1404,10 +1410,10 @@ function openRangesEditor() {
 }
 
 function closeRangesEditor() {
+  hideSettingsInfo();
   rangesEditorPanelEl?.classList.add("is-hidden");
   rangesEditorToggleEl?.classList.remove("is-active");
   rangesEditorToggleEl?.setAttribute("aria-pressed", "false");
-  hideSettingsInfo();
   helpOverlayController?.render();
 }
 
@@ -1728,19 +1734,39 @@ function getRenderColoringOptions() {
   };
 }
 
+function resolveInfoPopupContainer(anchorEl = null) {
+  if (anchorEl && colorModeSettingsPanelEl?.contains(anchorEl)) {
+    return colorModeSettingsPanelEl;
+  }
+  if (anchorEl && pickerPanel?.contains(anchorEl)) {
+    return pickerPanel;
+  }
+  return rangesEditorPanelEl || pickerPanel || colorModeSettingsPanelEl || document.body;
+}
+
 function showSettingsInfo(message, anchorEl = null) {
   if (!settingsInfoPopupEl || !settingsInfoTextEl) return;
+  if (anchorEl && activeInfoAnchorEl === anchorEl && !settingsInfoPopupEl.classList.contains("is-hidden")) {
+    hideSettingsInfo();
+    return;
+  }
+
+  const containerEl = resolveInfoPopupContainer(anchorEl);
+  if (containerEl && settingsInfoPopupEl.parentElement !== containerEl) {
+    containerEl.appendChild(settingsInfoPopupEl);
+  }
+
+  activeInfoAnchorEl = anchorEl;
   settingsInfoTextEl.textContent = message;
   settingsInfoPopupEl.classList.remove("is-hidden");
 
-  const panelRect = rangesEditorPanelEl?.getBoundingClientRect();
+  const panelRect = containerEl?.getBoundingClientRect();
   const anchorRect = anchorEl?.getBoundingClientRect();
   if (panelRect && anchorRect) {
-    const anchorInColorTab = Boolean(colorTabPanelEl && anchorEl && colorTabPanelEl.contains(anchorEl));
-    const left = anchorInColorTab
-      ? 8
-      : Math.max(8, Math.min(panelRect.width - 290, anchorRect.left - panelRect.left - 240));
-    const top = Math.max(8, Math.min(panelRect.height - 120, anchorRect.top - panelRect.top + 28));
+    const popupWidth = 280;
+    const popupHeight = 120;
+    const left = Math.max(8, Math.min(panelRect.width - popupWidth - 8, anchorRect.right - panelRect.left - popupWidth));
+    const top = Math.max(8, Math.min(panelRect.height - popupHeight - 8, anchorRect.bottom - panelRect.top + 8));
     settingsInfoPopupEl.style.left = `${left}px`;
     settingsInfoPopupEl.style.top = `${top}px`;
   } else {
@@ -1750,6 +1776,7 @@ function showSettingsInfo(message, anchorEl = null) {
 }
 
 function hideSettingsInfo() {
+  activeInfoAnchorEl = null;
   settingsInfoPopupEl?.classList.add("is-hidden");
 }
 
@@ -2465,7 +2492,7 @@ function isEventInsideInteractiveUi(eventTarget) {
     return false;
   }
 
-  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #colorSettingsPanel, #rangesEditorToggle"));
+  return Boolean(eventTarget.closest("button, input, #paramOverlay, #quickSliderOverlay, #pickerOverlay, #floatingActions, #rangesEditorPanel, #formulaSettingsPanel, #colorSettingsPanel, #colorModeSettingsPanel, #rangesEditorToggle"));
 }
 
 function handleScreenHistoryNavigation(event) {
@@ -2976,6 +3003,8 @@ function closePicker({ force = false } = {}) {
     return;
   }
 
+  hideSettingsInfo();
+  closeColorModeSettingsPanel();
   activePicker = null;
   activePickerTrigger = null;
   pickerOverlay.classList.remove("is-open");
@@ -3047,8 +3076,27 @@ function layoutColorSettingsPanel() {
   helpOverlayController?.scheduleRender();
 }
 
+function layoutColorModeSettingsPanel() {
+  if (!colorModeSettingsPanelEl || colorModeSettingsPanelEl.classList.contains("is-hidden")) {
+    return;
+  }
+
+  const margin = 8;
+  const viewportWidth = window.innerWidth;
+  const pickerRect = pickerPanel?.getBoundingClientRect();
+  const panelWidth = colorModeSettingsPanelEl.getBoundingClientRect().width || Math.min(380, viewportWidth - margin * 2);
+  const targetLeft = pickerRect
+    ? Math.max(margin, pickerRect.left - panelWidth - 8)
+    : margin;
+  colorModeSettingsPanelEl.style.left = `${Math.round(Math.min(targetLeft, viewportWidth - panelWidth - margin))}px`;
+  colorModeSettingsPanelEl.style.right = "auto";
+  helpOverlayController?.scheduleRender();
+}
+
 function renderFormulaPicker() {
   pickerTitle.textContent = "Select formula";
+  if (colorModePickerSectionEl) colorModePickerSectionEl.classList.add("is-hidden");
+  if (pickerBodyHeadingEl) pickerBodyHeadingEl.classList.add("is-hidden");
   pickerList.innerHTML = "";
 
   for (const formula of appData.formulas) {
@@ -3112,7 +3160,12 @@ function renderFormulaPicker() {
 }
 
 function renderColorMapPicker() {
-  pickerTitle.textContent = "Select color map";
+  pickerTitle.textContent = "Color map";
+  if (colorModePickerSectionEl) colorModePickerSectionEl.classList.remove("is-hidden");
+  if (pickerBodyHeadingEl) {
+    pickerBodyHeadingEl.textContent = "Select color map";
+    pickerBodyHeadingEl.classList.remove("is-hidden");
+  }
   pickerList.innerHTML = "";
 
   for (const cmapName of appData.colormaps) {
@@ -3273,6 +3326,19 @@ function closeColorSettingsPanel() {
   saveDefaultsToStorage();
   helpOverlayController?.render();
 }
+
+function openColorModeSettingsPanel() {
+  colorModeSettingsPanelEl?.classList.remove("is-hidden");
+  hideSettingsInfo();
+  layoutColorModeSettingsPanel();
+  helpOverlayController?.render();
+}
+
+function closeColorModeSettingsPanel() {
+  colorModeSettingsPanelEl?.classList.add("is-hidden");
+  hideSettingsInfo();
+  helpOverlayController?.render();
+}
 function openPicker(kind, triggerEl) {
   activePicker = kind;
   activePickerTrigger = triggerEl;
@@ -3280,12 +3346,14 @@ function openPicker(kind, triggerEl) {
   pickerOverlay.setAttribute("aria-hidden", "false");
 
   if (kind === "formula") {
+    closeColorModeSettingsPanel();
     renderFormulaPicker();
   } else {
     renderColorMapPicker();
   }
 
   layoutPickerPanel();
+  layoutColorModeSettingsPanel();
   helpOverlayController?.render();
 }
 
@@ -5079,6 +5147,9 @@ function initHelpOverlay() {
       if (rangesEditorPanelEl && !rangesEditorPanelEl.classList.contains("is-hidden")) {
         contexts.push("settingsPanel");
       }
+      if (colorModeSettingsPanelEl && !colorModeSettingsPanelEl.classList.contains("is-hidden")) {
+        contexts.push("colorModeSettingsPanel");
+      }
 
       return contexts;
     },
@@ -5312,6 +5383,12 @@ function registerHandlers() {
   });
 
   colorSettingsCloseEl?.addEventListener("click", closeColorSettingsPanel);
+  colorModeSettingsToggleEl?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openColorModeSettingsPanel();
+  });
+  colorModeSettingsCloseEl?.addEventListener("click", closeColorModeSettingsPanel);
 
   infoMaxRandomItersEl?.addEventListener("click", (event) => {
     showSettingsInfo("Max random iterations limits the upper bound for randomization of iteration count.", event.currentTarget);
@@ -5334,7 +5411,17 @@ function registerHandlers() {
   infoHybridBlendEl?.addEventListener("click", (event) => {
     showSettingsInfo("Hybrid age blend mixes density color with recency color. Increase to make newer orbit paths more visible.", event.currentTarget);
   });
-  settingsInfoPopupEl?.addEventListener("click", hideSettingsInfo);
+
+  document.addEventListener("pointerdown", (event) => {
+    if (settingsInfoPopupEl?.classList.contains("is-hidden")) {
+      return;
+    }
+    const target = event.target;
+    if (settingsInfoPopupEl?.contains(target) || activeInfoAnchorEl?.contains(target)) {
+      return;
+    }
+    hideSettingsInfo();
+  }, true);
 
   canvas.style.touchAction = "none";
   canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: false });
@@ -5390,6 +5477,7 @@ function registerHandlers() {
       }
       layoutFormulaSettingsPanel();
       layoutColorSettingsPanel();
+      layoutColorModeSettingsPanel();
       layoutFloatingActions();
       if (toastEl?.classList.contains("is-visible")) {
         positionToastForTopActions();
@@ -5410,6 +5498,7 @@ function registerHandlers() {
       }
       layoutFormulaSettingsPanel();
       layoutColorSettingsPanel();
+      layoutColorModeSettingsPanel();
       layoutFloatingActions();
       if (toastEl?.classList.contains("is-visible")) {
         positionToastForTopActions();

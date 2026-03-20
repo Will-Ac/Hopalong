@@ -50,6 +50,9 @@ const TARGET_SELECTORS = {
   formulaPickerSettings: ".formulaPickerSettingsBtn",
   colorPickerOption: ".colorPickerOption",
   colorPickerSettings: ".colorPickerSettingsBtn",
+  colorModePickerSection: "#colorModePickerSection",
+  colorModeSettingsToggle: "#colorModeSettingsToggle",
+  colorModeSettingsPanel: "#colorModeSettingsPanel",
   rangesEditorPanel: "#rangesEditorPanel",
   rangesEditorClose: "#rangesEditorClose",
   settingsTabColor: "#settingsTabColor",
@@ -91,6 +94,22 @@ const PANEL_HELP_ITEMS = {
   ],
   colorPanel: [
     {
+      id: "panel-color-mode",
+      context: "colorPanel",
+      group: "panel",
+      lines: [{ action: "Coloring mode", body: "choose how the attractor is colored" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#detailColorModeSelect", attach: "center" },
+    },
+    {
+      id: "panel-color-mode-settings",
+      context: "colorPanel",
+      group: "panel",
+      lines: [{ action: "Mode tuning", body: "tap the gear for Log strength, Gamma, and Hybrid age blend" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#colorModeSettingsToggle", attach: "center" },
+    },
+    {
       id: "panel-color-choose",
       context: "colorPanel",
       group: "panel",
@@ -102,7 +121,7 @@ const PANEL_HELP_ITEMS = {
       id: "panel-color-settings",
       context: "colorPanel",
       group: "panel",
-      lines: [{ action: "Open settings", body: "tap the gear" }],
+      lines: [{ action: "Open map settings", body: "tap a row gear" }],
       label: { x: 0.2, y: 0.2 },
       target: { selector: ".colorPickerSettingsBtn", attach: "center" },
     },
@@ -113,6 +132,24 @@ const PANEL_HELP_ITEMS = {
       lines: [{ action: "Close panel", body: "tap ×" }],
       label: { x: 0.2, y: 0.2 },
       target: { selector: "#pickerClose", attach: "center" },
+    },
+  ],
+  colorModeSettingsPanel: [
+    {
+      id: "panel-color-mode-tuning",
+      context: "colorModeSettingsPanel",
+      group: "panel",
+      lines: [{ action: "Adjust tuning", body: "refine the selected coloring behavior" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#colorModeSettingsPanel .perfSettingCard", attach: "center" },
+    },
+    {
+      id: "panel-color-mode-close",
+      context: "colorModeSettingsPanel",
+      group: "panel",
+      lines: [{ action: "Close panel", body: "tap × when finished" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#colorModeSettingsClose", attach: "center" },
     },
   ],
   settingsPanel: [
@@ -147,6 +184,7 @@ const HELP_CONTEXT_PANEL_SELECTORS = {
   formulaPanel: "#pickerPanel",
   colorPanel: "#pickerPanel",
   settingsPanel: "#rangesEditorPanel",
+  colorModeSettingsPanel: "#colorModeSettingsPanel",
 };
 
 function clamp(value, min, max) {
@@ -976,6 +1014,9 @@ function buildPanelForbiddenRegions(activeContexts) {
 
 function getPanelContextPreferredSide(context) {
   if (context === "settingsPanel") {
+    return "left";
+  }
+  if (context === "colorModeSettingsPanel") {
     return "left";
   }
   return "right";
