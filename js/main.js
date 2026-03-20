@@ -2931,6 +2931,7 @@ function renderFormulaPicker() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "pickerOption";
+    button.classList.add("formulaPickerOption");
     if (formula.id === currentFormulaId) {
       button.classList.add("is-selected");
     }
@@ -2991,6 +2992,7 @@ function renderColorMapPicker() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "pickerOption";
+    button.classList.add("colorPickerOption");
     if (cmapName === appData.defaults.cmapName) {
       button.classList.add("is-selected");
     }

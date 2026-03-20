@@ -45,9 +45,10 @@ const TARGET_SELECTORS = {
   randomButton: "#randomModeBtn",
   quickSliderLabel: "#qsLabel",
   pickerPanel: "#pickerPanel",
-  pickerList: "#pickerList",
   pickerClose: "#pickerClose",
+  formulaPickerOption: ".formulaPickerOption",
   formulaPickerSettings: ".formulaPickerSettingsBtn",
+  colorPickerOption: ".colorPickerOption",
   colorPickerSettings: ".colorPickerSettingsBtn",
   rangesEditorPanel: "#rangesEditorPanel",
   rangesEditorClose: "#rangesEditorClose",
@@ -68,21 +69,21 @@ const PANEL_HELP_ITEMS = {
       group: "panel",
       lines: [{ action: "Choose formula", body: "tap a formula" }],
       label: { x: 0.2, y: 0.2 },
-      target: { selector: "#pickerList", attach: "left" },
+      target: { selector: ".formulaPickerOption", attach: "center" },
     },
     {
       id: "panel-formula-settings",
       group: "panel",
       lines: [{ action: "Open settings", body: "tap the gear" }],
       label: { x: 0.2, y: 0.2 },
-      target: { selector: ".formulaPickerSettingsBtn", attach: "right" },
+      target: { selector: ".formulaPickerSettingsBtn", attach: "center" },
     },
     {
       id: "panel-formula-close",
       group: "panel",
       lines: [{ action: "Close panel", body: "tap ×" }],
       label: { x: 0.2, y: 0.2 },
-      target: { selector: "#pickerClose", attach: "right" },
+      target: { selector: "#pickerClose", attach: "center" },
     },
   ],
   colorPanel: [
@@ -91,21 +92,21 @@ const PANEL_HELP_ITEMS = {
       group: "panel",
       lines: [{ action: "Choose color map", body: "tap a map" }],
       label: { x: 0.2, y: 0.2 },
-      target: { selector: "#pickerList", attach: "left" },
+      target: { selector: ".colorPickerOption", attach: "center" },
     },
     {
       id: "panel-color-settings",
       group: "panel",
       lines: [{ action: "Open settings", body: "tap the gear" }],
       label: { x: 0.2, y: 0.2 },
-      target: { selector: ".colorPickerSettingsBtn", attach: "right" },
+      target: { selector: ".colorPickerSettingsBtn", attach: "center" },
     },
     {
       id: "panel-color-close",
       group: "panel",
       lines: [{ action: "Close panel", body: "tap ×" }],
       label: { x: 0.2, y: 0.2 },
-      target: { selector: "#pickerClose", attach: "right" },
+      target: { selector: "#pickerClose", attach: "center" },
     },
   ],
   settingsPanel: [
@@ -114,21 +115,21 @@ const PANEL_HELP_ITEMS = {
       group: "panel",
       lines: [{ action: "Color tab", body: "open color settings" }],
       label: { x: 0.2, y: 0.2 },
-      target: { selector: "#settingsTabColor", attach: "left" },
+      target: { selector: "#settingsTabColor", attach: "center" },
     },
     {
       id: "panel-settings-general",
       group: "panel",
       lines: [{ action: "General tab", body: "open general settings" }],
       label: { x: 0.2, y: 0.2 },
-      target: { selector: "#settingsTabGeneral", attach: "left" },
+      target: { selector: "#settingsTabGeneral", attach: "center" },
     },
     {
       id: "panel-settings-close",
       group: "panel",
       lines: [{ action: "Close panel", body: "tap ×" }],
       label: { x: 0.2, y: 0.2 },
-      target: { selector: "#rangesEditorClose", attach: "right" },
+      target: { selector: "#rangesEditorClose", attach: "center" },
     },
   ],
 };
@@ -195,6 +196,18 @@ function getArrowSourcePoint(labelRect, mode) {
     return { x: labelRect.left + labelRect.width / 2, y: labelRect.top };
   }
   return null;
+}
+
+function expandRect(rect, padding = 0) {
+  if (!rect) return null;
+  return {
+    left: rect.left - padding,
+    top: rect.top - padding,
+    right: rect.right + padding,
+    bottom: rect.bottom + padding,
+    width: rect.width + padding * 2,
+    height: rect.height + padding * 2,
+  };
 }
 
 export function createHelpOverlay(options) {
@@ -656,13 +669,13 @@ const HELP_PLACEMENT_POLICY = {
     priority: 1,
     wrappingAllowed: true,
     shrinkAllowed: true,
-    requiredTargets: ["pickerPanel", "pickerList"],
+    requiredTargets: ["formulaPickerOption"],
     preferredPlacement: {
       primitive: "relativeToTarget",
-      targetKey: "pickerPanel",
+      targetKey: "formulaPickerOption",
       relation: {
-        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
-        y: { sourceEdge: "top", selfEdge: "top", offset: 54 },
+        x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
       },
     },
     fallbackPlacements: [
@@ -670,7 +683,7 @@ const HELP_PLACEMENT_POLICY = {
         primitive: "relativeToTarget",
         targetKey: "pickerPanel",
         relation: {
-          x: { sourceEdge: "left", selfEdge: "left", offset: 12 },
+          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
           y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
         },
       },
@@ -685,17 +698,17 @@ const HELP_PLACEMENT_POLICY = {
       primitive: "relativeToTarget",
       targetKey: "formulaPickerSettings",
       relation: {
-        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
-        y: { sourceEdge: "top", selfEdge: "top", offset: -4 },
+        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
       },
     },
     fallbackPlacements: [
       {
-        primitive: "relativeToGroup",
-        groupId: "panel-formula-choose",
+        primitive: "relativeToTarget",
+        targetKey: "pickerPanel",
         relation: {
-          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+          x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 58 },
         },
       },
     ],
@@ -709,17 +722,17 @@ const HELP_PLACEMENT_POLICY = {
       primitive: "relativeToTarget",
       targetKey: "pickerClose",
       relation: {
-        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
-        y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
+        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
       },
     },
     fallbackPlacements: [
       {
-        primitive: "relativeToGroup",
-        groupId: "panel-formula-settings",
+        primitive: "relativeToTarget",
+        targetKey: "pickerPanel",
         relation: {
-          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+          x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 12 },
         },
       },
     ],
@@ -728,13 +741,13 @@ const HELP_PLACEMENT_POLICY = {
     priority: 1,
     wrappingAllowed: true,
     shrinkAllowed: true,
-    requiredTargets: ["pickerPanel", "pickerList"],
+    requiredTargets: ["colorPickerOption"],
     preferredPlacement: {
       primitive: "relativeToTarget",
-      targetKey: "pickerPanel",
+      targetKey: "colorPickerOption",
       relation: {
-        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
-        y: { sourceEdge: "top", selfEdge: "top", offset: 54 },
+        x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
       },
     },
     fallbackPlacements: [
@@ -742,7 +755,7 @@ const HELP_PLACEMENT_POLICY = {
         primitive: "relativeToTarget",
         targetKey: "pickerPanel",
         relation: {
-          x: { sourceEdge: "left", selfEdge: "left", offset: 12 },
+          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
           y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
         },
       },
@@ -757,17 +770,17 @@ const HELP_PLACEMENT_POLICY = {
       primitive: "relativeToTarget",
       targetKey: "colorPickerSettings",
       relation: {
-        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
-        y: { sourceEdge: "top", selfEdge: "top", offset: -4 },
+        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
       },
     },
     fallbackPlacements: [
       {
-        primitive: "relativeToGroup",
-        groupId: "panel-color-choose",
+        primitive: "relativeToTarget",
+        targetKey: "pickerPanel",
         relation: {
-          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+          x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 58 },
         },
       },
     ],
@@ -781,17 +794,17 @@ const HELP_PLACEMENT_POLICY = {
       primitive: "relativeToTarget",
       targetKey: "pickerClose",
       relation: {
-        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
-        y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
+        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
       },
     },
     fallbackPlacements: [
       {
-        primitive: "relativeToGroup",
-        groupId: "panel-color-settings",
+        primitive: "relativeToTarget",
+        targetKey: "pickerPanel",
         relation: {
-          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+          x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 12 },
         },
       },
     ],
@@ -803,10 +816,10 @@ const HELP_PLACEMENT_POLICY = {
     requiredTargets: ["rangesEditorPanel", "settingsTabColor"],
     preferredPlacement: {
       primitive: "relativeToTarget",
-      targetKey: "rangesEditorPanel",
+      targetKey: "settingsTabColor",
       relation: {
-        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
-        y: { sourceEdge: "top", selfEdge: "top", offset: 62 },
+        x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
       },
     },
     fallbackPlacements: [
@@ -814,7 +827,7 @@ const HELP_PLACEMENT_POLICY = {
         primitive: "relativeToTarget",
         targetKey: "rangesEditorPanel",
         relation: {
-          x: { sourceEdge: "left", selfEdge: "left", offset: 12 },
+          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
           y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
         },
       },
@@ -829,17 +842,17 @@ const HELP_PLACEMENT_POLICY = {
       primitive: "relativeToTarget",
       targetKey: "settingsTabGeneral",
       relation: {
-        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
-        y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+        x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
       },
     },
     fallbackPlacements: [
       {
-        primitive: "relativeToGroup",
-        groupId: "panel-settings-color",
+        primitive: "relativeToTarget",
+        targetKey: "rangesEditorPanel",
         relation: {
-          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 58 },
         },
       },
     ],
@@ -853,17 +866,17 @@ const HELP_PLACEMENT_POLICY = {
       primitive: "relativeToTarget",
       targetKey: "rangesEditorClose",
       relation: {
-        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
-        y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
+        x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
       },
     },
     fallbackPlacements: [
       {
-        primitive: "relativeToGroup",
-        groupId: "panel-settings-general",
+        primitive: "relativeToTarget",
+        targetKey: "rangesEditorPanel",
         relation: {
-          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 12 },
         },
       },
     ],
@@ -930,13 +943,20 @@ function resolveVisibleHelpContexts() {
 function resolveHelpContent() {
   const activeContexts = resolveVisibleHelpContexts();
   if (activeContexts.length === 1 && activeContexts[0] === "main") {
-    return { groups: MAIN_HELP_ITEMS, brackets: HELP_GROUP_BRACKETS };
+    return { groups: MAIN_HELP_ITEMS, brackets: HELP_GROUP_BRACKETS, activeContexts: [] };
   }
 
   return {
     groups: activeContexts.flatMap((context) => PANEL_HELP_ITEMS[context] || []),
     brackets: [],
+    activeContexts,
   };
+}
+
+function buildPanelForbiddenRegions(activeContexts) {
+  return activeContexts
+    .map((context) => expandRect(getRect(HELP_CONTEXT_PANEL_SELECTORS[context]), 8))
+    .filter(Boolean);
 }
 
 function resolveActiveItems(registry, rects) {
@@ -1440,13 +1460,14 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
     const tileTopEdge = Number.isFinite(paramOverlayRect?.top) ? paramOverlayRect.top : uiTop;
     const alignedBottomGuideY = Math.round(tileTopEdge - LAYOUT.alignedTileGuideOffset);
 
-    const { groups, brackets } = resolveHelpContent();
+    const { groups, brackets, activeContexts = [] } = resolveHelpContent();
     const registry = buildHelpItemRegistry(groups);
     const activeItems = resolveActiveItems(registry, rects);
     const models = buildLabelModels(activeItems);
     const layouts = createOrMeasureLabels({ models, viewportWidth, margin });
 
     const forbiddenRegions = buildUiForbiddenRegions(rects, uiTop, viewportWidth, margin);
+    forbiddenRegions.push(...buildPanelForbiddenRegions(activeContexts));
     const anchors = resolveAnchors({ rects, viewportWidth, viewportHeight, margin, uiTop });
 
     placeGroupsInPriorityOrder({
