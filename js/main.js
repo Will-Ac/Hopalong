@@ -2965,6 +2965,7 @@ function onCanvasPointerDown(event) {
     return;
   }
 
+  const isDirectTouchPointer = event.pointerType !== "mouse";
   if (event.pointerType !== "mouse") {
     event.preventDefault();
   }
@@ -3005,14 +3006,15 @@ function onCanvasPointerDown(event) {
     isManualModulating = false;
     const pos = getCanvasPointerPosition(event);
     lastPointerPosition = { x: pos.x, y: pos.y };
-    requestDraw();
+    if (!isDirectTouchPointer) {
+      requestDraw();
+    }
     return;
   }
 
   if (activePointers.size === 2) {
     const pointers = Array.from(activePointers.values());
     initializeTwoFingerGesture(pointers[0].pointerId, pointers[1].pointerId);
-    requestDraw();
   }
 }
 
