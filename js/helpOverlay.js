@@ -44,11 +44,100 @@ const TARGET_SELECTORS = {
   randomTile: "#randomModeTile",
   randomButton: "#randomModeBtn",
   quickSliderLabel: "#qsLabel",
+  pickerPanel: "#pickerPanel",
+  pickerList: "#pickerList",
+  pickerClose: "#pickerClose",
+  formulaPickerSettings: ".formulaPickerSettingsBtn",
+  colorPickerSettings: ".colorPickerSettingsBtn",
+  rangesEditorPanel: "#rangesEditorPanel",
+  rangesEditorClose: "#rangesEditorClose",
+  settingsTabColor: "#settingsTabColor",
+  settingsTabGeneral: "#settingsTabGeneral",
 };
 
 const SELECTOR_TO_TARGET_KEY = Object.fromEntries(
   Object.entries(TARGET_SELECTORS).map(([key, selector]) => [selector, key]),
 );
+
+const MAIN_HELP_ITEMS = HELP_OVERLAY_GROUPS;
+
+const PANEL_HELP_ITEMS = {
+  formulaPanel: [
+    {
+      id: "panel-formula-choose",
+      group: "panel",
+      lines: [{ action: "Choose formula", body: "tap a formula" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#pickerList", attach: "left" },
+    },
+    {
+      id: "panel-formula-settings",
+      group: "panel",
+      lines: [{ action: "Open settings", body: "tap the gear" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: ".formulaPickerSettingsBtn", attach: "right" },
+    },
+    {
+      id: "panel-formula-close",
+      group: "panel",
+      lines: [{ action: "Close panel", body: "tap ×" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#pickerClose", attach: "right" },
+    },
+  ],
+  colorPanel: [
+    {
+      id: "panel-color-choose",
+      group: "panel",
+      lines: [{ action: "Choose color map", body: "tap a map" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#pickerList", attach: "left" },
+    },
+    {
+      id: "panel-color-settings",
+      group: "panel",
+      lines: [{ action: "Open settings", body: "tap the gear" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: ".colorPickerSettingsBtn", attach: "right" },
+    },
+    {
+      id: "panel-color-close",
+      group: "panel",
+      lines: [{ action: "Close panel", body: "tap ×" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#pickerClose", attach: "right" },
+    },
+  ],
+  settingsPanel: [
+    {
+      id: "panel-settings-color",
+      group: "panel",
+      lines: [{ action: "Color tab", body: "open color settings" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#settingsTabColor", attach: "left" },
+    },
+    {
+      id: "panel-settings-general",
+      group: "panel",
+      lines: [{ action: "General tab", body: "open general settings" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#settingsTabGeneral", attach: "left" },
+    },
+    {
+      id: "panel-settings-close",
+      group: "panel",
+      lines: [{ action: "Close panel", body: "tap ×" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#rangesEditorClose", attach: "right" },
+    },
+  ],
+};
+
+const HELP_CONTEXT_PANEL_SELECTORS = {
+  formulaPanel: "#pickerPanel",
+  colorPanel: "#pickerPanel",
+  settingsPanel: "#rangesEditorPanel",
+};
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -563,6 +652,222 @@ const HELP_PLACEMENT_POLICY = {
       },
     ],
   },
+  "panel-formula-choose": {
+    priority: 1,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["pickerPanel", "pickerList"],
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "pickerPanel",
+      relation: {
+        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 54 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "pickerPanel",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "left", offset: 12 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
+        },
+      },
+    ],
+  },
+  "panel-formula-settings": {
+    priority: 2,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["formulaPickerSettings"],
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "formulaPickerSettings",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: -4 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToGroup",
+        groupId: "panel-formula-choose",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+        },
+      },
+    ],
+  },
+  "panel-formula-close": {
+    priority: 3,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["pickerClose"],
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "pickerClose",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToGroup",
+        groupId: "panel-formula-settings",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+        },
+      },
+    ],
+  },
+  "panel-color-choose": {
+    priority: 1,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["pickerPanel", "pickerList"],
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "pickerPanel",
+      relation: {
+        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 54 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "pickerPanel",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "left", offset: 12 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
+        },
+      },
+    ],
+  },
+  "panel-color-settings": {
+    priority: 2,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["colorPickerSettings"],
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "colorPickerSettings",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: -4 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToGroup",
+        groupId: "panel-color-choose",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+        },
+      },
+    ],
+  },
+  "panel-color-close": {
+    priority: 3,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["pickerClose"],
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "pickerClose",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToGroup",
+        groupId: "panel-color-settings",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+        },
+      },
+    ],
+  },
+  "panel-settings-color": {
+    priority: 1,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["rangesEditorPanel", "settingsTabColor"],
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "rangesEditorPanel",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 62 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "rangesEditorPanel",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "left", offset: 12 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
+        },
+      },
+    ],
+  },
+  "panel-settings-general": {
+    priority: 2,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["settingsTabGeneral"],
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "settingsTabGeneral",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
+        y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToGroup",
+        groupId: "panel-settings-color",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+        },
+      },
+    ],
+  },
+  "panel-settings-close": {
+    priority: 3,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["rangesEditorClose"],
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "rangesEditorClose",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "right", offset: -12 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: 10 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToGroup",
+        groupId: "panel-settings-general",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+        },
+      },
+    ],
+  },
 };
 
 const ANCHOR_RESOLVERS = {
@@ -580,8 +885,8 @@ function resolveAnchors(ctx) {
   return anchors;
 }
 
-function buildHelpItemRegistry() {
-  return HELP_OVERLAY_GROUPS.map((group) => {
+function buildHelpItemRegistry(groups) {
+  return groups.map((group) => {
     const policy = HELP_PLACEMENT_POLICY[group.id] || {
       priority: 50,
       wrappingAllowed: true,
@@ -597,6 +902,41 @@ function buildHelpItemRegistry() {
       visibleWhen: policy.visibleWhen || (() => true),
     };
   });
+}
+
+function resolveVisibleHelpContexts() {
+  const activeContexts = options.getActiveHelpContexts?.() || [];
+  if (!activeContexts.length) {
+    return ["main"];
+  }
+
+  const visibleContexts = [];
+  for (const context of activeContexts) {
+    const panelRect = getRect(HELP_CONTEXT_PANEL_SELECTORS[context]);
+    if (!panelRect) continue;
+    const overlapsVisibleContext = visibleContexts.some(
+      (visible) => overlapArea(panelRect, visible.rect) > 0,
+    );
+    if (!overlapsVisibleContext) {
+      visibleContexts.push({ context, rect: panelRect });
+    }
+  }
+
+  return visibleContexts.length
+    ? visibleContexts.map((item) => item.context)
+    : ["main"];
+}
+
+function resolveHelpContent() {
+  const activeContexts = resolveVisibleHelpContexts();
+  if (activeContexts.length === 1 && activeContexts[0] === "main") {
+    return { groups: MAIN_HELP_ITEMS, brackets: HELP_GROUP_BRACKETS };
+  }
+
+  return {
+    groups: activeContexts.flatMap((context) => PANEL_HELP_ITEMS[context] || []),
+    brackets: [],
+  };
 }
 
 function resolveActiveItems(registry, rects) {
@@ -1021,6 +1361,11 @@ function clampPlacedGroupsToViewport(ctx) {
 function renderCanvasDivider({ viewportHeight, layouts }) {
     const leftTap = layouts.find((item) => item.group.id === "canvas-left");
     const rightTap = layouts.find((item) => item.group.id === "canvas-right");
+    if (!leftTap || !rightTap) {
+      dom.centerDivider.style.display = "none";
+      return;
+    }
+    dom.centerDivider.style.display = "";
     const tapLineCenterY = leftTap && rightTap
       ? Math.round((leftTap.y + leftTap.height / 2 + rightTap.y + rightTap.height / 2) / 2)
       : Math.round(viewportHeight * LAYOUT.dividerYOffsetFactor);
@@ -1095,7 +1440,8 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
     const tileTopEdge = Number.isFinite(paramOverlayRect?.top) ? paramOverlayRect.top : uiTop;
     const alignedBottomGuideY = Math.round(tileTopEdge - LAYOUT.alignedTileGuideOffset);
 
-    const registry = buildHelpItemRegistry();
+    const { groups, brackets } = resolveHelpContent();
+    const registry = buildHelpItemRegistry(groups);
     const activeItems = resolveActiveItems(registry, rects);
     const models = buildLabelModels(activeItems);
     const layouts = createOrMeasureLabels({ models, viewportWidth, margin });
@@ -1117,7 +1463,7 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
     clampPlacedGroupsToViewport({ layouts, viewportWidth, margin, uiTop, rects, anchors });
 
     const bracketMidpoints = new Map();
-    for (const bracket of HELP_GROUP_BRACKETS) {
+    for (const bracket of brackets) {
       const rect = unionRects(bracket.targetSelectors.map((selector) => getRect(selector)));
       if (!rect) continue;
       const midpoint = drawBracket(rect, bracket.side, bracket.side === "top" ? alignedBottomGuideY : null);
