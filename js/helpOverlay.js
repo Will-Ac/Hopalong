@@ -459,9 +459,12 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     shrinkAllowed: true,
     preferredPlacement: {
-      primitive: "viewportBand",
-      alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: -120 },
-      band: { sourceType: "viewport", position: "top", y: 34, offset: 0 },
+      primitive: "relativeToGroup",
+      groupId: "canvas-left",
+      relation: {
+        x: { sourceType: "anchor", sourceKey: "viewportCenter", sourceEdge: "x", selfEdge: "center", offset: -120 },
+        y: { sourceEdge: "bottom", selfEdge: "top", offset: 20 },
+      },
     },
     fallbackPlacements: [
       {
