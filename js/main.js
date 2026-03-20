@@ -4761,7 +4761,7 @@ async function draw() {
       formulaId: currentFormulaId,
       cmapName: appData.defaults.cmapName,
       params: getDerivedParams(),
-      iterations: didResize ? Math.max(10000, Math.round(iterations * 0.6)) : iterations,
+      iterations,
       burn: burnSetting,
       scaleMode: getScaleMode(),
       fixedView,
