@@ -66,6 +66,7 @@ const PANEL_HELP_ITEMS = {
   formulaPanel: [
     {
       id: "panel-formula-choose",
+      context: "formulaPanel",
       group: "panel",
       lines: [{ action: "Choose formula", body: "tap a formula" }],
       label: { x: 0.2, y: 0.2 },
@@ -73,6 +74,7 @@ const PANEL_HELP_ITEMS = {
     },
     {
       id: "panel-formula-settings",
+      context: "formulaPanel",
       group: "panel",
       lines: [{ action: "Open settings", body: "tap the gear" }],
       label: { x: 0.2, y: 0.2 },
@@ -80,6 +82,7 @@ const PANEL_HELP_ITEMS = {
     },
     {
       id: "panel-formula-close",
+      context: "formulaPanel",
       group: "panel",
       lines: [{ action: "Close panel", body: "tap ×" }],
       label: { x: 0.2, y: 0.2 },
@@ -89,6 +92,7 @@ const PANEL_HELP_ITEMS = {
   colorPanel: [
     {
       id: "panel-color-choose",
+      context: "colorPanel",
       group: "panel",
       lines: [{ action: "Choose color map", body: "tap a map" }],
       label: { x: 0.2, y: 0.2 },
@@ -96,6 +100,7 @@ const PANEL_HELP_ITEMS = {
     },
     {
       id: "panel-color-settings",
+      context: "colorPanel",
       group: "panel",
       lines: [{ action: "Open settings", body: "tap the gear" }],
       label: { x: 0.2, y: 0.2 },
@@ -103,6 +108,7 @@ const PANEL_HELP_ITEMS = {
     },
     {
       id: "panel-color-close",
+      context: "colorPanel",
       group: "panel",
       lines: [{ action: "Close panel", body: "tap ×" }],
       label: { x: 0.2, y: 0.2 },
@@ -112,6 +118,7 @@ const PANEL_HELP_ITEMS = {
   settingsPanel: [
     {
       id: "panel-settings-color",
+      context: "settingsPanel",
       group: "panel",
       lines: [{ action: "Color tab", body: "open color settings" }],
       label: { x: 0.2, y: 0.2 },
@@ -119,6 +126,7 @@ const PANEL_HELP_ITEMS = {
     },
     {
       id: "panel-settings-general",
+      context: "settingsPanel",
       group: "panel",
       lines: [{ action: "General tab", body: "open general settings" }],
       label: { x: 0.2, y: 0.2 },
@@ -126,6 +134,7 @@ const PANEL_HELP_ITEMS = {
     },
     {
       id: "panel-settings-close",
+      context: "settingsPanel",
       group: "panel",
       lines: [{ action: "Close panel", body: "tap ×" }],
       label: { x: 0.2, y: 0.2 },
@@ -965,6 +974,89 @@ function buildPanelForbiddenRegions(activeContexts) {
     .filter(Boolean);
 }
 
+function getPanelContextPreferredSide(context) {
+  if (context === "settingsPanel") {
+    return "left";
+  }
+  return "right";
+}
+
+function alignPanelStackAgainstSide({ side, stackX, stackWidth, layoutWidth }) {
+  if (side === "left") {
+    return stackX + (stackWidth - layoutWidth);
+  }
+  return stackX;
+}
+
+function placePanelContextGroups({ layouts, activeContexts, viewportWidth, uiTop, margin }) {
+  const stackGap = 10;
+  const sideGap = 14;
+  const occupiedRects = [];
+
+  for (const context of activeContexts) {
+    const panelRect = getRect(HELP_CONTEXT_PANEL_SELECTORS[context]);
+    const contextLayouts = layouts
+      .filter((layout) => layout.group.context === context)
+      .sort((a, b) => a.item.policy.priority - b.item.policy.priority || a.group.id.localeCompare(b.group.id));
+
+    if (!panelRect || !contextLayouts.length) continue;
+
+    const stackWidth = Math.max(...contextLayouts.map((layout) => layout.width));
+    const stackHeight = contextLayouts.reduce((sum, layout) => sum + layout.height, 0) + Math.max(0, contextLayouts.length - 1) * stackGap;
+    const preferredSide = getPanelContextPreferredSide(context);
+    const alternateSide = preferredSide === "right" ? "left" : "right";
+    const preferredHasSpace = preferredSide === "right"
+      ? panelRect.right + sideGap + stackWidth <= viewportWidth - margin
+      : panelRect.left - sideGap - stackWidth >= margin;
+    const side = preferredHasSpace ? preferredSide : alternateSide;
+
+    const stackX = side === "right"
+      ? Math.min(panelRect.right + sideGap, viewportWidth - stackWidth - margin)
+      : Math.max(margin, panelRect.left - stackWidth - sideGap);
+
+    let stackY = clamp(panelRect.top, margin, Math.max(margin, uiTop - stackHeight - margin));
+    let stackRect = {
+      left: stackX,
+      top: stackY,
+      right: stackX + stackWidth,
+      bottom: stackY + stackHeight,
+    };
+
+    for (const occupied of occupiedRects) {
+      if (overlapArea(stackRect, occupied) <= 0) continue;
+      const shiftedDownTop = occupied.bottom + stackGap;
+      const shiftedUpTop = occupied.top - stackGap - stackHeight;
+
+      if (shiftedDownTop + stackHeight <= uiTop - margin) {
+        stackY = shiftedDownTop;
+      } else if (shiftedUpTop >= margin) {
+        stackY = shiftedUpTop;
+      }
+
+      stackRect = {
+        left: stackX,
+        top: stackY,
+        right: stackX + stackWidth,
+        bottom: stackY + stackHeight,
+      };
+    }
+
+    let nextY = stackY;
+    for (const layout of contextLayouts) {
+      layout.x = alignPanelStackAgainstSide({
+        side,
+        stackX,
+        stackWidth,
+        layoutWidth: layout.width,
+      });
+      layout.y = nextY;
+      nextY += layout.height + stackGap;
+    }
+
+    occupiedRects.push(stackRect);
+  }
+}
+
 function resolveActiveItems(registry, rects) {
   const initiallyActive = registry.filter((item) => {
     if (!item.visibleWhen({ rects })) return false;
@@ -1472,22 +1564,27 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
     const models = buildLabelModels(activeItems);
     const layouts = createOrMeasureLabels({ models, viewportWidth, margin });
 
-    const forbiddenRegions = buildUiForbiddenRegions(rects, uiTop, viewportWidth, margin);
-    forbiddenRegions.push(...buildPanelForbiddenRegions(activeContexts));
     const anchors = resolveAnchors({ rects, viewportWidth, viewportHeight, margin, uiTop });
 
-    placeGroupsInPriorityOrder({
-      layouts,
-      rects,
-      viewportWidth,
-      viewportHeight,
-      margin,
-      uiTop,
-      forbiddenRegions,
-      anchors,
-    });
+    if (activeContexts.length) {
+      placePanelContextGroups({ layouts, activeContexts, viewportWidth, uiTop, margin });
+    } else {
+      const forbiddenRegions = buildUiForbiddenRegions(rects, uiTop, viewportWidth, margin);
+      forbiddenRegions.push(...buildPanelForbiddenRegions(activeContexts));
 
-    clampPlacedGroupsToViewport({ layouts, viewportWidth, margin, uiTop, rects, anchors });
+      placeGroupsInPriorityOrder({
+        layouts,
+        rects,
+        viewportWidth,
+        viewportHeight,
+        margin,
+        uiTop,
+        forbiddenRegions,
+        anchors,
+      });
+
+      clampPlacedGroupsToViewport({ layouts, viewportWidth, margin, uiTop, rects, anchors });
+    }
 
     const bracketMidpoints = new Map();
     for (const bracket of brackets) {
