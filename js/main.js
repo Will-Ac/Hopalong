@@ -2872,6 +2872,26 @@ function clearTwoFingerGesture() {
   lastTwoDebug = null;
 }
 
+function syncCurrentRenderCacheSourceView() {
+  if (!currentRenderCache) {
+    return;
+  }
+
+  currentRenderCache.sourceFixedView = {
+    offsetX: Number.isFinite(fixedView?.offsetX) ? fixedView.offsetX : 0,
+    offsetY: Number.isFinite(fixedView?.offsetY) ? fixedView.offsetY : 0,
+    zoom: Number.isFinite(fixedView?.zoom) && fixedView.zoom > 0 ? fixedView.zoom : 1,
+  };
+}
+
+function prepareFixedViewForPanZoom(reason = "manual pan/zoom") {
+  if (isAutoScale()) {
+    syncFixedViewFromLastRenderMeta();
+    syncCurrentRenderCacheSourceView();
+  }
+  setScaleModeFixed(reason);
+}
+
 function beginPanZoomInteraction() {
   panZoomInteractionActive = true;
   if (panZoomSettleTimer) {
@@ -2924,10 +2944,7 @@ function onCanvasPointerDown(event) {
   };
 
   if (event.pointerType === "mouse" && event.button === 2) {
-    if (isAutoScale()) {
-      syncFixedViewFromLastRenderMeta();
-    }
-    setScaleModeFixed("manual pan/zoom");
+    prepareFixedViewForPanZoom("manual pan/zoom");
     interactionState = INTERACTION_STATE.PAN_MOUSE_RMB;
     primaryPointerId = event.pointerId;
     const pos = getCanvasPointerPosition(event);
@@ -2986,6 +3003,7 @@ function onCanvasPointerMove(event) {
       lastPointerPosition = { x: pos.x, y: pos.y };
       return;
     }
+    beginPanZoomInteraction();
     applyPanDelta(pos.x - lastPointerPosition.x, pos.y - lastPointerPosition.y);
     lastPointerPosition = { x: pos.x, y: pos.y };
     return;
@@ -3044,13 +3062,8 @@ function onCanvasPointerMove(event) {
     return;
   }
 
-  if ((shouldZoom || shouldPan) && isAutoScale()) {
-    syncFixedViewFromLastRenderMeta();
-    setScaleModeFixed("manual pan/zoom");
-    twoFingerGesture.lastD = distance;
-    twoFingerGesture.lastMX = midpoint.x;
-    twoFingerGesture.lastMY = midpoint.y;
-    return;
+  if (shouldZoom || shouldPan) {
+    prepareFixedViewForPanZoom("manual pan/zoom");
   }
 
   if (shouldZoom && Number.isFinite(ratioStep) && ratioStep > 0) {
@@ -3121,10 +3134,7 @@ function onCanvasPointerUp(event) {
 
 function onCanvasWheel(event) {
   event.preventDefault();
-  if (isAutoScale()) {
-    syncFixedViewFromLastRenderMeta();
-  }
-  setScaleModeFixed("manual pan/zoom");
+  prepareFixedViewForPanZoom("manual pan/zoom");
   beginPanZoomInteraction();
   const pos = getCanvasPointerPosition(event);
   const zoomFactor = Math.exp(-event.deltaY * 0.0025);
