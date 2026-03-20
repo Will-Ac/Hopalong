@@ -1225,17 +1225,31 @@ Scale</button>
         </div>
         <div id="generalTabPanel" class="rangesEditorBody settingsTabPanel is-hidden">
           <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Startup iterations</span></div>
+            <div class="perfControlRow">
+              <input id="detailStartupIterationsRange" class="perfRangeInput" type="range" min="1000" max="100000000" step="100" />
+              <div id="detailStartupIterationsFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Random mode max iterations</span><button id="infoMaxRandomIters" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfControlRow">
+              <input id="detailMaxRandomItersRange" class="perfRangeInput" type="range" min="1000" max="100000000" step="100" />
+              <div id="detailMaxRandomItersFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Pan/zoom iteration cap</span></div>
             <div class="perfControlRow">
-              <input id="detailPanZoomIterationCapRange" class="perfRangeInput" type="range" min="10000" max="50000000" step="1000" />
+              <input id="detailPanZoomIterationCapRange" class="perfRangeInput" type="range" min="10000" max="100000000" step="100" />
               <div id="detailPanZoomIterationCapFormatted" class="perfFormattedValue">--</div>
             </div>
           </div>
           <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Max random iterations</span><button id="infoMaxRandomIters" class="perfInfoBtn" type="button">i</button></div>
+            <div class="perfSettingHead"><span class="perfSettingLabel">Absolute iterations max</span></div>
             <div class="perfControlRow">
-              <input id="detailMaxRandomItersRange" class="perfRangeInput" type="range" min="1000" max="100000000" step="100" />
-              <div id="detailMaxRandomItersFormatted" class="perfFormattedValue">--</div>
+              <input id="detailIterationAbsoluteMaxRange" class="perfRangeInput" type="range" min="1000" max="100000000" step="100" />
+              <div id="detailIterationAbsoluteMaxFormatted" class="perfFormattedValue">--</div>
             </div>
           </div>
           <div class="perfSettingCard">

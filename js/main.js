@@ -37,8 +37,12 @@ const settingsTabColorEl = document.getElementById("settingsTabColor");
 const settingsTabGeneralEl = document.getElementById("settingsTabGeneral");
 const colorTabPanelEl = document.getElementById("colorTabPanel");
 const generalTabPanelEl = document.getElementById("generalTabPanel");
+const detailStartupIterationsRangeEl = document.getElementById("detailStartupIterationsRange");
+const detailStartupIterationsFormattedEl = document.getElementById("detailStartupIterationsFormatted");
 const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomItersRange");
 const detailMaxRandomItersFormattedEl = document.getElementById("detailMaxRandomItersFormatted");
+const detailIterationAbsoluteMaxRangeEl = document.getElementById("detailIterationAbsoluteMaxRange");
+const detailIterationAbsoluteMaxFormattedEl = document.getElementById("detailIterationAbsoluteMaxFormatted");
 const detailBurnRangeEl = document.getElementById("detailBurnRange");
 const detailBurnFormattedEl = document.getElementById("detailBurnFormatted");
 const detailOverlayAlphaRangeEl = document.getElementById("detailOverlayAlphaRange");
@@ -140,12 +144,19 @@ const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
 const randomModeTile = document.getElementById("randomModeTile");
 
+const ITERATION_FALLBACK_ABSOLUTE_MAX = 100000000;
+const ITERATION_FALLBACK_STARTUP_DEFAULT = 500000;
+const ITERATION_FALLBACK_RANDOM_MAX = 500000;
+const ITERATION_FALLBACK_PAN_ZOOM_CAP = 500000;
+const ITERATION_MIN = 1000;
+const PAN_ZOOM_ITERATION_CAP_MIN = 10000;
+
 const sliderControls = {
   a: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   b: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   c: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   d: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
-  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: 1000, max: 100000000, sliderStep: 100, stepSize: 100, displayDp: 0 },
+  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: ITERATION_MIN, max: ITERATION_FALLBACK_ABSOLUTE_MAX, sliderStep: 100, stepSize: 100, displayDp: 0 },
   burn: { button: null, label: "Burn", paramKey: "burn", min: 0, max: 5000, sliderStep: 1, stepSize: 1, displayDp: 0 },
 };
 
@@ -174,9 +185,6 @@ const INTEREST_SCAN_ITERATIONS_MAX = 5000;
 const INTEREST_OVERLAY_OPACITY_MIN = 0.05;
 const INTEREST_OVERLAY_OPACITY_MAX = 0.8;
 const INTEREST_OVERLAY_OPACITY_DEFAULT = 0.2;
-const PAN_ZOOM_ITERATION_CAP_DEFAULT = 500000;
-const PAN_ZOOM_ITERATION_CAP_MIN = 10000;
-const PAN_ZOOM_ITERATION_CAP_MAX = 50000000;
 const PAN_ZOOM_SETTLE_MS = 200;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MIN = -1;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MAX = 1;
@@ -191,6 +199,69 @@ function normalizeInterestGridSize(rawValue) {
 
 function normalizeInterestOverlayOpacity(rawValue) {
   return clamp(Number(rawValue), INTEREST_OVERLAY_OPACITY_MIN, INTEREST_OVERLAY_OPACITY_MAX);
+}
+
+function normalizeIterationValue(rawValue, fallbackValue, min = ITERATION_MIN, max = ITERATION_FALLBACK_ABSOLUTE_MAX) {
+  const numeric = Number(rawValue);
+  const safeFallback = Number.isFinite(Number(fallbackValue)) ? Number(fallbackValue) : min;
+  return Math.round(clamp(Number.isFinite(numeric) ? numeric : safeFallback, min, max));
+}
+
+function getIterationAbsoluteMax(defaults = appData?.defaults) {
+  return normalizeIterationValue(defaults?.iterationAbsoluteMax, ITERATION_FALLBACK_ABSOLUTE_MAX, ITERATION_MIN, ITERATION_FALLBACK_ABSOLUTE_MAX);
+}
+
+function getIterationStartupDefault(defaults = appData?.defaults) {
+  const absoluteMax = getIterationAbsoluteMax(defaults);
+  const legacyValue = defaults?.launchIterationCap;
+  const rawValue = defaults?.iterationStartupDefault ?? legacyValue;
+  return normalizeIterationValue(rawValue, ITERATION_FALLBACK_STARTUP_DEFAULT, ITERATION_MIN, absoluteMax);
+}
+
+function getRandomIterationCap(defaults = appData?.defaults) {
+  const absoluteMax = getIterationAbsoluteMax(defaults);
+  return normalizeIterationValue(defaults?.maxRandomIters, ITERATION_FALLBACK_RANDOM_MAX, ITERATION_MIN, absoluteMax);
+}
+
+function getPanZoomIterationCap(defaults = appData?.defaults) {
+  const absoluteMax = getIterationAbsoluteMax(defaults);
+  return normalizeIterationValue(defaults?.panZoomIterationCap, ITERATION_FALLBACK_PAN_ZOOM_CAP, PAN_ZOOM_ITERATION_CAP_MIN, absoluteMax);
+}
+
+function normalizeIterationSettings(defaults = appData?.defaults) {
+  if (!defaults) {
+    return {
+      iterationAbsoluteMax: ITERATION_FALLBACK_ABSOLUTE_MAX,
+      iterationStartupDefault: ITERATION_FALLBACK_STARTUP_DEFAULT,
+      maxRandomIters: ITERATION_FALLBACK_RANDOM_MAX,
+      panZoomIterationCap: ITERATION_FALLBACK_PAN_ZOOM_CAP,
+      currentIterations: ITERATION_FALLBACK_STARTUP_DEFAULT,
+    };
+  }
+
+  const iterationAbsoluteMax = getIterationAbsoluteMax(defaults);
+  defaults.iterationAbsoluteMax = iterationAbsoluteMax;
+  defaults.iterationStartupDefault = getIterationStartupDefault(defaults);
+  defaults.maxRandomIters = getRandomIterationCap(defaults);
+  defaults.panZoomIterationCap = getPanZoomIterationCap(defaults);
+  delete defaults.launchIterationCap;
+  defaults.sliders = defaults.sliders || {};
+
+  const iterationsRaw = defaults.sliders.iters;
+  const hasStoredIterations = Number.isFinite(Number(iterationsRaw));
+  defaults.sliders.iters = hasStoredIterations
+    ? normalizeIterationValue(iterationsRaw, defaults.iterationStartupDefault, ITERATION_MIN, iterationAbsoluteMax)
+    : defaults.iterationStartupDefault;
+
+  sliderControls.iters.max = iterationAbsoluteMax;
+
+  return {
+    iterationAbsoluteMax,
+    iterationStartupDefault: defaults.iterationStartupDefault,
+    maxRandomIters: defaults.maxRandomIters,
+    panZoomIterationCap: defaults.panZoomIterationCap,
+    currentIterations: defaults.sliders.iters,
+  };
 }
 
 const ctx = canvas.getContext("2d", { alpha: false });
@@ -895,9 +966,10 @@ function getActiveActualValue() {
 }
 
 function normalizeSliderDefaults() {
+  normalizeIterationSettings();
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
     const rawValue = Number(appData.defaults.sliders?.[sliderKey]);
-    const fallbackValue = sliderKey === "burn" ? 120 : (sliderKey === "iters" ? 200000 : 50);
+    const fallbackValue = sliderKey === "burn" ? 120 : (sliderKey === "iters" ? getIterationStartupDefault() : 50);
     const safeValue = Number.isFinite(rawValue) ? rawValue : fallbackValue;
     const clampedValue = clamp(safeValue, control.min, control.max);
     appData.defaults.sliders[sliderKey] = (sliderKey === "iters" || sliderKey === "burn") ? Math.round(clampedValue) : clampedValue;
@@ -1389,10 +1461,31 @@ function setSettingsTab(tabKey) {
 }
 
 function syncDetailedSettingsControls() {
-  const maxRandomIters = Math.round(clamp(appData.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
+  const {
+    iterationAbsoluteMax,
+    iterationStartupDefault,
+    maxRandomIters,
+    panZoomIterationCap,
+  } = normalizeIterationSettings();
   const burnValue = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
+  if (detailStartupIterationsRangeEl) {
+    detailStartupIterationsRangeEl.min = String(sliderControls.iters.min);
+    detailStartupIterationsRangeEl.max = String(iterationAbsoluteMax);
+    detailStartupIterationsRangeEl.value = String(iterationStartupDefault);
+  }
+  if (detailStartupIterationsFormattedEl) detailStartupIterationsFormattedEl.textContent = formatNumberForUi(iterationStartupDefault, 0);
   if (detailMaxRandomItersRangeEl) detailMaxRandomItersRangeEl.value = String(maxRandomIters);
+  if (detailMaxRandomItersRangeEl) {
+    detailMaxRandomItersRangeEl.min = String(sliderControls.iters.min);
+    detailMaxRandomItersRangeEl.max = String(iterationAbsoluteMax);
+  }
   if (detailMaxRandomItersFormattedEl) detailMaxRandomItersFormattedEl.textContent = formatNumberForUi(maxRandomIters, 0);
+  if (detailIterationAbsoluteMaxRangeEl) {
+    detailIterationAbsoluteMaxRangeEl.min = String(sliderControls.iters.min);
+    detailIterationAbsoluteMaxRangeEl.max = String(ITERATION_FALLBACK_ABSOLUTE_MAX);
+    detailIterationAbsoluteMaxRangeEl.value = String(iterationAbsoluteMax);
+  }
+  if (detailIterationAbsoluteMaxFormattedEl) detailIterationAbsoluteMaxFormattedEl.textContent = formatNumberForUi(iterationAbsoluteMax, 0);
   if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
   if (detailBurnFormattedEl) detailBurnFormattedEl.textContent = formatNumberForUi(burnValue, 0);
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
@@ -1404,7 +1497,6 @@ function syncDetailedSettingsControls() {
   if (detailInterestOverlayOpacityFormattedEl) detailInterestOverlayOpacityFormattedEl.textContent = formatNumberForUi(interestOverlayOpacity, 2);
   const interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize);
   const interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
-  const panZoomIterationCap = Math.round(clamp(Number(appData.defaults.panZoomIterationCap), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
   const interestLyapunovEnabled = Boolean(appData.defaults.interestLyapunovEnabled);
   const interestLyapunovMinExponent = clamp(Number(appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
   const interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
@@ -1414,7 +1506,11 @@ function syncDetailedSettingsControls() {
   if (detailInterestGridSizeFormattedEl) detailInterestGridSizeFormattedEl.textContent = formatNumberForUi(interestGridSize, 0);
   if (detailInterestScanIterationsRangeEl) detailInterestScanIterationsRangeEl.value = String(interestScanIterations);
   if (detailInterestScanIterationsFormattedEl) detailInterestScanIterationsFormattedEl.textContent = formatNumberForUi(interestScanIterations, 0);
-  if (detailPanZoomIterationCapRangeEl) detailPanZoomIterationCapRangeEl.value = String(panZoomIterationCap);
+  if (detailPanZoomIterationCapRangeEl) {
+    detailPanZoomIterationCapRangeEl.min = String(PAN_ZOOM_ITERATION_CAP_MIN);
+    detailPanZoomIterationCapRangeEl.max = String(iterationAbsoluteMax);
+    detailPanZoomIterationCapRangeEl.value = String(panZoomIterationCap);
+  }
   if (detailPanZoomIterationCapFormattedEl) detailPanZoomIterationCapFormattedEl.textContent = formatNumberForUi(panZoomIterationCap, 0);
   if (detailInterestLyapunovEnabledToggleEl) detailInterestLyapunovEnabledToggleEl.checked = interestLyapunovEnabled;
   if (detailInterestLyapunovMinExponentRangeEl) detailInterestLyapunovMinExponentRangeEl.value = String(interestLyapunovMinExponent);
@@ -1484,11 +1580,28 @@ function applyDetailedSliderValue(sliderKey, nextValue) {
   commitCurrentStateToHistory();
 }
 
-function applyMaxRandomIterations(nextValue) {
-  const clamped = Math.round(clamp(Number(nextValue), sliderControls.iters.min, sliderControls.iters.max));
-  appData.defaults.maxRandomIters = clamped;
+function applyIterationStartupDefault(nextValue) {
+  appData.defaults.iterationStartupDefault = normalizeIterationValue(nextValue, getIterationStartupDefault(), ITERATION_MIN, getIterationAbsoluteMax());
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
+  commitCurrentStateToHistory();
+}
+
+function applyMaxRandomIterations(nextValue) {
+  appData.defaults.maxRandomIters = normalizeIterationValue(nextValue, getRandomIterationCap(), ITERATION_MIN, getIterationAbsoluteMax());
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  commitCurrentStateToHistory();
+}
+
+function applyIterationAbsoluteMax(nextValue) {
+  appData.defaults.iterationAbsoluteMax = normalizeIterationValue(nextValue, getIterationAbsoluteMax(), ITERATION_MIN, ITERATION_FALLBACK_ABSOLUTE_MAX);
+  normalizeIterationSettings();
+  syncQuickSliderPosition();
+  refreshParamButtons();
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
   commitCurrentStateToHistory();
 }
 
@@ -1552,7 +1665,7 @@ function applyInterestScanIterations(nextValue) {
 }
 
 function applyPanZoomIterationCap(nextValue) {
-  appData.defaults.panZoomIterationCap = Math.round(clamp(Number(nextValue), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
+  appData.defaults.panZoomIterationCap = normalizeIterationValue(nextValue, getPanZoomIterationCap(), PAN_ZOOM_ITERATION_CAP_MIN, getIterationAbsoluteMax());
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   commitCurrentStateToHistory();
@@ -2152,7 +2265,10 @@ function captureCurrentState() {
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
     sliders: { ...appData.defaults.sliders },
+    iterationAbsoluteMax: appData.defaults.iterationAbsoluteMax,
+    iterationStartupDefault: appData.defaults.iterationStartupDefault,
     maxRandomIters: appData.defaults.maxRandomIters,
+    panZoomIterationCap: appData.defaults.panZoomIterationCap,
     renderColorMode: appData.defaults.renderColorMode,
     renderLogStrength: appData.defaults.renderLogStrength,
     renderDensityGamma: appData.defaults.renderDensityGamma,
@@ -2222,8 +2338,17 @@ function applyState(state) {
   isApplyingHistoryState = true;
   currentFormulaId = state.formulaId;
   appData.defaults.cmapName = state.cmapName;
+  if (state.iterationAbsoluteMax != null) {
+    appData.defaults.iterationAbsoluteMax = state.iterationAbsoluteMax;
+  }
+  if (state.iterationStartupDefault != null) {
+    appData.defaults.iterationStartupDefault = state.iterationStartupDefault;
+  }
   appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
-  appData.defaults.maxRandomIters = Math.round(clamp(state.maxRandomIters ?? appData.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
+  appData.defaults.maxRandomIters = state.maxRandomIters ?? appData.defaults.maxRandomIters;
+  if (state.panZoomIterationCap != null) {
+    appData.defaults.panZoomIterationCap = state.panZoomIterationCap;
+  }
   appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(state.renderColorMode)
     ? state.renderColorMode
     : appData.defaults.renderColorMode;
@@ -2249,6 +2374,7 @@ function applyState(state) {
   setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
   applyBackgroundTheme();
   applyDialogTransparency();
+  normalizeIterationSettings();
   normalizeSliderDefaults();
   if (state.rangesOverridesByFormula && typeof state.rangesOverridesByFormula === "object") {
     appData.defaults.rangesOverridesByFormula = JSON.parse(JSON.stringify(state.rangesOverridesByFormula));
@@ -2284,6 +2410,7 @@ function randomChoice(items) {
 
 function randomizeAllParameters() {
   clearSharedParamsOverride();
+  const randomIterationCap = getRandomIterationCap();
   const preservedFixedSliderValues = {};
 
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
@@ -2318,7 +2445,7 @@ function randomizeAllParameters() {
     }
 
     if (sliderKey === "iters") {
-      appData.defaults.sliders[sliderKey] = randomInt(control.min, appData.defaults.maxRandomIters || control.max);
+      appData.defaults.sliders[sliderKey] = randomInt(control.min, randomIterationCap);
       continue;
     }
     appData.defaults.sliders[sliderKey] = Number((Math.random() * (control.max - control.min) + control.min).toFixed(4));
@@ -4334,7 +4461,7 @@ async function draw() {
   const startedAt = performance.now();
   const didResize = resizeCanvas();
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  const panZoomIterationCap = Math.round(clamp(Number(appData.defaults.panZoomIterationCap ?? PAN_ZOOM_ITERATION_CAP_DEFAULT), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
+  const panZoomIterationCap = getPanZoomIterationCap();
   const effectiveIterationSetting = panZoomInteractionActive
     ? Math.min(iterationSetting, panZoomIterationCap)
     : iterationSetting;
@@ -5119,7 +5246,9 @@ function registerHandlers() {
   settingsTabColorEl?.addEventListener("click", () => setSettingsTab("color"));
   settingsTabGeneralEl?.addEventListener("click", () => setSettingsTab("general"));
 
+  detailStartupIterationsRangeEl?.addEventListener("input", () => applyIterationStartupDefault(detailStartupIterationsRangeEl.value));
   detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
+  detailIterationAbsoluteMaxRangeEl?.addEventListener("input", () => applyIterationAbsoluteMax(detailIterationAbsoluteMaxRangeEl.value));
   detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
   detailOverlayAlphaRangeEl?.addEventListener("input", () => applyOverlayTransparency(detailOverlayAlphaRangeEl.value));
   detailInterestOverlayToggleEl?.addEventListener("change", () => applyInterestOverlayEnabled(detailInterestOverlayToggleEl.checked));
@@ -5312,21 +5441,10 @@ async function loadData() {
     ...(data.defaults.sliders || {}),
   });
 
-  if (typeof data.defaults.sliders.iters !== "number") {
-    data.defaults.sliders.iters = 200000;
-  }
   if (typeof data.defaults.sliders.burn !== "number") {
     data.defaults.sliders.burn = 120;
   }
-  if (typeof data.defaults.maxRandomIters !== "number") {
-    data.defaults.maxRandomIters = sliderControls.iters.max;
-  }
-  if (typeof data.defaults.launchIterationCap !== "number") {
-    data.defaults.launchIterationCap = 500000;
-  }
-  if (typeof data.defaults.panZoomIterationCap !== "number") {
-    data.defaults.panZoomIterationCap = PAN_ZOOM_ITERATION_CAP_DEFAULT;
-  }
+  normalizeIterationSettings(data.defaults);
   if (!RENDER_COLOR_MODE_SET.has(data.defaults.renderColorMode)) {
     data.defaults.renderColorMode = RENDER_COLOR_MODES.ITERATION_ORDER;
   }
@@ -5382,10 +5500,7 @@ async function loadData() {
     data.defaults.holdAccelEndMs = HOLD_ACCEL_END_MS_DEFAULT;
   }
 
-  data.defaults.sliders.iters = clamp(data.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max);
-  data.defaults.maxRandomIters = Math.round(clamp(data.defaults.maxRandomIters, sliderControls.iters.min, sliderControls.iters.max));
-  data.defaults.launchIterationCap = Math.round(clamp(data.defaults.launchIterationCap, sliderControls.iters.min, sliderControls.iters.max));
-  data.defaults.panZoomIterationCap = Math.round(clamp(data.defaults.panZoomIterationCap, PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
+  normalizeIterationSettings(data.defaults);
   data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   data.defaults.renderLogStrength = clamp(data.defaults.renderLogStrength, 0.5, 30);
   data.defaults.renderDensityGamma = clamp(data.defaults.renderDensityGamma, 0.2, 2);
@@ -5442,6 +5557,7 @@ async function bootstrap() {
     appData = await loadData();
     builtInFormulaRanges = appData.formula_ranges_raw || {};
     loadDefaultsFromStorage();
+    normalizeIterationSettings();
     normalizeSliderDefaults();
     appData.defaults.backgroundColor = typeof appData.defaults.backgroundColor === "string" ? appData.defaults.backgroundColor : "#05070c";
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
@@ -5455,9 +5571,7 @@ async function bootstrap() {
     appData.defaults.interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0 ?? 1e-6), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
     appData.defaults.interestLyapunovRescale = Boolean(appData.defaults.interestLyapunovRescale ?? true);
     appData.defaults.interestLyapunovMaxDistance = clamp(Number(appData.defaults.interestLyapunovMaxDistance ?? INTEREST_LYAPUNOV_MAX_DISTANCE_MAX), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
-    appData.defaults.launchIterationCap = Math.round(clamp(Number(appData.defaults.launchIterationCap ?? 500000), sliderControls.iters.min, sliderControls.iters.max));
-    appData.defaults.panZoomIterationCap = Math.round(clamp(Number(appData.defaults.panZoomIterationCap ?? PAN_ZOOM_ITERATION_CAP_DEFAULT), PAN_ZOOM_ITERATION_CAP_MIN, PAN_ZOOM_ITERATION_CAP_MAX));
-    appData.defaults.sliders.iters = Math.min(appData.defaults.sliders.iters, appData.defaults.launchIterationCap);
+    normalizeIterationSettings();
     appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
     normalizeHoldTimingDefaults();
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
