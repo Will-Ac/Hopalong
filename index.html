@@ -466,7 +466,7 @@
       #quickSliderOverlay {
         position: absolute;
         inset: 0;
-        z-index: 30;
+        z-index: 48;
         display: none;
         pointer-events: none;
       }
@@ -646,7 +646,7 @@
       #pickerOverlay {
         position: absolute;
         inset: 0;
-        z-index: 40;
+        z-index: 48;
         display: none;
       }
       #pickerOverlay.is-open { display: block; }
@@ -892,22 +892,25 @@
       }
       #helpOverlay.is-open {
         opacity: 1;
-        pointer-events: auto;
+        pointer-events: none;
       }
       .helpOverlay__dimmer {
         position: absolute;
         inset: 0;
-        background: rgba(0, 0, 0, 0.58);
+        background: transparent;
+        pointer-events: none;
       }
       .helpOverlay__lines {
         position: absolute;
         inset: 0;
         width: 100%;
         height: 100%;
+        pointer-events: none;
       }
       .helpOverlay__labels {
         position: absolute;
         inset: 0;
+        pointer-events: none;
       }
       .helpOverlay__label {
         position: absolute;
@@ -1018,6 +1021,7 @@
       .helpOverlay__centerDivider {
         position: absolute;
         width: 1px;
+        pointer-events: none;
         background: repeating-linear-gradient(
           to bottom,
           rgba(255, 255, 255, 0.9) 0 12px,

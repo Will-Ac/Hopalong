@@ -1136,23 +1136,6 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
     helpButton?.setAttribute("aria-pressed", active ? "true" : "false");
   }
 
-  function isHelpButtonEvent(event) {
-    if (!helpButton || !event) return false;
-    const target = event.target;
-    if (target instanceof Element && target.closest(TARGET_SELECTORS.helpButton)) return true;
-    if (typeof event.composedPath === "function") return event.composedPath().includes(helpButton);
-    return false;
-  }
-
-  const blockers = ["pointerdown", "pointerup", "click", "dblclick", "contextmenu", "touchstart", "touchmove", "touchend", "wheel"];
-
-  const blockEvents = (event) => {
-    if (!state.open) return;
-    if (isHelpButtonEvent(event)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation?.();
-  };
 
   const onKeyDown = (event) => {
     if (!state.open) return;
@@ -1161,22 +1144,17 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
       close();
       return;
     }
-    if (isHelpButtonEvent(event)) return;
-    event.preventDefault();
-    event.stopPropagation();
   };
 
   const onResize = () => scheduleRender();
 
   function bindEvents() {
-    blockers.forEach((eventName) => document.addEventListener(eventName, blockEvents, true));
     document.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onResize);
   }
 
   function unbindEvents() {
-    blockers.forEach((eventName) => document.removeEventListener(eventName, blockEvents, true));
     document.removeEventListener("keydown", onKeyDown, true);
     window.removeEventListener("resize", onResize);
     window.removeEventListener("orientationchange", onResize);

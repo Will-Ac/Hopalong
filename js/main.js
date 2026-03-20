@@ -1328,6 +1328,7 @@ function openRangesEditor() {
   setSettingsTab("color");
   syncDetailedSettingsControls();
   hideSettingsInfo();
+  helpOverlayController?.render();
 }
 
 function closeRangesEditor() {
@@ -1335,6 +1336,7 @@ function closeRangesEditor() {
   rangesEditorToggleEl?.classList.remove("is-active");
   rangesEditorToggleEl?.setAttribute("aria-pressed", "false");
   hideSettingsInfo();
+  helpOverlayController?.render();
 }
 
 function openFormulaSettingsPanel(formulaId = null) {
@@ -1348,10 +1350,12 @@ function openFormulaSettingsPanel(formulaId = null) {
   loadFormulaRangesIntoEditor(targetFormulaId);
   syncSeedEditorInputs(targetFormulaId);
   layoutFormulaSettingsPanel();
+  helpOverlayController?.render();
 }
 
 function closeFormulaSettingsPanel() {
   formulaSettingsPanelEl?.classList.add("is-hidden");
+  helpOverlayController?.render();
 }
 
 
@@ -2836,6 +2840,7 @@ function alignQuickSliderAboveBottomBar() {
   const overlayRect = paramOverlayEl.getBoundingClientRect();
   const overlayHeight = Math.max(0, window.innerHeight - overlayRect.top);
   quickSliderEl.style.bottom = `${overlayHeight + 6}px`;
+  helpOverlayController?.scheduleRender();
 }
 
 function closePicker({ force = false } = {}) {
@@ -2847,6 +2852,7 @@ function closePicker({ force = false } = {}) {
   activePickerTrigger = null;
   pickerOverlay.classList.remove("is-open");
   pickerOverlay.setAttribute("aria-hidden", "true");
+  helpOverlayController?.render();
 }
 
 function layoutPickerPanel() {
@@ -2867,6 +2873,7 @@ function layoutPickerPanel() {
     pickerPanel.style.width = `${Math.round(width)}px`;
     pickerPanel.style.left = `${Math.round(left)}px`;
     pickerPanel.style.transform = "none";
+    helpOverlayController?.scheduleRender();
     return;
   }
 
@@ -2874,6 +2881,7 @@ function layoutPickerPanel() {
   pickerPanel.style.width = `${Math.min(fallbackWidth, viewportWidth - margin * 2)}px`;
   pickerPanel.style.left = `${margin}px`;
   pickerPanel.style.transform = "none";
+  helpOverlayController?.scheduleRender();
 }
 
 function layoutFormulaSettingsPanel() {
@@ -2890,6 +2898,7 @@ function layoutFormulaSettingsPanel() {
     : margin;
   formulaSettingsPanelEl.style.left = `${Math.round(Math.min(targetLeft, viewportWidth - panelWidth - margin))}px`;
   formulaSettingsPanelEl.style.right = "auto";
+  helpOverlayController?.scheduleRender();
 }
 
 
@@ -2907,6 +2916,7 @@ function layoutColorSettingsPanel() {
     : margin;
   colorSettingsPanelEl.style.left = `${Math.round(Math.min(targetLeft, viewportWidth - panelWidth - margin))}px`;
   colorSettingsPanelEl.style.right = "auto";
+  helpOverlayController?.scheduleRender();
 }
 
 function renderFormulaPicker() {
@@ -3124,12 +3134,14 @@ function openColorSettingsPanel(cmapName) {
   colorSettingsPanelEl.classList.remove("is-hidden");
   renderColorStopsEditor();
   layoutColorSettingsPanel();
+  helpOverlayController?.render();
 }
 
 function closeColorSettingsPanel() {
   activeColorSettingsMap = null;
   colorSettingsPanelEl?.classList.add("is-hidden");
   saveDefaultsToStorage();
+  helpOverlayController?.render();
 }
 function openPicker(kind, triggerEl) {
   activePicker = kind;
@@ -3144,6 +3156,7 @@ function openPicker(kind, triggerEl) {
   }
 
   layoutPickerPanel();
+  helpOverlayController?.render();
 }
 
 function getQuickSliderRangeValueFromSliderValue(sliderKey, sliderValue) {
