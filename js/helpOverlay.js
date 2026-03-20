@@ -383,7 +383,7 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   "tile-border-legend": {
-    priority: 2,
+    priority: 8,
     wrappingAllowed: true,
     shrinkAllowed: true,
     preferredPlacement: {
@@ -408,17 +408,19 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   "canvas-left": {
-    priority: 3,
-    wrappingAllowed: true,
+    priority: 2,
+    wrappingAllowed: false,
     maxLines: 2,
-    shrinkAllowed: true,
+    shrinkAllowed: false,
+    sharedWidthGroup: "canvas-center-pair",
+    dependencyIds: ["slider", "params"],
     constraints: { preserveSideOfCenter: "left" },
     preferredPlacement: {
       primitive: "centerSplit",
       centerAnchorKey: "viewportCenter",
       side: "left",
       gap: LAYOUT.dividerTapGap,
-      band: { sourceType: "between", sourceGroup: "topbar", position: "center", minY: 8, bottomPadding: 180 },
+      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 8 },
     },
     fallbackPlacements: [
       {
@@ -426,23 +428,24 @@ const HELP_PLACEMENT_POLICY = {
         centerAnchorKey: "viewportCenter",
         side: "left",
         gap: LAYOUT.dividerTapGap,
-        band: { sourceType: "between", sourceGroup: "topbar", position: "center", minY: 8, bottomPadding: 180 },
+        band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 8 },
       },
     ],
   },
   "canvas-right": {
     priority: 3,
-    wrappingAllowed: true,
+    wrappingAllowed: false,
     maxLines: 2,
-    shrinkAllowed: true,
-    dependencyIds: ["canvas-left"],
+    shrinkAllowed: false,
+    sharedWidthGroup: "canvas-center-pair",
+    dependencyIds: ["slider", "params"],
     constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "centerSplit",
       centerAnchorKey: "viewportCenter",
       side: "right",
       gap: LAYOUT.dividerTapGap,
-      band: { sourceType: "group", sourceGroup: "canvas-left", position: "alignTop", offset: 0 },
+      band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 8 },
     },
     fallbackPlacements: [
       {
@@ -450,55 +453,53 @@ const HELP_PLACEMENT_POLICY = {
         centerAnchorKey: "viewportCenter",
         side: "right",
         gap: LAYOUT.dividerTapGap,
-        band: { sourceType: "group", sourceGroup: "canvas-left", position: "alignTop", offset: 0 },
+        band: { sourceType: "group", sourceGroup: "params", position: "above", offset: 8 },
       },
     ],
   },
   params: {
-    priority: 4,
-    wrappingAllowed: true,
-    shrinkAllowed: true,
-    preferredPlacement: {
-      primitive: "viewportBand",
-      alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: -120 },
-      band: { sourceType: "viewport", position: "top", y: 34, offset: 0 },
-    },
-    fallbackPlacements: [
-      {
-        primitive: "viewportBand",
-        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: -120 },
-        band: { sourceType: "viewport", position: "middle", offset: -60 },
-      },
-      {
-        primitive: "relativeToTarget",
-        targetKey: "quickSlider",
-        relation: {
-          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
-          y: { sourceEdge: "top", selfEdge: "bottom", offset: 12 },
-        },
-      },
-    ],
-  },
-  slider: {
     priority: 5,
     wrappingAllowed: true,
     shrinkAllowed: true,
     preferredPlacement: {
-      primitive: "relativeToGroup",
-      groupId: "params",
-      relation: {
-        x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-        y: { sourceEdge: "bottom", selfEdge: "top", offset: 20 },
-      },
+      primitive: "centerSplit",
+      centerAnchorKey: "viewportCenter",
+      side: "right",
+      gap: 12,
+      band: { sourceType: "uiTop", position: "above", offset: 8 },
     },
     fallbackPlacements: [
       {
         primitive: "relativeToGroup",
-        groupId: "params",
+        groupId: "slider",
         relation: {
-          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-          y: { sourceEdge: "bottom", selfEdge: "top", offset: 36 },
+          x: { sourceEdge: "right", selfEdge: "right", offset: 0 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -10 },
         },
+      },
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
+        band: { sourceType: "viewport", position: "middle", offset: -60 },
+      },
+    ],
+  },
+  slider: {
+    priority: 4,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    preferredPlacement: {
+      primitive: "centerSplit",
+      centerAnchorKey: "viewportCenter",
+      side: "left",
+      gap: 12,
+      band: { sourceType: "uiTop", position: "above", offset: 8 },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "left", selfEdge: "left", offset: 18 },
+        band: { sourceType: "viewport", position: "middle", offset: -60 },
       },
       {
         primitive: "viewportBand",
@@ -639,6 +640,28 @@ function createOrMeasureLabels({ models, viewportWidth, margin }) {
   }
 
   return layouts;
+}
+
+function applySharedWidthPolicy(layouts) {
+  const groups = new Map();
+
+  for (const layout of layouts) {
+    const key = layout.item.policy.sharedWidthGroup;
+    if (!key) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(layout);
+  }
+
+  for (const groupedLayouts of groups.values()) {
+    if (groupedLayouts.length < 2) continue;
+    const sharedWidth = Math.max(...groupedLayouts.map((layout) => layout.width));
+
+    for (const layout of groupedLayouts) {
+      layout.labelEl.style.width = `${Math.ceil(sharedWidth)}px`;
+      layout.width = Math.ceil(sharedWidth);
+      layout.height = layout.labelEl.getBoundingClientRect().height;
+    }
+  }
 }
 
 function setLabelMeasureStyle(layout, variant, viewportWidth) {
@@ -961,42 +984,53 @@ function placeGroupsInPriorityOrder(ctx) {
   const sorted = [...ctx.layouts].sort((a, b) => a.item.policy.priority - b.item.policy.priority || a.group.id.localeCompare(b.group.id));
   const placed = new Map();
   const placedRects = [];
+  const pending = new Set(sorted.map((layout) => layout.group.id));
 
-  for (const layout of sorted) {
-    if (!layout.item.dependencyIds.every((id) => placed.has(id))) continue;
+  while (pending.size) {
+    let progress = false;
 
-    let best = null;
-    const preferredCandidate = buildCandidate(layout, layout.item.policy.preferredPlacement, { ...ctx, placed });
+    for (const layout of sorted) {
+      if (!pending.has(layout.group.id)) continue;
+      if (!layout.item.dependencyIds.every((id) => placed.has(id))) continue;
 
-    for (const variant of placementVariants(layout)) {
-      setLabelMeasureStyle(layout, variant, ctx.viewportWidth);
-      const candidates = generateCandidates(layout, { ...ctx, placed });
-      for (const candidate of candidates) {
-        const scored = scoreCandidate(layout, candidate, { ...ctx, placedRects, placed }, preferredCandidate);
-        if (!scored.valid) continue;
-        if (!best || scored.score < best.score) best = { ...candidate, score: scored.score };
+      let best = null;
+      const preferredCandidate = buildCandidate(layout, layout.item.policy.preferredPlacement, { ...ctx, placed });
+
+      for (const variant of placementVariants(layout)) {
+        setLabelMeasureStyle(layout, variant, ctx.viewportWidth);
+        const candidates = generateCandidates(layout, { ...ctx, placed });
+        for (const candidate of candidates) {
+          const scored = scoreCandidate(layout, candidate, { ...ctx, placedRects, placed }, preferredCandidate);
+          if (!scored.valid) continue;
+          if (!best || scored.score < best.score) best = { ...candidate, score: scored.score };
+        }
+        if (best && variant.fontScale === 1) break;
       }
-      if (best && variant.fontScale === 1) break;
+
+      if (!best) {
+        setLabelMeasureStyle(layout, { wrapped: true, fontScale: 0.86 }, ctx.viewportWidth);
+        const lockX = getStrictX(layout, ctx);
+        const free = findFirstFreeSpot(layout, ctx, placedRects, lockX);
+        if (free) {
+          best = free;
+        } else {
+          best = {
+            x: Number.isFinite(lockX) ? lockX : clamp(layout.x, ctx.margin, ctx.viewportWidth - layout.width - ctx.margin),
+            y: clamp(ctx.margin, ctx.margin, ctx.uiTop - layout.height - ctx.margin),
+          };
+        }
+      }
+
+      layout.x = Math.round(best.x);
+      layout.y = Math.round(best.y);
+      placed.set(layout.group.id, layout);
+      placedRects.push({ id: layout.group.id, rect: layoutRect(layout) });
+      pending.delete(layout.group.id);
+      progress = true;
+      break;
     }
 
-    if (!best) {
-      setLabelMeasureStyle(layout, { wrapped: true, fontScale: 0.86 }, ctx.viewportWidth);
-      const lockX = getStrictX(layout, ctx);
-      const free = findFirstFreeSpot(layout, ctx, placedRects, lockX);
-      if (free) {
-        best = free;
-      } else {
-        best = {
-          x: Number.isFinite(lockX) ? lockX : clamp(layout.x, ctx.margin, ctx.viewportWidth - layout.width - ctx.margin),
-          y: clamp(ctx.margin, ctx.margin, ctx.uiTop - layout.height - ctx.margin),
-        };
-      }
-    }
-
-    layout.x = Math.round(best.x);
-    layout.y = Math.round(best.y);
-    placed.set(layout.group.id, layout);
-    placedRects.push({ id: layout.group.id, rect: layoutRect(layout) });
+    if (!progress) break;
   }
 }
 
@@ -1093,6 +1127,7 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
     const activeItems = resolveActiveItems(registry, rects);
     const models = buildLabelModels(activeItems);
     const layouts = createOrMeasureLabels({ models, viewportWidth, margin });
+    applySharedWidthPolicy(layouts);
 
     const forbiddenRegions = buildUiForbiddenRegions(rects, uiTop, viewportWidth, margin);
     const anchors = resolveAnchors({ rects, viewportWidth, viewportHeight, margin, uiTop });
