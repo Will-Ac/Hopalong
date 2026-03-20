@@ -462,15 +462,18 @@ const HELP_PLACEMENT_POLICY = {
       primitive: "relativeToGroup",
       groupId: "canvas-left",
       relation: {
-        x: { sourceType: "anchor", sourceKey: "viewportCenter", sourceEdge: "x", selfEdge: "center", offset: -120 },
+        x: { sourceType: "anchor", sourceKey: "viewportCenter", sourceEdge: "x", selfEdge: "left", offset: 16 },
         y: { sourceEdge: "bottom", selfEdge: "top", offset: 20 },
       },
     },
     fallbackPlacements: [
       {
-        primitive: "viewportBand",
-        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: -120 },
-        band: { sourceType: "viewport", position: "middle", offset: -60 },
+        primitive: "relativeToGroup",
+        groupId: "canvas-left",
+        relation: {
+          x: { sourceType: "anchor", sourceKey: "viewportCenter", sourceEdge: "x", selfEdge: "center", offset: -120 },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 20 },
+        },
       },
       {
         primitive: "relativeToTarget",
@@ -490,8 +493,8 @@ const HELP_PLACEMENT_POLICY = {
       primitive: "relativeToGroup",
       groupId: "params",
       relation: {
-        x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-        y: { sourceEdge: "bottom", selfEdge: "top", offset: 20 },
+        x: { sourceEdge: "left", selfEdge: "right", offset: -16 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
       },
     },
     fallbackPlacements: [
@@ -500,7 +503,7 @@ const HELP_PLACEMENT_POLICY = {
         groupId: "params",
         relation: {
           x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-          y: { sourceEdge: "bottom", selfEdge: "top", offset: 36 },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 20 },
         },
       },
       {
