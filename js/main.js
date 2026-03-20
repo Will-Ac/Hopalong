@@ -43,6 +43,8 @@ const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomIter
 const detailMaxRandomItersFormattedEl = document.getElementById("detailMaxRandomItersFormatted");
 const detailIterationAbsoluteMaxRangeEl = document.getElementById("detailIterationAbsoluteMaxRange");
 const detailIterationAbsoluteMaxFormattedEl = document.getElementById("detailIterationAbsoluteMaxFormatted");
+const detailHistoryCacheSizeRangeEl = document.getElementById("detailHistoryCacheSizeRange");
+const detailHistoryCacheSizeFormattedEl = document.getElementById("detailHistoryCacheSizeFormatted");
 const detailBurnRangeEl = document.getElementById("detailBurnRange");
 const detailBurnFormattedEl = document.getElementById("detailBurnFormatted");
 const detailOverlayAlphaRangeEl = document.getElementById("detailOverlayAlphaRange");
@@ -63,8 +65,6 @@ const detailInterestGridSizeRangeEl = document.getElementById("detailInterestGri
 const detailInterestGridSizeFormattedEl = document.getElementById("detailInterestGridSizeFormatted");
 const detailInterestScanIterationsRangeEl = document.getElementById("detailInterestScanIterationsRange");
 const detailInterestScanIterationsFormattedEl = document.getElementById("detailInterestScanIterationsFormatted");
-const detailPanZoomIterationCapRangeEl = document.getElementById("detailPanZoomIterationCapRange");
-const detailPanZoomIterationCapFormattedEl = document.getElementById("detailPanZoomIterationCapFormatted");
 const detailInterestLyapunovEnabledToggleEl = document.getElementById("detailInterestLyapunovEnabledToggle");
 const detailInterestLyapunovMinExponentRangeEl = document.getElementById("detailInterestLyapunovMinExponentRange");
 const detailInterestLyapunovMinExponentFormattedEl = document.getElementById("detailInterestLyapunovMinExponentFormatted");
@@ -144,12 +144,13 @@ const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
 const randomModeTile = document.getElementById("randomModeTile");
 
-const ITERATION_FALLBACK_ABSOLUTE_MAX = 100000000;
+const ITERATION_FALLBACK_ABSOLUTE_MAX = 1000000000;
 const ITERATION_FALLBACK_STARTUP_DEFAULT = 500000;
 const ITERATION_FALLBACK_RANDOM_MAX = 500000;
-const ITERATION_FALLBACK_PAN_ZOOM_CAP = 500000;
+const HISTORY_CACHE_SIZE_DEFAULT = 6;
+const HISTORY_CACHE_SIZE_MIN = 1;
+const HISTORY_CACHE_SIZE_MAX = 20;
 const ITERATION_MIN = 1000;
-const PAN_ZOOM_ITERATION_CAP_MIN = 10000;
 
 const sliderControls = {
   a: { button: document.getElementById("btnAlpha"), label: "a", paramKey: "a", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
@@ -223,9 +224,8 @@ function getRandomIterationCap(defaults = appData?.defaults) {
   return normalizeIterationValue(defaults?.maxRandomIters, ITERATION_FALLBACK_RANDOM_MAX, ITERATION_MIN, absoluteMax);
 }
 
-function getPanZoomIterationCap(defaults = appData?.defaults) {
-  const absoluteMax = getIterationAbsoluteMax(defaults);
-  return normalizeIterationValue(defaults?.panZoomIterationCap, ITERATION_FALLBACK_PAN_ZOOM_CAP, PAN_ZOOM_ITERATION_CAP_MIN, absoluteMax);
+function getHistoryCacheSize(defaults = appData?.defaults) {
+  return Math.round(clamp(Number(defaults?.historyCacheSize), HISTORY_CACHE_SIZE_MIN, HISTORY_CACHE_SIZE_MAX)) || HISTORY_CACHE_SIZE_DEFAULT;
 }
 
 function normalizeIterationSettings(defaults = appData?.defaults) {
@@ -234,7 +234,7 @@ function normalizeIterationSettings(defaults = appData?.defaults) {
       iterationAbsoluteMax: ITERATION_FALLBACK_ABSOLUTE_MAX,
       iterationStartupDefault: ITERATION_FALLBACK_STARTUP_DEFAULT,
       maxRandomIters: ITERATION_FALLBACK_RANDOM_MAX,
-      panZoomIterationCap: ITERATION_FALLBACK_PAN_ZOOM_CAP,
+      historyCacheSize: HISTORY_CACHE_SIZE_DEFAULT,
       currentIterations: ITERATION_FALLBACK_STARTUP_DEFAULT,
     };
   }
@@ -243,8 +243,9 @@ function normalizeIterationSettings(defaults = appData?.defaults) {
   defaults.iterationAbsoluteMax = iterationAbsoluteMax;
   defaults.iterationStartupDefault = getIterationStartupDefault(defaults);
   defaults.maxRandomIters = getRandomIterationCap(defaults);
-  defaults.panZoomIterationCap = getPanZoomIterationCap(defaults);
+  defaults.historyCacheSize = getHistoryCacheSize(defaults);
   delete defaults.launchIterationCap;
+  delete defaults.panZoomIterationCap;
   defaults.sliders = defaults.sliders || {};
 
   const iterationsRaw = defaults.sliders.iters;
@@ -259,7 +260,7 @@ function normalizeIterationSettings(defaults = appData?.defaults) {
     iterationAbsoluteMax,
     iterationStartupDefault: defaults.iterationStartupDefault,
     maxRandomIters: defaults.maxRandomIters,
-    panZoomIterationCap: defaults.panZoomIterationCap,
+    historyCacheSize: defaults.historyCacheSize,
     currentIterations: defaults.sliders.iters,
   };
 }
@@ -340,6 +341,8 @@ let exportCacheCanvas = null;
 let exportCacheCtx = null;
 let exportCacheMeta = null;
 let renderRevision = 0;
+let currentRenderCache = null;
+const historyRenderCache = new Map();
 let pendingShareFile = null;
 let pendingShareTitle = "";
 let isApplyingHistoryState = false;
@@ -468,6 +471,167 @@ function requestDraw() {
       }
     }
   });
+}
+
+function stableStringify(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function createFrameCacheCanvas(width, height) {
+  const frameCanvas = document.createElement("canvas");
+  frameCanvas.width = width;
+  frameCanvas.height = height;
+  return frameCanvas;
+}
+
+function cloneFrameCanvas(sourceCanvas) {
+  const frameCanvas = createFrameCacheCanvas(sourceCanvas.width, sourceCanvas.height);
+  const frameCtx = frameCanvas.getContext("2d", { willReadFrequently: true });
+  if (!frameCtx) {
+    throw new Error("Frame cache context unavailable.");
+  }
+  frameCtx.drawImage(sourceCanvas, 0, 0);
+  return frameCanvas;
+}
+
+function getRenderStateKey(stateLike = captureCurrentState()) {
+  const state = stateLike || {};
+  return stableStringify({
+    formulaId: state.formulaId ?? currentFormulaId,
+    cmapName: state.cmapName ?? appData?.defaults?.cmapName,
+    sliders: state.sliders ?? appData?.defaults?.sliders,
+    derivedParams: state.derivedParams ?? getDerivedParams(),
+    iterationAbsoluteMax: state.iterationAbsoluteMax ?? getIterationAbsoluteMax(),
+    iterations: state.sliders?.iters ?? appData?.defaults?.sliders?.iters,
+    burn: state.sliders?.burn ?? appData?.defaults?.sliders?.burn,
+    scaleMode: state.scaleMode ?? getScaleMode(),
+    fixedView: state.fixedView ?? fixedView,
+    seed: state.seed ?? getSeedForFormula(state.formulaId ?? currentFormulaId),
+    renderColoring: state.renderColoring ?? getRenderColoringOptions(),
+    backgroundColor: state.backgroundColor ?? appData?.defaults?.backgroundColor,
+    rangesOverridesByFormula: state.rangesOverridesByFormula ?? appData?.defaults?.rangesOverridesByFormula,
+    formulaParamDefaultsByFormula: state.formulaParamDefaultsByFormula ?? appData?.defaults?.formulaParamDefaultsByFormula,
+    formulaSeeds: state.formulaSeeds ?? appData?.defaults?.formulaSeeds,
+    colorMapStopOverrides: state.colorMapStopOverrides ?? getColorMapStopOverrides(),
+  });
+}
+
+function drawCachedFrameEntry(frameEntry, { syncExport = true } = {}) {
+  if (!frameEntry?.canvas) {
+    return false;
+  }
+  const viewportWidth = Math.max(1, canvas.width);
+  const viewportHeight = Math.max(1, canvas.height);
+  const cropX = Math.max(0, Math.floor((frameEntry.canvas.width - viewportWidth) * 0.5));
+  const cropY = Math.max(0, Math.floor((frameEntry.canvas.height - viewportHeight) * 0.5));
+  const cropW = Math.min(viewportWidth, frameEntry.canvas.width - cropX);
+  const cropH = Math.min(viewportHeight, frameEntry.canvas.height - cropY);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(frameEntry.canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+  if (frameEntry.meta) {
+    lastRenderMeta = frameEntry.meta;
+    lastFullRenderMeta = frameEntry.fullMeta || frameEntry.meta;
+  }
+  if (syncExport) {
+    const targetCanvas = ensureExportCacheCanvas(frameEntry.canvas.width, frameEntry.canvas.height);
+    exportCacheCtx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+    exportCacheCtx.drawImage(frameEntry.canvas, 0, 0);
+    exportCacheMeta = {
+      pxW: targetCanvas.width,
+      pxH: targetCanvas.height,
+      updatedAt: performance.now(),
+      renderRevision,
+    };
+  }
+  return true;
+}
+
+function drawInteractionFrameFromCache(frameEntry) {
+  if (!frameEntry?.canvas || !frameEntry.sourceFixedView || !fixedView) {
+    return false;
+  }
+  const sourceZoom = Number(frameEntry.sourceFixedView.zoom) || 1;
+  const targetZoom = Number(fixedView.zoom) || 1;
+  if (sourceZoom <= 0 || targetZoom <= 0) {
+    return false;
+  }
+  const zoomRatio = targetZoom / sourceZoom;
+  const centerShiftX = (fixedView.offsetX || 0) - (frameEntry.sourceFixedView.offsetX || 0);
+  const centerShiftY = (fixedView.offsetY || 0) - (frameEntry.sourceFixedView.offsetY || 0);
+  const viewportWidth = Math.max(1, canvas.width);
+  const viewportHeight = Math.max(1, canvas.height);
+  const cropX = Math.max(0, Math.floor((frameEntry.canvas.width - viewportWidth) * 0.5));
+  const cropY = Math.max(0, Math.floor((frameEntry.canvas.height - viewportHeight) * 0.5));
+  const cropW = Math.min(viewportWidth, frameEntry.canvas.width - cropX);
+  const cropH = Math.min(viewportHeight, frameEntry.canvas.height - cropY);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.translate(canvas.width * 0.5 + centerShiftX, canvas.height * 0.5 + centerShiftY);
+  ctx.scale(zoomRatio, zoomRatio);
+  ctx.translate(-canvas.width * 0.5, -canvas.height * 0.5);
+  ctx.drawImage(frameEntry.canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+  ctx.restore();
+  if (frameEntry.meta) {
+    lastRenderMeta = frameEntry.meta;
+    lastFullRenderMeta = frameEntry.fullMeta || frameEntry.meta;
+  }
+  return true;
+}
+
+function pruneHistoryRenderCache() {
+  const maxEntries = getHistoryCacheSize();
+  while (historyRenderCache.size > maxEntries) {
+    const oldestKey = historyRenderCache.keys().next().value;
+    if (!oldestKey) {
+      break;
+    }
+    if (currentRenderCache && oldestKey === currentRenderCache.key && historyRenderCache.size > 1) {
+      const currentEntry = historyRenderCache.get(oldestKey);
+      historyRenderCache.delete(oldestKey);
+      historyRenderCache.set(oldestKey, currentEntry);
+      continue;
+    }
+    historyRenderCache.delete(oldestKey);
+  }
+}
+
+function getHistoryCachedFrame(key) {
+  if (!key || !historyRenderCache.has(key)) {
+    return null;
+  }
+  const entry = historyRenderCache.get(key);
+  historyRenderCache.delete(key);
+  historyRenderCache.set(key, entry);
+  return entry;
+}
+
+function cacheAccurateFrame({ key, fullCanvas, fullMeta, frameMeta, sourceFixedView }) {
+  if (!key || !fullCanvas || !fullMeta || !frameMeta) {
+    return null;
+  }
+  const cloneMeta = (value) => (typeof structuredClone === "function"
+    ? structuredClone(value)
+    : JSON.parse(JSON.stringify(value)));
+  const entry = {
+    key,
+    canvas: cloneFrameCanvas(fullCanvas),
+    fullMeta: cloneMeta(fullMeta),
+    meta: cloneMeta(frameMeta),
+    sourceFixedView: { ...(sourceFixedView || fixedView) },
+  };
+  currentRenderCache = entry;
+  historyRenderCache.delete(key);
+  historyRenderCache.set(key, entry);
+  pruneHistoryRenderCache();
+  return entry;
 }
 
 function isHelpOverlayOpen() {
@@ -1465,7 +1629,7 @@ function syncDetailedSettingsControls() {
     iterationAbsoluteMax,
     iterationStartupDefault,
     maxRandomIters,
-    panZoomIterationCap,
+    historyCacheSize,
   } = normalizeIterationSettings();
   const burnValue = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   if (detailStartupIterationsRangeEl) {
@@ -1486,6 +1650,12 @@ function syncDetailedSettingsControls() {
     detailIterationAbsoluteMaxRangeEl.value = String(iterationAbsoluteMax);
   }
   if (detailIterationAbsoluteMaxFormattedEl) detailIterationAbsoluteMaxFormattedEl.textContent = formatNumberForUi(iterationAbsoluteMax, 0);
+  if (detailHistoryCacheSizeRangeEl) {
+    detailHistoryCacheSizeRangeEl.min = String(HISTORY_CACHE_SIZE_MIN);
+    detailHistoryCacheSizeRangeEl.max = String(HISTORY_CACHE_SIZE_MAX);
+    detailHistoryCacheSizeRangeEl.value = String(historyCacheSize);
+  }
+  if (detailHistoryCacheSizeFormattedEl) detailHistoryCacheSizeFormattedEl.textContent = formatNumberForUi(historyCacheSize, 0);
   if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
   if (detailBurnFormattedEl) detailBurnFormattedEl.textContent = formatNumberForUi(burnValue, 0);
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
@@ -1506,12 +1676,6 @@ function syncDetailedSettingsControls() {
   if (detailInterestGridSizeFormattedEl) detailInterestGridSizeFormattedEl.textContent = formatNumberForUi(interestGridSize, 0);
   if (detailInterestScanIterationsRangeEl) detailInterestScanIterationsRangeEl.value = String(interestScanIterations);
   if (detailInterestScanIterationsFormattedEl) detailInterestScanIterationsFormattedEl.textContent = formatNumberForUi(interestScanIterations, 0);
-  if (detailPanZoomIterationCapRangeEl) {
-    detailPanZoomIterationCapRangeEl.min = String(PAN_ZOOM_ITERATION_CAP_MIN);
-    detailPanZoomIterationCapRangeEl.max = String(iterationAbsoluteMax);
-    detailPanZoomIterationCapRangeEl.value = String(panZoomIterationCap);
-  }
-  if (detailPanZoomIterationCapFormattedEl) detailPanZoomIterationCapFormattedEl.textContent = formatNumberForUi(panZoomIterationCap, 0);
   if (detailInterestLyapunovEnabledToggleEl) detailInterestLyapunovEnabledToggleEl.checked = interestLyapunovEnabled;
   if (detailInterestLyapunovMinExponentRangeEl) detailInterestLyapunovMinExponentRangeEl.value = String(interestLyapunovMinExponent);
   if (detailInterestLyapunovMinExponentFormattedEl) detailInterestLyapunovMinExponentFormattedEl.textContent = formatNumberForUi(interestLyapunovMinExponent, 2);
@@ -1605,6 +1769,14 @@ function applyIterationAbsoluteMax(nextValue) {
   commitCurrentStateToHistory();
 }
 
+function applyHistoryCacheSize(nextValue) {
+  appData.defaults.historyCacheSize = getHistoryCacheSize({ historyCacheSize: nextValue });
+  pruneHistoryRenderCache();
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  commitCurrentStateToHistory();
+}
+
 function applyRenderColorMode(mode) {
   const normalizedMode = String(mode || "").trim();
   appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(normalizedMode)
@@ -1661,13 +1833,6 @@ function applyInterestScanIterations(nextValue) {
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
-  commitCurrentStateToHistory();
-}
-
-function applyPanZoomIterationCap(nextValue) {
-  appData.defaults.panZoomIterationCap = normalizeIterationValue(nextValue, getPanZoomIterationCap(), PAN_ZOOM_ITERATION_CAP_MIN, getIterationAbsoluteMax());
-  syncDetailedSettingsControls();
-  saveDefaultsToStorage();
   commitCurrentStateToHistory();
 }
 
@@ -2261,6 +2426,7 @@ function loadDefaultsFromStorage() {
 }
 
 function captureCurrentState() {
+  const derivedParams = getDerivedParams();
   return {
     formulaId: currentFormulaId,
     cmapName: appData.defaults.cmapName,
@@ -2268,7 +2434,7 @@ function captureCurrentState() {
     iterationAbsoluteMax: appData.defaults.iterationAbsoluteMax,
     iterationStartupDefault: appData.defaults.iterationStartupDefault,
     maxRandomIters: appData.defaults.maxRandomIters,
-    panZoomIterationCap: appData.defaults.panZoomIterationCap,
+    historyCacheSize: appData.defaults.historyCacheSize,
     renderColorMode: appData.defaults.renderColorMode,
     renderLogStrength: appData.defaults.renderLogStrength,
     renderDensityGamma: appData.defaults.renderDensityGamma,
@@ -2289,6 +2455,10 @@ function captureCurrentState() {
     backgroundColor: appData.defaults.backgroundColor,
     colorMapStopOverrides: JSON.parse(JSON.stringify(appData.defaults.colorMapStopOverrides || {})),
     rangesOverridesByFormula: JSON.parse(JSON.stringify(appData.defaults.rangesOverridesByFormula || {})),
+    derivedParams,
+    scaleMode: getScaleMode(),
+    seed: getSeedForFormula(currentFormulaId),
+    renderColoring: getRenderColoringOptions(),
     fixedView: { ...fixedView },
     viewport: {
       canvasWidth: canvas.width,
@@ -2318,6 +2488,9 @@ function commitCurrentStateToHistory() {
   }
 
   if (historyIndex < historyStates.length - 1) {
+    for (const state of historyStates.slice(historyIndex + 1)) {
+      historyRenderCache.delete(getRenderStateKey(state));
+    }
     historyStates = historyStates.slice(0, historyIndex + 1);
   }
 
@@ -2346,9 +2519,7 @@ function applyState(state) {
   }
   appData.defaults.sliders = { ...appData.defaults.sliders, ...state.sliders };
   appData.defaults.maxRandomIters = state.maxRandomIters ?? appData.defaults.maxRandomIters;
-  if (state.panZoomIterationCap != null) {
-    appData.defaults.panZoomIterationCap = state.panZoomIterationCap;
-  }
+  appData.defaults.historyCacheSize = state.historyCacheSize ?? appData.defaults.historyCacheSize;
   appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(state.renderColorMode)
     ? state.renderColorMode
     : appData.defaults.renderColorMode;
@@ -2396,7 +2567,19 @@ function applyState(state) {
   syncQuickSliderPosition();
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
-  requestDraw();
+  const cacheKey = getRenderStateKey(state);
+  const cachedFrame = getHistoryCachedFrame(cacheKey);
+  if (cachedFrame && drawCachedFrameEntry(cachedFrame)) {
+    currentRenderCache = cachedFrame;
+    drawDebugOverlay(lastRenderMeta);
+    drawInterestOverlay(lastRenderMeta);
+    drawManualParamOverlay(lastRenderMeta);
+    refreshParamButtons();
+    updateQuickSliderReadout();
+    layoutFloatingActions();
+  } else {
+    requestDraw();
+  }
   isApplyingHistoryState = false;
 }
 
@@ -4461,12 +4644,15 @@ async function draw() {
   const startedAt = performance.now();
   const didResize = resizeCanvas();
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  const panZoomIterationCap = getPanZoomIterationCap();
-  const effectiveIterationSetting = panZoomInteractionActive
-    ? Math.min(iterationSetting, panZoomIterationCap)
-    : iterationSetting;
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
-  const iterations = effectiveIterationSetting;
+  const iterations = iterationSetting;
+  if (panZoomInteractionActive && !didResize && currentRenderCache && drawInteractionFrameFromCache(currentRenderCache)) {
+    drawDebugOverlay(lastRenderMeta);
+    drawInterestOverlay(lastRenderMeta);
+    drawManualParamOverlay(lastRenderMeta);
+    layoutFloatingActions();
+    return;
+  }
   renderProgressStartedAt = performance.now();
   renderProgressShownThisDraw = false;
   const { pxW, pxH } = getExportSizePx(canvas);
@@ -4555,6 +4741,14 @@ async function draw() {
     iterations,
     renderMs: now - startedAt,
   };
+  const stateKey = getRenderStateKey();
+  cacheAccurateFrame({
+    key: stateKey,
+    fullCanvas,
+    fullMeta: lastFullRenderMeta,
+    frameMeta: lastRenderMeta,
+    sourceFixedView: fixedView,
+  });
   renderRevision += 1;
   exportCacheMeta = {
     pxW: fullCanvas.width,
@@ -5249,13 +5443,13 @@ function registerHandlers() {
   detailStartupIterationsRangeEl?.addEventListener("input", () => applyIterationStartupDefault(detailStartupIterationsRangeEl.value));
   detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
   detailIterationAbsoluteMaxRangeEl?.addEventListener("input", () => applyIterationAbsoluteMax(detailIterationAbsoluteMaxRangeEl.value));
+  detailHistoryCacheSizeRangeEl?.addEventListener("input", () => applyHistoryCacheSize(detailHistoryCacheSizeRangeEl.value));
   detailBurnRangeEl?.addEventListener("input", () => applyDetailedSliderValue("burn", detailBurnRangeEl.value));
   detailOverlayAlphaRangeEl?.addEventListener("input", () => applyOverlayTransparency(detailOverlayAlphaRangeEl.value));
   detailInterestOverlayToggleEl?.addEventListener("change", () => applyInterestOverlayEnabled(detailInterestOverlayToggleEl.checked));
   detailInterestOverlayOpacityRangeEl?.addEventListener("input", () => applyInterestOverlayOpacity(detailInterestOverlayOpacityRangeEl.value));
   detailInterestGridSizeRangeEl?.addEventListener("input", () => applyInterestGridSize(detailInterestGridSizeRangeEl.value));
   detailInterestScanIterationsRangeEl?.addEventListener("input", () => applyInterestScanIterations(detailInterestScanIterationsRangeEl.value));
-  detailPanZoomIterationCapRangeEl?.addEventListener("input", () => applyPanZoomIterationCap(detailPanZoomIterationCapRangeEl.value));
   detailInterestLyapunovEnabledToggleEl?.addEventListener("change", () => applyInterestLyapunovEnabled(detailInterestLyapunovEnabledToggleEl.checked));
   detailInterestLyapunovMinExponentRangeEl?.addEventListener("input", () => applyInterestLyapunovMinExponent(detailInterestLyapunovMinExponentRangeEl.value));
   detailInterestLyapunovDelta0RangeEl?.addEventListener("input", () => applyInterestLyapunovDelta0(detailInterestLyapunovDelta0RangeEl.value));

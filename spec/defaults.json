@@ -6,7 +6,7 @@
     "b": 50.0,
     "c": 50.0,
     "d": 50.0,
-    "iters": 8000.0,
+    "iters": 500000.0,
     "burn": 50.0
   },
   "notes": [
@@ -15,6 +15,10 @@
     "debug controls whether the debug axis/tick/info overlay is shown."
   ],
   "debug": false,
+  "iterationAbsoluteMax": 1000000000,
+  "iterationStartupDefault": 500000,
+  "maxRandomIters": 500000,
+  "historyCacheSize": 6,
   "renderColorMode": "iteration_order",
   "renderLogStrength": 9,
   "renderDensityGamma": 0.6,
