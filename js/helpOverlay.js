@@ -44,11 +44,110 @@ const TARGET_SELECTORS = {
   randomTile: "#randomModeTile",
   randomButton: "#randomModeBtn",
   quickSliderLabel: "#qsLabel",
+  pickerPanel: "#pickerPanel",
+  pickerClose: "#pickerClose",
+  formulaPickerOption: ".formulaPickerOption",
+  formulaPickerSettings: ".formulaPickerSettingsBtn",
+  colorPickerOption: ".colorPickerOption",
+  colorPickerSettings: ".colorPickerSettingsBtn",
+  rangesEditorPanel: "#rangesEditorPanel",
+  rangesEditorClose: "#rangesEditorClose",
+  settingsTabColor: "#settingsTabColor",
+  settingsTabGeneral: "#settingsTabGeneral",
 };
 
 const SELECTOR_TO_TARGET_KEY = Object.fromEntries(
   Object.entries(TARGET_SELECTORS).map(([key, selector]) => [selector, key]),
 );
+
+const MAIN_HELP_ITEMS = HELP_OVERLAY_GROUPS;
+
+const PANEL_HELP_ITEMS = {
+  formulaPanel: [
+    {
+      id: "panel-formula-choose",
+      context: "formulaPanel",
+      group: "panel",
+      lines: [{ action: "Choose formula", body: "tap a formula" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: ".formulaPickerOption", attach: "center" },
+    },
+    {
+      id: "panel-formula-settings",
+      context: "formulaPanel",
+      group: "panel",
+      lines: [{ action: "Open settings", body: "tap the gear" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: ".formulaPickerSettingsBtn", attach: "center" },
+    },
+    {
+      id: "panel-formula-close",
+      context: "formulaPanel",
+      group: "panel",
+      lines: [{ action: "Close panel", body: "tap ×" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#pickerClose", attach: "center" },
+    },
+  ],
+  colorPanel: [
+    {
+      id: "panel-color-choose",
+      context: "colorPanel",
+      group: "panel",
+      lines: [{ action: "Choose color map", body: "tap a map" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: ".colorPickerOption", attach: "center" },
+    },
+    {
+      id: "panel-color-settings",
+      context: "colorPanel",
+      group: "panel",
+      lines: [{ action: "Open settings", body: "tap the gear" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: ".colorPickerSettingsBtn", attach: "center" },
+    },
+    {
+      id: "panel-color-close",
+      context: "colorPanel",
+      group: "panel",
+      lines: [{ action: "Close panel", body: "tap ×" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#pickerClose", attach: "center" },
+    },
+  ],
+  settingsPanel: [
+    {
+      id: "panel-settings-color",
+      context: "settingsPanel",
+      group: "panel",
+      lines: [{ action: "Color tab", body: "open color settings" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#settingsTabColor", attach: "center" },
+    },
+    {
+      id: "panel-settings-general",
+      context: "settingsPanel",
+      group: "panel",
+      lines: [{ action: "General tab", body: "open general settings" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#settingsTabGeneral", attach: "center" },
+    },
+    {
+      id: "panel-settings-close",
+      context: "settingsPanel",
+      group: "panel",
+      lines: [{ action: "Close panel", body: "tap ×" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#rangesEditorClose", attach: "center" },
+    },
+  ],
+};
+
+const HELP_CONTEXT_PANEL_SELECTORS = {
+  formulaPanel: "#pickerPanel",
+  colorPanel: "#pickerPanel",
+  settingsPanel: "#rangesEditorPanel",
+};
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -106,6 +205,18 @@ function getArrowSourcePoint(labelRect, mode) {
     return { x: labelRect.left + labelRect.width / 2, y: labelRect.top };
   }
   return null;
+}
+
+function expandRect(rect, padding = 0) {
+  if (!rect) return null;
+  return {
+    left: rect.left - padding,
+    top: rect.top - padding,
+    right: rect.right + padding,
+    bottom: rect.bottom + padding,
+    width: rect.width + padding * 2,
+    height: rect.height + padding * 2,
+  };
 }
 
 export function createHelpOverlay(options) {
@@ -563,6 +674,228 @@ const HELP_PLACEMENT_POLICY = {
       },
     ],
   },
+  "panel-formula-choose": {
+    priority: 3,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["formulaPickerOption"],
+    dependencyIds: ["panel-formula-settings"],
+    preferredPlacement: {
+      primitive: "relativeToGroup",
+      groupId: "panel-formula-settings",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+        y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "formulaPickerOption",
+        relation: {
+          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
+        },
+      },
+    ],
+  },
+  "panel-formula-settings": {
+    priority: 2,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["formulaPickerSettings"],
+    dependencyIds: ["panel-formula-close"],
+    preferredPlacement: {
+      primitive: "relativeToGroup",
+      groupId: "panel-formula-close",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+        y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "formulaPickerSettings",
+        relation: {
+          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
+        },
+      },
+    ],
+  },
+  "panel-formula-close": {
+    priority: 1,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["pickerClose"],
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "pickerClose",
+      relation: {
+        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "pickerPanel",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 12 },
+        },
+      },
+    ],
+  },
+  "panel-color-choose": {
+    priority: 3,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["colorPickerOption"],
+    dependencyIds: ["panel-color-settings"],
+    preferredPlacement: {
+      primitive: "relativeToGroup",
+      groupId: "panel-color-settings",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+        y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "colorPickerOption",
+        relation: {
+          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
+        },
+      },
+    ],
+  },
+  "panel-color-settings": {
+    priority: 2,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["colorPickerSettings"],
+    dependencyIds: ["panel-color-close"],
+    preferredPlacement: {
+      primitive: "relativeToGroup",
+      groupId: "panel-color-close",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+        y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "colorPickerSettings",
+        relation: {
+          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
+        },
+      },
+    ],
+  },
+  "panel-color-close": {
+    priority: 1,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["pickerClose"],
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "pickerClose",
+      relation: {
+        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "pickerPanel",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 12 },
+        },
+      },
+    ],
+  },
+  "panel-settings-color": {
+    priority: 2,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["rangesEditorPanel", "settingsTabColor"],
+    dependencyIds: ["panel-settings-close"],
+    preferredPlacement: {
+      primitive: "relativeToGroup",
+      groupId: "panel-settings-close",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+        y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "settingsTabColor",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
+        },
+      },
+    ],
+  },
+  "panel-settings-general": {
+    priority: 3,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["settingsTabGeneral"],
+    dependencyIds: ["panel-settings-color"],
+    preferredPlacement: {
+      primitive: "relativeToGroup",
+      groupId: "panel-settings-color",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+        y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "settingsTabGeneral",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
+        },
+      },
+    ],
+  },
+  "panel-settings-close": {
+    priority: 1,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["rangesEditorClose"],
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "rangesEditorClose",
+      relation: {
+        x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "rangesEditorPanel",
+        relation: {
+          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+          y: { sourceEdge: "top", selfEdge: "top", offset: 12 },
+        },
+      },
+    ],
+  },
 };
 
 const ANCHOR_RESOLVERS = {
@@ -580,8 +913,8 @@ function resolveAnchors(ctx) {
   return anchors;
 }
 
-function buildHelpItemRegistry() {
-  return HELP_OVERLAY_GROUPS.map((group) => {
+function buildHelpItemRegistry(groups) {
+  return groups.map((group) => {
     const policy = HELP_PLACEMENT_POLICY[group.id] || {
       priority: 50,
       wrappingAllowed: true,
@@ -597,6 +930,131 @@ function buildHelpItemRegistry() {
       visibleWhen: policy.visibleWhen || (() => true),
     };
   });
+}
+
+function resolveVisibleHelpContexts() {
+  const activeContexts = options.getActiveHelpContexts?.() || [];
+  if (!activeContexts.length) {
+    return ["main"];
+  }
+
+  const visibleContexts = [];
+  for (const context of activeContexts) {
+    const panelRect = getRect(HELP_CONTEXT_PANEL_SELECTORS[context]);
+    if (!panelRect) continue;
+    const overlapsVisibleContext = visibleContexts.some(
+      (visible) => overlapArea(panelRect, visible.rect) > 0,
+    );
+    if (!overlapsVisibleContext) {
+      visibleContexts.push({ context, rect: panelRect });
+    }
+  }
+
+  return visibleContexts.length
+    ? visibleContexts.map((item) => item.context)
+    : ["main"];
+}
+
+function resolveHelpContent() {
+  const activeContexts = resolveVisibleHelpContexts();
+  if (activeContexts.length === 1 && activeContexts[0] === "main") {
+    return { groups: MAIN_HELP_ITEMS, brackets: HELP_GROUP_BRACKETS, activeContexts: [] };
+  }
+
+  return {
+    groups: activeContexts.flatMap((context) => PANEL_HELP_ITEMS[context] || []),
+    brackets: [],
+    activeContexts,
+  };
+}
+
+function buildPanelForbiddenRegions(activeContexts) {
+  return activeContexts
+    .map((context) => expandRect(getRect(HELP_CONTEXT_PANEL_SELECTORS[context]), 8))
+    .filter(Boolean);
+}
+
+function getPanelContextPreferredSide(context) {
+  if (context === "settingsPanel") {
+    return "left";
+  }
+  return "right";
+}
+
+function alignPanelStackAgainstSide({ side, stackX, stackWidth, layoutWidth }) {
+  if (side === "left") {
+    return stackX + (stackWidth - layoutWidth);
+  }
+  return stackX;
+}
+
+function placePanelContextGroups({ layouts, activeContexts, viewportWidth, uiTop, margin }) {
+  const stackGap = 10;
+  const sideGap = 14;
+  const occupiedRects = [];
+
+  for (const context of activeContexts) {
+    const panelRect = getRect(HELP_CONTEXT_PANEL_SELECTORS[context]);
+    const contextLayouts = layouts
+      .filter((layout) => layout.group.context === context)
+      .sort((a, b) => a.item.policy.priority - b.item.policy.priority || a.group.id.localeCompare(b.group.id));
+
+    if (!panelRect || !contextLayouts.length) continue;
+
+    const stackWidth = Math.max(...contextLayouts.map((layout) => layout.width));
+    const stackHeight = contextLayouts.reduce((sum, layout) => sum + layout.height, 0) + Math.max(0, contextLayouts.length - 1) * stackGap;
+    const preferredSide = getPanelContextPreferredSide(context);
+    const alternateSide = preferredSide === "right" ? "left" : "right";
+    const preferredHasSpace = preferredSide === "right"
+      ? panelRect.right + sideGap + stackWidth <= viewportWidth - margin
+      : panelRect.left - sideGap - stackWidth >= margin;
+    const side = preferredHasSpace ? preferredSide : alternateSide;
+
+    const stackX = side === "right"
+      ? Math.min(panelRect.right + sideGap, viewportWidth - stackWidth - margin)
+      : Math.max(margin, panelRect.left - stackWidth - sideGap);
+
+    let stackY = clamp(panelRect.top, margin, Math.max(margin, uiTop - stackHeight - margin));
+    let stackRect = {
+      left: stackX,
+      top: stackY,
+      right: stackX + stackWidth,
+      bottom: stackY + stackHeight,
+    };
+
+    for (const occupied of occupiedRects) {
+      if (overlapArea(stackRect, occupied) <= 0) continue;
+      const shiftedDownTop = occupied.bottom + stackGap;
+      const shiftedUpTop = occupied.top - stackGap - stackHeight;
+
+      if (shiftedDownTop + stackHeight <= uiTop - margin) {
+        stackY = shiftedDownTop;
+      } else if (shiftedUpTop >= margin) {
+        stackY = shiftedUpTop;
+      }
+
+      stackRect = {
+        left: stackX,
+        top: stackY,
+        right: stackX + stackWidth,
+        bottom: stackY + stackHeight,
+      };
+    }
+
+    let nextY = stackY;
+    for (const layout of contextLayouts) {
+      layout.x = alignPanelStackAgainstSide({
+        side,
+        stackX,
+        stackWidth,
+        layoutWidth: layout.width,
+      });
+      layout.y = nextY;
+      nextY += layout.height + stackGap;
+    }
+
+    occupiedRects.push(stackRect);
+  }
 }
 
 function resolveActiveItems(registry, rects) {
@@ -1021,6 +1479,11 @@ function clampPlacedGroupsToViewport(ctx) {
 function renderCanvasDivider({ viewportHeight, layouts }) {
     const leftTap = layouts.find((item) => item.group.id === "canvas-left");
     const rightTap = layouts.find((item) => item.group.id === "canvas-right");
+    if (!leftTap || !rightTap) {
+      dom.centerDivider.style.display = "none";
+      return;
+    }
+    dom.centerDivider.style.display = "";
     const tapLineCenterY = leftTap && rightTap
       ? Math.round((leftTap.y + leftTap.height / 2 + rightTap.y + rightTap.height / 2) / 2)
       : Math.round(viewportHeight * LAYOUT.dividerYOffsetFactor);
@@ -1095,29 +1558,36 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
     const tileTopEdge = Number.isFinite(paramOverlayRect?.top) ? paramOverlayRect.top : uiTop;
     const alignedBottomGuideY = Math.round(tileTopEdge - LAYOUT.alignedTileGuideOffset);
 
-    const registry = buildHelpItemRegistry();
+    const { groups, brackets, activeContexts = [] } = resolveHelpContent();
+    const registry = buildHelpItemRegistry(groups);
     const activeItems = resolveActiveItems(registry, rects);
     const models = buildLabelModels(activeItems);
     const layouts = createOrMeasureLabels({ models, viewportWidth, margin });
 
-    const forbiddenRegions = buildUiForbiddenRegions(rects, uiTop, viewportWidth, margin);
     const anchors = resolveAnchors({ rects, viewportWidth, viewportHeight, margin, uiTop });
 
-    placeGroupsInPriorityOrder({
-      layouts,
-      rects,
-      viewportWidth,
-      viewportHeight,
-      margin,
-      uiTop,
-      forbiddenRegions,
-      anchors,
-    });
+    if (activeContexts.length) {
+      placePanelContextGroups({ layouts, activeContexts, viewportWidth, uiTop, margin });
+    } else {
+      const forbiddenRegions = buildUiForbiddenRegions(rects, uiTop, viewportWidth, margin);
+      forbiddenRegions.push(...buildPanelForbiddenRegions(activeContexts));
 
-    clampPlacedGroupsToViewport({ layouts, viewportWidth, margin, uiTop, rects, anchors });
+      placeGroupsInPriorityOrder({
+        layouts,
+        rects,
+        viewportWidth,
+        viewportHeight,
+        margin,
+        uiTop,
+        forbiddenRegions,
+        anchors,
+      });
+
+      clampPlacedGroupsToViewport({ layouts, viewportWidth, margin, uiTop, rects, anchors });
+    }
 
     const bracketMidpoints = new Map();
-    for (const bracket of HELP_GROUP_BRACKETS) {
+    for (const bracket of brackets) {
       const rect = unionRects(bracket.targetSelectors.map((selector) => getRect(selector)));
       if (!rect) continue;
       const midpoint = drawBracket(rect, bracket.side, bracket.side === "top" ? alignedBottomGuideY : null);

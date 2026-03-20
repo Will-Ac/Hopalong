@@ -1385,6 +1385,7 @@ function setSettingsTab(tabKey) {
   settingsTabGeneralEl?.classList.toggle("is-active", !showColor);
   colorTabPanelEl?.classList.toggle("is-hidden", !showColor);
   generalTabPanelEl?.classList.toggle("is-hidden", showColor);
+  helpOverlayController?.render();
 }
 
 function syncDetailedSettingsControls() {
@@ -2930,6 +2931,7 @@ function renderFormulaPicker() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "pickerOption";
+    button.classList.add("formulaPickerOption");
     if (formula.id === currentFormulaId) {
       button.classList.add("is-selected");
     }
@@ -2990,6 +2992,7 @@ function renderColorMapPicker() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "pickerOption";
+    button.classList.add("colorPickerOption");
     if (cmapName === appData.defaults.cmapName) {
       button.classList.add("is-selected");
     }
@@ -4935,6 +4938,23 @@ function initHelpOverlay() {
     isSliderOpen: () => quickSliderOverlay.classList.contains("is-open"),
     ensureSliderOpen: ensureHelpSliderOpen,
     closeSlider: closeQuickSlider,
+    getActiveHelpContexts: () => {
+      const contexts = [];
+
+      if (pickerOverlay.classList.contains("is-open")) {
+        if (activePicker === "formula") {
+          contexts.push("formulaPanel");
+        } else if (activePicker === "cmap") {
+          contexts.push("colorPanel");
+        }
+      }
+
+      if (rangesEditorPanelEl && !rangesEditorPanelEl.classList.contains("is-hidden")) {
+        contexts.push("settingsPanel");
+      }
+
+      return contexts;
+    },
     onOpened: () => {
       showToast("Help mode enabled.");
     },
