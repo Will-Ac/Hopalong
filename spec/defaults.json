@@ -15,7 +15,7 @@
     "debug controls whether the debug axis/tick/info overlay is shown."
   ],
   "debug": false,
-  "iterationAbsoluteMax": 1000000000,
+  "iterationAbsoluteMax": 100000000,
   "iterationStartupDefault": 500000,
   "maxRandomIters": 500000,
   "historyCacheSize": 6,
