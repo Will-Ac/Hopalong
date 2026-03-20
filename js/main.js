@@ -1,5 +1,5 @@
 import { ColorMapNames, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
-import { renderFrame, getParamsForFormula, classifyInterestGridLyapunov } from "./renderer.js";
+import { renderFrame, getParamsForFormula, classifyInterestGridLyapunov, isRenderCancelledError } from "./renderer.js";
 import {
   FORMULA_METADATA,
   FORMULA_RANGES_RAW,
@@ -341,6 +341,7 @@ let exportCacheCanvas = null;
 let exportCacheCtx = null;
 let exportCacheMeta = null;
 let renderRevision = 0;
+let renderGeneration = 0;
 let currentRenderCache = null;
 let activePanZoomCacheEntry = null;
 const historyRenderCache = new Map();
@@ -439,13 +440,25 @@ function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   return `${normalized.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
 }
 
-function requestDraw() {
+function invalidatePendingRenders() {
+  renderGeneration += 1;
+  return renderGeneration;
+}
+
+function isRenderGenerationCurrent(generation) {
+  return generation === renderGeneration;
+}
+
+function requestDraw({ invalidate = true } = {}) {
   if (appData) {
     refreshParamButtons();
     updateQuickSliderReadout();
     syncDetailedSettingsControls();
   }
 
+  if (invalidate) {
+    invalidatePendingRenders();
+  }
   drawDirty = true;
   if (highResExportInProgress) {
     return;
@@ -468,7 +481,7 @@ function requestDraw() {
     } finally {
       drawInProgress = false;
       if (drawDirty) {
-        requestDraw();
+        requestDraw({ invalidate: false });
       }
     }
   });
@@ -2528,6 +2541,7 @@ function applyState(state) {
     return;
   }
 
+  invalidatePendingRenders();
   isApplyingHistoryState = true;
   currentFormulaId = state.formulaId;
   appData.defaults.cmapName = state.cmapName;
@@ -2591,6 +2605,7 @@ function applyState(state) {
   const cachedFrame = getHistoryCachedFrame(cacheKey);
   if (cachedFrame && drawCachedFrameEntry(cachedFrame)) {
     currentRenderCache = cachedFrame;
+    drawDirty = false;
     drawDebugOverlay(lastRenderMeta);
     drawInterestOverlay(lastRenderMeta);
     drawManualParamOverlay(lastRenderMeta);
@@ -4713,6 +4728,7 @@ async function draw() {
     return;
   }
 
+  const renderGenerationAtStart = renderGeneration;
   const startedAt = performance.now();
   const didResize = resizeCanvas();
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
@@ -4737,23 +4753,38 @@ async function draw() {
     Math.max(1, Math.round(pxW * cropScale)),
     Math.max(1, Math.round(pxH * cropScale)),
   );
-  const frameMetaFull = await renderFrame({
-    ctx: exportCacheCtx,
-    canvas: fullCanvas,
-    formulaId: currentFormulaId,
-    cmapName: appData.defaults.cmapName,
-    params: getDerivedParams(),
-    iterations: didResize ? Math.max(10000, Math.round(iterations * 0.6)) : iterations,
-    burn: burnSetting,
-    scaleMode: getScaleMode(),
-    fixedView,
-    seed: getSeedForFormula(currentFormulaId),
-    renderColoring: getRenderColoringOptions(),
-    backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
-    onProgress: (percent, isComplete) => {
-      updateRenderProgressToast(percent, isComplete);
-    },
-  });
+  let frameMetaFull;
+  try {
+    frameMetaFull = await renderFrame({
+      ctx: exportCacheCtx,
+      canvas: fullCanvas,
+      formulaId: currentFormulaId,
+      cmapName: appData.defaults.cmapName,
+      params: getDerivedParams(),
+      iterations: didResize ? Math.max(10000, Math.round(iterations * 0.6)) : iterations,
+      burn: burnSetting,
+      scaleMode: getScaleMode(),
+      fixedView,
+      seed: getSeedForFormula(currentFormulaId),
+      renderColoring: getRenderColoringOptions(),
+      backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
+      onProgress: (percent, isComplete) => {
+        if (isRenderGenerationCurrent(renderGenerationAtStart)) {
+          updateRenderProgressToast(percent, isComplete);
+        }
+      },
+      isCancelled: () => !isRenderGenerationCurrent(renderGenerationAtStart),
+    });
+  } catch (error) {
+    if (isRenderCancelledError(error)) {
+      return;
+    }
+    throw error;
+  }
+
+  if (!isRenderGenerationCurrent(renderGenerationAtStart)) {
+    return;
+  }
 
   const viewportWidth = Math.max(1, canvas.width);
   const viewportHeight = Math.max(1, canvas.height);
