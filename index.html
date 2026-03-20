@@ -187,14 +187,6 @@
         margin-bottom: 12px;
       }
       .rangesEditorHead strong { font-size: var(--ui-font-size); }
-      #rangesEditorClose {
-        border: 1px solid rgba(var(--ui-gray-rgb), 0.2);
-        border-radius: 8px;
-        min-width: 28px;
-        min-height: 28px;
-        background: rgba(var(--ui-gray-rgb), 0.08);
-        color: var(--text);
-      }
       .rangesEditorTabs {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -252,31 +244,29 @@
         display: grid;
         gap: 8px;
         padding: 10px;
-        border-bottom: 1px solid rgba(var(--ui-gray-rgb), 0.12);
       }
       .pickerSection.is-hidden,
-      .pickerBodyHeading.is-hidden {
+      .pickerModeRow.is-hidden {
         display: none;
       }
-      .pickerSectionLabelRow {
+      .pickerModeRow {
         display: flex;
         align-items: center;
-        justify-content: space-between;
         gap: 8px;
       }
       .pickerSectionLabel {
         font-size: var(--ui-font-size);
         font-weight: var(--ui-font-weight);
+        white-space: nowrap;
+      }
+      .pickerSectionSelect {
+        min-width: 0;
+        flex: 1 1 auto;
       }
       .pickerSectionActions {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-      }
-      .pickerBodyHeading {
-        padding: 10px 10px 0;
-        font-size: var(--ui-font-size);
-        font-weight: var(--ui-font-weight);
       }
 
       .rangeInput {
@@ -755,22 +745,6 @@
         display: flex;
         flex-direction: column;
       }
-      .pickerHead {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px;
-        border-bottom: 1px solid rgba(var(--ui-gray-rgb), 0.12);
-      }
-      #pickerTitle { font-size: var(--ui-font-size); font-weight: var(--ui-font-weight); }
-      #pickerClose {
-        min-height: 30px;
-        min-width: 30px;
-        border-radius: 8px;
-        border: 1px solid rgba(var(--ui-gray-rgb), 0.25);
-        background: rgba(var(--ui-gray-rgb), 0.1);
-        color: var(--text);
-      }
       #pickerList {
         overflow-y: auto;
         overflow-x: hidden;
@@ -1204,23 +1178,11 @@ Scale</button>
         <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
       <aside id="rangesEditorPanel" class="is-hidden" aria-label="Settings editor">
-        <div class="rangesEditorHead">
-          <strong>Settings</strong>
-          <button id="rangesEditorClose" type="button" aria-label="Close ranges editor">✕</button>
-        </div>
         <div class="rangesEditorTabs">
           <button id="settingsTabColor" class="rangesTabBtn is-active" type="button">Color</button>
           <button id="settingsTabGeneral" class="rangesTabBtn" type="button">General</button>
         </div>
-        <div id="colorTabPanel" class="rangesEditorBody settingsTabPanel">
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Background color</span></div>
-            <div class="perfControlRow">
-              <input id="detailBackgroundColor" class="perfRangeInput" type="color" aria-label="Background color" />
-              <div id="detailBackgroundColorValue" class="perfFormattedValue">#05070c</div>
-            </div>
-          </div>
-        </div>
+        <div id="colorTabPanel" class="rangesEditorBody settingsTabPanel"></div>
         <div id="generalTabPanel" class="rangesEditorBody settingsTabPanel is-hidden">
           <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Startup iterations</span></div>
@@ -1452,28 +1414,30 @@ Scale</button>
       <div id="pickerOverlay" aria-hidden="true">
         <div id="pickerBackdrop"></div>
         <div id="pickerPanel" role="dialog" aria-modal="true" aria-label="Picker">
-          <div class="pickerHead">
-            <span id="pickerTitle">Pick</span>
-            <button id="pickerClose" type="button" aria-label="Close picker">✕</button>
-          </div>
           <div id="colorModePickerSection" class="pickerSection is-hidden">
-            <div class="pickerSectionLabelRow">
-              <span class="pickerSectionLabel">Coloring mode</span>
+            <div class="perfSettingCard">
+              <div class="perfSettingHead"><span class="perfSettingLabel">Background color</span></div>
+              <div class="perfControlRow">
+                <input id="detailBackgroundColor" class="perfRangeInput" type="color" aria-label="Background color" />
+                <div id="detailBackgroundColorValue" class="perfFormattedValue">#05070c</div>
+              </div>
+            </div>
+            <div class="pickerModeRow">
+              <span class="pickerSectionLabel">Mode</span>
+              <select id="detailColorModeSelect" class="perfSelect pickerSectionSelect" aria-label="Mode">
+                <option value="iteration_order">Iteration order</option>
+                <option value="hit_density_linear">Hit density (linear)</option>
+                <option value="hit_density_log">Hit density (log)</option>
+                <option value="hit_density_gamma">Hit density (gamma)</option>
+                <option value="hit_density_percentile">Hit density (percentile)</option>
+                <option value="hybrid_density_age">Hybrid (density + recency)</option>
+              </select>
               <div class="pickerSectionActions">
-                <button id="infoColorMode" class="perfInfoBtn" type="button" aria-label="Coloring mode information">i</button>
+                <button id="infoColorMode" class="perfInfoBtn" type="button" aria-label="Mode information">i</button>
                 <button id="colorModeSettingsToggle" class="pickerSettingsBtn" type="button" aria-label="Open coloring mode settings">⚙</button>
               </div>
             </div>
-            <select id="detailColorModeSelect" class="perfSelect" aria-label="Coloring mode">
-              <option value="iteration_order">Iteration order</option>
-              <option value="hit_density_linear">Hit density (linear)</option>
-              <option value="hit_density_log">Hit density (log)</option>
-              <option value="hit_density_gamma">Hit density (gamma)</option>
-              <option value="hit_density_percentile">Hit density (percentile)</option>
-              <option value="hybrid_density_age">Hybrid (density + recency)</option>
-            </select>
           </div>
-          <div id="pickerBodyHeading" class="pickerBodyHeading is-hidden">Select color map</div>
           <div id="pickerList"></div>
         </div>
       </div>

@@ -23,7 +23,6 @@ const rangesEditorToggleEl = document.getElementById("rangesEditorToggle");
 const overlayToggleBtn = document.getElementById("overlayToggleBtn");
 const helpBtn = document.getElementById("helpBtn");
 const rangesEditorPanelEl = document.getElementById("rangesEditorPanel");
-const rangesEditorCloseEl = document.getElementById("rangesEditorClose");
 const formulaSettingsPanelEl = document.getElementById("formulaSettingsPanel");
 const formulaSettingsCloseEl = document.getElementById("formulaSettingsClose");
 const formulaSettingsCloseBottomEl = document.getElementById("formulaSettingsCloseBottom");
@@ -123,10 +122,8 @@ const qsTop = document.querySelector(".qsTop");
 const pickerOverlay = document.getElementById("pickerOverlay");
 const pickerBackdrop = document.getElementById("pickerBackdrop");
 const pickerTitle = document.getElementById("pickerTitle");
-const pickerClose = document.getElementById("pickerClose");
 const pickerList = document.getElementById("pickerList");
 const pickerPanel = document.getElementById("pickerPanel");
-const pickerBodyHeadingEl = document.getElementById("pickerBodyHeading");
 const colorModePickerSectionEl = document.getElementById("colorModePickerSection");
 const colorModeSettingsPanelEl = document.getElementById("colorModeSettingsPanel");
 const colorModeSettingsCloseEl = document.getElementById("colorModeSettingsClose");
@@ -3012,11 +3009,37 @@ function closePicker({ force = false } = {}) {
   helpOverlayController?.render();
 }
 
+function closePanelsFromOutsidePointer(target) {
+  if (!(target instanceof Element)) {
+    return;
+  }
+
+  if (
+    rangesEditorPanelEl
+    && !rangesEditorPanelEl.classList.contains("is-hidden")
+    && !rangesEditorPanelEl.contains(target)
+    && !rangesEditorToggleEl?.contains(target)
+  ) {
+    closeRangesEditor();
+  }
+
+  if (
+    pickerOverlay.classList.contains("is-open")
+    && !pickerPanel?.contains(target)
+    && !colorModeSettingsPanelEl?.contains(target)
+  ) {
+    closePicker();
+  }
+}
+
 function layoutPickerPanel() {
   const formulaTile = formulaBtn?.closest(".poItem");
   const cmapTile = cmapBtn?.closest(".poItem");
+  const topActionsRect = topRightActionsEl?.getBoundingClientRect();
   const viewportWidth = window.innerWidth;
   const margin = 6;
+  let panelLeft = margin;
+  let panelWidth = Math.min(activePicker === "cmap" ? 420 : 320, viewportWidth - margin * 2);
 
   if (formulaTile && cmapTile) {
     const firstRect = formulaTile.getBoundingClientRect();
@@ -3024,19 +3047,22 @@ function layoutPickerPanel() {
     const baseWidth = secondRect.right - firstRect.left;
     const minWidth = activePicker === "cmap" ? 280 : 180;
     const targetWidth = activePicker === "cmap" ? baseWidth * 1.5 : baseWidth;
-    const width = clamp(targetWidth, minWidth, viewportWidth - margin * 2);
-    const maxLeft = Math.max(margin, viewportWidth - margin - width);
-    const left = clamp(firstRect.left, margin, maxLeft);
-    pickerPanel.style.width = `${Math.round(width)}px`;
-    pickerPanel.style.left = `${Math.round(left)}px`;
-    pickerPanel.style.transform = "none";
-    helpOverlayController?.scheduleRender();
-    return;
+    panelWidth = clamp(targetWidth, minWidth, viewportWidth - margin * 2);
+    const maxLeft = Math.max(margin, viewportWidth - margin - panelWidth);
+    panelLeft = clamp(firstRect.left, margin, maxLeft);
   }
 
-  const fallbackWidth = activePicker === "cmap" ? 420 : 320;
-  pickerPanel.style.width = `${Math.min(fallbackWidth, viewportWidth - margin * 2)}px`;
-  pickerPanel.style.left = `${margin}px`;
+  let panelTop = margin;
+  if (topActionsRect) {
+    const overlapsTopActions = panelLeft < topActionsRect.right && panelLeft + panelWidth > topActionsRect.left && panelTop < topActionsRect.bottom;
+    if (overlapsTopActions) {
+      panelTop = Math.max(panelTop, Math.round(topActionsRect.bottom + 6));
+    }
+  }
+
+  pickerPanel.style.width = `${Math.round(panelWidth)}px`;
+  pickerPanel.style.left = `${Math.round(panelLeft)}px`;
+  pickerPanel.style.top = `${Math.round(panelTop)}px`;
   pickerPanel.style.transform = "none";
   helpOverlayController?.scheduleRender();
 }
@@ -3094,9 +3120,8 @@ function layoutColorModeSettingsPanel() {
 }
 
 function renderFormulaPicker() {
-  pickerTitle.textContent = "Select formula";
+  if (pickerTitle) pickerTitle.textContent = "Select formula";
   if (colorModePickerSectionEl) colorModePickerSectionEl.classList.add("is-hidden");
-  if (pickerBodyHeadingEl) pickerBodyHeadingEl.classList.add("is-hidden");
   pickerList.innerHTML = "";
 
   for (const formula of appData.formulas) {
@@ -3160,12 +3185,8 @@ function renderFormulaPicker() {
 }
 
 function renderColorMapPicker() {
-  pickerTitle.textContent = "Color map";
+  if (pickerTitle) pickerTitle.textContent = "Color map";
   if (colorModePickerSectionEl) colorModePickerSectionEl.classList.remove("is-hidden");
-  if (pickerBodyHeadingEl) {
-    pickerBodyHeadingEl.textContent = "Select color map";
-    pickerBodyHeadingEl.classList.remove("is-hidden");
-  }
   pickerList.innerHTML = "";
 
   for (const cmapName of appData.colormaps) {
@@ -5163,7 +5184,6 @@ function initHelpOverlay() {
 }
 
 function registerHandlers() {
-  pickerClose.addEventListener("click", () => closePicker());
   pickerBackdrop.addEventListener("click", () => closePicker());
   for (const [targetKey, target] of Object.entries(paramTileTargets)) {
     const tile = target.button.closest(".poItem");
@@ -5306,7 +5326,6 @@ function registerHandlers() {
       closeRangesEditor();
     }
   });
-  rangesEditorCloseEl?.addEventListener("click", closeRangesEditor);
   formulaSettingsCloseEl?.addEventListener("click", closeFormulaSettingsPanel);
   formulaSettingsCloseBottomEl?.addEventListener("click", closeFormulaSettingsPanel);
 
@@ -5421,6 +5440,10 @@ function registerHandlers() {
       return;
     }
     hideSettingsInfo();
+  }, true);
+
+  document.addEventListener("pointerdown", (event) => {
+    closePanelsFromOutsidePointer(event.target);
   }, true);
 
   canvas.style.touchAction = "none";
