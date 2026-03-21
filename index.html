@@ -51,13 +51,27 @@
         font-size: var(--ui-font-size);
         font-weight: var(--ui-font-weight);
       }
-      #c {
+      #canvasStack {
+        position: absolute;
+        inset: 0;
+      }
+      #c,
+      #interestOverlayCanvas,
+      #manualOverlayCanvas {
+        position: absolute;
+        inset: 0;
         display: block;
         width: 100%;
         height: 100%;
-        touch-action: none;
         -webkit-user-select: none;
         user-select: none;
+      }
+      #c {
+        touch-action: none;
+      }
+      #interestOverlayCanvas,
+      #manualOverlayCanvas {
+        pointer-events: none;
       }
       #toast {
         position: absolute;
@@ -296,7 +310,7 @@
       #formulaSettingsPanel {
         right: auto;
         left: max(8px, env(safe-area-inset-left));
-        z-index: 42;
+        z-index: 60;
       }
       .formulaNameTitle {
         margin: 0;
@@ -1208,7 +1222,11 @@
   </head>
   <body>
     <div id="app">
-      <canvas id="c"></canvas>
+      <div id="canvasStack">
+        <canvas id="c"></canvas>
+        <canvas id="interestOverlayCanvas"></canvas>
+        <canvas id="manualOverlayCanvas"></canvas>
+      </div>
       <p id="toast" aria-live="polite" aria-atomic="true"></p>
       <div id="debugPanel" class="is-hidden">
         <p id="debugInfo">Debug off</p>
