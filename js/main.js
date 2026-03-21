@@ -56,8 +56,10 @@ const holdAccelStartMsRangeEl = document.getElementById("holdAccelStartMsRange")
 const holdAccelStartMsValueEl = document.getElementById("holdAccelStartMsValue");
 const holdAccelEndMsRangeEl = document.getElementById("holdAccelEndMsRange");
 const holdAccelEndMsValueEl = document.getElementById("holdAccelEndMsValue");
-const touchZoomSensitivityRangeEl = document.getElementById("touchZoomSensitivityRange");
-const touchZoomSensitivityValueEl = document.getElementById("touchZoomSensitivityValue");
+const touchZoomDeadbandRangeEl = document.getElementById("touchZoomDeadbandRange");
+const touchZoomDeadbandValueEl = document.getElementById("touchZoomDeadbandValue");
+const touchZoomRatioMinRangeEl = document.getElementById("touchZoomRatioMinRange");
+const touchZoomRatioMinValueEl = document.getElementById("touchZoomRatioMinValue");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const detailInterestOverlayToggleEl = document.getElementById("detailInterestOverlayToggle");
 const detailInterestOverlayOpacityRangeEl = document.getElementById("detailInterestOverlayOpacityRange");
@@ -384,10 +386,12 @@ const INTERACTION_STATE = {
 };
 const DPR = window.devicePixelRatio || 1;
 const PAN_DEADBAND_PX = 1.5 * DPR;
-const ZOOM_DEADBAND_PX = 2.5 * DPR;
-const TOUCH_ZOOM_RATIO_MIN_DEFAULT = 0.003;
-const TOUCH_ZOOM_RATIO_MIN_MIN = 0.001;
-const TOUCH_ZOOM_RATIO_MIN_MAX = 0.02;
+const TOUCH_ZOOM_DEADBAND_PX_DEFAULT = 2.5;
+const TOUCH_ZOOM_DEADBAND_PX_MIN = 0;
+const TOUCH_ZOOM_DEADBAND_PX_MAX = 40;
+const TOUCH_ZOOM_RATIO_MIN_DEFAULT = 0.002;
+const TOUCH_ZOOM_RATIO_MIN_MIN = 0;
+const TOUCH_ZOOM_RATIO_MIN_MAX = 0.12;
 const SINGLE_TOUCH_MODULATION_START_DRAW_DELAY_MS = 24;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
@@ -1770,7 +1774,8 @@ function syncDetailedSettingsControls() {
   if (detailInterestLyapunovMaxDistanceFormattedEl) detailInterestLyapunovMaxDistanceFormattedEl.textContent = formatNumberForUi(interestLyapunovMaxDistance, 3);
   syncInterestOverlayToggleUi();
   const holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
-  const touchZoomSensitivityThreshold = getTouchZoomSensitivityThreshold();
+  const touchZoomDeadbandPx = getTouchZoomDeadbandPx();
+  const touchZoomRatioMin = getTouchZoomRatioMin();
   const { holdRepeatMs, holdAccelStartMs, holdAccelEndMs } = getHoldTimingSettings();
   if (holdSpeedRangeEl) holdSpeedRangeEl.value = String(holdSpeedScale);
   if (holdSpeedValueEl) holdSpeedValueEl.textContent = `Hold speed: ${holdSpeedScale.toFixed(2)}×`;
@@ -1780,8 +1785,10 @@ function syncDetailedSettingsControls() {
   if (holdAccelStartMsValueEl) holdAccelStartMsValueEl.textContent = `Accel start: ${holdAccelStartMs} ms`;
   if (holdAccelEndMsRangeEl) holdAccelEndMsRangeEl.value = String(holdAccelEndMs);
   if (holdAccelEndMsValueEl) holdAccelEndMsValueEl.textContent = `Accel end: ${holdAccelEndMs} ms`;
-  if (touchZoomSensitivityRangeEl) touchZoomSensitivityRangeEl.value = String(touchZoomSensitivityThreshold);
-  if (touchZoomSensitivityValueEl) touchZoomSensitivityValueEl.textContent = `Pinch-vs-pan threshold: ${touchZoomSensitivityThreshold.toFixed(3)}`;
+  if (touchZoomDeadbandRangeEl) touchZoomDeadbandRangeEl.value = String(touchZoomDeadbandPx);
+  if (touchZoomDeadbandValueEl) touchZoomDeadbandValueEl.textContent = `Touch zoom deadband: ${touchZoomDeadbandPx.toFixed(1)} px`;
+  if (touchZoomRatioMinRangeEl) touchZoomRatioMinRangeEl.value = String(touchZoomRatioMin);
+  if (touchZoomRatioMinValueEl) touchZoomRatioMinValueEl.textContent = `Touch zoom ratio min: ${touchZoomRatioMin.toFixed(3)}`;
   if (detailColorModeSelectEl) detailColorModeSelectEl.value = appData.defaults.renderColorMode;
   if (detailLogStrengthRangeEl) detailLogStrengthRangeEl.value = String(appData.defaults.renderLogStrength);
   if (detailLogStrengthFormattedEl) detailLogStrengthFormattedEl.textContent = formatNumberForUi(appData.defaults.renderLogStrength, 1);
@@ -1804,12 +1811,17 @@ function applyHoldSpeedScale(nextValue) {
   commitCurrentStateToHistory();
 }
 
-function applyTouchZoomSensitivityThreshold(nextValue) {
+function applyTouchZoomTuningSetting(key, nextValue) {
   if (!appData?.defaults) {
     return;
   }
 
-  appData.defaults.touchZoomSensitivityThreshold = clamp(Number(nextValue), TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
+  if (key === "touchZoomDeadbandPx") {
+    appData.defaults.touchZoomDeadbandPx = clamp(Number(nextValue), TOUCH_ZOOM_DEADBAND_PX_MIN, TOUCH_ZOOM_DEADBAND_PX_MAX);
+  } else if (key === "touchZoomRatioMin") {
+    appData.defaults.touchZoomRatioMin = clamp(Number(nextValue), TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
+  }
+
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   commitCurrentStateToHistory();
@@ -3042,8 +3054,16 @@ function resetPanZoomInteractionStateForModulation() {
   clearPanZoomInteractionCache();
 }
 
-function getTouchZoomSensitivityThreshold() {
-  return clamp(Number(appData?.defaults?.touchZoomSensitivityThreshold ?? TOUCH_ZOOM_RATIO_MIN_DEFAULT), TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
+function getTouchZoomDeadbandPx() {
+  return clamp(Number(appData?.defaults?.touchZoomDeadbandPx ?? TOUCH_ZOOM_DEADBAND_PX_DEFAULT), TOUCH_ZOOM_DEADBAND_PX_MIN, TOUCH_ZOOM_DEADBAND_PX_MAX);
+}
+
+function getTouchZoomDeadbandThreshold() {
+  return getTouchZoomDeadbandPx() * DPR;
+}
+
+function getTouchZoomRatioMin() {
+  return clamp(Number(appData?.defaults?.touchZoomRatioMin ?? TOUCH_ZOOM_RATIO_MIN_DEFAULT), TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
 }
 
 function prepareFixedViewForPanZoom(reason = "manual pan/zoom") {
@@ -3212,9 +3232,10 @@ function onCanvasPointerMove(event) {
 
   const panMagnitude = Math.hypot(dxm, dym);
   const zoomRatioDelta = Math.abs(ratioStep - 1);
-  const touchZoomSensitivityThreshold = getTouchZoomSensitivityThreshold();
+  const touchZoomDeadbandThreshold = getTouchZoomDeadbandThreshold();
+  const touchZoomRatioMin = getTouchZoomRatioMin();
   const shouldPan = panMagnitude > PAN_DEADBAND_PX;
-  const shouldZoom = Math.abs(dd) > ZOOM_DEADBAND_PX && zoomRatioDelta > touchZoomSensitivityThreshold;
+  const shouldZoom = Math.abs(dd) > touchZoomDeadbandThreshold || zoomRatioDelta > touchZoomRatioMin;
 
   lastTwoDebug = {
     state: interactionState,
@@ -3223,7 +3244,8 @@ function onCanvasPointerMove(event) {
     dd,
     ratioStep,
     viewZoom: fixedView.zoom,
-    touchZoomSensitivityThreshold,
+    touchZoomDeadbandThreshold,
+    touchZoomRatioMin,
   };
 
   if (!twoFingerGesture.isArmed) {
@@ -5802,7 +5824,8 @@ function registerHandlers() {
   holdRepeatMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdRepeatMs", holdRepeatMsRangeEl.value));
   holdAccelStartMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdAccelStartMs", holdAccelStartMsRangeEl.value));
   holdAccelEndMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdAccelEndMs", holdAccelEndMsRangeEl.value));
-  touchZoomSensitivityRangeEl?.addEventListener("input", () => applyTouchZoomSensitivityThreshold(touchZoomSensitivityRangeEl.value));
+  touchZoomDeadbandRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("touchZoomDeadbandPx", touchZoomDeadbandRangeEl.value));
+  touchZoomRatioMinRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("touchZoomRatioMin", touchZoomRatioMinRangeEl.value));
 
   detailDebugToggleEl?.addEventListener("change", () => {
     appData.defaults.debug = Boolean(detailDebugToggleEl.checked);
@@ -6049,8 +6072,13 @@ async function loadData() {
   if (typeof data.defaults.holdAccelEndMs !== "number") {
     data.defaults.holdAccelEndMs = HOLD_ACCEL_END_MS_DEFAULT;
   }
-  if (typeof data.defaults.touchZoomSensitivityThreshold !== "number") {
-    data.defaults.touchZoomSensitivityThreshold = TOUCH_ZOOM_RATIO_MIN_DEFAULT;
+  if (typeof data.defaults.touchZoomDeadbandPx !== "number") {
+    data.defaults.touchZoomDeadbandPx = TOUCH_ZOOM_DEADBAND_PX_DEFAULT;
+  }
+  if (typeof data.defaults.touchZoomRatioMin !== "number") {
+    data.defaults.touchZoomRatioMin = typeof data.defaults.touchZoomSensitivityThreshold === "number"
+      ? data.defaults.touchZoomSensitivityThreshold
+      : TOUCH_ZOOM_RATIO_MIN_DEFAULT;
   }
 
   normalizeIterationSettings(data.defaults);
@@ -6069,7 +6097,8 @@ async function loadData() {
   data.defaults.holdRepeatMs = Math.round(clamp(data.defaults.holdRepeatMs, HOLD_REPEAT_MS_MIN, HOLD_REPEAT_MS_MAX));
   data.defaults.holdAccelStartMs = Math.round(clamp(data.defaults.holdAccelStartMs, HOLD_ACCEL_START_MS_MIN, HOLD_ACCEL_START_MS_MAX));
   data.defaults.holdAccelEndMs = Math.round(clamp(data.defaults.holdAccelEndMs, HOLD_ACCEL_END_MS_MIN, HOLD_ACCEL_END_MS_MAX));
-  data.defaults.touchZoomSensitivityThreshold = clamp(data.defaults.touchZoomSensitivityThreshold, TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
+  data.defaults.touchZoomDeadbandPx = clamp(data.defaults.touchZoomDeadbandPx, TOUCH_ZOOM_DEADBAND_PX_MIN, TOUCH_ZOOM_DEADBAND_PX_MAX);
+  data.defaults.touchZoomRatioMin = clamp(data.defaults.touchZoomRatioMin, TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
   if (data.defaults.holdAccelEndMs <= data.defaults.holdAccelStartMs) {
     data.defaults.holdAccelEndMs = data.defaults.holdAccelStartMs + 1;
   }
@@ -6127,7 +6156,8 @@ async function bootstrap() {
     appData.defaults.interestLyapunovMaxDistance = clamp(Number(appData.defaults.interestLyapunovMaxDistance ?? INTEREST_LYAPUNOV_MAX_DISTANCE_MAX), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
     normalizeIterationSettings();
     appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
-    appData.defaults.touchZoomSensitivityThreshold = clamp(Number(appData.defaults.touchZoomSensitivityThreshold ?? TOUCH_ZOOM_RATIO_MIN_DEFAULT), TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
+    appData.defaults.touchZoomDeadbandPx = clamp(Number(appData.defaults.touchZoomDeadbandPx ?? TOUCH_ZOOM_DEADBAND_PX_DEFAULT), TOUCH_ZOOM_DEADBAND_PX_MIN, TOUCH_ZOOM_DEADBAND_PX_MAX);
+    appData.defaults.touchZoomRatioMin = clamp(Number(appData.defaults.touchZoomRatioMin ?? TOUCH_ZOOM_RATIO_MIN_DEFAULT), TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
     normalizeHoldTimingDefaults();
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
     applyBackgroundTheme();
