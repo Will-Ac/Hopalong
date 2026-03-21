@@ -2858,6 +2858,7 @@ function getManualAxisTargets() {
 }
 
 function requestLiveModulationDraw() {
+  redrawInterestOverlayCanvas(lastRenderMeta);
   redrawManualOverlayCanvas(lastRenderMeta);
   requestDraw({ invalidate: false });
 }
