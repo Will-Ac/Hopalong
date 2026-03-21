@@ -3509,12 +3509,12 @@ function renderColorMapPicker() {
     <div class="modeRow">
       <span class="perfSettingLabel modeRowLabel">Mode</span>
       <select id="pickerColorModeProxy" class="perfSelect" aria-label="Mode">
-        <option value="iteration_order">Iteration order</option>
+        <option value="iteration_order">Iteration order (default)</option>
         <option value="hit_density_linear">Hit density (linear)</option>
         <option value="hit_density_log">Hit density (log)</option>
         <option value="hit_density_gamma">Hit density (gamma)</option>
         <option value="hit_density_percentile">Hit density (percentile)</option>
-        <option value="hybrid_density_age">Hybrid (density + recency)</option>
+        <option value="hybrid_density_age">Hybrid (density + iteration)</option>
       </select>
       <button id="pickerModeSettingsProxy" class="compactIconBtn" type="button" aria-label="Open mode settings">⚙</button>
     </div>
