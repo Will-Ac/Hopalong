@@ -4704,8 +4704,7 @@ function drawInterestOverlay(meta, targetCtx = ctx) {
     return;
   }
 
-  const isStaleOverlay = interestOverlayScanCache?.scanKey !== plan.scanKey;
-  if (!interestOverlayScanCache) {
+  if (!interestOverlayScanCache || interestOverlayScanCache.scanKey !== plan.scanKey) {
     return;
   }
 
@@ -4720,9 +4719,7 @@ function drawInterestOverlay(meta, targetCtx = ctx) {
 
   targetCtx.save();
   targetCtx.imageSmoothingEnabled = false;
-  targetCtx.fillStyle = isStaleOverlay
-    ? `rgba(120, 200, 255, ${Math.max(INTEREST_OVERLAY_OPACITY_MIN, overlayOpacity * 0.6)})`
-    : `rgba(120, 200, 255, ${overlayOpacity})`;
+  targetCtx.fillStyle = `rgba(120, 200, 255, ${overlayOpacity})`;
   for (const cellIndex of scanResult.highCells) {
     const col = cellIndex % plan.gridCols;
     const row = Math.floor(cellIndex / plan.gridCols);
