@@ -1600,20 +1600,6 @@ function resetAllFormulaParamDefaults() {
   appData.defaults.formulaParamDefaultsByFormula = {};
 }
 
-function resetAllRangeOverrides() {
-  const currentBuiltIn = builtInFormulaRanges[currentFormulaId] || DEFAULT_PARAM_RANGES;
-  remapSliderToPreserveParams(currentFormulaId, currentBuiltIn);
-  appData.defaults.rangesOverridesByFormula = {};
-  resetAllFormulaParamDefaults();
-  resetAllFormulaSeeds();
-  saveDefaultsToStorage();
-  loadFormulaRangesIntoEditor(getSelectedRangesEditorFormulaId());
-  syncSeedEditorInputs(getSelectedRangesEditorFormulaId());
-  setRangesEditorWarning("All overrides cleared.");
-  requestDraw();
-  commitCurrentStateToHistory();
-}
-
 function openRangesEditor() {
   if (!rangesEditorPanelEl) {
     return;
@@ -4583,10 +4569,6 @@ function getInterestOverlayScanPlan(meta = null) {
   });
 
   return { planeConfig, gridLayout, gridCols, gridRows, scanIterations, lyapunovConfig, baseParams, scanKey };
-}
-
-function precomputeInterestOverlayScan(meta = null) {
-  scheduleInterestOverlayRecalc({ meta, immediate: false });
 }
 
 function scheduleInterestOverlayRecalc({ meta = null, immediate = false, showProgress = false } = {}) {

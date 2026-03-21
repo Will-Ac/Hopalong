@@ -889,10 +889,6 @@ export const FORMULA_UI_EQUATIONS = {
   },
 };
 
-const FORMULA_BY_ID = new Map(
-  FORMULA_DEFS.map((formula) => [formula.id, formula]),
-);
-
 export const VARIANTS = FORMULA_DEFS.map((formula) => ({
   id: formula.id,
   name: formula.name,
@@ -919,17 +915,3 @@ export const FORMULA_METADATA = FORMULA_DEFS.map((formula) => ({
   usedParams: inferUsedParams(formula),
 }));
 
-export function getVariantById(id) {
-  const formula = FORMULA_BY_ID.get(id);
-  if (!formula) return null;
-  return {
-    id: formula.id,
-    name: formula.name,
-    desc: formula.desc,
-    step: (x, y, a, b, c, d) => formula.step(x, y, { a, b, c, d }),
-  };
-}
-
-export function listVariantIds() {
-  return FORMULA_DEFS.map((formula) => formula.id);
-}
