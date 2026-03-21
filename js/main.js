@@ -2901,20 +2901,15 @@ function applyPanDelta(deltaX, deltaY) {
   requestDraw();
 }
 
-function applyZoomAtPoint(zoomFactor, anchorX, anchorY) {
-  if (!Number.isFinite(zoomFactor) || zoomFactor <= 0) {
-    return;
+function setZoomAtPoint(targetZoom, anchorX, anchorY) {
+  if (!Number.isFinite(targetZoom) || targetZoom <= 0) {
+    return false;
   }
 
   const prevZoom = fixedView.zoom;
-  const nextZoom = prevZoom * zoomFactor;
-  if (!Number.isFinite(nextZoom) || nextZoom <= 0) {
-    return;
-  }
-
-  const ratio = nextZoom / prevZoom;
+  const ratio = targetZoom / prevZoom;
   if (!Number.isFinite(ratio) || ratio === 1) {
-    return;
+    return false;
   }
 
   const viewCenterX = canvas.width * 0.5;
@@ -2924,9 +2919,43 @@ function applyZoomAtPoint(zoomFactor, anchorX, anchorY) {
   const nextCenterX = anchorX - (anchorX - centerX) * ratio;
   const nextCenterY = anchorY - (anchorY - centerY) * ratio;
 
-  fixedView.zoom = nextZoom;
+  fixedView.zoom = targetZoom;
   fixedView.offsetX = nextCenterX - viewCenterX;
   fixedView.offsetY = nextCenterY - viewCenterY;
+  return true;
+}
+
+function applyZoomAtPoint(zoomFactor, anchorX, anchorY) {
+  if (!Number.isFinite(zoomFactor) || zoomFactor <= 0) {
+    return;
+  }
+
+  const nextZoom = fixedView.zoom * zoomFactor;
+  if (!setZoomAtPoint(nextZoom, anchorX, anchorY)) {
+    return;
+  }
+
+  persistCurrentHistoryViewState();
+  requestDraw();
+}
+
+function applyTwoFingerGestureTransform(targetZoom, anchorX, anchorY, deltaX, deltaY) {
+  let didChange = false;
+
+  if (Number.isFinite(targetZoom) && targetZoom > 0) {
+    didChange = setZoomAtPoint(targetZoom, anchorX, anchorY) || didChange;
+  }
+
+  if (Number.isFinite(deltaX) && Number.isFinite(deltaY) && (deltaX !== 0 || deltaY !== 0)) {
+    fixedView.offsetX += deltaX;
+    fixedView.offsetY += deltaY;
+    didChange = true;
+  }
+
+  if (!didChange) {
+    return;
+  }
+
   persistCurrentHistoryViewState();
   requestDraw();
 }
@@ -2981,6 +3010,8 @@ function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
   twoFingerGesture = {
     idA: pointerIdA,
     idB: pointerIdB,
+    startD: lastD,
+    startZoom: fixedView.zoom,
     lastD,
     lastMX,
     lastMY,
@@ -3257,18 +3288,22 @@ function onCanvasPointerMove(event) {
     }
 
     prepareFixedViewForPanZoom("manual pan/zoom");
+    twoFingerGesture.startZoom = fixedView.zoom;
     twoFingerGesture.isArmed = true;
     beginPanZoomInteraction();
   }
 
-  if (shouldZoom && Number.isFinite(ratioStep) && ratioStep > 0) {
-    beginPanZoomInteraction();
-    applyZoomAtPoint(ratioStep, midpoint.x, midpoint.y);
+  let targetZoom = null;
+  if (shouldZoom && Number.isFinite(twoFingerGesture.startD) && twoFingerGesture.startD > 0) {
+    const zoomFromStart = distance / twoFingerGesture.startD;
+    if (Number.isFinite(zoomFromStart) && zoomFromStart > 0) {
+      targetZoom = twoFingerGesture.startZoom * zoomFromStart;
+    }
   }
 
-  if (shouldPan) {
+  if (targetZoom !== null || shouldPan) {
     beginPanZoomInteraction();
-    applyPanDelta(dxm, dym);
+    applyTwoFingerGestureTransform(targetZoom, midpoint.x, midpoint.y, shouldPan ? dxm : 0, shouldPan ? dym : 0);
   }
 
   twoFingerGesture.lastD = distance;
