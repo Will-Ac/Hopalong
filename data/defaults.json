@@ -30,6 +30,8 @@
   "holdRepeatMs": 60,
   "holdAccelStartMs": 350,
   "holdAccelEndMs": 1400,
+  "touchZoomDeadbandPx": 2.5,
+  "touchZoomRatioMin": 0.002,
   "interestOverlayEnabled": false,
   "interestGridSize": 24,
   "interestScanIterations": 1200,
