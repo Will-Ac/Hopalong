@@ -13,6 +13,8 @@ const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
 
 const canvas = document.getElementById("c");
+const interestOverlayCanvas = document.getElementById("interestOverlayCanvas");
+const manualOverlayCanvas = document.getElementById("manualOverlayCanvas");
 const toastEl = document.getElementById("toast");
 const formulaBtn = document.getElementById("formulaBtn");
 const cmapBtn = document.getElementById("cmapBtn");
@@ -271,6 +273,8 @@ function normalizeIterationSettings(defaults = appData?.defaults) {
 }
 
 const ctx = canvas.getContext("2d", { alpha: false });
+const interestOverlayCtx = interestOverlayCanvas?.getContext("2d");
+const manualOverlayCtx = manualOverlayCanvas?.getContext("2d");
 let appData = null;
 let currentFormulaId = null;
 let activeSliderKey = null;
@@ -566,6 +570,7 @@ function drawCachedFrameEntry(frameEntry, { syncExport = true } = {}) {
   if (frameEntry.meta) {
     lastRenderMeta = frameEntry.meta;
     lastFullRenderMeta = frameEntry.fullMeta || frameEntry.meta;
+    redrawOverlayCanvases(lastRenderMeta);
   }
   if (syncExport) {
     const targetCanvas = ensureExportCacheCanvas(frameEntry.canvas.width, frameEntry.canvas.height);
@@ -629,6 +634,7 @@ function drawInteractionFrameFromCache(frameEntry) {
   if (frameEntry.meta) {
     lastRenderMeta = frameEntry.meta;
     lastFullRenderMeta = frameEntry.fullMeta || frameEntry.meta;
+    redrawOverlayCanvases(lastRenderMeta);
   }
   return true;
 }
@@ -840,19 +846,28 @@ function installGlobalZoomBlockers() {
   );
 }
 
+function resizeCanvasElement(targetCanvas, width, height) {
+  if (!targetCanvas) {
+    return false;
+  }
+  if (targetCanvas.width !== width || targetCanvas.height !== height) {
+    targetCanvas.width = width;
+    targetCanvas.height = height;
+    return true;
+  }
+  return false;
+}
+
 function resizeCanvas() {
   const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
   const rect = canvas.getBoundingClientRect();
   const width = Math.max(1, Math.round(rect.width * dpr));
   const height = Math.max(1, Math.round(rect.height * dpr));
 
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-    return true;
-  }
-
-  return false;
+  const didResizeBase = resizeCanvasElement(canvas, width, height);
+  const didResizeInterest = resizeCanvasElement(interestOverlayCanvas, width, height);
+  const didResizeManual = resizeCanvasElement(manualOverlayCanvas, width, height);
+  return didResizeBase || didResizeInterest || didResizeManual;
 }
 
 function clamp(value, min, max) {
@@ -2694,9 +2709,7 @@ function applyState(state) {
   if (cachedFrame && drawCachedFrameEntry(cachedFrame)) {
     currentRenderCache = cachedFrame;
     drawDirty = false;
-    drawDebugOverlay(lastRenderMeta);
-    drawInterestOverlay(lastRenderMeta);
-    drawManualParamOverlay(lastRenderMeta);
+    redrawOverlayCanvases(lastRenderMeta);
     refreshParamButtons();
     updateQuickSliderReadout();
     layoutFloatingActions();
@@ -2845,6 +2858,7 @@ function getManualAxisTargets() {
 }
 
 function requestLiveModulationDraw() {
+  redrawManualOverlayCanvas(lastRenderMeta);
   requestDraw({ invalidate: false });
 }
 
@@ -4660,6 +4674,7 @@ async function runInterestOverlayRecalc() {
         gridCols: plan.gridCols,
         gridRows: plan.gridRows,
       };
+      redrawInterestOverlayCanvas(lastRenderMeta);
     }
   } finally {
     interestOverlayCalcInProgress = false;
@@ -4678,7 +4693,7 @@ function shouldShowInterestOverlay() {
   return Boolean(appData?.defaults?.interestOverlayEnabled) && shouldShowManualOverlay() && hasAnyManualTargets();
 }
 
-function drawInterestOverlay(meta) {
+function drawInterestOverlay(meta, targetCtx = ctx) {
   if (!meta || !shouldShowInterestOverlay() || !Boolean(appData.defaults.interestLyapunovEnabled)) {
     return;
   }
@@ -4702,8 +4717,8 @@ function drawInterestOverlay(meta) {
 
   const overlayOpacity = normalizeInterestOverlayOpacity(appData.defaults.interestOverlayOpacity);
 
-  ctx.save();
-  ctx.fillStyle = isStaleOverlay
+  targetCtx.save();
+  targetCtx.fillStyle = isStaleOverlay
     ? `rgba(120, 200, 255, ${Math.max(INTEREST_OVERLAY_OPACITY_MIN, overlayOpacity * 0.6)})`
     : `rgba(120, 200, 255, ${overlayOpacity})`;
   for (const cellIndex of scanResult.highCells) {
@@ -4711,10 +4726,10 @@ function drawInterestOverlay(meta) {
     const row = Math.floor(cellIndex / plan.gridCols);
     const x = offsetX + col * cellSize;
     const y = offsetY + row * cellSize;
-    ctx.fillRect(x, y, cellSize, cellSize);
+    targetCtx.fillRect(x, y, cellSize, cellSize);
   }
 
-  ctx.restore();
+  targetCtx.restore();
 }
 
 function syncInterestOverlayToggleUi() {
@@ -4725,7 +4740,7 @@ function syncInterestOverlayToggleUi() {
   overlayToggleBtn?.setAttribute("aria-pressed", enabled && hasManualTargets ? "true" : "false");
 }
 
-function drawManualParamOverlay(meta) {
+function drawManualParamOverlay(meta, targetCtx = ctx) {
   if (!meta || !shouldShowManualOverlay()) {
     return;
   }
@@ -4767,27 +4782,27 @@ function drawManualParamOverlay(meta) {
 
   const drawAxisLine = (x1, y1, x2, y2) => {
     // 1) Dark outline pass
-    ctx.save();
-    ctx.lineWidth = AXIS_WIDTH + 2;
-    ctx.strokeStyle = OVERLAY_BLACK;
-    ctx.shadowBlur = 0;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    ctx.restore();
+    targetCtx.save();
+    targetCtx.lineWidth = AXIS_WIDTH + 2;
+    targetCtx.strokeStyle = OVERLAY_BLACK;
+    targetCtx.shadowBlur = 0;
+    targetCtx.beginPath();
+    targetCtx.moveTo(x1, y1);
+    targetCtx.lineTo(x2, y2);
+    targetCtx.stroke();
+    targetCtx.restore();
 
     // 2) Final crisp white center pass
-    ctx.save();
-    ctx.lineWidth = AXIS_WIDTH;
-    ctx.strokeStyle = OVERLAY_WHITE;
-    ctx.shadowBlur = 0;
-    ctx.shadowColor = "transparent";
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    ctx.restore();
+    targetCtx.save();
+    targetCtx.lineWidth = AXIS_WIDTH;
+    targetCtx.strokeStyle = OVERLAY_WHITE;
+    targetCtx.shadowBlur = 0;
+    targetCtx.shadowColor = "transparent";
+    targetCtx.beginPath();
+    targetCtx.moveTo(x1, y1);
+    targetCtx.lineTo(x2, y2);
+    targetCtx.stroke();
+    targetCtx.restore();
   };
 
   const alignedAxisX = alignAxisPixel(paramAxisX, AXIS_WIDTH);
@@ -4795,11 +4810,11 @@ function drawManualParamOverlay(meta) {
   const alignedParamX = alignAxisPixel(paramX, AXIS_WIDTH);
   const alignedParamY = alignAxisPixel(paramY, AXIS_WIDTH);
 
-  ctx.save();
-  ctx.strokeStyle = OVERLAY_WHITE;
-  ctx.fillStyle = OVERLAY_WHITE;
-  ctx.lineWidth = AXIS_WIDTH;
-  ctx.shadowBlur = 0;
+  targetCtx.save();
+  targetCtx.strokeStyle = OVERLAY_WHITE;
+  targetCtx.fillStyle = OVERLAY_WHITE;
+  targetCtx.lineWidth = AXIS_WIDTH;
+  targetCtx.shadowBlur = 0;
 
   if (manYControl) {
     drawAxisLine(0, alignedAxisY, view.width, alignedAxisY);
@@ -4810,40 +4825,40 @@ function drawManualParamOverlay(meta) {
   }
 
   // Crosshair: black outline pass + white center pass
-  ctx.save();
-  ctx.lineWidth = AXIS_WIDTH + 2;
-  ctx.strokeStyle = OVERLAY_BLACK;
-  ctx.beginPath();
-  ctx.moveTo(alignedParamX - crosshairSize, alignedParamY);
-  ctx.lineTo(alignedParamX + crosshairSize, alignedParamY);
-  ctx.moveTo(alignedParamX, alignedParamY - crosshairSize);
-  ctx.lineTo(alignedParamX, alignedParamY + crosshairSize);
-  ctx.stroke();
-  ctx.restore();
+  targetCtx.save();
+  targetCtx.lineWidth = AXIS_WIDTH + 2;
+  targetCtx.strokeStyle = OVERLAY_BLACK;
+  targetCtx.beginPath();
+  targetCtx.moveTo(alignedParamX - crosshairSize, alignedParamY);
+  targetCtx.lineTo(alignedParamX + crosshairSize, alignedParamY);
+  targetCtx.moveTo(alignedParamX, alignedParamY - crosshairSize);
+  targetCtx.lineTo(alignedParamX, alignedParamY + crosshairSize);
+  targetCtx.stroke();
+  targetCtx.restore();
 
-  ctx.save();
-  ctx.lineWidth = AXIS_WIDTH;
-  ctx.strokeStyle = OVERLAY_WHITE;
-  ctx.beginPath();
-  ctx.moveTo(alignedParamX - crosshairSize, alignedParamY);
-  ctx.lineTo(alignedParamX + crosshairSize, alignedParamY);
-  ctx.moveTo(alignedParamX, alignedParamY - crosshairSize);
-  ctx.lineTo(alignedParamX, alignedParamY + crosshairSize);
-  ctx.stroke();
-  ctx.restore();
+  targetCtx.save();
+  targetCtx.lineWidth = AXIS_WIDTH;
+  targetCtx.strokeStyle = OVERLAY_WHITE;
+  targetCtx.beginPath();
+  targetCtx.moveTo(alignedParamX - crosshairSize, alignedParamY);
+  targetCtx.lineTo(alignedParamX + crosshairSize, alignedParamY);
+  targetCtx.moveTo(alignedParamX, alignedParamY - crosshairSize);
+  targetCtx.lineTo(alignedParamX, alignedParamY + crosshairSize);
+  targetCtx.stroke();
+  targetCtx.restore();
 
   const drawOutlinedText = (text, x, y) => {
-    ctx.save();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = OVERLAY_BLACK;
-    ctx.strokeText(text, x, y);
-    ctx.fillStyle = OVERLAY_WHITE;
-    ctx.fillText(text, x, y);
-    ctx.restore();
+    targetCtx.save();
+    targetCtx.lineWidth = 3;
+    targetCtx.strokeStyle = OVERLAY_BLACK;
+    targetCtx.strokeText(text, x, y);
+    targetCtx.fillStyle = OVERLAY_WHITE;
+    targetCtx.fillText(text, x, y);
+    targetCtx.restore();
   };
 
   const drawOutlinedTextClamped = (text, preferredX, preferredY) => {
-    const metrics = ctx.measureText(text);
+    const metrics = targetCtx.measureText(text);
     const textWidth = metrics.width;
     const textAscent = metrics.actualBoundingBoxAscent || axisNameFontPx * 0.8;
     const textDescent = metrics.actualBoundingBoxDescent || axisNameFontPx * 0.2;
@@ -4856,7 +4871,7 @@ function drawManualParamOverlay(meta) {
     drawOutlinedText(text, clamp(preferredX, minX, maxX), clamp(preferredY, minY, maxY));
   };
 
-  ctx.font = `${axisNameFontPx}px system-ui, sans-serif`;
+  targetCtx.font = `${axisNameFontPx}px system-ui, sans-serif`;
   if (manYControl) {
     drawOutlinedTextClamped(
       `${manYControl.label}=0`,
@@ -4872,7 +4887,80 @@ function drawManualParamOverlay(meta) {
     );
   }
 
-  ctx.restore();
+  targetCtx.restore();
+}
+
+function clearOverlayCanvas(targetCanvas, targetCtx) {
+  if (!targetCanvas || !targetCtx) {
+    return;
+  }
+  targetCtx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+}
+
+function redrawInterestOverlayCanvas(meta = lastRenderMeta) {
+  clearOverlayCanvas(interestOverlayCanvas, interestOverlayCtx);
+  if (!meta || !interestOverlayCtx) {
+    return;
+  }
+  drawInterestOverlay(meta, interestOverlayCtx);
+}
+
+function redrawManualOverlayCanvas(meta = lastRenderMeta) {
+  clearOverlayCanvas(manualOverlayCanvas, manualOverlayCtx);
+  if (!meta || !manualOverlayCtx) {
+    return;
+  }
+  drawDebugOverlay(meta, manualOverlayCtx);
+  drawManualParamOverlay(meta, manualOverlayCtx);
+}
+
+function redrawOverlayCanvases(meta = lastRenderMeta) {
+  redrawInterestOverlayCanvas(meta);
+  redrawManualOverlayCanvas(meta);
+}
+
+function drawBaseRenderFromFullCanvas(fullCanvas, frameMetaFull) {
+  const viewportWidth = Math.max(1, canvas.width);
+  const viewportHeight = Math.max(1, canvas.height);
+  const cropX = Math.max(0, Math.floor((fullCanvas.width - viewportWidth) * 0.5));
+  const cropY = Math.max(0, Math.floor((fullCanvas.height - viewportHeight) * 0.5));
+  const cropW = Math.min(viewportWidth, fullCanvas.width - cropX);
+  const cropH = Math.min(viewportHeight, fullCanvas.height - cropY);
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(fullCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+  const fullWorld = frameMetaFull.world;
+  const fullView = frameMetaFull.view;
+  const worldPerPxX = (fullWorld.maxX - fullWorld.minX) / Math.max(1, fullView.width - 1);
+  const worldPerPxY = (fullWorld.maxY - fullWorld.minY) / Math.max(1, fullView.height - 1);
+  const viewWorldMinX = fullWorld.minX + cropX * worldPerPxX;
+  const viewWorldMaxX = viewWorldMinX + worldPerPxX * Math.max(1, cropW - 1);
+  const viewWorldMinY = fullWorld.minY + cropY * worldPerPxY;
+  const viewWorldMaxY = viewWorldMinY + worldPerPxY * Math.max(1, cropH - 1);
+
+  return {
+    cropX, cropY, cropW, cropH,
+    frameMeta: {
+      ...frameMetaFull,
+      world: {
+        minX: viewWorldMinX,
+        maxX: viewWorldMaxX,
+        minY: viewWorldMinY,
+        maxY: viewWorldMaxY,
+        centerX: (viewWorldMinX + viewWorldMaxX) * 0.5,
+        centerY: (viewWorldMinY + viewWorldMaxY) * 0.5,
+      },
+      view: {
+        width: cropW,
+        height: cropH,
+        centerX: cropW * 0.5,
+        centerY: cropH * 0.5,
+        scaleX: (cropW - 1) / Math.max(viewWorldMaxX - viewWorldMinX, 1e-6),
+        scaleY: (cropH - 1) / Math.max(viewWorldMaxY - viewWorldMinY, 1e-6),
+      },
+    },
+  };
 }
 
 function formatDebugDimension(value) {
@@ -4905,7 +4993,7 @@ function getScreenViewportDebugLines() {
   ];
 }
 
-function drawDebugOverlay(meta) {
+function drawDebugOverlay(meta, targetCtx = ctx) {
   if (!appData.defaults.debug || !meta) {
     debugInfoEl.textContent = "Debug off";
     debugPanelEl.classList.add("is-hidden");
@@ -4925,22 +5013,22 @@ function drawDebugOverlay(meta) {
   const showMinorX = ((world.maxX - world.minX) / minorXStep) <= 40;
   const showMinorY = ((world.maxY - world.minY) / minorYStep) <= 40;
 
-  ctx.save();
+  targetCtx.save();
   const tickFontPx = Math.max(15, Math.round(Math.min(view.width, view.height) * 0.014));
-  ctx.fillStyle = "rgba(255,255,255,0.92)";
-  ctx.font = `${tickFontPx}px system-ui, sans-serif`;
+  targetCtx.fillStyle = "rgba(255,255,255,0.92)";
+  targetCtx.font = `${tickFontPx}px system-ui, sans-serif`;
 
   if (showMinorX || showMinorY) {
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
+    targetCtx.strokeStyle = "rgba(255,255,255,0.08)";
+    targetCtx.lineWidth = 1;
+    targetCtx.beginPath();
 
     if (showMinorX) {
       const start = Math.ceil(world.minX / minorXStep) * minorXStep;
       for (let value = start; value <= world.maxX + minorXStep * 0.5; value += minorXStep) {
         const px = ((value - world.minX) / (world.maxX - world.minX)) * view.width;
-        ctx.moveTo(px, 0);
-        ctx.lineTo(px, view.height);
+        targetCtx.moveTo(px, 0);
+        targetCtx.lineTo(px, view.height);
       }
     }
 
@@ -4948,50 +5036,50 @@ function drawDebugOverlay(meta) {
       const start = Math.ceil(world.minY / minorYStep) * minorYStep;
       for (let value = start; value <= world.maxY + minorYStep * 0.5; value += minorYStep) {
         const py = ((value - world.minY) / (world.maxY - world.minY)) * view.height;
-        ctx.moveTo(0, py);
-        ctx.lineTo(view.width, py);
+        targetCtx.moveTo(0, py);
+        targetCtx.lineTo(view.width, py);
       }
     }
 
-    ctx.stroke();
+    targetCtx.stroke();
   }
 
-  ctx.strokeStyle = "rgba(255,255,255,0.16)";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
+  targetCtx.strokeStyle = "rgba(255,255,255,0.16)";
+  targetCtx.lineWidth = 1;
+  targetCtx.beginPath();
   for (const xValue of xTicks.values) {
     const xTick = ((xValue - world.minX) / (world.maxX - world.minX)) * view.width;
-    ctx.moveTo(xTick, 0);
-    ctx.lineTo(xTick, view.height);
+    targetCtx.moveTo(xTick, 0);
+    targetCtx.lineTo(xTick, view.height);
   }
   for (const yValue of yTicks.values) {
     if (originVisible && Math.abs(yValue) <= yTicks.step * 0.5) {
       continue;
     }
     const yTick = ((yValue - world.minY) / (world.maxY - world.minY)) * view.height;
-    ctx.moveTo(0, yTick);
-    ctx.lineTo(view.width, yTick);
+    targetCtx.moveTo(0, yTick);
+    targetCtx.lineTo(view.width, yTick);
   }
-  ctx.stroke();
+  targetCtx.stroke();
 
-  ctx.strokeStyle = "rgba(255,255,255,0.78)";
-  ctx.lineWidth = 1.8;
-  ctx.beginPath();
-  ctx.moveTo(0, xAxisY);
-  ctx.lineTo(view.width, xAxisY);
-  ctx.moveTo(yAxisX, 0);
-  ctx.lineTo(yAxisX, view.height);
-  ctx.stroke();
+  targetCtx.strokeStyle = "rgba(255,255,255,0.78)";
+  targetCtx.lineWidth = 1.8;
+  targetCtx.beginPath();
+  targetCtx.moveTo(0, xAxisY);
+  targetCtx.lineTo(view.width, xAxisY);
+  targetCtx.moveTo(yAxisX, 0);
+  targetCtx.lineTo(yAxisX, view.height);
+  targetCtx.stroke();
 
-  ctx.strokeStyle = "rgba(255,255,255,0.9)";
-  ctx.lineWidth = 1;
+  targetCtx.strokeStyle = "rgba(255,255,255,0.9)";
+  targetCtx.lineWidth = 1;
   for (const xValue of xTicks.values) {
     const xTick = ((xValue - world.minX) / (world.maxX - world.minX)) * view.width;
-    ctx.beginPath();
-    ctx.moveTo(xTick, xAxisY - 6);
-    ctx.lineTo(xTick, xAxisY + 6);
-    ctx.stroke();
-    ctx.fillText(formatTickValue(xValue, xTicks.step), xTick + 4, xAxisY - 10);
+    targetCtx.beginPath();
+    targetCtx.moveTo(xTick, xAxisY - 6);
+    targetCtx.lineTo(xTick, xAxisY + 6);
+    targetCtx.stroke();
+    targetCtx.fillText(formatTickValue(xValue, xTicks.step), xTick + 4, xAxisY - 10);
   }
 
   for (const yValue of yTicks.values) {
@@ -4999,14 +5087,14 @@ function drawDebugOverlay(meta) {
       continue;
     }
     const yTick = ((yValue - world.minY) / (world.maxY - world.minY)) * view.height;
-    ctx.beginPath();
-    ctx.moveTo(yAxisX - 6, yTick);
-    ctx.lineTo(yAxisX + 6, yTick);
-    ctx.stroke();
-    ctx.fillText(formatTickValue(yValue, yTicks.step), yAxisX + 9, yTick - 4);
+    targetCtx.beginPath();
+    targetCtx.moveTo(yAxisX - 6, yTick);
+    targetCtx.lineTo(yAxisX + 6, yTick);
+    targetCtx.stroke();
+    targetCtx.fillText(formatTickValue(yValue, yTicks.step), yAxisX + 9, yTick - 4);
   }
 
-  ctx.restore();
+  targetCtx.restore();
 
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   const params = getDerivedParams();
@@ -5044,9 +5132,7 @@ async function draw() {
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const iterations = iterationSetting;
   if (panZoomInteractionActive && !didResize && activePanZoomCacheEntry && drawInteractionFrameFromCache(activePanZoomCacheEntry)) {
-    drawDebugOverlay(lastRenderMeta);
-    drawInterestOverlay(lastRenderMeta);
-    drawManualParamOverlay(lastRenderMeta);
+    redrawOverlayCanvases(lastRenderMeta);
     layoutFloatingActions();
     return;
   }
@@ -5095,44 +5181,7 @@ async function draw() {
     return;
   }
 
-  const viewportWidth = Math.max(1, canvas.width);
-  const viewportHeight = Math.max(1, canvas.height);
-  const cropX = Math.max(0, Math.floor((fullCanvas.width - viewportWidth) * 0.5));
-  const cropY = Math.max(0, Math.floor((fullCanvas.height - viewportHeight) * 0.5));
-  const cropW = Math.min(viewportWidth, fullCanvas.width - cropX);
-  const cropH = Math.min(viewportHeight, fullCanvas.height - cropY);
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(fullCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-
-  const fullWorld = frameMetaFull.world;
-  const fullView = frameMetaFull.view;
-  const worldPerPxX = (fullWorld.maxX - fullWorld.minX) / Math.max(1, fullView.width - 1);
-  const worldPerPxY = (fullWorld.maxY - fullWorld.minY) / Math.max(1, fullView.height - 1);
-  const viewWorldMinX = fullWorld.minX + cropX * worldPerPxX;
-  const viewWorldMaxX = viewWorldMinX + worldPerPxX * Math.max(1, cropW - 1);
-  const viewWorldMinY = fullWorld.minY + cropY * worldPerPxY;
-  const viewWorldMaxY = viewWorldMinY + worldPerPxY * Math.max(1, cropH - 1);
-
-  const frameMeta = {
-    ...frameMetaFull,
-    world: {
-      minX: viewWorldMinX,
-      maxX: viewWorldMaxX,
-      minY: viewWorldMinY,
-      maxY: viewWorldMaxY,
-      centerX: (viewWorldMinX + viewWorldMaxX) * 0.5,
-      centerY: (viewWorldMinY + viewWorldMaxY) * 0.5,
-    },
-    view: {
-      width: cropW,
-      height: cropH,
-      centerX: cropW * 0.5,
-      centerY: cropH * 0.5,
-      scaleX: (cropW - 1) / Math.max(viewWorldMaxX - viewWorldMinX, 1e-6),
-      scaleY: (cropH - 1) / Math.max(viewWorldMaxY - viewWorldMinY, 1e-6),
-    },
-  };
+  const { frameMeta } = drawBaseRenderFromFullCanvas(fullCanvas, frameMetaFull);
 
 
   const now = performance.now();
@@ -5177,9 +5226,7 @@ async function draw() {
   }
   wasManualOverlayActive = manualOverlayActive;
 
-  drawDebugOverlay(lastRenderMeta);
-  drawInterestOverlay(lastRenderMeta);
-  drawManualParamOverlay(lastRenderMeta);
+  redrawOverlayCanvases(lastRenderMeta);
   refreshParamButtons();
   updateQuickSliderReadout();
   syncDetailedSettingsControls();
