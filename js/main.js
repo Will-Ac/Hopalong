@@ -4718,15 +4718,18 @@ function drawInterestOverlay(meta, targetCtx = ctx) {
   const overlayOpacity = normalizeInterestOverlayOpacity(appData.defaults.interestOverlayOpacity);
 
   targetCtx.save();
+  targetCtx.imageSmoothingEnabled = false;
   targetCtx.fillStyle = isStaleOverlay
     ? `rgba(120, 200, 255, ${Math.max(INTEREST_OVERLAY_OPACITY_MIN, overlayOpacity * 0.6)})`
     : `rgba(120, 200, 255, ${overlayOpacity})`;
   for (const cellIndex of scanResult.highCells) {
     const col = cellIndex % plan.gridCols;
     const row = Math.floor(cellIndex / plan.gridCols);
-    const x = offsetX + col * cellSize;
-    const y = offsetY + row * cellSize;
-    targetCtx.fillRect(x, y, cellSize, cellSize);
+    const left = Math.round(offsetX + col * cellSize);
+    const right = Math.round(offsetX + (col + 1) * cellSize);
+    const top = Math.round(offsetY + row * cellSize);
+    const bottom = Math.round(offsetY + (row + 1) * cellSize);
+    targetCtx.fillRect(left, top, Math.max(1, right - left), Math.max(1, bottom - top));
   }
 
   targetCtx.restore();
