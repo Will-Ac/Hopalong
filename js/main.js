@@ -56,6 +56,8 @@ const holdAccelStartMsRangeEl = document.getElementById("holdAccelStartMsRange")
 const holdAccelStartMsValueEl = document.getElementById("holdAccelStartMsValue");
 const holdAccelEndMsRangeEl = document.getElementById("holdAccelEndMsRange");
 const holdAccelEndMsValueEl = document.getElementById("holdAccelEndMsValue");
+const touchZoomSensitivityRangeEl = document.getElementById("touchZoomSensitivityRange");
+const touchZoomSensitivityValueEl = document.getElementById("touchZoomSensitivityValue");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const detailInterestOverlayToggleEl = document.getElementById("detailInterestOverlayToggle");
 const detailInterestOverlayOpacityRangeEl = document.getElementById("detailInterestOverlayOpacityRange");
@@ -297,6 +299,7 @@ let drawInProgress = false;
 let highResExportInProgress = false;
 let panZoomInteractionActive = false;
 let panZoomSettleTimer = null;
+let singleTouchModulationStartDrawTimer = null;
 let toastTimer = null;
 let renderProgressHideTimer = null;
 let renderProgressVisible = false;
@@ -382,7 +385,10 @@ const INTERACTION_STATE = {
 const DPR = window.devicePixelRatio || 1;
 const PAN_DEADBAND_PX = 1.5 * DPR;
 const ZOOM_DEADBAND_PX = 2.5 * DPR;
-const ZOOM_RATIO_MIN = 0.002;
+const TOUCH_ZOOM_RATIO_MIN_DEFAULT = 0.003;
+const TOUCH_ZOOM_RATIO_MIN_MIN = 0.001;
+const TOUCH_ZOOM_RATIO_MIN_MAX = 0.02;
+const SINGLE_TOUCH_MODULATION_START_DRAW_DELAY_MS = 24;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
 
@@ -1764,6 +1770,7 @@ function syncDetailedSettingsControls() {
   if (detailInterestLyapunovMaxDistanceFormattedEl) detailInterestLyapunovMaxDistanceFormattedEl.textContent = formatNumberForUi(interestLyapunovMaxDistance, 3);
   syncInterestOverlayToggleUi();
   const holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  const touchZoomSensitivityThreshold = getTouchZoomSensitivityThreshold();
   const { holdRepeatMs, holdAccelStartMs, holdAccelEndMs } = getHoldTimingSettings();
   if (holdSpeedRangeEl) holdSpeedRangeEl.value = String(holdSpeedScale);
   if (holdSpeedValueEl) holdSpeedValueEl.textContent = `Hold speed: ${holdSpeedScale.toFixed(2)}×`;
@@ -1773,6 +1780,8 @@ function syncDetailedSettingsControls() {
   if (holdAccelStartMsValueEl) holdAccelStartMsValueEl.textContent = `Accel start: ${holdAccelStartMs} ms`;
   if (holdAccelEndMsRangeEl) holdAccelEndMsRangeEl.value = String(holdAccelEndMs);
   if (holdAccelEndMsValueEl) holdAccelEndMsValueEl.textContent = `Accel end: ${holdAccelEndMs} ms`;
+  if (touchZoomSensitivityRangeEl) touchZoomSensitivityRangeEl.value = String(touchZoomSensitivityThreshold);
+  if (touchZoomSensitivityValueEl) touchZoomSensitivityValueEl.textContent = `Pinch-vs-pan threshold: ${touchZoomSensitivityThreshold.toFixed(3)}`;
   if (detailColorModeSelectEl) detailColorModeSelectEl.value = appData.defaults.renderColorMode;
   if (detailLogStrengthRangeEl) detailLogStrengthRangeEl.value = String(appData.defaults.renderLogStrength);
   if (detailLogStrengthFormattedEl) detailLogStrengthFormattedEl.textContent = formatNumberForUi(appData.defaults.renderLogStrength, 1);
@@ -1790,6 +1799,17 @@ function syncDetailedSettingsControls() {
 
 function applyHoldSpeedScale(nextValue) {
   appData.defaults.holdSpeedScale = clamp(Number(nextValue), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  commitCurrentStateToHistory();
+}
+
+function applyTouchZoomSensitivityThreshold(nextValue) {
+  if (!appData?.defaults) {
+    return;
+  }
+
+  appData.defaults.touchZoomSensitivityThreshold = clamp(Number(nextValue), TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   commitCurrentStateToHistory();
@@ -2931,6 +2951,7 @@ function getLockedTwoPointers() {
 }
 
 function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
+  cancelSingleTouchModulationStartDraw();
   const ptrA = activePointers.get(pointerIdA);
   const ptrB = activePointers.get(pointerIdB);
   if (!ptrA || !ptrB) {
@@ -2993,6 +3014,36 @@ function ensurePanZoomCacheBase() {
 
 function clearPanZoomInteractionCache() {
   activePanZoomCacheEntry = null;
+}
+
+function cancelSingleTouchModulationStartDraw() {
+  if (singleTouchModulationStartDrawTimer) {
+    window.clearTimeout(singleTouchModulationStartDrawTimer);
+    singleTouchModulationStartDrawTimer = null;
+  }
+}
+
+function scheduleSingleTouchModulationStartDraw() {
+  cancelSingleTouchModulationStartDraw();
+  singleTouchModulationStartDrawTimer = window.setTimeout(() => {
+    singleTouchModulationStartDrawTimer = null;
+    if (interactionState === INTERACTION_STATE.MOD_1 && activePointers.size === 1) {
+      requestDraw();
+    }
+  }, SINGLE_TOUCH_MODULATION_START_DRAW_DELAY_MS);
+}
+
+function resetPanZoomInteractionStateForModulation() {
+  if (panZoomSettleTimer) {
+    window.clearTimeout(panZoomSettleTimer);
+    panZoomSettleTimer = null;
+  }
+  panZoomInteractionActive = false;
+  clearPanZoomInteractionCache();
+}
+
+function getTouchZoomSensitivityThreshold() {
+  return clamp(Number(appData?.defaults?.touchZoomSensitivityThreshold ?? TOUCH_ZOOM_RATIO_MIN_DEFAULT), TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
 }
 
 function prepareFixedViewForPanZoom(reason = "manual pan/zoom") {
@@ -3077,7 +3128,10 @@ function onCanvasPointerDown(event) {
     isManualModulating = false;
     const pos = getCanvasPointerPosition(event);
     lastPointerPosition = { x: pos.x, y: pos.y };
-    if (!isDirectTouchPointer) {
+    if (isDirectTouchPointer) {
+      resetPanZoomInteractionStateForModulation();
+      scheduleSingleTouchModulationStartDraw();
+    } else {
       requestDraw();
     }
     return;
@@ -3158,8 +3212,9 @@ function onCanvasPointerMove(event) {
 
   const panMagnitude = Math.hypot(dxm, dym);
   const zoomRatioDelta = Math.abs(ratioStep - 1);
+  const touchZoomSensitivityThreshold = getTouchZoomSensitivityThreshold();
   const shouldPan = panMagnitude > PAN_DEADBAND_PX;
-  const shouldZoom = Math.abs(dd) > ZOOM_DEADBAND_PX || zoomRatioDelta > ZOOM_RATIO_MIN;
+  const shouldZoom = Math.abs(dd) > ZOOM_DEADBAND_PX && zoomRatioDelta > touchZoomSensitivityThreshold;
 
   lastTwoDebug = {
     state: interactionState,
@@ -3168,6 +3223,7 @@ function onCanvasPointerMove(event) {
     dd,
     ratioStep,
     viewZoom: fixedView.zoom,
+    touchZoomSensitivityThreshold,
   };
 
   if (!twoFingerGesture.isArmed) {
@@ -3203,6 +3259,7 @@ function clearPointerState(pointerId) {
     return;
   }
 
+  cancelSingleTouchModulationStartDraw();
   const endingTwoFingerGesture = interactionState === INTERACTION_STATE.TWO_ACTIVE || Boolean(twoFingerGesture);
   const endingPanZoomGesture = endingTwoFingerGesture || interactionState === INTERACTION_STATE.PAN_MOUSE_RMB || panZoomInteractionActive;
   activePointers.delete(pointerId);
@@ -5745,6 +5802,7 @@ function registerHandlers() {
   holdRepeatMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdRepeatMs", holdRepeatMsRangeEl.value));
   holdAccelStartMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdAccelStartMs", holdAccelStartMsRangeEl.value));
   holdAccelEndMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdAccelEndMs", holdAccelEndMsRangeEl.value));
+  touchZoomSensitivityRangeEl?.addEventListener("input", () => applyTouchZoomSensitivityThreshold(touchZoomSensitivityRangeEl.value));
 
   detailDebugToggleEl?.addEventListener("change", () => {
     appData.defaults.debug = Boolean(detailDebugToggleEl.checked);
@@ -5991,6 +6049,9 @@ async function loadData() {
   if (typeof data.defaults.holdAccelEndMs !== "number") {
     data.defaults.holdAccelEndMs = HOLD_ACCEL_END_MS_DEFAULT;
   }
+  if (typeof data.defaults.touchZoomSensitivityThreshold !== "number") {
+    data.defaults.touchZoomSensitivityThreshold = TOUCH_ZOOM_RATIO_MIN_DEFAULT;
+  }
 
   normalizeIterationSettings(data.defaults);
   data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
@@ -6008,6 +6069,7 @@ async function loadData() {
   data.defaults.holdRepeatMs = Math.round(clamp(data.defaults.holdRepeatMs, HOLD_REPEAT_MS_MIN, HOLD_REPEAT_MS_MAX));
   data.defaults.holdAccelStartMs = Math.round(clamp(data.defaults.holdAccelStartMs, HOLD_ACCEL_START_MS_MIN, HOLD_ACCEL_START_MS_MAX));
   data.defaults.holdAccelEndMs = Math.round(clamp(data.defaults.holdAccelEndMs, HOLD_ACCEL_END_MS_MIN, HOLD_ACCEL_END_MS_MAX));
+  data.defaults.touchZoomSensitivityThreshold = clamp(data.defaults.touchZoomSensitivityThreshold, TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
   if (data.defaults.holdAccelEndMs <= data.defaults.holdAccelStartMs) {
     data.defaults.holdAccelEndMs = data.defaults.holdAccelStartMs + 1;
   }
@@ -6065,6 +6127,7 @@ async function bootstrap() {
     appData.defaults.interestLyapunovMaxDistance = clamp(Number(appData.defaults.interestLyapunovMaxDistance ?? INTEREST_LYAPUNOV_MAX_DISTANCE_MAX), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
     normalizeIterationSettings();
     appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+    appData.defaults.touchZoomSensitivityThreshold = clamp(Number(appData.defaults.touchZoomSensitivityThreshold ?? TOUCH_ZOOM_RATIO_MIN_DEFAULT), TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
     normalizeHoldTimingDefaults();
     setColorMapStopOverrides(appData.defaults.colorMapStopOverrides);
     applyBackgroundTheme();
