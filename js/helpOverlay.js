@@ -107,24 +107,7 @@ const PANEL_HELP_ITEMS = {
       target: { selector: ".colorPickerSettingsBtn", attach: "center" },
     },
   ],
-  settingsPanel: [
-    {
-      id: "panel-settings-color",
-      context: "settingsPanel",
-      group: "panel",
-      lines: [{ action: "Colour tab", body: "open colour settings" }],
-      label: { x: 0.2, y: 0.2 },
-      target: { selector: "#settingsTabColor", attach: "center" },
-    },
-    {
-      id: "panel-settings-general",
-      context: "settingsPanel",
-      group: "panel",
-      lines: [{ action: "General tab", body: "open general settings" }],
-      label: { x: 0.2, y: 0.2 },
-      target: { selector: "#settingsTabGeneral", attach: "center" },
-    },
-  ],
+  settingsPanel: [],
 };
 
 const HELP_CONTEXT_PANEL_SELECTORS = {

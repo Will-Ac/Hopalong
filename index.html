@@ -478,7 +478,7 @@
       }
       .pickerSectionRow {
         display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
         gap: 8px;
         align-items: center;
         min-height: 38px;
@@ -490,7 +490,7 @@
         white-space: nowrap;
       }
       .pickerInlineSwatch {
-        justify-self: start;
+        justify-self: end;
       }
       .modeRow {
         display: grid;
@@ -1222,17 +1222,7 @@ Scale</button>
         <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
       <aside id="rangesEditorPanel" class="is-hidden" aria-label="Settings editor">
-        <div class="rangesEditorTabs">
-          <button id="settingsTabColor" class="rangesTabBtn is-active" type="button">Colour</button>
-          <button id="settingsTabGeneral" class="rangesTabBtn" type="button">General</button>
-        </div>
-        <div id="colorTabPanel" class="rangesEditorBody settingsTabPanel">
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Colour map editor</span></div>
-            <div>Open the Colour Map panel from the bottom bar to change background colour, Mode, and map selection.</div>
-          </div>
-        </div>
-        <div id="generalTabPanel" class="rangesEditorBody settingsTabPanel is-hidden">
+        <div class="rangesEditorBody">
           <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Startup iterations</span></div>
             <div class="perfControlRow">

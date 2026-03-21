@@ -1600,7 +1600,6 @@ function openRangesEditor() {
   rangesEditorPanelEl.classList.remove("is-hidden");
   rangesEditorToggleEl?.classList.add("is-active");
   rangesEditorToggleEl?.setAttribute("aria-pressed", "true");
-  setSettingsTab("color");
   syncDetailedSettingsControls();
   hideSettingsInfo();
   helpOverlayController?.render();
@@ -1701,15 +1700,6 @@ function normalizeHoldTimingDefaults() {
   appData.defaults.holdRepeatMs = holdRepeatMs;
   appData.defaults.holdAccelStartMs = holdAccelStartMs;
   appData.defaults.holdAccelEndMs = holdAccelEndMs;
-}
-
-function setSettingsTab(tabKey) {
-  const showColor = tabKey !== "general";
-  settingsTabColorEl?.classList.toggle("is-active", showColor);
-  settingsTabGeneralEl?.classList.toggle("is-active", !showColor);
-  colorTabPanelEl?.classList.toggle("is-hidden", !showColor);
-  generalTabPanelEl?.classList.toggle("is-hidden", showColor);
-  helpOverlayController?.render();
 }
 
 function syncDetailedSettingsControls() {
@@ -3325,6 +3315,11 @@ function layoutPickerPanel() {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const margin = 6;
+  const eyeBottom = overlayToggleBtn?.getBoundingClientRect()?.bottom ?? 0;
+  const bottomUiTop = quickSliderOverlay.classList.contains("is-open")
+    ? quickSliderEl?.getBoundingClientRect()?.top
+    : paramOverlayEl?.getBoundingClientRect()?.top;
+  const bottomInset = Math.max(margin, Math.round(viewportHeight - ((bottomUiTop ?? viewportHeight) - 2)));
 
   if (formulaTile && cmapTile) {
     const firstRect = formulaTile.getBoundingClientRect();
@@ -3338,15 +3333,22 @@ function layoutPickerPanel() {
     pickerPanel.style.width = `${Math.round(width)}px`;
     pickerPanel.style.left = `${Math.round(left)}px`;
     pickerPanel.style.transform = "none";
-    const actionBottom = topRightActionsEl?.getBoundingClientRect()?.bottom ?? 0;
     const preferredTop = margin;
-    const fallbackTop = Math.max(margin, Math.round(actionBottom + 6));
-    const panelHeight = Math.min(viewportHeight - margin * 2, Math.max(220, viewportHeight - 104));
-    const useFallbackTop = activePicker !== "formula" && activePicker !== "cmap"
-      ? false
-      : preferredTop + panelHeight > viewportHeight - margin;
+    const fallbackTop = Math.max(margin, Math.round(eyeBottom + 2));
+    const overlapsEyeButton = Boolean(
+      overlayToggleBtn
+      && left < (overlayToggleBtn.getBoundingClientRect().right + 2)
+      && left + width > (overlayToggleBtn.getBoundingClientRect().left - 2)
+      && preferredTop < overlayToggleBtn.getBoundingClientRect().bottom,
+    );
+    const availableTopAlignedHeight = viewportHeight - preferredTop - bottomInset;
+    const availableFallbackHeight = viewportHeight - fallbackTop - bottomInset;
+    const useFallbackTop = overlapsEyeButton || availableTopAlignedHeight < 220;
     pickerPanel.style.top = `${useFallbackTop ? fallbackTop : preferredTop}px`;
-    pickerPanel.style.bottom = `${margin}px`;
+    pickerPanel.style.bottom = `${bottomInset}px`;
+    if (useFallbackTop && availableFallbackHeight < 180) {
+      pickerPanel.style.top = `${Math.max(margin, viewportHeight - bottomInset - 180)}px`;
+    }
     helpOverlayController?.scheduleRender();
     return;
   }
@@ -3355,8 +3357,15 @@ function layoutPickerPanel() {
   pickerPanel.style.width = `${Math.min(fallbackWidth, viewportWidth - margin * 2)}px`;
   pickerPanel.style.left = `${margin}px`;
   pickerPanel.style.transform = "none";
-  pickerPanel.style.top = `${margin}px`;
-  pickerPanel.style.bottom = `${margin}px`;
+  const fallbackTop = Math.max(margin, Math.round(eyeBottom + 2));
+  const overlapsEyeButton = Boolean(
+    overlayToggleBtn
+    && margin < (overlayToggleBtn.getBoundingClientRect().right + 2)
+    && margin + Math.min(fallbackWidth, viewportWidth - margin * 2) > (overlayToggleBtn.getBoundingClientRect().left - 2)
+    && margin < overlayToggleBtn.getBoundingClientRect().bottom,
+  );
+  pickerPanel.style.top = `${overlapsEyeButton ? fallbackTop : margin}px`;
+  pickerPanel.style.bottom = `${bottomInset}px`;
   helpOverlayController?.scheduleRender();
 }
 
@@ -3492,7 +3501,8 @@ function renderColorMapPicker() {
   topSection.className = "colourPanelTopSection";
   topSection.innerHTML = `
     <div class="pickerSectionRow">
-      <span class="perfSettingLabel pickerSectionLabel">Background colour</span>
+      <span class="perfSettingLabel pickerSectionLabel">Background</span>
+      <span aria-hidden="true"></span>
       <input id="pickerBackgroundColorProxy" class="perfRangeInput pickerInlineSwatch" type="color" aria-label="Background colour" />
       <button id="pickerBackgroundSettingsProxy" class="compactIconBtn" type="button" aria-label="Open background settings">⚙</button>
     </div>
@@ -5716,9 +5726,6 @@ function registerHandlers() {
   formulaSettingsResetEl?.addEventListener("click", () => {
     resetFormulaDefaults(getSelectedRangesEditorFormulaId());
   });
-  settingsTabColorEl?.addEventListener("click", () => setSettingsTab("color"));
-  settingsTabGeneralEl?.addEventListener("click", () => setSettingsTab("general"));
-
   detailStartupIterationsRangeEl?.addEventListener("input", () => applyIterationStartupDefault(detailStartupIterationsRangeEl.value));
   detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
   detailIterationAbsoluteMaxRangeEl?.addEventListener("input", () => applyIterationAbsoluteMax(detailIterationAbsoluteMaxRangeEl.value));
