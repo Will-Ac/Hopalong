@@ -45,15 +45,15 @@ const TARGET_SELECTORS = {
   randomButton: "#randomModeBtn",
   quickSliderLabel: "#qsLabel",
   pickerPanel: "#pickerPanel",
-  pickerClose: "#pickerClose",
   formulaPickerOption: ".formulaPickerOption",
   formulaPickerSettings: ".formulaPickerSettingsBtn",
   colorPickerOption: ".colorPickerOption",
   colorPickerSettings: ".colorPickerSettingsBtn",
   rangesEditorPanel: "#rangesEditorPanel",
-  rangesEditorClose: "#rangesEditorClose",
   settingsTabColor: "#settingsTabColor",
   settingsTabGeneral: "#settingsTabGeneral",
+  modeSettingsButton: "#pickerModeSettingsProxy",
+  backgroundSettingsButton: "#pickerBackgroundSettingsProxy",
 };
 
 const SELECTOR_TO_TARGET_KEY = Object.fromEntries(
@@ -80,21 +80,21 @@ const PANEL_HELP_ITEMS = {
       label: { x: 0.2, y: 0.2 },
       target: { selector: ".formulaPickerSettingsBtn", attach: "center" },
     },
-    {
-      id: "panel-formula-close",
-      context: "formulaPanel",
-      group: "panel",
-      lines: [{ action: "Close panel", body: "tap ×" }],
-      label: { x: 0.2, y: 0.2 },
-      target: { selector: "#pickerClose", attach: "center" },
-    },
   ],
   colorPanel: [
+    {
+      id: "panel-color-mode",
+      context: "colorPanel",
+      group: "panel",
+      lines: [{ action: "Mode", body: "switch between iteration-order and density-based colouring" }],
+      label: { x: 0.2, y: 0.2 },
+      target: { selector: "#pickerModeSettingsProxy", attach: "center" },
+    },
     {
       id: "panel-color-choose",
       context: "colorPanel",
       group: "panel",
-      lines: [{ action: "Choose color map", body: "tap a map" }],
+      lines: [{ action: "Choose colour map", body: "tap a map" }],
       label: { x: 0.2, y: 0.2 },
       target: { selector: ".colorPickerOption", attach: "center" },
     },
@@ -106,41 +106,8 @@ const PANEL_HELP_ITEMS = {
       label: { x: 0.2, y: 0.2 },
       target: { selector: ".colorPickerSettingsBtn", attach: "center" },
     },
-    {
-      id: "panel-color-close",
-      context: "colorPanel",
-      group: "panel",
-      lines: [{ action: "Close panel", body: "tap ×" }],
-      label: { x: 0.2, y: 0.2 },
-      target: { selector: "#pickerClose", attach: "center" },
-    },
   ],
-  settingsPanel: [
-    {
-      id: "panel-settings-color",
-      context: "settingsPanel",
-      group: "panel",
-      lines: [{ action: "Color tab", body: "open color settings" }],
-      label: { x: 0.2, y: 0.2 },
-      target: { selector: "#settingsTabColor", attach: "center" },
-    },
-    {
-      id: "panel-settings-general",
-      context: "settingsPanel",
-      group: "panel",
-      lines: [{ action: "General tab", body: "open general settings" }],
-      label: { x: 0.2, y: 0.2 },
-      target: { selector: "#settingsTabGeneral", attach: "center" },
-    },
-    {
-      id: "panel-settings-close",
-      context: "settingsPanel",
-      group: "panel",
-      lines: [{ action: "Close panel", body: "tap ×" }],
-      label: { x: 0.2, y: 0.2 },
-      target: { selector: "#rangesEditorClose", attach: "center" },
-    },
-  ],
+  settingsPanel: [],
 };
 
 const HELP_CONTEXT_PANEL_SELECTORS = {
@@ -704,49 +671,28 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     shrinkAllowed: true,
     requiredTargets: ["formulaPickerSettings"],
-    dependencyIds: ["panel-formula-close"],
-    preferredPlacement: {
-      primitive: "relativeToGroup",
-      groupId: "panel-formula-close",
-      relation: {
-        x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-        y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
-      },
-    },
-    fallbackPlacements: [
-      {
-        primitive: "relativeToTarget",
-        targetKey: "formulaPickerSettings",
-        relation: {
-          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
-          y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
-        },
-      },
-    ],
-  },
-  "panel-formula-close": {
-    priority: 1,
-    wrappingAllowed: true,
-    shrinkAllowed: true,
-    requiredTargets: ["pickerClose"],
     preferredPlacement: {
       primitive: "relativeToTarget",
-      targetKey: "pickerClose",
+      targetKey: "formulaPickerSettings",
       relation: {
         x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
         y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
       },
     },
-    fallbackPlacements: [
-      {
-        primitive: "relativeToTarget",
-        targetKey: "pickerPanel",
-        relation: {
-          x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
-          y: { sourceEdge: "top", selfEdge: "top", offset: 12 },
-        },
+  },
+  "panel-color-mode": {
+    priority: 1,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    requiredTargets: ["modeSettingsButton"],
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "modeSettingsButton",
+      relation: {
+        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
       },
-    ],
+    },
   },
   "panel-color-choose": {
     priority: 3,
@@ -778,10 +724,10 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     shrinkAllowed: true,
     requiredTargets: ["colorPickerSettings"],
-    dependencyIds: ["panel-color-close"],
+    dependencyIds: ["panel-color-mode"],
     preferredPlacement: {
       primitive: "relativeToGroup",
-      groupId: "panel-color-close",
+      groupId: "panel-color-mode",
       relation: {
         x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
         y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
@@ -798,54 +744,19 @@ const HELP_PLACEMENT_POLICY = {
       },
     ],
   },
-  "panel-color-close": {
-    priority: 1,
-    wrappingAllowed: true,
-    shrinkAllowed: true,
-    requiredTargets: ["pickerClose"],
-    preferredPlacement: {
-      primitive: "relativeToTarget",
-      targetKey: "pickerClose",
-      relation: {
-        x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
-        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
-      },
-    },
-    fallbackPlacements: [
-      {
-        primitive: "relativeToTarget",
-        targetKey: "pickerPanel",
-        relation: {
-          x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
-          y: { sourceEdge: "top", selfEdge: "top", offset: 12 },
-        },
-      },
-    ],
-  },
   "panel-settings-color": {
     priority: 2,
     wrappingAllowed: true,
     shrinkAllowed: true,
     requiredTargets: ["rangesEditorPanel", "settingsTabColor"],
-    dependencyIds: ["panel-settings-close"],
     preferredPlacement: {
-      primitive: "relativeToGroup",
-      groupId: "panel-settings-close",
+      primitive: "relativeToTarget",
+      targetKey: "settingsTabColor",
       relation: {
-        x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
-        y: { sourceEdge: "bottom", selfEdge: "top", offset: 10 },
+        x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
+        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
       },
     },
-    fallbackPlacements: [
-      {
-        primitive: "relativeToTarget",
-        targetKey: "settingsTabColor",
-        relation: {
-          x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
-          y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
-        },
-      },
-    ],
   },
   "panel-settings-general": {
     priority: 3,
@@ -868,30 +779,6 @@ const HELP_PLACEMENT_POLICY = {
         relation: {
           x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
           y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
-        },
-      },
-    ],
-  },
-  "panel-settings-close": {
-    priority: 1,
-    wrappingAllowed: true,
-    shrinkAllowed: true,
-    requiredTargets: ["rangesEditorClose"],
-    preferredPlacement: {
-      primitive: "relativeToTarget",
-      targetKey: "rangesEditorClose",
-      relation: {
-        x: { sourceEdge: "left", selfEdge: "right", offset: -14 },
-        y: { sourceEdge: "top", selfEdge: "top", offset: 0 },
-      },
-    },
-    fallbackPlacements: [
-      {
-        primitive: "relativeToTarget",
-        targetKey: "rangesEditorPanel",
-        relation: {
-          x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
-          y: { sourceEdge: "top", selfEdge: "top", offset: 12 },
         },
       },
     ],
