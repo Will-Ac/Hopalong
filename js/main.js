@@ -2844,7 +2844,11 @@ function getManualAxisTargets() {
   return { manX, manY };
 }
 
-function applyManualModulation(deltaX, deltaY) {
+function requestLiveModulationDraw() {
+  requestDraw({ invalidate: false });
+}
+
+function applyManualModulation(deltaX, deltaY, { invalidate = true } = {}) {
   const { manX, manY } = getManualAxisTargets();
   if (!manX && !manY) {
     return false;
@@ -2868,7 +2872,11 @@ function applyManualModulation(deltaX, deltaY) {
     );
   }
 
-  requestDraw();
+  if (invalidate) {
+    requestDraw();
+  } else {
+    requestLiveModulationDraw();
+  }
   return true;
 }
 
@@ -3214,7 +3222,7 @@ function onCanvasPointerMove(event) {
       lastPointerPosition = { x: pos.x, y: pos.y };
       return;
     }
-    const didModulate = applyManualModulation(pos.x - lastPointerPosition.x, pos.y - lastPointerPosition.y);
+    const didModulate = applyManualModulation(pos.x - lastPointerPosition.x, pos.y - lastPointerPosition.y, { invalidate: false });
     isManualModulating = isManualModulating || didModulate;
     lastPointerPosition = { x: pos.x, y: pos.y };
     return;
