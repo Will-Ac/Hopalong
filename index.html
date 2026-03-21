@@ -376,6 +376,9 @@
         display: grid;
         gap: 8px;
       }
+      .perfSettingCard.is-hidden {
+        display: none;
+      }
       .perfSettingHead {
         display: flex;
         justify-content: space-between;
@@ -467,20 +470,41 @@
         line-height: 1;
         padding: 0;
       }
-      .colorPanelTopSection {
+      .colourPanelTopSection {
         display: grid;
-        gap: 10px;
+        gap: 0;
         padding: 6px;
         border-bottom: 1px solid rgba(var(--ui-gray-rgb), 0.12);
       }
+      .pickerSectionRow {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        min-height: 38px;
+      }
+      .pickerSectionRow + .pickerSectionRow {
+        margin-top: 4px;
+      }
+      .pickerSectionLabel {
+        white-space: nowrap;
+      }
+      .pickerInlineSwatch {
+        justify-self: start;
+      }
       .modeRow {
         display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto auto;
+        grid-template-columns: auto minmax(0, 1fr) auto;
         gap: 8px;
         align-items: center;
       }
       .modeRowLabel {
         white-space: nowrap;
+      }
+      .pickerTopDivider {
+        height: 1px;
+        background: rgba(var(--ui-gray-rgb), 0.12);
+        margin-top: 8px;
       }
       #settingsInfoPopup {
         position: absolute;
@@ -761,7 +785,11 @@
         display: flex;
         flex-direction: column;
       }
+      #pickerTopControls {
+        flex: 0 0 auto;
+      }
       #pickerList {
+        flex: 1 1 auto;
         overflow-y: auto;
         overflow-x: hidden;
         touch-action: pan-y;
@@ -1195,13 +1223,13 @@ Scale</button>
       </div>
       <aside id="rangesEditorPanel" class="is-hidden" aria-label="Settings editor">
         <div class="rangesEditorTabs">
-          <button id="settingsTabColor" class="rangesTabBtn is-active" type="button">Color</button>
+          <button id="settingsTabColor" class="rangesTabBtn is-active" type="button">Colour</button>
           <button id="settingsTabGeneral" class="rangesTabBtn" type="button">General</button>
         </div>
         <div id="colorTabPanel" class="rangesEditorBody settingsTabPanel">
           <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Color map editor</span></div>
-            <div>Open the Colour Map panel from the bottom bar to change background color, Mode, and map selection.</div>
+            <div class="perfSettingHead"><span class="perfSettingLabel">Colour map editor</span></div>
+            <div>Open the Colour Map panel from the bottom bar to change background colour, Mode, and map selection.</div>
           </div>
         </div>
         <div id="generalTabPanel" class="rangesEditorBody settingsTabPanel is-hidden">
@@ -1238,13 +1266,6 @@ Scale</button>
             <div class="perfControlRow">
               <input id="detailBurnRange" class="perfRangeInput" type="range" min="0" max="5000" step="1" />
               <div id="detailBurnFormatted" class="perfFormattedValue">--</div>
-            </div>
-          </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Dialog transparency</span></div>
-            <div class="perfControlRow">
-              <input id="detailOverlayAlphaRange" class="perfRangeInput" type="range" min="0.1" max="1" step="0.01" />
-              <div id="detailOverlayAlphaFormatted" class="perfFormattedValue">--</div>
             </div>
           </div>
           <div class="perfSettingCard">
@@ -1369,10 +1390,10 @@ Scale</button>
           <p id="rangesEditorWarning" aria-live="polite"></p>
         </div>
       </aside>
-      <aside id="colorSettingsPanel" class="is-hidden" aria-label="Color map editor">
+      <aside id="colorSettingsPanel" class="is-hidden" aria-label="Colour map editor">
         <div class="rangesEditorHead">
-          <strong id="colorSettingsName">Color map</strong>
-          <button id="colorSettingsClose" type="button" aria-label="Close color settings">✕</button>
+          <strong id="colorSettingsName">Colour map</strong>
+          <button id="colorSettingsClose" type="button" aria-label="Close colour settings">✕</button>
         </div>
         <div class="colorSettingsBody">
           <div id="colorSettingsPreview" class="colorPreviewWide"></div>
@@ -1383,23 +1404,30 @@ Scale</button>
           </div>
         </div>
       </aside>
-      <aside id="modeSettingsPanel" class="is-hidden" aria-label="Mode settings">
+      <aside id="modeSettingsPanel" class="is-hidden" aria-label="Colour panel settings">
         <div class="rangesEditorBody settingsTabPanel">
-          <div class="perfSettingCard">
+          <div id="backgroundSettingsSection" class="perfSettingCard is-hidden">
+            <div class="perfSettingHead"><span class="perfSettingLabel">Dialog transparency</span></div>
+            <div class="perfControlRow">
+              <input id="detailOverlayAlphaRange" class="perfRangeInput" type="range" min="0.1" max="1" step="0.01" />
+              <div id="detailOverlayAlphaFormatted" class="perfFormattedValue">--</div>
+            </div>
+          </div>
+          <div id="modeSettingsSection" class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Log strength</span><button id="infoLogStrength" class="perfInfoBtn" type="button">i</button></div>
             <div class="perfControlRow">
               <input id="detailLogStrengthRange" class="perfRangeInput" type="range" min="0.5" max="30" step="0.1" />
               <div id="detailLogStrengthFormatted" class="perfFormattedValue">--</div>
             </div>
           </div>
-          <div class="perfSettingCard">
+          <div class="perfSettingCard modeSettingsSection">
             <div class="perfSettingHead"><span class="perfSettingLabel">Gamma</span><button id="infoDensityGamma" class="perfInfoBtn" type="button">i</button></div>
             <div class="perfControlRow">
               <input id="detailDensityGammaRange" class="perfRangeInput" type="range" min="0.2" max="2" step="0.01" />
               <div id="detailDensityGammaFormatted" class="perfFormattedValue">--</div>
             </div>
           </div>
-          <div class="perfSettingCard">
+          <div class="perfSettingCard modeSettingsSection">
             <div class="perfSettingHead"><span class="perfSettingLabel">Hybrid age blend</span><button id="infoHybridBlend" class="perfInfoBtn" type="button">i</button></div>
             <div class="perfControlRow">
               <input id="detailHybridBlendRange" class="perfRangeInput" type="range" min="0" max="1" step="0.01" />
@@ -1431,6 +1459,7 @@ Scale</button>
       <div id="pickerOverlay" aria-hidden="true">
         <div id="pickerBackdrop"></div>
         <div id="pickerPanel" role="dialog" aria-modal="true" aria-label="Picker">
+          <div id="pickerTopControls"></div>
           <div id="pickerList"></div>
         </div>
       </div>
@@ -1457,7 +1486,7 @@ Scale</button>
           </div>
 
           <div class="poItem poName">
-            <span class="poLabel">Color map</span>
+            <span class="poLabel">Colour map</span>
             <button id="cmapBtn" class="poBtn" type="button">--</button>
           </div>
 

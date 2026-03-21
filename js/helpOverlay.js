@@ -52,8 +52,8 @@ const TARGET_SELECTORS = {
   rangesEditorPanel: "#rangesEditorPanel",
   settingsTabColor: "#settingsTabColor",
   settingsTabGeneral: "#settingsTabGeneral",
-  colorModeInfo: "#pickerInfoColorModeProxy",
   modeSettingsButton: "#pickerModeSettingsProxy",
+  backgroundSettingsButton: "#pickerBackgroundSettingsProxy",
 };
 
 const SELECTOR_TO_TARGET_KEY = Object.fromEntries(
@@ -86,15 +86,15 @@ const PANEL_HELP_ITEMS = {
       id: "panel-color-mode",
       context: "colorPanel",
       group: "panel",
-      lines: [{ action: "Mode", body: "change colouring style" }],
+      lines: [{ action: "Mode", body: "switch between iteration-order and density-based colouring" }],
       label: { x: 0.2, y: 0.2 },
-      target: { selector: "#pickerInfoColorModeProxy", attach: "center" },
+      target: { selector: "#pickerModeSettingsProxy", attach: "center" },
     },
     {
       id: "panel-color-choose",
       context: "colorPanel",
       group: "panel",
-      lines: [{ action: "Choose color map", body: "tap a map" }],
+      lines: [{ action: "Choose colour map", body: "tap a map" }],
       label: { x: 0.2, y: 0.2 },
       target: { selector: ".colorPickerOption", attach: "center" },
     },
@@ -112,7 +112,7 @@ const PANEL_HELP_ITEMS = {
       id: "panel-settings-color",
       context: "settingsPanel",
       group: "panel",
-      lines: [{ action: "Color tab", body: "open color settings" }],
+      lines: [{ action: "Colour tab", body: "open colour settings" }],
       label: { x: 0.2, y: 0.2 },
       target: { selector: "#settingsTabColor", attach: "center" },
     },
@@ -701,10 +701,10 @@ const HELP_PLACEMENT_POLICY = {
     priority: 1,
     wrappingAllowed: true,
     shrinkAllowed: true,
-    requiredTargets: ["colorModeInfo"],
+    requiredTargets: ["modeSettingsButton"],
     preferredPlacement: {
       primitive: "relativeToTarget",
-      targetKey: "colorModeInfo",
+      targetKey: "modeSettingsButton",
       relation: {
         x: { sourceEdge: "right", selfEdge: "left", offset: 14 },
         y: { sourceEdge: "top", selfEdge: "top", offset: 0 },

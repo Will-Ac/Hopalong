@@ -89,6 +89,8 @@ const colorSettingsPreviewEl = document.getElementById("colorSettingsPreview");
 const colorStopsListEl = document.getElementById("colorStopsList");
 const addColorStopBtnEl = document.getElementById("addColorStopBtn");
 const resetColorStopsBtnEl = document.getElementById("resetColorStopsBtn");
+const backgroundSettingsSectionEl = document.getElementById("backgroundSettingsSection");
+const modeSettingsSectionEls = Array.from(document.querySelectorAll("#modeSettingsSection, .modeSettingsSection"));
 const settingsInfoTextEl = document.getElementById("settingsInfoText");
 const settingsInfoPopupEl = document.getElementById("settingsInfoPopup");
 const infoMaxRandomItersEl = document.getElementById("infoMaxRandomIters");
@@ -122,6 +124,7 @@ const qsTop = document.querySelector(".qsTop");
 
 const pickerOverlay = document.getElementById("pickerOverlay");
 const pickerBackdrop = document.getElementById("pickerBackdrop");
+const pickerTopControls = document.getElementById("pickerTopControls");
 const pickerList = document.getElementById("pickerList");
 const pickerPanel = document.getElementById("pickerPanel");
 const paramOverlayEl = document.getElementById("paramOverlay");
@@ -272,6 +275,7 @@ let activeColorSettingsMap = null;
 let activePickerTrigger = null;
 let activeInfoAnchorEl = null;
 let activeInfoPanelEl = null;
+let activeColourPanelSettings = "mode";
 let holdInterval = null;
 let lastRenderMeta = null;
 let lastFullRenderMeta = null;
@@ -1631,11 +1635,20 @@ function closeFormulaSettingsPanel() {
   helpOverlayController?.render();
 }
 
-function openModeSettingsPanel() {
+function syncColourPanelSettingsSections() {
+  backgroundSettingsSectionEl?.classList.toggle("is-hidden", activeColourPanelSettings !== "background");
+  for (const sectionEl of modeSettingsSectionEls) {
+    sectionEl.classList.toggle("is-hidden", activeColourPanelSettings !== "mode");
+  }
+}
+
+function openModeSettingsPanel(sectionKey = "mode") {
   if (!modeSettingsPanelEl) {
     return;
   }
 
+  activeColourPanelSettings = sectionKey;
+  syncColourPanelSettingsSections();
   modeSettingsPanelEl.classList.remove("is-hidden");
   layoutModeSettingsPanel();
   helpOverlayController?.render();
@@ -1655,7 +1668,7 @@ function closeDismissablePanelsForTarget(target) {
     return;
   }
 
-  if (isPanelOpen(modeSettingsPanelEl) && !target.closest("#modeSettingsPanel, #modeSettingsToggle, #pickerModeSettingsProxy, #settingsInfoPopup")) {
+  if (isPanelOpen(modeSettingsPanelEl) && !target.closest("#modeSettingsPanel, #pickerModeSettingsProxy, #pickerBackgroundSettingsProxy, #settingsInfoPopup")) {
     closeModeSettingsPanel();
   }
   if (isPanelOpen(colorSettingsPanelEl) && !target.closest("#colorSettingsPanel, #pickerOverlay, #settingsInfoPopup")) {
@@ -1782,9 +1795,7 @@ function syncDetailedSettingsControls() {
   const pickerModeSelectEl = document.getElementById("pickerColorModeProxy");
   if (pickerModeSelectEl) pickerModeSelectEl.value = appData.defaults.renderColorMode;
   const pickerBackgroundInputEl = document.getElementById("pickerBackgroundColorProxy");
-  const pickerBackgroundValueEl = document.getElementById("pickerBackgroundColorValueProxy");
   if (pickerBackgroundInputEl) pickerBackgroundInputEl.value = appData.defaults.backgroundColor || "#05070c";
-  if (pickerBackgroundValueEl) pickerBackgroundValueEl.textContent = appData.defaults.backgroundColor || "#05070c";
 }
 
 function applyHoldSpeedScale(nextValue) {
@@ -3391,7 +3402,10 @@ function layoutModeSettingsPanel() {
 
   const margin = 8;
   const viewportWidth = window.innerWidth;
-  const anchorRect = document.getElementById("pickerModeSettingsProxy")?.getBoundingClientRect();
+  const anchorId = activeColourPanelSettings === "background"
+    ? "pickerBackgroundSettingsProxy"
+    : "pickerModeSettingsProxy";
+  const anchorRect = document.getElementById(anchorId)?.getBoundingClientRect();
   const parentRect = anchorRect ? pickerPanel?.getBoundingClientRect() : colorSettingsPanelEl?.getBoundingClientRect();
   const panelWidth = modeSettingsPanelEl.getBoundingClientRect().width || Math.min(380, viewportWidth - margin * 2);
   const targetLeft = parentRect && anchorRect
@@ -3403,6 +3417,9 @@ function layoutModeSettingsPanel() {
 }
 
 function renderFormulaPicker() {
+  if (pickerTopControls) {
+    pickerTopControls.innerHTML = "";
+  }
   pickerList.innerHTML = "";
 
   for (const formula of appData.formulas) {
@@ -3466,49 +3483,45 @@ function renderFormulaPicker() {
 }
 
 function renderColorMapPicker() {
+  if (pickerTopControls) {
+    pickerTopControls.innerHTML = "";
+  }
   pickerList.innerHTML = "";
 
   const topSection = document.createElement("div");
-  topSection.className = "colorPanelTopSection";
+  topSection.className = "colourPanelTopSection";
   topSection.innerHTML = `
-    <div class="perfSettingCard">
-      <div class="perfSettingHead"><span class="perfSettingLabel">Background color</span></div>
-      <div class="perfControlRow">
-        <input id="pickerBackgroundColorProxy" class="perfRangeInput" type="color" aria-label="Background color" />
-        <div id="pickerBackgroundColorValueProxy" class="perfFormattedValue"></div>
-      </div>
+    <div class="pickerSectionRow">
+      <span class="perfSettingLabel pickerSectionLabel">Background colour</span>
+      <input id="pickerBackgroundColorProxy" class="perfRangeInput pickerInlineSwatch" type="color" aria-label="Background colour" />
+      <button id="pickerBackgroundSettingsProxy" class="compactIconBtn" type="button" aria-label="Open background settings">⚙</button>
     </div>
-    <div class="perfSettingCard">
-      <div class="modeRow">
-        <span class="perfSettingLabel modeRowLabel">Mode</span>
-        <select id="pickerColorModeProxy" class="perfSelect" aria-label="Mode">
-          <option value="iteration_order">Iteration order</option>
-          <option value="hit_density_linear">Hit density (linear)</option>
-          <option value="hit_density_log">Hit density (log)</option>
-          <option value="hit_density_gamma">Hit density (gamma)</option>
-          <option value="hit_density_percentile">Hit density (percentile)</option>
-          <option value="hybrid_density_age">Hybrid (density + recency)</option>
-        </select>
-        <button id="pickerInfoColorModeProxy" class="perfInfoBtn" type="button" aria-label="Mode help">i</button>
-        <button id="pickerModeSettingsProxy" class="compactIconBtn" type="button" aria-label="Open mode settings">⚙</button>
-      </div>
+    <div class="modeRow">
+      <span class="perfSettingLabel modeRowLabel">Mode</span>
+      <select id="pickerColorModeProxy" class="perfSelect" aria-label="Mode">
+        <option value="iteration_order">Iteration order</option>
+        <option value="hit_density_linear">Hit density (linear)</option>
+        <option value="hit_density_log">Hit density (log)</option>
+        <option value="hit_density_gamma">Hit density (gamma)</option>
+        <option value="hit_density_percentile">Hit density (percentile)</option>
+        <option value="hybrid_density_age">Hybrid (density + recency)</option>
+      </select>
+      <button id="pickerModeSettingsProxy" class="compactIconBtn" type="button" aria-label="Open mode settings">⚙</button>
     </div>
+    <div class="pickerTopDivider" aria-hidden="true"></div>
   `;
-  pickerList.append(topSection);
+  pickerTopControls?.append(topSection);
 
   const backgroundInput = topSection.querySelector("#pickerBackgroundColorProxy");
-  const backgroundValue = topSection.querySelector("#pickerBackgroundColorValueProxy");
   const modeSelect = topSection.querySelector("#pickerColorModeProxy");
-  const infoBtn = topSection.querySelector("#pickerInfoColorModeProxy");
+  const backgroundSettingsBtn = topSection.querySelector("#pickerBackgroundSettingsProxy");
   const modeSettingsBtn = topSection.querySelector("#pickerModeSettingsProxy");
 
-  if (backgroundInput && backgroundValue) {
+  if (backgroundInput) {
     backgroundInput.value = appData.defaults.backgroundColor || "#05070c";
-    backgroundValue.textContent = appData.defaults.backgroundColor || "#05070c";
     backgroundInput.addEventListener("input", (event) => {
       appData.defaults.backgroundColor = event.target.value;
       if (detailBackgroundColorValueEl) detailBackgroundColorValueEl.textContent = appData.defaults.backgroundColor;
-      backgroundValue.textContent = appData.defaults.backgroundColor;
       if (detailBackgroundColorEl) detailBackgroundColorEl.value = appData.defaults.backgroundColor;
       applyBackgroundTheme();
       requestDraw();
@@ -3523,16 +3536,22 @@ function renderColorMapPicker() {
     });
   }
 
-  infoBtn?.addEventListener("click", (event) => {
-    showSettingsInfo("Switch between iteration-order and density-based coloring methods to emphasize different structure in the attractor.", event.currentTarget, pickerPanel);
+  backgroundSettingsBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (isPanelOpen(modeSettingsPanelEl) && activeColourPanelSettings === "background") {
+      closeModeSettingsPanel();
+    } else {
+      openModeSettingsPanel("background");
+    }
   });
   modeSettingsBtn?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    if (isPanelOpen(modeSettingsPanelEl)) {
+    if (isPanelOpen(modeSettingsPanelEl) && activeColourPanelSettings === "mode") {
       closeModeSettingsPanel();
     } else {
-      openModeSettingsPanel();
+      openModeSettingsPanel("mode");
     }
   });
 
