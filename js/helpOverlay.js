@@ -305,20 +305,7 @@ export function createHelpOverlay(options) {
     return el;
   }
 
-  function ensureDom() {
-    if (state.domReady) return;
-
-    const rootEl = document.createElement("div");
-    rootEl.id = "helpOverlay";
-    rootEl.setAttribute("aria-hidden", "true");
-
-    const dimmerEl = document.createElement("div");
-    dimmerEl.className = "helpOverlay__dimmer";
-
-    const svgEl = document.createElementNS(SVG_NS, "svg");
-    svgEl.classList.add("helpOverlay__lines");
-    svgEl.setAttribute("preserveAspectRatio", "none");
-
+  function createArrowMarker() {
     const defs = document.createElementNS(SVG_NS, "defs");
     const marker = document.createElementNS(SVG_NS, "marker");
     marker.setAttribute("id", "helpArrowHead");
@@ -333,7 +320,21 @@ export function createHelpOverlay(options) {
     markerPath.setAttribute("fill", "rgba(255,255,255,0.95)");
     marker.append(markerPath);
     defs.append(marker);
-    svgEl.append(defs);
+    return defs;
+  }
+
+  function buildOverlayElements() {
+    const rootEl = document.createElement("div");
+    rootEl.id = "helpOverlay";
+    rootEl.setAttribute("aria-hidden", "true");
+
+    const dimmerEl = document.createElement("div");
+    dimmerEl.className = "helpOverlay__dimmer";
+
+    const svgEl = document.createElementNS(SVG_NS, "svg");
+    svgEl.classList.add("helpOverlay__lines");
+    svgEl.setAttribute("preserveAspectRatio", "none");
+    svgEl.append(createArrowMarker());
 
     const labelsLayer = document.createElement("div");
     labelsLayer.className = "helpOverlay__labels";
@@ -342,13 +343,20 @@ export function createHelpOverlay(options) {
     centerDivider.className = "helpOverlay__centerDivider";
 
     rootEl.append(dimmerEl, svgEl, centerDivider, labelsLayer);
-    document.body.append(rootEl);
+    return { rootEl, dimmerEl, svgEl, labelsLayer, centerDivider };
+  }
 
-    dom.rootEl = rootEl;
-    dom.dimmerEl = dimmerEl;
-    dom.svgEl = svgEl;
-    dom.labelsLayer = labelsLayer;
-    dom.centerDivider = centerDivider;
+  function ensureDom() {
+    if (state.domReady) return;
+
+    const overlayElements = buildOverlayElements();
+    document.body.append(overlayElements.rootEl);
+
+    dom.rootEl = overlayElements.rootEl;
+    dom.dimmerEl = overlayElements.dimmerEl;
+    dom.svgEl = overlayElements.svgEl;
+    dom.labelsLayer = overlayElements.labelsLayer;
+    dom.centerDivider = overlayElements.centerDivider;
     state.domReady = true;
   }
 
@@ -1232,7 +1240,7 @@ function buildCandidate(layout, placement, ctx) {
   return null;
 }
 
-function generateCandidates(layout, ctx) {
+function computePlacementCandidates(layout, ctx) {
   const { preferredPlacement, fallbackPlacements = [] } = layout.item.policy;
   const ordered = [preferredPlacement, ...fallbackPlacements];
   return ordered.map((placement) => buildCandidate(layout, placement, ctx)).filter(Boolean);
@@ -1306,6 +1314,42 @@ function findFirstFreeSpot(layout, ctx, placedRects, lockX = null) {
   return null;
 }
 
+function resolvePlacement(layout, ctx, placed, placedRects) {
+  let best = null;
+  const preferredCandidate = buildCandidate(layout, layout.item.policy.preferredPlacement, { ...ctx, placed });
+
+  for (const variant of placementVariants(layout)) {
+    setLabelMeasureStyle(layout, variant, ctx.viewportWidth);
+    const candidates = computePlacementCandidates(layout, { ...ctx, placed });
+    for (const candidate of candidates) {
+      const scored = scoreCandidate(layout, candidate, { ...ctx, placedRects, placed }, preferredCandidate);
+      if (!scored.valid) continue;
+      if (!best || scored.score < best.score) best = { ...candidate, score: scored.score };
+    }
+    if (best && variant.fontScale === 1) break;
+  }
+
+  return best;
+}
+
+function resolveFallbackPlacement(layout, ctx, placedRects) {
+  setLabelMeasureStyle(layout, { wrapped: true, fontScale: 0.86 }, ctx.viewportWidth);
+  const lockX = getStrictX(layout, ctx);
+  const free = findFirstFreeSpot(layout, ctx, placedRects, lockX);
+  if (free) return free;
+  return {
+    x: Number.isFinite(lockX) ? lockX : clamp(layout.x, ctx.margin, ctx.viewportWidth - layout.width - ctx.margin),
+    y: clamp(ctx.margin, ctx.margin, ctx.uiTop - layout.height - ctx.margin),
+  };
+}
+
+function applyLayout(layout, placement, placed, placedRects) {
+  layout.x = Math.round(placement.x);
+  layout.y = Math.round(placement.y);
+  placed.set(layout.group.id, layout);
+  placedRects.push({ id: layout.group.id, rect: layoutRect(layout) });
+}
+
 function placeGroupsInPriorityOrder(ctx) {
   const sorted = [...ctx.layouts].sort((a, b) => a.item.policy.priority - b.item.policy.priority || a.group.id.localeCompare(b.group.id));
   const placed = new Map();
@@ -1314,38 +1358,10 @@ function placeGroupsInPriorityOrder(ctx) {
   for (const layout of sorted) {
     if (!layout.item.dependencyIds.every((id) => placed.has(id))) continue;
 
-    let best = null;
-    const preferredCandidate = buildCandidate(layout, layout.item.policy.preferredPlacement, { ...ctx, placed });
+    const resolvedPlacement = resolvePlacement(layout, ctx, placed, placedRects)
+      || resolveFallbackPlacement(layout, ctx, placedRects);
 
-    for (const variant of placementVariants(layout)) {
-      setLabelMeasureStyle(layout, variant, ctx.viewportWidth);
-      const candidates = generateCandidates(layout, { ...ctx, placed });
-      for (const candidate of candidates) {
-        const scored = scoreCandidate(layout, candidate, { ...ctx, placedRects, placed }, preferredCandidate);
-        if (!scored.valid) continue;
-        if (!best || scored.score < best.score) best = { ...candidate, score: scored.score };
-      }
-      if (best && variant.fontScale === 1) break;
-    }
-
-    if (!best) {
-      setLabelMeasureStyle(layout, { wrapped: true, fontScale: 0.86 }, ctx.viewportWidth);
-      const lockX = getStrictX(layout, ctx);
-      const free = findFirstFreeSpot(layout, ctx, placedRects, lockX);
-      if (free) {
-        best = free;
-      } else {
-        best = {
-          x: Number.isFinite(lockX) ? lockX : clamp(layout.x, ctx.margin, ctx.viewportWidth - layout.width - ctx.margin),
-          y: clamp(ctx.margin, ctx.margin, ctx.uiTop - layout.height - ctx.margin),
-        };
-      }
-    }
-
-    layout.x = Math.round(best.x);
-    layout.y = Math.round(best.y);
-    placed.set(layout.group.id, layout);
-    placedRects.push({ id: layout.group.id, rect: layoutRect(layout) });
+    applyLayout(layout, resolvedPlacement, placed, placedRects);
   }
 }
 
@@ -1419,21 +1435,15 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
     }
   }
 
-  function render() {
-    if (!state.open) return;
+  function measureViewport() {
+    return {
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      margin: LAYOUT.marginDesktop,
+    };
+  }
 
-    ensureDom();
-    cacheTargetElements();
-    clearGraphics();
-
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const margin = LAYOUT.marginDesktop;
-    const rects = resolveTargetRects();
-
-    dom.svgEl.setAttribute("viewBox", `0 0 ${viewportWidth} ${viewportHeight}`);
-    dom.centerDivider.style.left = `${Math.round(viewportWidth / 2)}px`;
-
+  function resolveUiMetrics(rects, viewportHeight) {
     const paramOverlayRect = rects.get("paramOverlay") || null;
     const quickSliderRect = rects.get("quickSlider") || null;
     const uiTop = Math.min(
@@ -1442,35 +1452,74 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
     );
     const tileTopEdge = Number.isFinite(paramOverlayRect?.top) ? paramOverlayRect.top : uiTop;
     const alignedBottomGuideY = Math.round(tileTopEdge - LAYOUT.alignedTileGuideOffset);
+    return { uiTop, tileTopEdge, alignedBottomGuideY };
+  }
 
+  function prepareRenderContext() {
+    const { viewportWidth, viewportHeight, margin } = measureViewport();
+    const rects = resolveTargetRects();
+    const { uiTop, tileTopEdge, alignedBottomGuideY } = resolveUiMetrics(rects, viewportHeight);
     const { groups, brackets, activeContexts = [] } = resolveHelpContent();
     const registry = buildHelpItemRegistry(groups);
     const activeItems = resolveActiveItems(registry, rects);
     const models = buildLabelModels(activeItems);
     const layouts = createOrMeasureLabels({ models, viewportWidth, margin });
-
     const anchors = resolveAnchors({ rects, viewportWidth, viewportHeight, margin, uiTop });
+
+    return {
+      viewportWidth,
+      viewportHeight,
+      margin,
+      rects,
+      uiTop,
+      tileTopEdge,
+      alignedBottomGuideY,
+      groups,
+      brackets,
+      activeContexts,
+      registry,
+      activeItems,
+      models,
+      layouts,
+      anchors,
+    };
+  }
+
+  function layoutHelpGroups(renderCtx) {
+    const {
+      layouts,
+      activeContexts,
+      viewportWidth,
+      viewportHeight,
+      margin,
+      uiTop,
+      rects,
+      anchors,
+    } = renderCtx;
 
     if (activeContexts.length) {
       placePanelContextGroups({ layouts, activeContexts, viewportWidth, uiTop, margin });
-    } else {
-      const forbiddenRegions = buildUiForbiddenRegions(rects, uiTop, viewportWidth, margin);
-      forbiddenRegions.push(...buildPanelForbiddenRegions(activeContexts));
-
-      placeGroupsInPriorityOrder({
-        layouts,
-        rects,
-        viewportWidth,
-        viewportHeight,
-        margin,
-        uiTop,
-        forbiddenRegions,
-        anchors,
-      });
-
-      clampPlacedGroupsToViewport({ layouts, viewportWidth, margin, uiTop, rects, anchors });
+      return;
     }
 
+    const forbiddenRegions = buildUiForbiddenRegions(rects, uiTop, viewportWidth, margin);
+    forbiddenRegions.push(...buildPanelForbiddenRegions(activeContexts));
+
+    placeGroupsInPriorityOrder({
+      layouts,
+      rects,
+      viewportWidth,
+      viewportHeight,
+      margin,
+      uiTop,
+      forbiddenRegions,
+      anchors,
+    });
+
+    clampPlacedGroupsToViewport({ layouts, viewportWidth, margin, uiTop, rects, anchors });
+  }
+
+  function renderBrackets(brackets, alignedBottomGuideY) {
     const bracketMidpoints = new Map();
     for (const bracket of brackets) {
       const rect = unionRects(bracket.targetSelectors.map((selector) => getRect(selector)));
@@ -1478,6 +1527,32 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
       const midpoint = drawBracket(rect, bracket.side, bracket.side === "top" ? alignedBottomGuideY : null);
       bracketMidpoints.set(bracket.id, midpoint);
     }
+    return bracketMidpoints;
+  }
+
+  function render() {
+    if (!state.open) return;
+
+    ensureDom();
+    cacheTargetElements();
+    clearGraphics();
+
+    const renderCtx = prepareRenderContext();
+    const {
+      viewportWidth,
+      viewportHeight,
+      tileTopEdge,
+      alignedBottomGuideY,
+      brackets,
+      layouts,
+    } = renderCtx;
+
+    dom.svgEl.setAttribute("viewBox", `0 0 ${viewportWidth} ${viewportHeight}`);
+    dom.centerDivider.style.left = `${Math.round(viewportWidth / 2)}px`;
+
+    layoutHelpGroups(renderCtx);
+
+    const bracketMidpoints = renderBrackets(brackets, alignedBottomGuideY);
 
     renderLabels(layouts);
     renderCanvasDivider({ viewportHeight, layouts });
