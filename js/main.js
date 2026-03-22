@@ -4754,7 +4754,7 @@ async function draw() {
       iterations,
       burn: burnSetting,
       scaleMode: getScaleMode(),
-      renderState.fixedView,
+      fixedView: renderState.fixedView,
       seed: getSeedForFormula(currentFormulaId),
       renderColoring: getRenderColoringOptions(),
       backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
