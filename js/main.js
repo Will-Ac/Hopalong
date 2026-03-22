@@ -277,47 +277,60 @@ const interestOverlayCtx = interestOverlayCanvas?.getContext("2d");
 const manualOverlayCtx = manualOverlayCanvas?.getContext("2d");
 let appData = null;
 let currentFormulaId = null;
-let activeSliderKey = null;
-let activePicker = null;
-let activeColorSettingsMap = null;
-let activePickerTrigger = null;
-let activeInfoAnchorEl = null;
-let activeInfoPanelEl = null;
-let holdInterval = null;
-let lastRenderMeta = null;
-let lastFullRenderMeta = null;
-let lastDrawTimestamp = 0;
-let fpsEstimate = 0;
-let wasManualOverlayActive = false;
-let drawScheduled = false;
-let drawDirty = false;
-let drawInProgress = false;
-let panZoomInteractionActive = false;
-let panZoomSettleTimer = null;
-let singleTouchModulationStartDrawTimer = null;
-let toastTimer = null;
-let renderProgressHideTimer = null;
-let renderProgressVisible = false;
-let renderProgressStartedAt = 0;
-let renderProgressShownThisDraw = false;
-let lastComputedUiMetrics = { fontSize: null, tileSize: null };
-let lastSizingViewport = { width: 0, height: 0 };
-let lastQuickSliderTopTapAt = 0;
-let helpOverlayController = null;
-let openRangesEditor;
-let closeRangesEditor;
-let openFormulaSettingsPanel;
-let closeFormulaSettingsPanel;
-let openColorSettingsPanel;
-let closeColorSettingsPanel;
-let openModeSettingsPanel;
-let closeModeSettingsPanel;
-let closeDismissablePanelsForTarget;
-let layoutFormulaSettingsPanel;
-let layoutColorSettingsPanel;
-let layoutModeSettingsPanel;
-let isPanelOpen;
-let getActiveColourPanelSettings;
+const uiState = {
+  activeSliderKey: null,
+  activePicker: null,
+  activeColorSettingsMap: null,
+  activePickerTrigger: null,
+  activeInfoAnchorEl: null,
+  activeInfoPanelEl: null,
+  holdInterval: null,
+  toastTimer: null,
+  lastComputedUiMetrics: { fontSize: null, tileSize: null },
+  lastSizingViewport: { width: 0, height: 0 },
+  lastQuickSliderTopTapAt: 0,
+  helpOverlayController: null,
+  openRangesEditor: undefined,
+  closeRangesEditor: undefined,
+  openFormulaSettingsPanel: undefined,
+  closeFormulaSettingsPanel: undefined,
+  openColorSettingsPanel: undefined,
+  closeColorSettingsPanel: undefined,
+  openModeSettingsPanel: undefined,
+  closeModeSettingsPanel: undefined,
+  closeDismissablePanelsForTarget: undefined,
+  layoutFormulaSettingsPanel: undefined,
+  layoutColorSettingsPanel: undefined,
+  layoutModeSettingsPanel: undefined,
+  isPanelOpen: undefined,
+  getActiveColourPanelSettings: undefined,
+};
+const renderState = {
+  lastRenderMeta: null,
+  lastFullRenderMeta: null,
+  lastDrawTimestamp: 0,
+  fpsEstimate: 0,
+  wasManualOverlayActive: false,
+  drawScheduled: false,
+  drawDirty: false,
+  drawInProgress: false,
+  panZoomInteractionActive: false,
+  panZoomSettleTimer: null,
+  singleTouchModulationStartDrawTimer: null,
+  renderProgressHideTimer: null,
+  renderProgressVisible: false,
+  renderProgressStartedAt: 0,
+  renderProgressShownThisDraw: false,
+  renderRevision: 0,
+  renderGeneration: 0,
+  currentRenderCache: null,
+  activePanZoomCacheEntry: null,
+  fixedView: {
+    offsetX: 0,
+    offsetY: 0,
+    zoom: 1,
+  },
+};
 
 const HOLD_REPEAT_MS_DEFAULT = 60;
 const HOLD_REPEAT_MS_MIN = 20;
@@ -353,18 +366,22 @@ const paramTileTargets = {
   iters: { button: sliderControls.iters.button, modeKey: sliderControls.iters.paramKey, shortTap: () => openQuickSlider("iters") },
 };
 
-let exportManager = null;
-let renderRevision = 0;
-let renderGeneration = 0;
-let currentRenderCache = null;
-let activePanZoomCacheEntry = null;
-const historyRenderCache = new Map();
+const exportState = {
+  exportManager: null,
+};
+const historyStateRef = {
+  historyRenderCache: new Map(),
+  sharedParamsOverride: null,
+  sharedParamsFormulaId: null,
+};
 let paramModes = {};
-let lastParamTap = { targetKey: null, timestamp: 0 };
-let pendingTileTapTimer = null;
-let randomAllNextMode = "rand";
-let keyHold = { code: null, axis: null, direction: 0, sliderKey: null, interval: null, startMs: 0 };
-let isKeyboardManualModulating = false;
+Object.assign(uiState, {
+  lastParamTap: { targetKey: null, timestamp: 0 },
+  pendingTileTapTimer: null,
+  randomAllNextMode: "rand",
+  keyHold: { code: null, axis: null, direction: 0, sliderKey: null, interval: null, startMs: 0 },
+  isKeyboardManualModulating: false,
+});
 const paramPressState = {
   pointerId: null,
   targetKey: null,
@@ -428,22 +445,17 @@ const RANGE_KEYS = ["a", "b", "c", "d"];
 let builtInFormulaRanges = {};
 let rangesEditorFormulaId = null;
 
-let interactionState = INTERACTION_STATE.NONE;
-let activePointers = new Map();
-let primaryPointerId = null;
-let lastPointerPosition = null;
-let isManualModulating = false;
-let twoFingerGesture = null;
-let lastTwoDebug = null;
-let historyTapTracker = null;
-let suppressHistoryTap = false;
-let fixedView = {
-  offsetX: 0,
-  offsetY: 0,
-  zoom: 1,
+const overlayState = {
+  interactionState: INTERACTION_STATE.NONE,
+  activePointers: new Map(),
+  primaryPointerId: null,
+  lastPointerPosition: null,
+  isManualModulating: false,
+  twoFingerGesture: null,
+  lastTwoDebug: null,
+  historyTapTracker: null,
+  suppressHistoryTap: false,
 };
-let sharedParamsOverride = null;
-let sharedParamsFormulaId = null;
 
 function clampLabel(text, maxChars = NAME_MAX_CHARS) {
   const normalized = String(text ?? "").trim();
@@ -455,12 +467,12 @@ function clampLabel(text, maxChars = NAME_MAX_CHARS) {
 }
 
 function invalidatePendingRenders() {
-  renderGeneration += 1;
-  return renderGeneration;
+  renderState.renderGeneration += 1;
+  return renderState.renderGeneration;
 }
 
 function isRenderGenerationCurrent(generation) {
-  return generation === renderGeneration;
+  return generation === renderState.renderGeneration;
 }
 
 function requestDraw({ invalidate = true } = {}) {
@@ -473,28 +485,28 @@ function requestDraw({ invalidate = true } = {}) {
   if (invalidate) {
     invalidatePendingRenders();
   }
-  drawDirty = true;
-  if (exportManager?.isHighResExportInProgress()) {
+  renderState.drawDirty = true;
+  if (exportState.exportManager?.isHighResExportInProgress()) {
     return;
   }
-  if (drawScheduled) {
+  if (renderState.drawScheduled) {
     return;
   }
 
-  drawScheduled = true;
+  renderState.drawScheduled = true;
   window.requestAnimationFrame(async () => {
-    drawScheduled = false;
-    if (!drawDirty || drawInProgress) {
+    renderState.drawScheduled = false;
+    if (!renderState.drawDirty || renderState.drawInProgress) {
       return;
     }
 
-    drawDirty = false;
-    drawInProgress = true;
+    renderState.drawDirty = false;
+    renderState.drawInProgress = true;
     try {
       await draw();
     } finally {
-      drawInProgress = false;
-      if (drawDirty) {
+      renderState.drawInProgress = false;
+      if (renderState.drawDirty) {
         requestDraw({ invalidate: false });
       }
     }
@@ -540,7 +552,7 @@ function getRenderStateKey(stateLike = captureCurrentState()) {
     iterations: state.sliders?.iters ?? appData?.defaults?.sliders?.iters,
     burn: state.sliders?.burn ?? appData?.defaults?.sliders?.burn,
     scaleMode: state.scaleMode ?? getScaleMode(),
-    fixedView: state.fixedView ?? fixedView,
+    fixedView: state.fixedView ?? renderState.fixedView,
     seed: state.seed ?? getSeedForFormula(state.formulaId ?? currentFormulaId),
     renderColoring: state.renderColoring ?? getRenderColoringOptions(),
     backgroundColor: state.backgroundColor ?? appData?.defaults?.backgroundColor,
@@ -564,24 +576,24 @@ function drawCachedFrameEntry(frameEntry, { syncExport = true } = {}) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(frameEntry.canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
   if (frameEntry.meta) {
-    lastRenderMeta = frameEntry.meta;
-    lastFullRenderMeta = frameEntry.fullMeta || frameEntry.meta;
-    redrawOverlayCanvases(lastRenderMeta);
+    renderState.lastRenderMeta = frameEntry.meta;
+    renderState.lastFullRenderMeta = frameEntry.fullMeta || frameEntry.meta;
+    redrawOverlayCanvases(renderState.lastRenderMeta);
   }
   if (syncExport) {
-    exportManager?.syncCachedFrame(frameEntry, renderRevision);
+    exportState.exportManager?.syncCachedFrame(frameEntry, renderState.renderRevision);
   }
   return true;
 }
 
 function drawInteractionFrameFromCache(frameEntry) {
-  if (!frameEntry?.canvas || !frameEntry.sourceFixedView || !fixedView) {
+  if (!frameEntry?.canvas || !frameEntry.sourceFixedView || !renderState.fixedView) {
     return false;
   }
   const viewportWidth = Math.max(1, canvas.width);
   const viewportHeight = Math.max(1, canvas.height);
   const sourceZoom = Number(frameEntry.sourceFixedView.zoom) || 1;
-  const targetZoom = Number(fixedView.zoom) || 1;
+  const targetZoom = Number(renderState.fixedView.zoom) || 1;
   if (sourceZoom <= 0 || targetZoom <= 0) {
     return false;
   }
@@ -595,9 +607,9 @@ function drawInteractionFrameFromCache(frameEntry) {
   const sourceRectWidth = viewportWidth / zoomRatio;
   const sourceRectHeight = viewportHeight / zoomRatio;
   const sourceRectX = cropX + viewportWidth * 0.5 + (frameEntry.sourceFixedView.offsetX || 0)
-    - (viewportWidth * 0.5 + (fixedView.offsetX || 0)) / zoomRatio;
+    - (viewportWidth * 0.5 + (renderState.fixedView.offsetX || 0)) / zoomRatio;
   const sourceRectY = cropY + viewportHeight * 0.5 + (frameEntry.sourceFixedView.offsetY || 0)
-    - (viewportHeight * 0.5 + (fixedView.offsetY || 0)) / zoomRatio;
+    - (viewportHeight * 0.5 + (renderState.fixedView.offsetY || 0)) / zoomRatio;
 
   const clippedX = clamp(sourceRectX, 0, frameEntry.canvas.width);
   const clippedY = clamp(sourceRectY, 0, frameEntry.canvas.height);
@@ -620,37 +632,37 @@ function drawInteractionFrameFromCache(frameEntry) {
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(frameEntry.canvas, clippedX, clippedY, clippedWidth, clippedHeight, destX, destY, destWidth, destHeight);
   if (frameEntry.meta) {
-    lastRenderMeta = frameEntry.meta;
-    lastFullRenderMeta = frameEntry.fullMeta || frameEntry.meta;
-    redrawOverlayCanvases(lastRenderMeta);
+    renderState.lastRenderMeta = frameEntry.meta;
+    renderState.lastFullRenderMeta = frameEntry.fullMeta || frameEntry.meta;
+    redrawOverlayCanvases(renderState.lastRenderMeta);
   }
   return true;
 }
 
 function pruneHistoryRenderCache() {
   const maxEntries = getHistoryCacheSize();
-  while (historyRenderCache.size > maxEntries) {
-    const oldestKey = historyRenderCache.keys().next().value;
+  while (historyStateRef.historyRenderCache.size > maxEntries) {
+    const oldestKey = historyStateRef.historyRenderCache.keys().next().value;
     if (!oldestKey) {
       break;
     }
-    if (currentRenderCache && oldestKey === currentRenderCache.key && historyRenderCache.size > 1) {
-      const currentEntry = historyRenderCache.get(oldestKey);
-      historyRenderCache.delete(oldestKey);
-      historyRenderCache.set(oldestKey, currentEntry);
+    if (renderState.currentRenderCache && oldestKey === renderState.currentRenderCache.key && historyStateRef.historyRenderCache.size > 1) {
+      const currentEntry = historyStateRef.historyRenderCache.get(oldestKey);
+      historyStateRef.historyRenderCache.delete(oldestKey);
+      historyStateRef.historyRenderCache.set(oldestKey, currentEntry);
       continue;
     }
-    historyRenderCache.delete(oldestKey);
+    historyStateRef.historyRenderCache.delete(oldestKey);
   }
 }
 
 function getHistoryCachedFrame(key) {
-  if (!key || !historyRenderCache.has(key)) {
+  if (!key || !historyStateRef.historyRenderCache.has(key)) {
     return null;
   }
-  const entry = historyRenderCache.get(key);
-  historyRenderCache.delete(key);
-  historyRenderCache.set(key, entry);
+  const entry = historyStateRef.historyRenderCache.get(key);
+  historyStateRef.historyRenderCache.delete(key);
+  historyStateRef.historyRenderCache.set(key, entry);
   return entry;
 }
 
@@ -666,17 +678,17 @@ function cacheAccurateFrame({ key, fullCanvas, fullMeta, frameMeta, sourceFixedV
     canvas: cloneFrameCanvas(fullCanvas),
     fullMeta: cloneMeta(fullMeta),
     meta: cloneMeta(frameMeta),
-    sourceFixedView: { ...(sourceFixedView || fixedView) },
+    sourceFixedView: { ...(sourceFixedView || renderState.fixedView) },
   };
-  currentRenderCache = entry;
-  historyRenderCache.delete(key);
-  historyRenderCache.set(key, entry);
+  renderState.currentRenderCache = entry;
+  historyStateRef.historyRenderCache.delete(key);
+  historyStateRef.historyRenderCache.set(key, entry);
   pruneHistoryRenderCache();
   return entry;
 }
 
 function isHelpOverlayOpen() {
-  return Boolean(helpOverlayController?.isOpen?.());
+  return Boolean(uiState.helpOverlayController?.isOpen?.());
 }
 
 function positionToastForTopActions() {
@@ -725,16 +737,16 @@ function showToast(message) {
     return;
   }
 
-  renderProgressVisible = false;
-  window.clearTimeout(renderProgressHideTimer);
-  renderProgressHideTimer = null;
-  window.clearTimeout(toastTimer);
+  renderState.renderProgressVisible = false;
+  window.clearTimeout(renderState.renderProgressHideTimer);
+  renderState.renderProgressHideTimer = null;
+  window.clearTimeout(uiState.toastTimer);
   toastEl.textContent = message;
   toastEl.classList.add("is-visible");
   positionToastForTopActions();
   suppressToastWhenHelpOpenAndBelowActions();
 
-  toastTimer = window.setTimeout(() => {
+  uiState.toastTimer = window.setTimeout(() => {
     toastEl.classList.remove("is-visible");
   }, 5000);
 }
@@ -744,16 +756,16 @@ function hideRenderProgressToast() {
     return;
   }
 
-  renderProgressVisible = false;
-  window.clearTimeout(renderProgressHideTimer);
-  renderProgressHideTimer = null;
+  renderState.renderProgressVisible = false;
+  window.clearTimeout(renderState.renderProgressHideTimer);
+  renderState.renderProgressHideTimer = null;
   toastEl.classList.remove("is-visible");
   toastEl.classList.remove("is-below-actions");
   toastEl.style.removeProperty("--toast-below-top");
 }
 
 function updateRenderProgressToast(percent, isComplete = false) {
-  if (exportManager?.isHighResExportInProgress()) {
+  if (exportState.exportManager?.isHighResExportInProgress()) {
     return;
   }
 
@@ -761,26 +773,26 @@ function updateRenderProgressToast(percent, isComplete = false) {
     return;
   }
 
-  const elapsedMs = performance.now() - renderProgressStartedAt;
+  const elapsedMs = performance.now() - renderState.renderProgressStartedAt;
   if (!isComplete && elapsedMs < 1000) {
     return;
   }
-  if (isComplete && !renderProgressShownThisDraw) {
+  if (isComplete && !renderState.renderProgressShownThisDraw) {
     return;
   }
 
   const normalizedPercent = Math.max(0, Math.min(100, Math.round(percent / 5) * 5));
-  window.clearTimeout(renderProgressHideTimer);
-  renderProgressHideTimer = null;
+  window.clearTimeout(renderState.renderProgressHideTimer);
+  renderState.renderProgressHideTimer = null;
   toastEl.textContent = `Render ${normalizedPercent}%`;
   toastEl.classList.add("is-visible");
   positionToastForTopActions();
   suppressToastWhenHelpOpenAndBelowActions();
-  renderProgressVisible = true;
-  renderProgressShownThisDraw = true;
+  renderState.renderProgressVisible = true;
+  renderState.renderProgressShownThisDraw = true;
 
   if (isComplete) {
-    renderProgressHideTimer = window.setTimeout(() => {
+    renderState.renderProgressHideTimer = window.setTimeout(() => {
       hideRenderProgressToast();
     }, 2000);
   }
@@ -792,16 +804,16 @@ function updateExportRenderProgressToast(label, percent, isComplete = false) {
   }
 
   const normalizedPercent = Math.max(0, Math.min(100, Math.round(percent / 5) * 5));
-  window.clearTimeout(renderProgressHideTimer);
-  renderProgressHideTimer = null;
+  window.clearTimeout(renderState.renderProgressHideTimer);
+  renderState.renderProgressHideTimer = null;
   toastEl.textContent = `${label}: ${normalizedPercent}%`;
   toastEl.classList.add("is-visible");
   positionToastForTopActions();
   suppressToastWhenHelpOpenAndBelowActions();
-  renderProgressVisible = true;
+  renderState.renderProgressVisible = true;
 
   if (isComplete) {
-    renderProgressHideTimer = window.setTimeout(() => {
+    renderState.renderProgressHideTimer = window.setTimeout(() => {
       hideRenderProgressToast();
     }, 2000);
   }
@@ -955,8 +967,8 @@ function renderFormulaDetail(formulaId) {
 }
 
 function getDerivedParams() {
-  if (sharedParamsOverride && sharedParamsFormulaId === currentFormulaId) {
-    return { ...sharedParamsOverride };
+  if (historyStateRef.sharedParamsOverride && historyStateRef.sharedParamsFormulaId === currentFormulaId) {
+    return { ...historyStateRef.sharedParamsOverride };
   }
 
   return getParamsForFormula({
@@ -966,8 +978,8 @@ function getDerivedParams() {
 }
 
 function clearSharedParamsOverride() {
-  sharedParamsOverride = null;
-  sharedParamsFormulaId = null;
+  historyStateRef.sharedParamsOverride = null;
+  historyStateRef.sharedParamsFormulaId = null;
 }
 
 function buildQrCanvas(text, sizePx) {
@@ -1065,11 +1077,11 @@ function buildColorMapGradient(cmapName) {
 }
 
 function getActiveActualValue() {
-  if (!activeSliderKey) {
+  if (!uiState.activeSliderKey) {
     return null;
   }
 
-  return getControlValue(activeSliderKey);
+  return getControlValue(uiState.activeSliderKey);
 }
 
 function normalizeSliderDefaults() {
@@ -1121,7 +1133,7 @@ function refreshParamButtons() {
 function updateCurrentPickerSelection() {
   const options = Array.from(pickerList.querySelectorAll(".pickerOption"));
   for (const option of options) {
-    const isSelected = option.dataset.value === (activePicker === "formula" ? currentFormulaId : appData.defaults.cmapName);
+    const isSelected = option.dataset.value === (uiState.activePicker === "formula" ? currentFormulaId : appData.defaults.cmapName);
     option.classList.toggle("is-selected", isSelected);
   }
 }
@@ -1191,11 +1203,11 @@ function applyResponsiveUiSizing({ force = false } = {}) {
 
   const viewportWidth = Math.round(window.innerWidth || 0);
   const viewportHeight = Math.round(window.innerHeight || 0);
-  const viewportUnchanged = viewportWidth === lastSizingViewport.width && viewportHeight === lastSizingViewport.height;
+  const viewportUnchanged = viewportWidth === uiState.lastSizingViewport.width && viewportHeight === uiState.lastSizingViewport.height;
   if (!force && viewportUnchanged) {
     return;
   }
-  lastSizingViewport = { width: viewportWidth, height: viewportHeight };
+  uiState.lastSizingViewport = { width: viewportWidth, height: viewportHeight };
 
   const root = document.documentElement;
   const styles = window.getComputedStyle(bottomBarEl);
@@ -1221,18 +1233,18 @@ function applyResponsiveUiSizing({ force = false } = {}) {
 
   const reducedFontSize = fontSize * 0.8;
   const roundedFontSize = Math.max(10, Math.floor(reducedFontSize * 2) / 2);
-  if (lastComputedUiMetrics.fontSize !== roundedFontSize) {
+  if (uiState.lastComputedUiMetrics.fontSize !== roundedFontSize) {
     root.style.setProperty("--ui-font-size", `${roundedFontSize}px`);
-    lastComputedUiMetrics.fontSize = roundedFontSize;
+    uiState.lastComputedUiMetrics.fontSize = roundedFontSize;
   }
 
   const firstTile = bottomBarEl.querySelector(".poItem");
   const measuredTileHeight = firstTile ? Math.round(firstTile.getBoundingClientRect().height) : 42;
   const actionSize = Math.max(34, measuredTileHeight);
 
-  if (lastComputedUiMetrics.tileSize !== actionSize) {
+  if (uiState.lastComputedUiMetrics.tileSize !== actionSize) {
     root.style.setProperty("--tile-size", `${actionSize}px`);
-    lastComputedUiMetrics.tileSize = actionSize;
+    uiState.lastComputedUiMetrics.tileSize = actionSize;
   }
 
   if (topRightActionsEl) {
@@ -1781,24 +1793,24 @@ function getRenderColoringOptions() {
 
 function showSettingsInfo(message, anchorEl = null, panelEl = null) {
   if (!settingsInfoPopupEl || !settingsInfoTextEl) return;
-  if (activeInfoAnchorEl === anchorEl && !settingsInfoPopupEl.classList.contains("is-hidden")) {
+  if (uiState.activeInfoAnchorEl === anchorEl && !settingsInfoPopupEl.classList.contains("is-hidden")) {
     hideSettingsInfo();
     return;
   }
 
-  activeInfoAnchorEl = anchorEl;
-  activeInfoPanelEl = panelEl || anchorEl?.closest("#rangesEditorPanel, #colorSettingsPanel, #modeSettingsPanel") || rangesEditorPanelEl;
+  uiState.activeInfoAnchorEl = anchorEl;
+  uiState.activeInfoPanelEl = panelEl || anchorEl?.closest("#rangesEditorPanel, #colorSettingsPanel, #modeSettingsPanel") || rangesEditorPanelEl;
   settingsInfoTextEl.textContent = message;
   settingsInfoPopupEl.classList.remove("is-hidden");
 
-  const panelRect = activeInfoPanelEl?.getBoundingClientRect();
+  const panelRect = uiState.activeInfoPanelEl?.getBoundingClientRect();
   const anchorRect = anchorEl?.getBoundingClientRect();
   if (panelRect && anchorRect) {
     const left = Math.max(8, Math.min(panelRect.width - 290, anchorRect.left - panelRect.left - 240));
     const top = Math.max(8, Math.min(panelRect.height - 120, anchorRect.top - panelRect.top + 28));
     settingsInfoPopupEl.style.left = `${left}px`;
     settingsInfoPopupEl.style.top = `${top}px`;
-    activeInfoPanelEl.append(settingsInfoPopupEl);
+    uiState.activeInfoPanelEl.append(settingsInfoPopupEl);
   } else {
     settingsInfoPopupEl.style.left = "10px";
     settingsInfoPopupEl.style.top = "10px";
@@ -1806,8 +1818,8 @@ function showSettingsInfo(message, anchorEl = null, panelEl = null) {
 }
 
 function hideSettingsInfo() {
-  activeInfoAnchorEl = null;
-  activeInfoPanelEl = null;
+  uiState.activeInfoAnchorEl = null;
+  uiState.activeInfoPanelEl = null;
   settingsInfoPopupEl?.classList.add("is-hidden");
 }
 
@@ -1820,12 +1832,12 @@ function isAutoScale() {
 }
 
 function syncFixedViewFromLastRenderMeta() {
-  if (!lastRenderMeta?.world || !lastRenderMeta?.view) {
+  if (!renderState.lastRenderMeta?.world || !renderState.lastRenderMeta?.view) {
     return false;
   }
 
-  const world = lastRenderMeta.world;
-  const view = lastRenderMeta.view;
+  const world = renderState.lastRenderMeta.world;
+  const view = renderState.lastRenderMeta.view;
   const width = Number(view.width);
   const height = Number(view.height);
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
@@ -1881,7 +1893,7 @@ function syncFixedViewFromLastRenderMeta() {
   const fixedCenterX = screenCenterX - centerX * scale;
   const fixedCenterY = screenCenterY - centerY * scale;
 
-  fixedView = {
+  renderState.fixedView = {
     offsetX: fixedCenterX - viewCenterX,
     offsetY: fixedCenterY - viewCenterY,
     zoom: scale / baseScale,
@@ -1914,17 +1926,17 @@ function syncRandomModeButton() {
   const globalMode = getGlobalRandomFixMixState();
 
   if (globalMode === "ran") {
-    randomAllNextMode = "fix";
+    uiState.randomAllNextMode = "fix";
   } else if (globalMode === "fix") {
-    randomAllNextMode = "rand";
+    uiState.randomAllNextMode = "rand";
   }
 
-  randomModeBtn.textContent = randomAllNextMode === "fix" ? "Fix\nAll" : "Random\nAll";
+  randomModeBtn.textContent = uiState.randomAllNextMode === "fix" ? "Fix\nAll" : "Random\nAll";
   randomModeTile?.classList.toggle("is-random", globalMode === "ran");
   randomModeTile?.classList.toggle("is-fixed", globalMode === "fix");
   randomModeTile?.classList.toggle("is-mixed", globalMode === "mix");
-  randomModeBtn.setAttribute("aria-label", randomAllNextMode === "fix" ? "Set all parameter modes to fixed" : "Set all parameter modes to random");
-  randomModeBtn.title = randomAllNextMode === "fix" ? "Fix all" : "Random all";
+  randomModeBtn.setAttribute("aria-label", uiState.randomAllNextMode === "fix" ? "Set all parameter modes to fixed" : "Set all parameter modes to random");
+  randomModeBtn.title = uiState.randomAllNextMode === "fix" ? "Fix all" : "Random all";
 }
 
 
@@ -2351,7 +2363,7 @@ function captureCurrentState() {
     scaleMode: getScaleMode(),
     seed: getSeedForFormula(currentFormulaId),
     renderColoring: getRenderColoringOptions(),
-    fixedView: { ...fixedView },
+    fixedView: { ...renderState.fixedView },
     viewport: {
       canvasWidth: canvas.width,
       canvasHeight: canvas.height,
@@ -2422,7 +2434,7 @@ function applyState(state) {
     appData.defaults.formulaParamDefaultsByFormula = JSON.parse(JSON.stringify(state.formulaParamDefaultsByFormula));
   }
   if (state.fixedView && typeof state.fixedView === "object") {
-    fixedView = {
+    renderState.fixedView = {
       offsetX: Number.isFinite(state.fixedView.offsetX) ? state.fixedView.offsetX : 0,
       offsetY: Number.isFinite(state.fixedView.offsetY) ? state.fixedView.offsetY : 0,
       zoom: Number.isFinite(state.fixedView.zoom) && state.fixedView.zoom > 0 ? state.fixedView.zoom : 1,
@@ -2435,9 +2447,9 @@ function applyState(state) {
   const cacheKey = getRenderStateKey(state);
   const cachedFrame = getHistoryCachedFrame(cacheKey);
   if (cachedFrame && drawCachedFrameEntry(cachedFrame)) {
-    currentRenderCache = cachedFrame;
-    drawDirty = false;
-    redrawOverlayCanvases(lastRenderMeta);
+    renderState.currentRenderCache = cachedFrame;
+    renderState.drawDirty = false;
+    redrawOverlayCanvases(renderState.lastRenderMeta);
     refreshParamButtons();
     updateQuickSliderReadout();
     layoutFloatingActions();
@@ -2453,7 +2465,7 @@ const historyState = initHistoryState({
   captureCurrentState,
   statesEqual,
   onDiscardFutureState: (state) => {
-    historyRenderCache.delete(getRenderStateKey(state));
+    historyStateRef.historyRenderCache.delete(getRenderStateKey(state));
   },
   applyState,
   getShareState: () => ({
@@ -2461,7 +2473,7 @@ const historyState = initHistoryState({
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
     iterations: Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max)),
-    view: fixedView || {},
+    view: renderState.fixedView || {},
   }),
   applySharedState: ({ formulaId, cmapName, params, iterations, view }) => {
     const formulaExists = appData.formulas.some((formula) => formula.id === formulaId);
@@ -2479,18 +2491,18 @@ const historyState = initHistoryState({
     currentFormulaId = formulaId;
     appData.defaults.cmapName = cmapName;
     appData.defaults.sliders.iters = Math.round(clamp(iterations, sliderControls.iters.min, sliderControls.iters.max));
-    fixedView = {
+    renderState.fixedView = {
       offsetX: view[0],
       offsetY: view[1],
       zoom: view[2],
     };
-    sharedParamsOverride = {
+    historyStateRef.sharedParamsOverride = {
       a: params[0],
       b: params[1],
       c: params[2],
       d: params[3],
     };
-    sharedParamsFormulaId = formulaId;
+    historyStateRef.sharedParamsFormulaId = formulaId;
     syncParamModeVisuals();
     syncScaleModeButton();
     syncRandomModeButton();
@@ -2580,11 +2592,11 @@ function isEventInsideInteractiveUi(eventTarget) {
 }
 
 function handleScreenHistoryNavigation(event) {
-  if (!hasAnyRandomizedModes() || !appData || !currentFormulaId || suppressHistoryTap) {
+  if (!hasAnyRandomizedModes() || !appData || !currentFormulaId || overlayState.suppressHistoryTap) {
     return;
   }
 
-  if (!historyTapTracker || event.pointerId !== historyTapTracker.pointerId || !historyTapTracker.validTap) {
+  if (!overlayState.historyTapTracker || event.pointerId !== overlayState.historyTapTracker.pointerId || !overlayState.historyTapTracker.validTap) {
     return;
   }
 
@@ -2648,8 +2660,8 @@ function getManualAxisTargets() {
 }
 
 function requestLiveModulationDraw() {
-  redrawInterestOverlayCanvas(lastRenderMeta);
-  redrawManualOverlayCanvas(lastRenderMeta);
+  redrawInterestOverlayCanvas(renderState.lastRenderMeta);
+  redrawManualOverlayCanvas(renderState.lastRenderMeta);
   requestDraw({ invalidate: false });
 }
 
@@ -2686,18 +2698,18 @@ function applyManualModulation(deltaX, deltaY, { invalidate = true } = {}) {
 }
 
 function syncQuickSliderPosition() {
-  if (!activeSliderKey || !qsRange) {
+  if (!uiState.activeSliderKey || !qsRange) {
     return;
   }
 
-  qsRange.value = String(getQuickSliderRangeValueFromSliderValue(activeSliderKey, appData.defaults.sliders[activeSliderKey]));
+  qsRange.value = String(getQuickSliderRangeValueFromSliderValue(uiState.activeSliderKey, appData.defaults.sliders[uiState.activeSliderKey]));
   updateQuickSliderReadout();
 }
 
 function applyPanDelta(deltaX, deltaY) {
-  fixedView.offsetX += deltaX;
-  fixedView.offsetY += deltaY;
-  persistCurrentHistoryViewState(fixedView);
+  renderState.fixedView.offsetX += deltaX;
+  renderState.fixedView.offsetY += deltaY;
+  persistCurrentHistoryViewState(renderState.fixedView);
   requestDraw();
 }
 
@@ -2706,7 +2718,7 @@ function setZoomAtPoint(targetZoom, anchorX, anchorY) {
     return false;
   }
 
-  const prevZoom = fixedView.zoom;
+  const prevZoom = renderState.fixedView.zoom;
   const ratio = targetZoom / prevZoom;
   if (!Number.isFinite(ratio) || ratio === 1) {
     return false;
@@ -2714,14 +2726,14 @@ function setZoomAtPoint(targetZoom, anchorX, anchorY) {
 
   const viewCenterX = canvas.width * 0.5;
   const viewCenterY = canvas.height * 0.5;
-  const centerX = viewCenterX + fixedView.offsetX;
-  const centerY = viewCenterY + fixedView.offsetY;
+  const centerX = viewCenterX + renderState.fixedView.offsetX;
+  const centerY = viewCenterY + renderState.fixedView.offsetY;
   const nextCenterX = anchorX - (anchorX - centerX) * ratio;
   const nextCenterY = anchorY - (anchorY - centerY) * ratio;
 
-  fixedView.zoom = targetZoom;
-  fixedView.offsetX = nextCenterX - viewCenterX;
-  fixedView.offsetY = nextCenterY - viewCenterY;
+  renderState.fixedView.zoom = targetZoom;
+  renderState.fixedView.offsetX = nextCenterX - viewCenterX;
+  renderState.fixedView.offsetY = nextCenterY - viewCenterY;
   return true;
 }
 
@@ -2730,12 +2742,12 @@ function applyZoomAtPoint(zoomFactor, anchorX, anchorY) {
     return;
   }
 
-  const nextZoom = fixedView.zoom * zoomFactor;
+  const nextZoom = renderState.fixedView.zoom * zoomFactor;
   if (!setZoomAtPoint(nextZoom, anchorX, anchorY)) {
     return;
   }
 
-  persistCurrentHistoryViewState(fixedView);
+  persistCurrentHistoryViewState(renderState.fixedView);
   requestDraw();
 }
 
@@ -2747,8 +2759,8 @@ function applyTwoFingerGestureTransform(targetZoom, anchorX, anchorY, deltaX, de
   }
 
   if (Number.isFinite(deltaX) && Number.isFinite(deltaY) && (deltaX !== 0 || deltaY !== 0)) {
-    fixedView.offsetX += deltaX;
-    fixedView.offsetY += deltaY;
+    renderState.fixedView.offsetX += deltaX;
+    renderState.fixedView.offsetY += deltaY;
     didChange = true;
   }
 
@@ -2756,48 +2768,48 @@ function applyTwoFingerGestureTransform(targetZoom, anchorX, anchorY, deltaX, de
     return;
   }
 
-  persistCurrentHistoryViewState(fixedView);
+  persistCurrentHistoryViewState(renderState.fixedView);
   requestDraw();
 }
 
 function updateHistoryTapTrackerFromMove(event) {
-  if (!historyTapTracker || event.pointerId !== historyTapTracker.pointerId || !historyTapTracker.validTap) {
+  if (!overlayState.historyTapTracker || event.pointerId !== overlayState.historyTapTracker.pointerId || !overlayState.historyTapTracker.validTap) {
     return;
   }
 
-  const moved = Math.hypot(event.clientX - historyTapTracker.startX, event.clientY - historyTapTracker.startY);
+  const moved = Math.hypot(event.clientX - overlayState.historyTapTracker.startX, event.clientY - overlayState.historyTapTracker.startY);
   if (moved > HISTORY_TAP_MAX_MOVE_PX) {
-    historyTapTracker.validTap = false;
+    overlayState.historyTapTracker.validTap = false;
   }
 }
 
 function getLockedTwoPointers() {
-  if (!twoFingerGesture) {
+  if (!overlayState.twoFingerGesture) {
     return null;
   }
 
-  const ptrA = activePointers.get(twoFingerGesture.idA);
-  const ptrB = activePointers.get(twoFingerGesture.idB);
+  const ptrA = overlayState.activePointers.get(overlayState.twoFingerGesture.idA);
+  const ptrB = overlayState.activePointers.get(overlayState.twoFingerGesture.idB);
   if (ptrA && ptrB) {
     return [ptrA, ptrB];
   }
 
-  if (activePointers.size < 2) {
+  if (overlayState.activePointers.size < 2) {
     return null;
   }
 
-  const [fallbackA, fallbackB] = Array.from(activePointers.values());
+  const [fallbackA, fallbackB] = Array.from(overlayState.activePointers.values());
   initializeTwoFingerGesture(fallbackA.pointerId, fallbackB.pointerId);
   return [fallbackA, fallbackB];
 }
 
 function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
   cancelSingleTouchModulationStartDraw();
-  const ptrA = activePointers.get(pointerIdA);
-  const ptrB = activePointers.get(pointerIdB);
+  const ptrA = overlayState.activePointers.get(pointerIdA);
+  const ptrB = overlayState.activePointers.get(pointerIdB);
   if (!ptrA || !ptrB) {
-    twoFingerGesture = null;
-    lastTwoDebug = null;
+    overlayState.twoFingerGesture = null;
+    overlayState.lastTwoDebug = null;
     return;
   }
 
@@ -2807,27 +2819,27 @@ function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
   const lastMX = (posA.x + posB.x) * 0.5;
   const lastMY = (posA.y + posB.y) * 0.5;
 
-  twoFingerGesture = {
+  overlayState.twoFingerGesture = {
     idA: pointerIdA,
     idB: pointerIdB,
     startD: lastD,
-    startZoom: fixedView.zoom,
+    startZoom: renderState.fixedView.zoom,
     lastD,
     lastMX,
     lastMY,
     justStarted: true,
     isArmed: false,
   };
-  interactionState = INTERACTION_STATE.TWO_ACTIVE;
-  suppressHistoryTap = true;
+  overlayState.interactionState = INTERACTION_STATE.TWO_ACTIVE;
+  overlayState.suppressHistoryTap = true;
 }
 
 function clearTwoFingerGesture() {
-  twoFingerGesture = null;
-  lastTwoDebug = null;
+  overlayState.twoFingerGesture = null;
+  overlayState.lastTwoDebug = null;
 }
 
-function cloneFixedViewSnapshot(view = fixedView) {
+function cloneFixedViewSnapshot(view = renderState.fixedView) {
   return {
     offsetX: Number.isFinite(view?.offsetX) ? view.offsetX : 0,
     offsetY: Number.isFinite(view?.offsetY) ? view.offsetY : 0,
@@ -2836,52 +2848,52 @@ function cloneFixedViewSnapshot(view = fixedView) {
 }
 
 function ensurePanZoomCacheBase() {
-  if (activePanZoomCacheEntry?.canvas) {
-    return activePanZoomCacheEntry;
+  if (renderState.activePanZoomCacheEntry?.canvas) {
+    return renderState.activePanZoomCacheEntry;
   }
 
-  if (!currentRenderCache?.canvas) {
+  if (!renderState.currentRenderCache?.canvas) {
     return null;
   }
 
-  activePanZoomCacheEntry = {
-    key: currentRenderCache.key,
-    canvas: currentRenderCache.canvas,
-    meta: currentRenderCache.meta,
-    fullMeta: currentRenderCache.fullMeta,
+  renderState.activePanZoomCacheEntry = {
+    key: renderState.currentRenderCache.key,
+    canvas: renderState.currentRenderCache.canvas,
+    meta: renderState.currentRenderCache.meta,
+    fullMeta: renderState.currentRenderCache.fullMeta,
     sourceFixedView: cloneFixedViewSnapshot(),
   };
 
-  return activePanZoomCacheEntry;
+  return renderState.activePanZoomCacheEntry;
 }
 
 function clearPanZoomInteractionCache() {
-  activePanZoomCacheEntry = null;
+  renderState.activePanZoomCacheEntry = null;
 }
 
 function cancelSingleTouchModulationStartDraw() {
-  if (singleTouchModulationStartDrawTimer) {
-    window.clearTimeout(singleTouchModulationStartDrawTimer);
-    singleTouchModulationStartDrawTimer = null;
+  if (renderState.singleTouchModulationStartDrawTimer) {
+    window.clearTimeout(renderState.singleTouchModulationStartDrawTimer);
+    renderState.singleTouchModulationStartDrawTimer = null;
   }
 }
 
 function scheduleSingleTouchModulationStartDraw() {
   cancelSingleTouchModulationStartDraw();
-  singleTouchModulationStartDrawTimer = window.setTimeout(() => {
-    singleTouchModulationStartDrawTimer = null;
-    if (interactionState === INTERACTION_STATE.MOD_1 && activePointers.size === 1) {
+  renderState.singleTouchModulationStartDrawTimer = window.setTimeout(() => {
+    renderState.singleTouchModulationStartDrawTimer = null;
+    if (overlayState.interactionState === INTERACTION_STATE.MOD_1 && overlayState.activePointers.size === 1) {
       requestDraw();
     }
   }, SINGLE_TOUCH_MODULATION_START_DRAW_DELAY_MS);
 }
 
 function resetPanZoomInteractionStateForModulation() {
-  if (panZoomSettleTimer) {
-    window.clearTimeout(panZoomSettleTimer);
-    panZoomSettleTimer = null;
+  if (renderState.panZoomSettleTimer) {
+    window.clearTimeout(renderState.panZoomSettleTimer);
+    renderState.panZoomSettleTimer = null;
   }
-  panZoomInteractionActive = false;
+  renderState.panZoomInteractionActive = false;
   clearPanZoomInteractionCache();
 }
 
@@ -2905,30 +2917,30 @@ function prepareFixedViewForPanZoom(reason = "manual pan/zoom") {
 }
 
 function beginPanZoomInteraction(baseCacheEntry = null) {
-  panZoomInteractionActive = true;
+  renderState.panZoomInteractionActive = true;
   if (baseCacheEntry?.canvas) {
-    activePanZoomCacheEntry = baseCacheEntry;
+    renderState.activePanZoomCacheEntry = baseCacheEntry;
   } else {
     ensurePanZoomCacheBase();
   }
-  if (panZoomSettleTimer) {
-    window.clearTimeout(panZoomSettleTimer);
-    panZoomSettleTimer = null;
+  if (renderState.panZoomSettleTimer) {
+    window.clearTimeout(renderState.panZoomSettleTimer);
+    renderState.panZoomSettleTimer = null;
   }
 }
 
 function schedulePanZoomSettledRedraw() {
-  if (!panZoomInteractionActive) {
+  if (!renderState.panZoomInteractionActive) {
     return;
   }
 
-  if (panZoomSettleTimer) {
-    window.clearTimeout(panZoomSettleTimer);
+  if (renderState.panZoomSettleTimer) {
+    window.clearTimeout(renderState.panZoomSettleTimer);
   }
 
-  panZoomSettleTimer = window.setTimeout(() => {
-    panZoomSettleTimer = null;
-    panZoomInteractionActive = false;
+  renderState.panZoomSettleTimer = window.setTimeout(() => {
+    renderState.panZoomSettleTimer = null;
+    renderState.panZoomInteractionActive = false;
     requestDraw();
   }, PAN_ZOOM_SETTLE_MS);
 }
@@ -2948,13 +2960,13 @@ function onCanvasPointerDown(event) {
   }
 
   canvas.setPointerCapture(event.pointerId);
-  activePointers.set(event.pointerId, {
+  overlayState.activePointers.set(event.pointerId, {
     pointerId: event.pointerId,
     clientX: event.clientX,
     clientY: event.clientY,
   });
 
-  historyTapTracker = {
+  overlayState.historyTapTracker = {
     pointerId: event.pointerId,
     startX: event.clientX,
     startY: event.clientY,
@@ -2964,21 +2976,21 @@ function onCanvasPointerDown(event) {
   if (event.pointerType === "mouse" && event.button === 2) {
     prepareFixedViewForPanZoom("manual pan/zoom");
     beginPanZoomInteraction();
-    interactionState = INTERACTION_STATE.PAN_MOUSE_RMB;
-    primaryPointerId = event.pointerId;
+    overlayState.interactionState = INTERACTION_STATE.PAN_MOUSE_RMB;
+    overlayState.primaryPointerId = event.pointerId;
     const pos = getCanvasPointerPosition(event);
-    lastPointerPosition = { x: pos.x, y: pos.y };
-    suppressHistoryTap = true;
+    overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
+    overlayState.suppressHistoryTap = true;
     requestDraw();
     return;
   }
 
-  if (activePointers.size === 1) {
-    interactionState = INTERACTION_STATE.MOD_1;
-    primaryPointerId = event.pointerId;
-    isManualModulating = false;
+  if (overlayState.activePointers.size === 1) {
+    overlayState.interactionState = INTERACTION_STATE.MOD_1;
+    overlayState.primaryPointerId = event.pointerId;
+    overlayState.isManualModulating = false;
     const pos = getCanvasPointerPosition(event);
-    lastPointerPosition = { x: pos.x, y: pos.y };
+    overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
     if (isDirectTouchPointer) {
       resetPanZoomInteractionStateForModulation();
       scheduleSingleTouchModulationStartDraw();
@@ -2988,14 +3000,14 @@ function onCanvasPointerDown(event) {
     return;
   }
 
-  if (activePointers.size === 2) {
-    const pointers = Array.from(activePointers.values());
+  if (overlayState.activePointers.size === 2) {
+    const pointers = Array.from(overlayState.activePointers.values());
     initializeTwoFingerGesture(pointers[0].pointerId, pointers[1].pointerId);
   }
 }
 
 function onCanvasPointerMove(event) {
-  if (!activePointers.has(event.pointerId)) {
+  if (!overlayState.activePointers.has(event.pointerId)) {
     return;
   }
 
@@ -3004,40 +3016,40 @@ function onCanvasPointerMove(event) {
   }
 
   updateHistoryTapTrackerFromMove(event);
-  const pointerRecord = activePointers.get(event.pointerId);
+  const pointerRecord = overlayState.activePointers.get(event.pointerId);
   pointerRecord.clientX = event.clientX;
   pointerRecord.clientY = event.clientY;
 
-  if (interactionState === INTERACTION_STATE.MOD_1 && event.pointerId === primaryPointerId) {
+  if (overlayState.interactionState === INTERACTION_STATE.MOD_1 && event.pointerId === overlayState.primaryPointerId) {
     const pos = getCanvasPointerPosition(event);
-    if (!lastPointerPosition) {
-      lastPointerPosition = { x: pos.x, y: pos.y };
+    if (!overlayState.lastPointerPosition) {
+      overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
       return;
     }
-    const didModulate = applyManualModulation(pos.x - lastPointerPosition.x, pos.y - lastPointerPosition.y, { invalidate: false });
-    isManualModulating = isManualModulating || didModulate;
-    lastPointerPosition = { x: pos.x, y: pos.y };
+    const didModulate = applyManualModulation(pos.x - overlayState.lastPointerPosition.x, pos.y - overlayState.lastPointerPosition.y, { invalidate: false });
+    overlayState.isManualModulating = overlayState.isManualModulating || didModulate;
+    overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
     return;
   }
 
-  if (interactionState === INTERACTION_STATE.PAN_MOUSE_RMB && event.pointerId === primaryPointerId) {
+  if (overlayState.interactionState === INTERACTION_STATE.PAN_MOUSE_RMB && event.pointerId === overlayState.primaryPointerId) {
     const pos = getCanvasPointerPosition(event);
-    if (!lastPointerPosition) {
-      lastPointerPosition = { x: pos.x, y: pos.y };
+    if (!overlayState.lastPointerPosition) {
+      overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
       return;
     }
     beginPanZoomInteraction();
-    applyPanDelta(pos.x - lastPointerPosition.x, pos.y - lastPointerPosition.y);
-    lastPointerPosition = { x: pos.x, y: pos.y };
+    applyPanDelta(pos.x - overlayState.lastPointerPosition.x, pos.y - overlayState.lastPointerPosition.y);
+    overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
     return;
   }
 
-  if (activePointers.size < 2 || interactionState !== INTERACTION_STATE.TWO_ACTIVE) {
+  if (overlayState.activePointers.size < 2 || overlayState.interactionState !== INTERACTION_STATE.TWO_ACTIVE) {
     return;
   }
 
   const pointers = getLockedTwoPointers();
-  if (!pointers || !twoFingerGesture) {
+  if (!pointers || !overlayState.twoFingerGesture) {
     return;
   }
 
@@ -3048,16 +3060,16 @@ function onCanvasPointerMove(event) {
     y: (posA.y + posB.y) * 0.5,
   };
   const distance = Math.hypot(posB.x - posA.x, posB.y - posA.y);
-  const dxm = midpoint.x - twoFingerGesture.lastMX;
-  const dym = midpoint.y - twoFingerGesture.lastMY;
-  const dd = distance - twoFingerGesture.lastD;
-  const ratioStep = twoFingerGesture.lastD > 0 ? distance / twoFingerGesture.lastD : 1;
+  const dxm = midpoint.x - overlayState.twoFingerGesture.lastMX;
+  const dym = midpoint.y - overlayState.twoFingerGesture.lastMY;
+  const dd = distance - overlayState.twoFingerGesture.lastD;
+  const ratioStep = overlayState.twoFingerGesture.lastD > 0 ? distance / overlayState.twoFingerGesture.lastD : 1;
 
-  if (twoFingerGesture.justStarted) {
-    twoFingerGesture.lastD = distance;
-    twoFingerGesture.lastMX = midpoint.x;
-    twoFingerGesture.lastMY = midpoint.y;
-    twoFingerGesture.justStarted = false;
+  if (overlayState.twoFingerGesture.justStarted) {
+    overlayState.twoFingerGesture.lastD = distance;
+    overlayState.twoFingerGesture.lastMX = midpoint.x;
+    overlayState.twoFingerGesture.lastMY = midpoint.y;
+    overlayState.twoFingerGesture.justStarted = false;
     return;
   }
 
@@ -3068,36 +3080,36 @@ function onCanvasPointerMove(event) {
   const shouldPan = panMagnitude > PAN_DEADBAND_PX;
   const shouldZoom = Math.abs(dd) > touchZoomDeadbandThreshold || zoomRatioDelta > touchZoomRatioMin;
 
-  lastTwoDebug = {
-    state: interactionState,
+  overlayState.lastTwoDebug = {
+    state: overlayState.interactionState,
     dxm,
     dym,
     dd,
     ratioStep,
-    viewZoom: fixedView.zoom,
+    viewZoom: renderState.fixedView.zoom,
     touchZoomDeadbandThreshold,
     touchZoomRatioMin,
   };
 
-  if (!twoFingerGesture.isArmed) {
+  if (!overlayState.twoFingerGesture.isArmed) {
     if (!shouldZoom && !shouldPan) {
-      twoFingerGesture.lastD = distance;
-      twoFingerGesture.lastMX = midpoint.x;
-      twoFingerGesture.lastMY = midpoint.y;
+      overlayState.twoFingerGesture.lastD = distance;
+      overlayState.twoFingerGesture.lastMX = midpoint.x;
+      overlayState.twoFingerGesture.lastMY = midpoint.y;
       return;
     }
 
     prepareFixedViewForPanZoom("manual pan/zoom");
-    twoFingerGesture.startZoom = fixedView.zoom;
-    twoFingerGesture.isArmed = true;
+    overlayState.twoFingerGesture.startZoom = renderState.fixedView.zoom;
+    overlayState.twoFingerGesture.isArmed = true;
     beginPanZoomInteraction();
   }
 
   let targetZoom = null;
-  if (shouldZoom && Number.isFinite(twoFingerGesture.startD) && twoFingerGesture.startD > 0) {
-    const zoomFromStart = distance / twoFingerGesture.startD;
+  if (shouldZoom && Number.isFinite(overlayState.twoFingerGesture.startD) && overlayState.twoFingerGesture.startD > 0) {
+    const zoomFromStart = distance / overlayState.twoFingerGesture.startD;
     if (Number.isFinite(zoomFromStart) && zoomFromStart > 0) {
-      targetZoom = twoFingerGesture.startZoom * zoomFromStart;
+      targetZoom = overlayState.twoFingerGesture.startZoom * zoomFromStart;
     }
   }
 
@@ -3106,26 +3118,26 @@ function onCanvasPointerMove(event) {
     applyTwoFingerGestureTransform(targetZoom, midpoint.x, midpoint.y, shouldPan ? dxm : 0, shouldPan ? dym : 0);
   }
 
-  twoFingerGesture.lastD = distance;
-  twoFingerGesture.lastMX = midpoint.x;
-  twoFingerGesture.lastMY = midpoint.y;
+  overlayState.twoFingerGesture.lastD = distance;
+  overlayState.twoFingerGesture.lastMX = midpoint.x;
+  overlayState.twoFingerGesture.lastMY = midpoint.y;
 }
 
 function clearPointerState(pointerId) {
-  if (!activePointers.has(pointerId)) {
+  if (!overlayState.activePointers.has(pointerId)) {
     return;
   }
 
   cancelSingleTouchModulationStartDraw();
-  const endingTwoFingerGesture = interactionState === INTERACTION_STATE.TWO_ACTIVE || Boolean(twoFingerGesture);
-  const endingPanZoomGesture = endingTwoFingerGesture || interactionState === INTERACTION_STATE.PAN_MOUSE_RMB || panZoomInteractionActive;
-  activePointers.delete(pointerId);
+  const endingTwoFingerGesture = overlayState.interactionState === INTERACTION_STATE.TWO_ACTIVE || Boolean(overlayState.twoFingerGesture);
+  const endingPanZoomGesture = endingTwoFingerGesture || overlayState.interactionState === INTERACTION_STATE.PAN_MOUSE_RMB || renderState.panZoomInteractionActive;
+  overlayState.activePointers.delete(pointerId);
 
-  if (activePointers.size === 0) {
-    interactionState = INTERACTION_STATE.NONE;
-    primaryPointerId = null;
-    lastPointerPosition = null;
-    isManualModulating = false;
+  if (overlayState.activePointers.size === 0) {
+    overlayState.interactionState = INTERACTION_STATE.NONE;
+    overlayState.primaryPointerId = null;
+    overlayState.lastPointerPosition = null;
+    overlayState.isManualModulating = false;
     clearTwoFingerGesture();
     if (endingPanZoomGesture) {
       schedulePanZoomSettledRedraw();
@@ -3135,31 +3147,31 @@ function clearPointerState(pointerId) {
     return;
   }
 
-  if (activePointers.size === 1 && endingTwoFingerGesture) {
-    activePointers.clear();
-    interactionState = INTERACTION_STATE.NONE;
-    primaryPointerId = null;
-    lastPointerPosition = null;
-    isManualModulating = false;
+  if (overlayState.activePointers.size === 1 && endingTwoFingerGesture) {
+    overlayState.activePointers.clear();
+    overlayState.interactionState = INTERACTION_STATE.NONE;
+    overlayState.primaryPointerId = null;
+    overlayState.lastPointerPosition = null;
+    overlayState.isManualModulating = false;
     clearTwoFingerGesture();
     schedulePanZoomSettledRedraw();
     return;
   }
 
-  if (activePointers.size === 1) {
-    const remaining = Array.from(activePointers.values())[0];
+  if (overlayState.activePointers.size === 1) {
+    const remaining = Array.from(overlayState.activePointers.values())[0];
     clearTwoFingerGesture();
-    primaryPointerId = remaining.pointerId;
-    interactionState = INTERACTION_STATE.MOD_1;
-    isManualModulating = false;
+    overlayState.primaryPointerId = remaining.pointerId;
+    overlayState.interactionState = INTERACTION_STATE.MOD_1;
+    overlayState.isManualModulating = false;
     const pos = getCanvasPointerPosition(remaining);
-    lastPointerPosition = { x: pos.x, y: pos.y };
+    overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
     requestDraw();
     return;
   }
 
-  if (activePointers.size >= 2) {
-    const pointers = Array.from(activePointers.values());
+  if (overlayState.activePointers.size >= 2) {
+    const pointers = Array.from(overlayState.activePointers.values());
     initializeTwoFingerGesture(pointers[0].pointerId, pointers[1].pointerId);
     requestDraw();
   }
@@ -3169,13 +3181,13 @@ function onCanvasPointerUp(event) {
   if (event.pointerType !== "mouse") {
     event.preventDefault();
   }
-  historyTapTracker = historyTapTracker?.pointerId === event.pointerId ? historyTapTracker : null;
+  overlayState.historyTapTracker = overlayState.historyTapTracker?.pointerId === event.pointerId ? overlayState.historyTapTracker : null;
   if (canvas.hasPointerCapture(event.pointerId)) {
     canvas.releasePointerCapture(event.pointerId);
   }
   clearPointerState(event.pointerId);
   window.setTimeout(() => {
-    suppressHistoryTap = false;
+    overlayState.suppressHistoryTap = false;
   }, 0);
 }
 
@@ -3187,17 +3199,17 @@ function onCanvasWheel(event) {
   const zoomFactor = Math.exp(-event.deltaY * 0.0025);
   applyZoomAtPoint(zoomFactor, pos.x, pos.y);
   schedulePanZoomSettledRedraw();
-  suppressHistoryTap = true;
+  overlayState.suppressHistoryTap = true;
   window.setTimeout(() => {
-    suppressHistoryTap = false;
+    overlayState.suppressHistoryTap = false;
   }, 0);
 }
 
 function closeQuickSlider() {
-  activeSliderKey = null;
+  uiState.activeSliderKey = null;
   quickSliderOverlay.classList.remove("is-open");
   quickSliderOverlay.setAttribute("aria-hidden", "true");
-  helpOverlayController?.render();
+  uiState.helpOverlayController?.render();
 }
 
 function alignQuickSliderAboveBottomBar() {
@@ -3208,7 +3220,7 @@ function alignQuickSliderAboveBottomBar() {
   const overlayRect = paramOverlayEl.getBoundingClientRect();
   const overlayHeight = Math.max(0, window.innerHeight - overlayRect.top);
   quickSliderEl.style.bottom = `${overlayHeight + 6}px`;
-  helpOverlayController?.scheduleRender();
+  uiState.helpOverlayController?.scheduleRender();
 }
 
 function closePicker({ force = false } = {}) {
@@ -3216,11 +3228,11 @@ function closePicker({ force = false } = {}) {
     return;
   }
 
-  activePicker = null;
-  activePickerTrigger = null;
+  uiState.activePicker = null;
+  uiState.activePickerTrigger = null;
   pickerOverlay.classList.remove("is-open");
   pickerOverlay.setAttribute("aria-hidden", "true");
-  helpOverlayController?.render();
+  uiState.helpOverlayController?.render();
 }
 
 function layoutPickerPanel() {
@@ -3239,8 +3251,8 @@ function layoutPickerPanel() {
     const firstRect = formulaTile.getBoundingClientRect();
     const secondRect = cmapTile.getBoundingClientRect();
     const baseWidth = secondRect.right - firstRect.left;
-    const minWidth = activePicker === "cmap" ? 280 : 180;
-    const targetWidth = activePicker === "cmap" ? baseWidth * 1.5 : baseWidth;
+    const minWidth = uiState.activePicker === "cmap" ? 280 : 180;
+    const targetWidth = uiState.activePicker === "cmap" ? baseWidth * 1.5 : baseWidth;
     const width = clamp(targetWidth, minWidth, viewportWidth - margin * 2);
     const maxLeft = Math.max(margin, viewportWidth - margin - width);
     const left = clamp(firstRect.left, margin, maxLeft);
@@ -3263,11 +3275,11 @@ function layoutPickerPanel() {
     if (useFallbackTop && availableFallbackHeight < 180) {
       pickerPanel.style.top = `${Math.max(margin, viewportHeight - bottomInset - 180)}px`;
     }
-    helpOverlayController?.scheduleRender();
+    uiState.helpOverlayController?.scheduleRender();
     return;
   }
 
-  const fallbackWidth = activePicker === "cmap" ? 420 : 320;
+  const fallbackWidth = uiState.activePicker === "cmap" ? 420 : 320;
   pickerPanel.style.width = `${Math.min(fallbackWidth, viewportWidth - margin * 2)}px`;
   pickerPanel.style.left = `${margin}px`;
   pickerPanel.style.transform = "none";
@@ -3280,7 +3292,7 @@ function layoutPickerPanel() {
   );
   pickerPanel.style.top = `${overlapsEyeButton ? fallbackTop : margin}px`;
   pickerPanel.style.bottom = `${bottomInset}px`;
-  helpOverlayController?.scheduleRender();
+  uiState.helpOverlayController?.scheduleRender();
 }
 
 function renderFormulaPicker() {
@@ -3325,7 +3337,7 @@ function renderFormulaPicker() {
       updateCurrentPickerSelection();
       if (!formulaSettingsPanelEl?.classList.contains("is-hidden")) {
         loadFormulaRangesIntoEditor(currentFormulaId);
-        layoutFormulaSettingsPanel();
+        uiState.layoutFormulaSettingsPanel();
       }
       saveDefaultsToStorage();
       requestDraw();
@@ -3341,7 +3353,7 @@ function renderFormulaPicker() {
     settingsButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      openFormulaSettingsPanel(formula.id);
+      uiState.openFormulaSettingsPanel(formula.id);
     });
 
     rowWrap.append(button, settingsButton);
@@ -3407,19 +3419,19 @@ function renderColorMapPicker() {
   backgroundSettingsBtn?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    if (isPanelOpen(modeSettingsPanelEl) && getActiveColourPanelSettings() === "background") {
-      closeModeSettingsPanel();
+    if (uiState.isPanelOpen(modeSettingsPanelEl) && uiState.getActiveColourPanelSettings() === "background") {
+      uiState.closeModeSettingsPanel();
     } else {
-      openModeSettingsPanel("background");
+      uiState.openModeSettingsPanel("background");
     }
   });
   modeSettingsBtn?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    if (isPanelOpen(modeSettingsPanelEl) && getActiveColourPanelSettings() === "mode") {
-      closeModeSettingsPanel();
+    if (uiState.isPanelOpen(modeSettingsPanelEl) && uiState.getActiveColourPanelSettings() === "mode") {
+      uiState.closeModeSettingsPanel();
     } else {
-      openModeSettingsPanel("mode");
+      uiState.openModeSettingsPanel("mode");
     }
   });
 
@@ -3466,7 +3478,7 @@ function renderColorMapPicker() {
     settingsButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      openColorSettingsPanel(cmapName);
+      uiState.openColorSettingsPanel(cmapName);
     });
 
     const rowWrap = document.createElement("div");
@@ -3475,16 +3487,16 @@ function renderColorMapPicker() {
     pickerList.append(rowWrap);
   }
 
-  if (isPanelOpen(modeSettingsPanelEl)) {
-    layoutModeSettingsPanel();
+  if (uiState.isPanelOpen(modeSettingsPanelEl)) {
+    uiState.layoutModeSettingsPanel();
   }
 }
 
 
 
 function renderColorStopsEditor() {
-  if (!colorStopsListEl || !activeColorSettingsMap) return;
-  const stops = getColorMapStops(activeColorSettingsMap) || [];
+  if (!colorStopsListEl || !uiState.activeColorSettingsMap) return;
+  const stops = getColorMapStops(uiState.activeColorSettingsMap) || [];
   colorStopsListEl.innerHTML = "";
   stops.forEach((stop, index) => {
     const card = document.createElement("div");
@@ -3523,44 +3535,44 @@ function renderColorStopsEditor() {
 
     colorInput.addEventListener("input", () => {
       const [r, g, b] = hexToRgb(colorInput.value);
-      const next = getColorMapStops(activeColorSettingsMap) || [];
+      const next = getColorMapStops(uiState.activeColorSettingsMap) || [];
       next[index][1] = r;
       next[index][2] = g;
       next[index][3] = b;
       if (next[index][4] <= 0.001) {
         next[index][4] = 1;
       }
-      setColorMapStops(activeColorSettingsMap, next);
+      setColorMapStops(uiState.activeColorSettingsMap, next);
       renderColorStopsEditor();
-      colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+      colorSettingsPreviewEl.style.background = buildColorMapGradient(uiState.activeColorSettingsMap);
       requestDraw();
     });
 
     transparentBtn.addEventListener("click", () => {
-      const next = getColorMapStops(activeColorSettingsMap) || [];
+      const next = getColorMapStops(uiState.activeColorSettingsMap) || [];
       next[index][4] = next[index][4] <= 0.001 ? 1 : 0;
-      setColorMapStops(activeColorSettingsMap, next);
+      setColorMapStops(uiState.activeColorSettingsMap, next);
       renderColorStopsEditor();
-      colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+      colorSettingsPreviewEl.style.background = buildColorMapGradient(uiState.activeColorSettingsMap);
       requestDraw();
     });
 
     posInput.addEventListener("input", () => {
-      const next = getColorMapStops(activeColorSettingsMap) || [];
+      const next = getColorMapStops(uiState.activeColorSettingsMap) || [];
       next[index][0] = Number(posInput.value);
-      setColorMapStops(activeColorSettingsMap, next);
+      setColorMapStops(uiState.activeColorSettingsMap, next);
       renderColorStopsEditor();
-      colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+      colorSettingsPreviewEl.style.background = buildColorMapGradient(uiState.activeColorSettingsMap);
       requestDraw();
     });
 
     removeBtn.addEventListener("click", () => {
-      const next = getColorMapStops(activeColorSettingsMap) || [];
+      const next = getColorMapStops(uiState.activeColorSettingsMap) || [];
       if (next.length <= 2) return;
       next.splice(index, 1);
-      setColorMapStops(activeColorSettingsMap, next);
+      setColorMapStops(uiState.activeColorSettingsMap, next);
       renderColorStopsEditor();
-      colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+      colorSettingsPreviewEl.style.background = buildColorMapGradient(uiState.activeColorSettingsMap);
       requestDraw();
     });
 
@@ -3570,20 +3582,20 @@ function renderColorStopsEditor() {
 }
 
 ({
-  openRangesEditor,
-  closeRangesEditor,
-  openFormulaSettingsPanel,
-  closeFormulaSettingsPanel,
-  openColorSettingsPanel,
-  closeColorSettingsPanel,
-  openModeSettingsPanel,
-  closeModeSettingsPanel,
-  closeDismissablePanelsForTarget,
-  layoutFormulaSettingsPanel,
-  layoutColorSettingsPanel,
-  layoutModeSettingsPanel,
-  isPanelOpen,
-  getActiveColourPanelSettings,
+  uiState.openRangesEditor,
+  uiState.closeRangesEditor,
+  uiState.openFormulaSettingsPanel,
+  uiState.closeFormulaSettingsPanel,
+  uiState.openColorSettingsPanel,
+  uiState.closeColorSettingsPanel,
+  uiState.openModeSettingsPanel,
+  uiState.closeModeSettingsPanel,
+  uiState.closeDismissablePanelsForTarget,
+  uiState.layoutFormulaSettingsPanel,
+  uiState.layoutColorSettingsPanel,
+  uiState.layoutModeSettingsPanel,
+  uiState.isPanelOpen,
+  uiState.getActiveColourPanelSettings,
 } = initUIPanels({
   rangesEditorPanelEl,
   rangesEditorToggleEl,
@@ -3593,15 +3605,15 @@ function renderColorStopsEditor() {
   backgroundSettingsSectionEl,
   modeSettingsSectionEls,
   pickerPanel,
-  renderHelpOverlay: () => helpOverlayController?.render(),
-  scheduleHelpOverlayRender: () => helpOverlayController?.scheduleRender(),
+  renderHelpOverlay: () => uiState.helpOverlayController?.render(),
+  scheduleHelpOverlayRender: () => uiState.helpOverlayController?.scheduleRender(),
   syncDetailedSettingsControls,
   hideSettingsInfo,
   getSelectedRangesEditorFormulaId,
   loadFormulaRangesIntoEditor,
   syncSeedEditorInputs,
   setActiveColorSettingsMap: (value) => {
-    activeColorSettingsMap = value;
+    uiState.activeColorSettingsMap = value;
   },
   setColorSettingsName: (value) => {
     colorSettingsNameEl.textContent = value;
@@ -3615,8 +3627,8 @@ function renderColorStopsEditor() {
 }));
 
 function openPicker(kind, triggerEl) {
-  activePicker = kind;
-  activePickerTrigger = triggerEl;
+  uiState.activePicker = kind;
+  uiState.activePickerTrigger = triggerEl;
   pickerOverlay.classList.add("is-open");
   pickerOverlay.setAttribute("aria-hidden", "false");
 
@@ -3627,7 +3639,7 @@ function openPicker(kind, triggerEl) {
   }
 
   layoutPickerPanel();
-  helpOverlayController?.render();
+  uiState.helpOverlayController?.render();
 }
 
 function getQuickSliderRangeValueFromSliderValue(sliderKey, sliderValue) {
@@ -3659,28 +3671,28 @@ function getSliderValueFromQuickSliderRangeValue(sliderKey, rangeValue) {
 }
 
 function updateQuickSliderReadout() {
-  if (!activeSliderKey) {
+  if (!uiState.activeSliderKey) {
     return;
   }
-  const control = sliderControls[activeSliderKey];
+  const control = sliderControls[uiState.activeSliderKey];
   const actualValue = getActiveActualValue();
   qsLabel.textContent = control.label;
   qsValue.textContent = formatControlValue(control, actualValue);
 }
 
 function applySliderValue(nextValue, { commitHistory = true } = {}) {
-  if (!activeSliderKey) {
+  if (!uiState.activeSliderKey) {
     return;
   }
 
-  const control = sliderControls[activeSliderKey];
+  const control = sliderControls[uiState.activeSliderKey];
   const value = clamp(nextValue, control.min, control.max);
-  if (activeSliderKey !== "iters" && activeSliderKey !== "burn") {
+  if (uiState.activeSliderKey !== "iters" && uiState.activeSliderKey !== "burn") {
     clearSharedParamsOverride();
   }
-  appData.defaults.sliders[activeSliderKey] = value;
+  appData.defaults.sliders[uiState.activeSliderKey] = value;
   saveDefaultsToStorage();
-  qsRange.value = String(getQuickSliderRangeValueFromSliderValue(activeSliderKey, value));
+  qsRange.value = String(getQuickSliderRangeValueFromSliderValue(uiState.activeSliderKey, value));
   updateQuickSliderReadout();
   requestDraw();
   if (commitHistory) {
@@ -3694,7 +3706,7 @@ function openQuickSlider(sliderKey) {
     return;
   }
 
-  activeSliderKey = sliderKey;
+  uiState.activeSliderKey = sliderKey;
   quickSliderOverlay.classList.add("is-open");
   quickSliderOverlay.setAttribute("aria-hidden", "false");
   alignQuickSliderAboveBottomBar();
@@ -3710,7 +3722,7 @@ function openQuickSlider(sliderKey) {
     qsRange.step = String(control.sliderStep);
   }
   syncQuickSliderPosition();
-  helpOverlayController?.render();
+  uiState.helpOverlayController?.render();
 }
 
 function resetParamSliderToZero(sliderKey) {
@@ -3736,7 +3748,7 @@ function resetParamSliderToZero(sliderKey) {
   appData.defaults.sliders[sliderKey] = actualToSliderValue(0, min, max);
   saveDefaultsToStorage();
   refreshParamButtons();
-  if (activeSliderKey === sliderKey) {
+  if (uiState.activeSliderKey === sliderKey) {
     syncQuickSliderPosition();
   }
   requestDraw();
@@ -3850,13 +3862,13 @@ function onParamPointerEnd(event) {
   }
 
   const now = performance.now();
-  const isDoubleTap = lastParamTap.targetKey === targetKey && now - lastParamTap.timestamp <= DOUBLE_TAP_MS;
-  lastParamTap = { targetKey, timestamp: now };
+  const isDoubleTap = uiState.lastParamTap.targetKey === targetKey && now - uiState.lastParamTap.timestamp <= DOUBLE_TAP_MS;
+  uiState.lastParamTap = { targetKey, timestamp: now };
 
   if (isDoubleTap) {
-    if (pendingTileTapTimer) {
-      window.clearTimeout(pendingTileTapTimer);
-      pendingTileTapTimer = null;
+    if (uiState.pendingTileTapTimer) {
+      window.clearTimeout(uiState.pendingTileTapTimer);
+      uiState.pendingTileTapTimer = null;
     }
 
     const modeKey = paramTileTargets[targetKey]?.modeKey;
@@ -3866,19 +3878,19 @@ function onParamPointerEnd(event) {
     return;
   }
 
-  if (pendingTileTapTimer) {
-    window.clearTimeout(pendingTileTapTimer);
+  if (uiState.pendingTileTapTimer) {
+    window.clearTimeout(uiState.pendingTileTapTimer);
   }
-  pendingTileTapTimer = window.setTimeout(() => {
-    pendingTileTapTimer = null;
+  uiState.pendingTileTapTimer = window.setTimeout(() => {
+    uiState.pendingTileTapTimer = null;
     paramTileTargets[targetKey]?.shortTap();
   }, DOUBLE_TAP_MS + 10);
 }
 
 function clearStepHold() {
-  if (holdInterval) {
-    window.clearInterval(holdInterval);
-    holdInterval = null;
+  if (uiState.holdInterval) {
+    window.clearInterval(uiState.holdInterval);
+    uiState.holdInterval = null;
   }
 }
 
@@ -3906,7 +3918,7 @@ function stepSliderKey(sliderKey, direction, stepSize) {
     control.max,
   );
 
-  if (activeSliderKey === sliderKey) {
+  if (uiState.activeSliderKey === sliderKey) {
     syncQuickSliderPosition();
   }
 
@@ -3945,28 +3957,28 @@ function getHoldStepSizeForKey(sliderKey, holdElapsedMs) {
 }
 
 function stepActiveSlider(direction) {
-  if (!activeSliderKey) {
+  if (!uiState.activeSliderKey) {
     return;
   }
 
-  const control = sliderControls[activeSliderKey];
-  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * control.stepSize);
+  const control = sliderControls[uiState.activeSliderKey];
+  applySliderValue(appData.defaults.sliders[uiState.activeSliderKey] + direction * control.stepSize);
 }
 
 function getHoldStepSize(holdElapsedMs) {
-  if (!activeSliderKey) {
+  if (!uiState.activeSliderKey) {
     return 0;
   }
 
-  return getHoldStepSizeForKey(activeSliderKey, holdElapsedMs);
+  return getHoldStepSizeForKey(uiState.activeSliderKey, holdElapsedMs);
 }
 
 function stepActiveSliderBy(direction, stepSize) {
-  if (!activeSliderKey) {
+  if (!uiState.activeSliderKey) {
     return;
   }
 
-  applySliderValue(appData.defaults.sliders[activeSliderKey] + direction * stepSize);
+  applySliderValue(appData.defaults.sliders[uiState.activeSliderKey] + direction * stepSize);
 }
 
 function setupStepHold(button, direction) {
@@ -3979,7 +3991,7 @@ function setupStepHold(button, direction) {
     stepActiveSlider(direction);
 
     const { holdRepeatMs } = getHoldTimingSettings();
-    holdInterval = window.setInterval(() => {
+    uiState.holdInterval = window.setInterval(() => {
       const holdElapsedMs = performance.now() - holdStartMs;
       const holdStepSize = getHoldStepSize(holdElapsedMs);
       stepActiveSliderBy(direction, holdStepSize);
@@ -4016,11 +4028,11 @@ function getArrowMapping(code) {
 }
 
 function stopKeyboardHold() {
-  if (keyHold.interval) {
-    window.clearInterval(keyHold.interval);
+  if (uiState.keyHold.interval) {
+    window.clearInterval(uiState.keyHold.interval);
   }
-  keyHold = { code: null, axis: null, direction: 0, sliderKey: null, interval: null, startMs: 0 };
-  isKeyboardManualModulating = false;
+  uiState.keyHold = { code: null, axis: null, direction: 0, sliderKey: null, interval: null, startMs: 0 };
+  uiState.isKeyboardManualModulating = false;
   requestDraw();
 }
 
@@ -4041,7 +4053,7 @@ function onKeyboardArrowDown(event) {
     return;
   }
 
-  if (event.repeat && keyHold.code === event.code) {
+  if (event.repeat && uiState.keyHold.code === event.code) {
     event.preventDefault();
     return;
   }
@@ -4058,11 +4070,11 @@ function onKeyboardArrowDown(event) {
   showKeyboardStepToast(targetSliderKey, mapping.direction, baseStep);
 
   stopKeyboardHold();
-  isKeyboardManualModulating = true;
+  uiState.isKeyboardManualModulating = true;
   requestDraw();
   const { holdRepeatMs } = getHoldTimingSettings();
   const startMs = performance.now();
-  keyHold = {
+  uiState.keyHold = {
     code: event.code,
     axis: mapping.axis,
     direction: mapping.direction,
@@ -4078,7 +4090,7 @@ function onKeyboardArrowDown(event) {
 }
 
 function onKeyboardArrowUp(event) {
-  if (event.code !== keyHold.code) {
+  if (event.code !== uiState.keyHold.code) {
     return;
   }
 
@@ -4190,8 +4202,8 @@ function getParamPixelVertical(value, range, spanPx, fallbackPx) {
 }
 
 function shouldShowManualOverlay() {
-  const pointerModulating = interactionState === INTERACTION_STATE.MOD_1 && activePointers.size > 0 && isManualModulating;
-  return pointerModulating || isKeyboardManualModulating;
+  const pointerModulating = overlayState.interactionState === INTERACTION_STATE.MOD_1 && overlayState.activePointers.size > 0 && overlayState.isManualModulating;
+  return pointerModulating || uiState.isKeyboardManualModulating;
 }
 
 function hasAnyManualTargets() {
@@ -4268,14 +4280,14 @@ function getInterestGridLayout(view, rawGridSize) {
   };
 }
 
-exportManager = initExportManager({
+exportState.exportManager = initExportManager({
   canvas,
   getCurrentFormulaId: () => currentFormulaId,
   getAppData: () => appData,
-  getLastRenderMeta: () => lastRenderMeta,
-  getLastFullRenderMeta: () => lastFullRenderMeta,
-  getRenderRevision: () => renderRevision,
-  getFixedView: () => fixedView,
+  getLastRenderMeta: () => renderState.lastRenderMeta,
+  getLastFullRenderMeta: () => renderState.lastFullRenderMeta,
+  getRenderRevision: () => renderState.renderRevision,
+  getFixedView: () => renderState.fixedView,
   getDerivedParams,
   getScaleMode,
   getSeedForFormula,
@@ -4302,14 +4314,14 @@ const interestOverlay = initInterestOverlay({
   getDerivedParams,
   getInterestGridLayout,
   getInterestPlaneConfig,
-  getLastRenderMeta: () => lastRenderMeta,
+  getLastRenderMeta: () => renderState.lastRenderMeta,
   getOverlayContext: () => interestOverlayCtx,
   getOverlayCanvas: () => interestOverlayCanvas,
   hasAnyManualTargets,
-  isHighResExportInProgress: () => exportManager?.isHighResExportInProgress(),
+  isHighResExportInProgress: () => exportState.exportManager?.isHighResExportInProgress(),
   normalizeInterestOverlayOpacity,
   overlayToggleBtn,
-  redrawOverlayCanvas: () => redrawInterestOverlayCanvas(lastRenderMeta),
+  redrawOverlayCanvas: () => redrawInterestOverlayCanvas(renderState.lastRenderMeta),
   shouldShowManualOverlay,
   showToast,
   windowObject: window,
@@ -4483,11 +4495,11 @@ function clearOverlayCanvas(targetCanvas, targetCtx) {
   targetCtx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
 }
 
-function redrawInterestOverlayCanvas(meta = lastRenderMeta) {
+function redrawInterestOverlayCanvas(meta = renderState.lastRenderMeta) {
   interestOverlay.redrawOverlay(meta);
 }
 
-function redrawManualOverlayCanvas(meta = lastRenderMeta) {
+function redrawManualOverlayCanvas(meta = renderState.lastRenderMeta) {
   clearOverlayCanvas(manualOverlayCanvas, manualOverlayCtx);
   if (!meta || !manualOverlayCtx) {
     return;
@@ -4496,7 +4508,7 @@ function redrawManualOverlayCanvas(meta = lastRenderMeta) {
   drawManualParamOverlay(meta, manualOverlayCtx);
 }
 
-function redrawOverlayCanvases(meta = lastRenderMeta) {
+function redrawOverlayCanvases(meta = renderState.lastRenderMeta) {
   redrawInterestOverlayCanvas(meta);
   redrawManualOverlayCanvas(meta);
 }
@@ -4694,10 +4706,10 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
     `x range: ${formatNumberForUi(world.minX, 3)} to ${formatNumberForUi(world.maxX, 3)}`,
     `y range: ${formatNumberForUi(world.minY, 3)} to ${formatNumberForUi(world.maxY, 3)}`,
     `range centre: (${formatNumberForUi(centerX, 3)}, ${formatNumberForUi(centerY, 3)})`,
-    `gesture state: ${interactionState}`,
-    `2f dxm/dym/dd: ${lastTwoDebug ? `${formatNumberForUi(lastTwoDebug.dxm, 2)} / ${formatNumberForUi(lastTwoDebug.dym, 2)} / ${formatNumberForUi(lastTwoDebug.dd, 2)}` : "-"}`,
-    `2f ratioStep/zoom: ${lastTwoDebug ? `${formatNumberForUi(lastTwoDebug.ratioStep, 4)} / ${formatNumberForUi(lastTwoDebug.viewZoom, 4)}` : "-"}`,
-    `fps: ${formatNumberForUi(fpsEstimate, 1)}`,
+    `gesture state: ${overlayState.interactionState}`,
+    `2f dxm/dym/dd: ${overlayState.lastTwoDebug ? `${formatNumberForUi(overlayState.lastTwoDebug.dxm, 2)} / ${formatNumberForUi(overlayState.lastTwoDebug.dym, 2)} / ${formatNumberForUi(overlayState.lastTwoDebug.dd, 2)}` : "-"}`,
+    `2f ratioStep/zoom: ${overlayState.lastTwoDebug ? `${formatNumberForUi(overlayState.lastTwoDebug.ratioStep, 4)} / ${formatNumberForUi(overlayState.lastTwoDebug.viewZoom, 4)}` : "-"}`,
+    `fps: ${formatNumberForUi(renderState.fpsEstimate, 1)}`,
     ...getScreenViewportDebugLines(),
   ].join("\n");
 }
@@ -4707,30 +4719,30 @@ async function draw() {
     return;
   }
 
-  const renderGenerationAtStart = renderGeneration;
+  const renderGenerationAtStart = renderState.renderGeneration;
   const startedAt = performance.now();
   const didResize = resizeCanvas();
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const iterations = iterationSetting;
-  if (panZoomInteractionActive && !didResize && activePanZoomCacheEntry && drawInteractionFrameFromCache(activePanZoomCacheEntry)) {
-    redrawOverlayCanvases(lastRenderMeta);
+  if (renderState.panZoomInteractionActive && !didResize && renderState.activePanZoomCacheEntry && drawInteractionFrameFromCache(renderState.activePanZoomCacheEntry)) {
+    redrawOverlayCanvases(renderState.lastRenderMeta);
     layoutFloatingActions();
     return;
   }
-  renderProgressStartedAt = performance.now();
-  renderProgressShownThisDraw = false;
-  const { pxW, pxH } = exportManager.getExportSizePx(canvas);
+  renderState.renderProgressStartedAt = performance.now();
+  renderState.renderProgressShownThisDraw = false;
+  const { pxW, pxH } = exportState.exportManager.getExportSizePx(canvas);
   const cropScale = Math.max(
     1,
     canvas.width / Math.max(1, pxW),
     canvas.height / Math.max(1, pxH),
   );
-  const fullCanvas = exportManager.ensureExportCacheCanvas(
+  const fullCanvas = exportState.exportManager.ensureExportCacheCanvas(
     Math.max(1, Math.round(pxW * cropScale)),
     Math.max(1, Math.round(pxH * cropScale)),
   );
-  const exportCtx = exportManager.getExportContext();
+  const exportCtx = exportState.exportManager.getExportContext();
   let frameMetaFull;
   try {
     frameMetaFull = await renderFrame({
@@ -4742,7 +4754,7 @@ async function draw() {
       iterations,
       burn: burnSetting,
       scaleMode: getScaleMode(),
-      fixedView,
+      renderState.fixedView,
       seed: getSeedForFormula(currentFormulaId),
       renderColoring: getRenderColoringOptions(),
       backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
@@ -4768,19 +4780,19 @@ async function draw() {
 
 
   const now = performance.now();
-  const delta = lastDrawTimestamp > 0 ? now - lastDrawTimestamp : 0;
+  const delta = renderState.lastDrawTimestamp > 0 ? now - renderState.lastDrawTimestamp : 0;
   if (delta > 0) {
     const instantFps = 1000 / delta;
-    fpsEstimate = fpsEstimate === 0 ? instantFps : fpsEstimate * 0.85 + instantFps * 0.15;
+    renderState.fpsEstimate = renderState.fpsEstimate === 0 ? instantFps : renderState.fpsEstimate * 0.85 + instantFps * 0.15;
   }
-  lastDrawTimestamp = now;
+  renderState.lastDrawTimestamp = now;
 
-  lastRenderMeta = {
+  renderState.lastRenderMeta = {
     ...frameMeta,
     iterations,
     renderMs: now - startedAt,
   };
-  lastFullRenderMeta = {
+  renderState.lastFullRenderMeta = {
     ...frameMetaFull,
     iterations,
     renderMs: now - startedAt,
@@ -4789,35 +4801,35 @@ async function draw() {
   cacheAccurateFrame({
     key: stateKey,
     fullCanvas,
-    fullMeta: lastFullRenderMeta,
-    frameMeta: lastRenderMeta,
-    sourceFixedView: fixedView,
+    fullMeta: renderState.lastFullRenderMeta,
+    frameMeta: renderState.lastRenderMeta,
+    sourceFixedView: renderState.fixedView,
   });
   clearPanZoomInteractionCache();
-  renderRevision += 1;
-  exportManager.markExportCacheRendered(fullCanvas.width, fullCanvas.height, renderRevision);
+  renderState.renderRevision += 1;
+  exportState.exportManager.markExportCacheRendered(fullCanvas.width, fullCanvas.height, renderState.renderRevision);
 
   const manualOverlayActive = shouldShowManualOverlay();
-  if (manualOverlayActive && !wasManualOverlayActive && interestOverlay.isCalcInProgress()) {
+  if (manualOverlayActive && !renderState.wasManualOverlayActive && interestOverlay.isCalcInProgress()) {
     interestOverlay.enableProgressToast();
   }
-  wasManualOverlayActive = manualOverlayActive;
+  renderState.wasManualOverlayActive = manualOverlayActive;
 
-  redrawOverlayCanvases(lastRenderMeta);
+  redrawOverlayCanvases(renderState.lastRenderMeta);
   refreshParamButtons();
   updateQuickSliderReadout();
   syncDetailedSettingsControls();
   layoutFloatingActions();
 
   if (interestOverlay.shouldShowInterestOverlay()) {
-    interestOverlay.scheduleRecalc({ meta: lastRenderMeta, immediate: false, showProgress: true });
+    interestOverlay.scheduleRecalc({ meta: renderState.lastRenderMeta, immediate: false, showProgress: true });
   }
 
 }
 
 
 function syncCameraButtonHighlight() {
-  const shouldHighlight = Boolean(exportManager?.hasPendingShare()) || Boolean(screenshotMenuOverlayEl?.classList.contains("is-open"));
+  const shouldHighlight = Boolean(exportState.exportManager?.hasPendingShare()) || Boolean(screenshotMenuOverlayEl?.classList.contains("is-open"));
   cameraBtn?.classList.toggle("is-active", shouldHighlight);
 }
 
@@ -4837,7 +4849,7 @@ function syncScreenshotMenuShareRetryUi() {
     return;
   }
 
-  const hasPendingShare = Boolean(exportManager?.hasPendingShare());
+  const hasPendingShare = Boolean(exportState.exportManager?.hasPendingShare());
   screenshotMenuShareRetryEl.classList.toggle("is-hidden", !hasPendingShare);
   if (screenshotMenuShareRetryHintEl) {
     screenshotMenuShareRetryHintEl.textContent = hasPendingShare
@@ -4848,7 +4860,7 @@ function syncScreenshotMenuShareRetryUi() {
 }
 
 async function retryPendingShare() {
-  const outcome = await exportManager?.retryPendingShare();
+  const outcome = await exportState.exportManager?.retryPendingShare();
   if (outcome === "missing") {
     showToast("No prepared screenshot waiting to share.");
     return;
@@ -4882,11 +4894,11 @@ function ensureHelpSliderOpen() {
 }
 
 function initHelpOverlay() {
-  if (!helpBtn || helpOverlayController) {
+  if (!helpBtn || uiState.helpOverlayController) {
     return;
   }
 
-  helpOverlayController = createHelpOverlay({
+  uiState.helpOverlayController = createHelpOverlay({
     helpButton: helpBtn,
     isSliderOpen: () => quickSliderOverlay.classList.contains("is-open"),
     ensureSliderOpen: ensureHelpSliderOpen,
@@ -4895,9 +4907,9 @@ function initHelpOverlay() {
       const contexts = [];
 
       if (pickerOverlay.classList.contains("is-open")) {
-        if (activePicker === "formula") {
+        if (uiState.activePicker === "formula") {
           contexts.push("formulaPanel");
-        } else if (activePicker === "cmap") {
+        } else if (uiState.activePicker === "cmap") {
           contexts.push("colorPanel");
         }
       }
@@ -4946,13 +4958,13 @@ function registerHandlers() {
       return;
     }
     const now = performance.now();
-    const isDoubleTap = now - lastQuickSliderTopTapAt <= DOUBLE_TAP_MS;
-    lastQuickSliderTopTapAt = now;
+    const isDoubleTap = now - uiState.lastQuickSliderTopTapAt <= DOUBLE_TAP_MS;
+    uiState.lastQuickSliderTopTapAt = now;
     if (!isDoubleTap) {
       return;
     }
-    if (["a", "b", "c", "d"].includes(activeSliderKey || "")) {
-      resetParamSliderToZero(activeSliderKey);
+    if (["a", "b", "c", "d"].includes(uiState.activeSliderKey || "")) {
+      resetParamSliderToZero(uiState.activeSliderKey);
     }
   };
   qsTop?.addEventListener("pointerup", onQuickSliderTopTap);
@@ -4964,7 +4976,7 @@ function registerHandlers() {
 
   qsRange.addEventListener("input", () => {
     const rawValue = Number.parseFloat(qsRange.value);
-    const mappedValue = getSliderValueFromQuickSliderRangeValue(activeSliderKey, rawValue);
+    const mappedValue = getSliderValueFromQuickSliderRangeValue(uiState.activeSliderKey, rawValue);
     applySliderValue(mappedValue, { commitHistory: false });
   });
   qsRange.addEventListener("change", () => {
@@ -4984,19 +4996,19 @@ function registerHandlers() {
   screenshotMenuBackdropEl?.addEventListener("click", () => closeScreenshotMenu());
   screenshotMenuCleanEl?.addEventListener("click", async () => {
     closeScreenshotMenu();
-    await exportManager.captureScreenshotAction("clean", { openScreenshotMenu, onShareRetryStateChange: syncScreenshotMenuShareRetryUi });
+    await exportState.exportManager.captureScreenshotAction("clean", { openScreenshotMenu, onShareRetryStateChange: syncScreenshotMenuShareRetryUi });
   });
   screenshotMenuOverlayOptionEl?.addEventListener("click", async () => {
     closeScreenshotMenu();
-    await exportManager.captureScreenshotAction("overlay", { openScreenshotMenu, onShareRetryStateChange: syncScreenshotMenuShareRetryUi });
+    await exportState.exportManager.captureScreenshotAction("overlay", { openScreenshotMenu, onShareRetryStateChange: syncScreenshotMenuShareRetryUi });
   });
   screenshotMenu4kEl?.addEventListener("click", async () => {
     closeScreenshotMenu();
-    await exportManager.captureScreenshotAction("4k");
+    await exportState.exportManager.captureScreenshotAction("4k");
   });
   screenshotMenu8kEl?.addEventListener("click", async () => {
     closeScreenshotMenu();
-    await exportManager.captureScreenshotAction("8k");
+    await exportState.exportManager.captureScreenshotAction("8k");
   });
   screenshotMenuShareRetryEl?.addEventListener("click", async () => {
     await retryPendingShare();
@@ -5024,10 +5036,10 @@ function registerHandlers() {
   });
 
   helpBtn?.addEventListener("click", () => {
-    if (!helpOverlayController) {
+    if (!uiState.helpOverlayController) {
       return;
     }
-    helpOverlayController.toggle();
+    uiState.helpOverlayController.toggle();
   });
 
   const toggleRandomMode = (event) => {
@@ -5035,9 +5047,9 @@ function registerHandlers() {
       event.preventDefault();
       event.stopPropagation();
     }
-    const nextMode = randomAllNextMode;
+    const nextMode = uiState.randomAllNextMode;
     applyAllParamModes(nextMode);
-    randomAllNextMode = nextMode === "rand" ? "fix" : "rand";
+    uiState.randomAllNextMode = nextMode === "rand" ? "fix" : "rand";
     syncRandomModeButton();
     showToast(nextMode === "rand" ? "RAN mode enabled. Tap right to go forward/randomise, left to go back." : "FIX mode enabled. History tap controls are inactive.");
   };
@@ -5055,13 +5067,13 @@ function registerHandlers() {
 
   rangesEditorToggleEl?.addEventListener("click", () => {
     if (rangesEditorPanelEl?.classList.contains("is-hidden")) {
-      openRangesEditor();
+      uiState.openRangesEditor();
     } else {
-      closeRangesEditor();
+      uiState.closeRangesEditor();
     }
   });
-  formulaSettingsCloseEl?.addEventListener("click", closeFormulaSettingsPanel);
-  formulaSettingsCloseBottomEl?.addEventListener("click", closeFormulaSettingsPanel);
+  formulaSettingsCloseEl?.addEventListener("click", uiState.closeFormulaSettingsPanel);
+  formulaSettingsCloseBottomEl?.addEventListener("click", uiState.closeFormulaSettingsPanel);
 
   formulaSettingsApplyEl?.addEventListener("click", applyRangesOverrideFromEditor);
   formulaSettingsResetEl?.addEventListener("click", () => {
@@ -5112,29 +5124,29 @@ function registerHandlers() {
 
 
   addColorStopBtnEl?.addEventListener("click", () => {
-    if (!activeColorSettingsMap) return;
-    const next = getColorMapStops(activeColorSettingsMap) || [];
+    if (!uiState.activeColorSettingsMap) return;
+    const next = getColorMapStops(uiState.activeColorSettingsMap) || [];
     if (!next.length) return;
     const insertAt = Math.floor(next.length / 2);
     const left = next[Math.max(0, insertAt - 1)] || next[0];
     const right = next[Math.min(next.length - 1, insertAt)] || next[next.length - 1];
     next.splice(insertAt, 0, [(left[0] + right[0]) * 0.5, right[1], right[2], right[3], right[4]]);
-    setColorMapStops(activeColorSettingsMap, next);
+    setColorMapStops(uiState.activeColorSettingsMap, next);
     renderColorStopsEditor();
-    colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+    colorSettingsPreviewEl.style.background = buildColorMapGradient(uiState.activeColorSettingsMap);
     requestDraw();
   });
 
   resetColorStopsBtnEl?.addEventListener("click", () => {
-    if (!activeColorSettingsMap) return;
-    setColorMapStops(activeColorSettingsMap, null);
+    if (!uiState.activeColorSettingsMap) return;
+    setColorMapStops(uiState.activeColorSettingsMap, null);
     renderColorStopsEditor();
-    colorSettingsPreviewEl.style.background = buildColorMapGradient(activeColorSettingsMap);
+    colorSettingsPreviewEl.style.background = buildColorMapGradient(uiState.activeColorSettingsMap);
     requestDraw();
     saveDefaultsToStorage();
   });
 
-  colorSettingsCloseEl?.addEventListener("click", closeColorSettingsPanel);
+  colorSettingsCloseEl?.addEventListener("click", uiState.closeColorSettingsPanel);
 
   infoMaxRandomItersEl?.addEventListener("click", (event) => {
     showSettingsInfo("Max random iterations limits the upper bound for randomization of iteration count.", event.currentTarget);
@@ -5163,10 +5175,10 @@ function registerHandlers() {
       return;
     }
 
-    if (activeInfoAnchorEl && !target.closest("#settingsInfoPopup, .perfInfoBtn")) {
+    if (uiState.activeInfoAnchorEl && !target.closest("#settingsInfoPopup, .perfInfoBtn")) {
       hideSettingsInfo();
     }
-    closeDismissablePanelsForTarget(target);
+    uiState.closeDismissablePanelsForTarget(target);
   });
 
   canvas.style.touchAction = "none";
@@ -5179,16 +5191,16 @@ function registerHandlers() {
 
   window.addEventListener("pointerdown", (event) => {
     if (isEventInsideInteractiveUi(event.target)) {
-      historyTapTracker = null;
+      overlayState.historyTapTracker = null;
       return;
     }
 
     if (event.pointerType === "mouse" && event.button !== 0) {
-      historyTapTracker = null;
+      overlayState.historyTapTracker = null;
       return;
     }
 
-    historyTapTracker = {
+    overlayState.historyTapTracker = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
@@ -5199,13 +5211,13 @@ function registerHandlers() {
   window.addEventListener("pointermove", updateHistoryTapTrackerFromMove, { passive: true });
   window.addEventListener("pointerup", (event) => {
     handleScreenHistoryNavigation(event);
-    if (historyTapTracker?.pointerId === event.pointerId) {
-      historyTapTracker = null;
+    if (overlayState.historyTapTracker?.pointerId === event.pointerId) {
+      overlayState.historyTapTracker = null;
     }
   });
   window.addEventListener("pointercancel", (event) => {
-    if (historyTapTracker?.pointerId === event.pointerId) {
-      historyTapTracker = null;
+    if (overlayState.historyTapTracker?.pointerId === event.pointerId) {
+      overlayState.historyTapTracker = null;
     }
   });
   window.addEventListener("keydown", onKeyboardArrowDown, { passive: false });
@@ -5221,9 +5233,9 @@ function registerHandlers() {
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }
-      layoutFormulaSettingsPanel();
-      layoutColorSettingsPanel();
-      layoutModeSettingsPanel();
+      uiState.layoutFormulaSettingsPanel();
+      uiState.layoutColorSettingsPanel();
+      uiState.layoutModeSettingsPanel();
       layoutFloatingActions();
       if (toastEl?.classList.contains("is-visible")) {
         positionToastForTopActions();
@@ -5242,9 +5254,9 @@ function registerHandlers() {
       if (pickerOverlay.classList.contains("is-open")) {
         layoutPickerPanel();
       }
-      layoutFormulaSettingsPanel();
-      layoutColorSettingsPanel();
-      layoutModeSettingsPanel();
+      uiState.layoutFormulaSettingsPanel();
+      uiState.layoutColorSettingsPanel();
+      uiState.layoutModeSettingsPanel();
       layoutFloatingActions();
       if (toastEl?.classList.contains("is-visible")) {
         positionToastForTopActions();
