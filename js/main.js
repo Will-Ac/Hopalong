@@ -12,6 +12,7 @@ import { clamp } from "./utils.js";
 import { initUIPanels } from "./uiPanels.js";
 import { initInterestOverlay } from "./interestOverlay.js";
 import { initExportManager } from "./exportManager.js";
+import { initHistoryState } from "./historyState.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
@@ -358,9 +359,6 @@ let renderGeneration = 0;
 let currentRenderCache = null;
 let activePanZoomCacheEntry = null;
 const historyRenderCache = new Map();
-let isApplyingHistoryState = false;
-let historyStates = [];
-let historyIndex = -1;
 let paramModes = {};
 let lastParamTap = { targetKey: null, timestamp: 0 };
 let pendingTileTapTimer = null;
@@ -970,110 +968,6 @@ function getDerivedParams() {
 function clearSharedParamsOverride() {
   sharedParamsOverride = null;
   sharedParamsFormulaId = null;
-}
-
-function buildSharePayload() {
-  const params = getDerivedParams();
-  const iterations = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  const view = fixedView || {};
-  const paramText = `${params.a},${params.b},${params.c},${params.d}`;
-  const viewText = `${view.offsetX ?? 0},${view.offsetY ?? 0},${view.zoom ?? 1}`;
-  const refreshToken = Date.now().toString(36);
-
-  const pairs = [
-    ["f", currentFormulaId],
-    ["c", appData.defaults.cmapName],
-    ["p", paramText],
-    ["i", String(iterations)],
-    ["v", viewText],
-    ["r", refreshToken],
-  ];
-
-  return pairs
-    .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
-    .join("&");
-}
-
-function buildShareUrl() {
-  return `${location.origin}${location.pathname}#s=${buildSharePayload()}`;
-}
-
-function applySharedStateFromHash() {
-  if (!location.hash.includes("#s=")) {
-    return false;
-  }
-
-  const payloadStart = location.hash.indexOf("#s=");
-  if (payloadStart < 0) {
-    return false;
-  }
-
-  const payload = location.hash.slice(payloadStart + 3);
-  if (!payload) {
-    return false;
-  }
-
-  try {
-    const params = new URLSearchParams(payload);
-    const formulaId = params.get("f");
-    const cmapName = params.get("c");
-    const pRaw = params.get("p");
-    const iRaw = params.get("i");
-    const vRaw = params.get("v");
-    if (!formulaId || !cmapName || !pRaw || !iRaw || !vRaw) {
-      return false;
-    }
-
-    const pValues = pRaw.split(",").map((value) => Number.parseFloat(value));
-    const vValues = vRaw.split(",").map((value) => Number.parseFloat(value));
-    const iterations = Number.parseInt(iRaw, 10);
-    if (pValues.length !== 4 || pValues.some((value) => !Number.isFinite(value))) {
-      return false;
-    }
-    if (vValues.length !== 3 || vValues.some((value) => !Number.isFinite(value))) {
-      return false;
-    }
-    if (!Number.isFinite(iterations) || iterations < 1 || vValues[2] <= 0) {
-      return false;
-    }
-
-    const formulaExists = appData.formulas.some((formula) => formula.id === formulaId);
-    const cmapExists = appData.colormaps.includes(cmapName);
-    if (!formulaExists || !cmapExists) {
-      return false;
-    }
-
-    appData.defaults.scaleMode = "fixed";
-    for (const key of PARAM_MODE_KEYS) {
-      paramModes[key] = { lockState: "fix", modAxis: "none" };
-    }
-    normalizeParamModes();
-
-    currentFormulaId = formulaId;
-    appData.defaults.cmapName = cmapName;
-    appData.defaults.sliders.iters = Math.round(clamp(iterations, sliderControls.iters.min, sliderControls.iters.max));
-    fixedView = {
-      offsetX: vValues[0],
-      offsetY: vValues[1],
-      zoom: vValues[2],
-    };
-    sharedParamsOverride = {
-      a: pValues[0],
-      b: pValues[1],
-      c: pValues[2],
-      d: pValues[3],
-    };
-    sharedParamsFormulaId = formulaId;
-    syncParamModeVisuals();
-    syncScaleModeButton();
-    syncRandomModeButton();
-    saveParamModesToStorage();
-    saveDefaultsToStorage();
-    return true;
-  } catch (error) {
-    console.warn("Could not parse shared hash state.", error);
-    return false;
-  }
 }
 
 function buildQrCanvas(text, sizePx) {
@@ -2474,40 +2368,12 @@ function statesEqual(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function commitCurrentStateToHistory() {
-  if (!appData || !currentFormulaId || isApplyingHistoryState) {
-    return;
-  }
-
-  const nextState = captureCurrentState();
-  const currentState = historyIndex >= 0 ? historyStates[historyIndex] : null;
-  if (currentState && statesEqual(currentState, nextState)) {
-    return;
-  }
-
-  if (historyIndex < historyStates.length - 1) {
-    for (const state of historyStates.slice(historyIndex + 1)) {
-      historyRenderCache.delete(getRenderStateKey(state));
-    }
-    historyStates = historyStates.slice(0, historyIndex + 1);
-  }
-
-  historyStates.push(nextState);
-  if (historyStates.length > HISTORY_LIMIT) {
-    const overflow = historyStates.length - HISTORY_LIMIT;
-    historyStates.splice(0, overflow);
-    historyIndex = Math.max(-1, historyIndex - overflow);
-  }
-  historyIndex = historyStates.length - 1;
-}
-
 function applyState(state) {
   if (!state) {
     return;
   }
 
   invalidatePendingRenders();
-  isApplyingHistoryState = true;
   currentFormulaId = state.formulaId;
   appData.defaults.cmapName = state.cmapName;
   if (state.iterationAbsoluteMax != null) {
@@ -2578,8 +2444,72 @@ function applyState(state) {
   } else {
     requestDraw();
   }
-  isApplyingHistoryState = false;
 }
+
+const historyState = initHistoryState({
+  historyLimit: HISTORY_LIMIT,
+  getAppData: () => appData,
+  getCurrentFormulaId: () => currentFormulaId,
+  captureCurrentState,
+  statesEqual,
+  onDiscardFutureState: (state) => {
+    historyRenderCache.delete(getRenderStateKey(state));
+  },
+  applyState,
+  getShareState: () => ({
+    formulaId: currentFormulaId,
+    cmapName: appData.defaults.cmapName,
+    params: getDerivedParams(),
+    iterations: Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max)),
+    view: fixedView || {},
+  }),
+  applySharedState: ({ formulaId, cmapName, params, iterations, view }) => {
+    const formulaExists = appData.formulas.some((formula) => formula.id === formulaId);
+    const cmapExists = appData.colormaps.includes(cmapName);
+    if (!formulaExists || !cmapExists) {
+      return false;
+    }
+
+    appData.defaults.scaleMode = "fixed";
+    for (const key of PARAM_MODE_KEYS) {
+      paramModes[key] = { lockState: "fix", modAxis: "none" };
+    }
+    normalizeParamModes();
+
+    currentFormulaId = formulaId;
+    appData.defaults.cmapName = cmapName;
+    appData.defaults.sliders.iters = Math.round(clamp(iterations, sliderControls.iters.min, sliderControls.iters.max));
+    fixedView = {
+      offsetX: view[0],
+      offsetY: view[1],
+      zoom: view[2],
+    };
+    sharedParamsOverride = {
+      a: params[0],
+      b: params[1],
+      c: params[2],
+      d: params[3],
+    };
+    sharedParamsFormulaId = formulaId;
+    syncParamModeVisuals();
+    syncScaleModeButton();
+    syncRandomModeButton();
+    saveParamModesToStorage();
+    saveDefaultsToStorage();
+    return true;
+  },
+});
+
+const {
+  applySharedStateFromHash,
+  buildSharePayload,
+  commitCurrentStateToHistory,
+  moveBackward: moveBackwardInHistory,
+  moveForward: moveForwardInHistory,
+  getHistoryStatus,
+  isApplyingHistoryState,
+  persistCurrentHistoryViewState,
+} = historyState;
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -2670,10 +2600,9 @@ function handleScreenHistoryNavigation(event) {
   const isRightSide = event.clientX >= viewportMidX;
 
   if (isRightSide) {
-    if (historyIndex < historyStates.length - 1) {
-      historyIndex += 1;
-      applyState(historyStates[historyIndex]);
-      showToast(`History ${historyIndex + 1}/${historyStates.length}`);
+    const nextState = moveForwardInHistory();
+    if (nextState) {
+      showToast(`History ${nextState.index + 1}/${nextState.length}`);
       return;
     }
 
@@ -2682,10 +2611,9 @@ function handleScreenHistoryNavigation(event) {
     return;
   }
 
-  if (historyIndex > 0) {
-    historyIndex -= 1;
-    applyState(historyStates[historyIndex]);
-    showToast(`History ${historyIndex + 1}/${historyStates.length}`);
+  const previousState = moveBackwardInHistory();
+  if (previousState) {
+    showToast(`History ${previousState.index + 1}/${previousState.length}`);
   } else {
     showToast("Already at oldest saved state.");
   }
@@ -2766,23 +2694,10 @@ function syncQuickSliderPosition() {
   updateQuickSliderReadout();
 }
 
-function persistCurrentHistoryViewState() {
-  if (historyIndex < 0 || historyIndex >= historyStates.length) {
-    return;
-  }
-
-  const state = historyStates[historyIndex];
-  if (!state || typeof state !== "object") {
-    return;
-  }
-
-  state.fixedView = { ...fixedView };
-}
-
 function applyPanDelta(deltaX, deltaY) {
   fixedView.offsetX += deltaX;
   fixedView.offsetY += deltaY;
-  persistCurrentHistoryViewState();
+  persistCurrentHistoryViewState(fixedView);
   requestDraw();
 }
 
@@ -2820,7 +2735,7 @@ function applyZoomAtPoint(zoomFactor, anchorX, anchorY) {
     return;
   }
 
-  persistCurrentHistoryViewState();
+  persistCurrentHistoryViewState(fixedView);
   requestDraw();
 }
 
@@ -2841,7 +2756,7 @@ function applyTwoFingerGestureTransform(targetZoom, anchorX, anchorY, deltaX, de
     return;
   }
 
-  persistCurrentHistoryViewState();
+  persistCurrentHistoryViewState(fixedView);
   requestDraw();
 }
 
