@@ -30,6 +30,9 @@ export function initInterestOverlay({
   let interestOverlayPendingPlan = null;
   let interestOverlayComputeSeq = 0;
   let interestOverlayActiveJobSeq = 0;
+  let interestOverlayActiveScanKey = null;
+  let interestOverlayWorker = null;
+  let interestOverlayWorkerAvailable = true;
 
   function clearOverlayCanvas(targetCanvas, targetCtx) {
     if (!targetCanvas || !targetCtx) {
@@ -71,7 +74,7 @@ export function initInterestOverlay({
     if (!appData || !currentFormulaId) {
       return null;
     }
-    if (!Boolean(appData.defaults.interestOverlayEnabled) || !Boolean(appData.defaults.interestLyapunovEnabled) || !hasAnyManualTargets()) {
+    if (!appData.defaults.interestOverlayEnabled || !appData.defaults.interestLyapunovEnabled || !hasAnyManualTargets()) {
       return null;
     }
 
@@ -110,6 +113,136 @@ export function initInterestOverlay({
     return Boolean(appData?.defaults?.interestOverlayEnabled) && shouldShowManualOverlay() && hasAnyManualTargets();
   }
 
+  function createWorkerJobPayload(plan, jobId) {
+    return {
+      type: "calculate",
+      jobId,
+      scanKey: plan.scanKey,
+      formulaId: plan.formulaId,
+      baseParams: plan.baseParams,
+      plane: plan.planeConfig,
+      gridCols: plan.gridCols,
+      gridRows: plan.gridRows,
+      iterations: plan.scanIterations,
+      lyapunov: plan.lyapunovConfig,
+    };
+  }
+
+  function handleCalcProgress(percent) {
+    const nextPercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+    interestOverlayCalcProgressPercent = nextPercent;
+    if (interestOverlayShowProgressToast && nextPercent !== interestOverlayLastProgressToastPercent) {
+      showToast(`Interest overlay calc ${nextPercent}%`);
+      interestOverlayLastProgressToastPercent = nextPercent;
+    }
+  }
+
+  function finalizeCalcCycle() {
+    interestOverlayCalcInProgress = false;
+    interestOverlayActiveScanKey = null;
+    if (interestOverlayShowProgressToast) {
+      showToast("Interest overlay calc 100%");
+      interestOverlayShowProgressToast = false;
+    }
+
+    if (interestOverlayPendingPlan && interestOverlayScanCache?.scanKey !== interestOverlayPendingPlan.scanKey) {
+      scheduleRecalc({ immediate: true, showProgress: true });
+    }
+  }
+
+  function applyCompletedScanResult(plan, jobSeq, scanResult) {
+    if (jobSeq !== interestOverlayActiveJobSeq) {
+      return;
+    }
+    if (interestOverlayPendingPlan?.scanKey !== plan.scanKey) {
+      return;
+    }
+
+    interestOverlayScanCache = {
+      scanKey: plan.scanKey,
+      scanResult,
+      computedAt: performanceObject.now(),
+      gridCols: plan.gridCols,
+      gridRows: plan.gridRows,
+    };
+    redrawOverlayCanvas();
+  }
+
+  function ensureWorker() {
+    if (!interestOverlayWorkerAvailable) {
+      return null;
+    }
+    if (interestOverlayWorker) {
+      return interestOverlayWorker;
+    }
+
+    try {
+      interestOverlayWorker = new Worker(new URL("./interestOverlayWorker.js", import.meta.url), { type: "module" });
+      interestOverlayWorker.onmessage = (event) => {
+        const message = event?.data || {};
+        if (message.type === "progress") {
+          if (message.jobId === interestOverlayActiveJobSeq && message.scanKey === interestOverlayActiveScanKey) {
+            handleCalcProgress(message.percent);
+          }
+          return;
+        }
+
+        if (message.type === "result") {
+          const plan = interestOverlayPendingPlan;
+          try {
+            if (!interestOverlayCalcInProgress) {
+              return;
+            }
+            if (message.jobId !== interestOverlayActiveJobSeq || message.scanKey !== interestOverlayActiveScanKey) {
+              return;
+            }
+            if (!plan || plan.scanKey !== message.scanKey) {
+              return;
+            }
+            applyCompletedScanResult(plan, message.jobId, message.scanResult);
+          } finally {
+            if (message.jobId === interestOverlayActiveJobSeq) {
+              finalizeCalcCycle();
+            }
+          }
+        }
+      };
+      interestOverlayWorker.onerror = (error) => {
+        console.error("Interest overlay worker failed.", error);
+        if (interestOverlayWorker) {
+          interestOverlayWorker.terminate();
+          interestOverlayWorker = null;
+        }
+        interestOverlayWorkerAvailable = false;
+        if (interestOverlayCalcInProgress) {
+          finalizeCalcCycle();
+        }
+      };
+    } catch (error) {
+      interestOverlayWorkerAvailable = false;
+      interestOverlayWorker = null;
+      console.error("Failed to create interest overlay worker.", error);
+    }
+
+    return interestOverlayWorker;
+  }
+
+  function invalidateInFlightCalculation(nextPlan) {
+    if (!interestOverlayCalcInProgress) {
+      return;
+    }
+    if (!nextPlan || interestOverlayActiveScanKey === nextPlan.scanKey) {
+      return;
+    }
+    if (interestOverlayWorker) {
+      interestOverlayWorker.terminate();
+      interestOverlayWorker = null;
+    }
+    interestOverlayActiveJobSeq = 0;
+    interestOverlayActiveScanKey = null;
+    interestOverlayCalcInProgress = false;
+  }
+
   function scheduleRecalc({ meta = null, immediate = false, showProgress = false } = {}) {
     if (isHighResExportInProgress()) {
       return;
@@ -129,10 +262,15 @@ export function initInterestOverlay({
       return;
     }
 
+    const invalidatesActiveCalc = interestOverlayCalcInProgress && interestOverlayActiveScanKey && interestOverlayActiveScanKey !== plan.scanKey;
     interestOverlayPendingPlan = plan;
     if (showProgress) {
       interestOverlayShowProgressToast = true;
       interestOverlayLastProgressToastPercent = -1;
+    }
+
+    if (invalidatesActiveCalc) {
+      invalidateInFlightCalculation(plan);
     }
 
     if (interestOverlayRecalcTimer) {
@@ -159,61 +297,46 @@ export function initInterestOverlay({
 
     const jobSeq = ++interestOverlayComputeSeq;
     interestOverlayActiveJobSeq = jobSeq;
+    interestOverlayActiveScanKey = plan.scanKey;
     interestOverlayCalcInProgress = true;
     interestOverlayCalcProgressPercent = 0;
     interestOverlayLastProgressToastPercent = -1;
 
-    try {
-      await new Promise((resolve) => windowObject.setTimeout(resolve, 0));
-
-      const scanResult = classifyInterestGridLyapunov({
-        formulaId: plan.formulaId,
-        baseParams: plan.baseParams,
-        plane: plan.planeConfig,
-        gridCols: plan.gridCols,
-        gridRows: plan.gridRows,
-        iterations: plan.scanIterations,
-        lyapunov: plan.lyapunovConfig,
-        onProgress: (percent) => {
-          const nextPercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
-          interestOverlayCalcProgressPercent = nextPercent;
-          if (interestOverlayShowProgressToast && nextPercent !== interestOverlayLastProgressToastPercent) {
-            showToast(`Interest overlay calc ${nextPercent}%`);
-            interestOverlayLastProgressToastPercent = nextPercent;
-          }
-        },
-      });
-
-      if (jobSeq !== interestOverlayActiveJobSeq) {
-        return;
-      }
-
-      if (interestOverlayPendingPlan?.scanKey === plan.scanKey) {
-        interestOverlayScanCache = {
-          scanKey: plan.scanKey,
-          scanResult,
-          computedAt: performanceObject.now(),
+    const worker = ensureWorker();
+    if (!worker) {
+      try {
+        await new Promise((resolve) => windowObject.setTimeout(resolve, 0));
+        const scanResult = classifyInterestGridLyapunov({
+          formulaId: plan.formulaId,
+          baseParams: plan.baseParams,
+          plane: plan.planeConfig,
           gridCols: plan.gridCols,
           gridRows: plan.gridRows,
-        };
-        redrawOverlayCanvas();
+          iterations: plan.scanIterations,
+          lyapunov: plan.lyapunovConfig,
+          onProgress: handleCalcProgress,
+        });
+        applyCompletedScanResult(plan, jobSeq, scanResult);
+      } catch (error) {
+        console.error("Interest overlay fallback calculation failed.", error);
+      } finally {
+        finalizeCalcCycle();
       }
-    } finally {
-      interestOverlayCalcInProgress = false;
-      if (interestOverlayShowProgressToast) {
-        showToast("Interest overlay calc 100%");
-        interestOverlayShowProgressToast = false;
-      }
+      return;
+    }
 
-      if (interestOverlayPendingPlan && interestOverlayScanCache?.scanKey !== interestOverlayPendingPlan.scanKey) {
-        scheduleRecalc({ immediate: true, showProgress: true });
-      }
+    try {
+      await new Promise((resolve) => windowObject.setTimeout(resolve, 0));
+      worker.postMessage(createWorkerJobPayload(plan, jobSeq));
+    } catch (error) {
+      console.error("Failed to dispatch interest overlay worker job.", error);
+      finalizeCalcCycle();
     }
   }
 
   function drawOverlay(meta, targetCtx) {
     const appData = getAppData();
-    if (!meta || !targetCtx || !shouldShowInterestOverlay() || !Boolean(appData?.defaults?.interestLyapunovEnabled)) {
+    if (!meta || !targetCtx || !shouldShowInterestOverlay() || !appData?.defaults?.interestLyapunovEnabled) {
       return;
     }
 
