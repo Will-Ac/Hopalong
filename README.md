@@ -1,3 +1,3 @@
 # Hopalong
 
-This repo contains the **Hopalong fractal web app** (currently Slice 1) and its specs.
+This repo contains the **Hopalong web app**
