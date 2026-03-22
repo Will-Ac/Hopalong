@@ -2,9 +2,10 @@
   "name": "hopalong",
   "private": true,
   "scripts": {
-    "lint": "eslint js"
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint js",
+    "check": "npm run lint"
   },
   "devDependencies": {
-    "eslint": "^8.0.0"
+    "eslint": "^8.57.1"
   }
 }

@@ -119,8 +119,22 @@ If a PR seems to have broken the app:
   npm install
   npm run lint
 
+- What it covers:
+  the main application JavaScript files, including `js/main.js` and `js/interestOverlay.js`
+
 - Purpose:
-  catch syntax errors early (like invalid destructuring or missing variables)
+  catch syntax errors early (like invalid destructuring, missing variables, or other parser issues)
 
 - Note:
   linting is advisory and does not affect runtime
+
+## Pre-merge safety checks
+
+Before opening or merging a PR:
+
+1. Run `npm install` (first time only, or after dependency changes).
+2. Run `npm run check`.
+3. Test the app in the browser.
+4. Open DevTools and confirm the console stays clear during startup and your quick smoke test.
+5. Verify the on-screen version badge matches the PR build you expect.
+6. If the browser appears to serve old files, reload with a cache-busting query string such as `?v=PR13.1`.

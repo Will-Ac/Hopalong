@@ -12,6 +12,7 @@
     "no-unused-vars": "warn",
     "no-undef": "error",
     "no-extra-semi": "warn",
-    "no-unreachable": "warn"
+    "no-unreachable": "warn",
+    "no-extra-boolean-cast": "warn"
   }
 }
