@@ -1,19 +1,12 @@
 import { sampleColorMap } from "./colormaps.js";
 import { VARIANTS } from "./formulas.js";
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
+import { clamp, clamp01 } from "./utils.js";
 
 function mapNormalized(normalizedValue, min, max) {
   const t = clamp(normalizedValue / 100, 0, 1);
   return min + (max - min) * t;
 }
 
-
-function clamp01(value) {
-  return clamp(value, 0, 1);
-}
 
 function blendRgb(base, top, amount) {
   const t = clamp01(amount);

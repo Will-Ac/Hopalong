@@ -1,8 +1,7 @@
 // Colormaps extracted from hopalongv124.html
 // Returns RGB arrays [r,g,b] with components 0-255.
 
-function clamp01(x) { return x < 0 ? 0 : (x > 1 ? 1 : x); }
-function clamp(x, min, max) { return Math.max(min, Math.min(max, x)); }
+import { clamp, clamp01 } from "./utils.js";
 function lerp(a, b, t) { return a + (b - a) * t; }
 function lerp3(c1, c2, t) { return [lerp(c1[0], c2[0], t), lerp(c1[1], c2[1], t), lerp(c1[2], c2[2], t)]; }
 function fromStops(stops, t) {

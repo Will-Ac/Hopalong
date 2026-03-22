@@ -8,6 +8,7 @@ import {
   FORMULA_UI_EQUATIONS,
 } from "./formulas.js";
 import { createHelpOverlay } from "./helpOverlay.js";
+import { clamp } from "./utils.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
@@ -865,9 +866,6 @@ function resizeCanvas() {
   return didResizeBase || didResizeInterest || didResizeManual;
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
 
 function actualToSliderValue(actualValue, min, max) {
   const span = Math.max(max - min, 1e-9);
