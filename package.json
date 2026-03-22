@@ -1,0 +1,10 @@
+{
+  "name": "hopalong",
+  "private": true,
+  "scripts": {
+    "lint": "eslint js"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0"
+  }
+}
