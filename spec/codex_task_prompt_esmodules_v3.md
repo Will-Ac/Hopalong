@@ -4,7 +4,7 @@ Goal: Ground-up rewrite of Hopalong v124 as a clean, modular ES-module codebase 
 
 Authoritative inputs:
 - `spec/hopalong_spec.md` (UI, interactions, behaviors)
-- `spec/hopalong_data.json` (formula metadata + ranges + colormaps)
+- `data/hopalong_data.json` (formula metadata + ranges + colormaps)
 - `spec/acceptance_tests.md` (manual acceptance checklist)
 
 Deliverables (exact output structure):

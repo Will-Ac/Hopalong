@@ -135,7 +135,7 @@ Persist (localStorage):
 
 ## 8) Data assets
 
-See `hopalong_data.json` for:
+See `data/hopalong_data.json` for:
 - Formula catalog (id/name/desc)
 - Per-formula parameter ranges (a,b,c,d)
 - Colormap names
