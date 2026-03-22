@@ -11,6 +11,7 @@ import { createHelpOverlay } from "./helpOverlay.js";
 import { clamp } from "./utils.js";
 import { initUIPanels } from "./uiPanels.js";
 import { initInterestOverlay } from "./interestOverlay.js";
+import { initExportManager } from "./exportManager.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
@@ -290,7 +291,6 @@ let wasManualOverlayActive = false;
 let drawScheduled = false;
 let drawDirty = false;
 let drawInProgress = false;
-let highResExportInProgress = false;
 let panZoomInteractionActive = false;
 let panZoomSettleTimer = null;
 let singleTouchModulationStartDrawTimer = null;
@@ -352,16 +352,12 @@ const paramTileTargets = {
   iters: { button: sliderControls.iters.button, modeKey: sliderControls.iters.paramKey, shortTap: () => openQuickSlider("iters") },
 };
 
-let exportCacheCanvas = null;
-let exportCacheCtx = null;
-let exportCacheMeta = null;
+let exportManager = null;
 let renderRevision = 0;
 let renderGeneration = 0;
 let currentRenderCache = null;
 let activePanZoomCacheEntry = null;
 const historyRenderCache = new Map();
-let pendingShareFile = null;
-let pendingShareTitle = "";
 let isApplyingHistoryState = false;
 let historyStates = [];
 let historyIndex = -1;
@@ -480,7 +476,7 @@ function requestDraw({ invalidate = true } = {}) {
     invalidatePendingRenders();
   }
   drawDirty = true;
-  if (highResExportInProgress) {
+  if (exportManager?.isHighResExportInProgress()) {
     return;
   }
   if (drawScheduled) {
@@ -575,15 +571,7 @@ function drawCachedFrameEntry(frameEntry, { syncExport = true } = {}) {
     redrawOverlayCanvases(lastRenderMeta);
   }
   if (syncExport) {
-    const targetCanvas = ensureExportCacheCanvas(frameEntry.canvas.width, frameEntry.canvas.height);
-    exportCacheCtx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
-    exportCacheCtx.drawImage(frameEntry.canvas, 0, 0);
-    exportCacheMeta = {
-      pxW: targetCanvas.width,
-      pxH: targetCanvas.height,
-      updatedAt: performance.now(),
-      renderRevision,
-    };
+    exportManager?.syncCachedFrame(frameEntry, renderRevision);
   }
   return true;
 }
@@ -767,7 +755,7 @@ function hideRenderProgressToast() {
 }
 
 function updateRenderProgressToast(percent, isComplete = false) {
-  if (highResExportInProgress) {
+  if (exportManager?.isHighResExportInProgress()) {
     return;
   }
 
@@ -4365,6 +4353,31 @@ function getInterestGridLayout(view, rawGridSize) {
   };
 }
 
+exportManager = initExportManager({
+  canvas,
+  getCurrentFormulaId: () => currentFormulaId,
+  getAppData: () => appData,
+  getLastRenderMeta: () => lastRenderMeta,
+  getLastFullRenderMeta: () => lastFullRenderMeta,
+  getRenderRevision: () => renderRevision,
+  getFixedView: () => fixedView,
+  getDerivedParams,
+  getScaleMode,
+  getSeedForFormula,
+  getRenderColoringOptions,
+  renderFrame,
+  clamp,
+  hexToRgb,
+  sliderControls,
+  formatNumberForUi,
+  showToast,
+  requestDraw,
+  updateExportRenderProgressToast,
+  buildSharePayload,
+  overlayTextColor: OVERLAY_TEXT_COLOR,
+  qrQuietZoneModules: QR_QUIET_ZONE_MODULES,
+});
+
 const interestOverlay = initInterestOverlay({
   classifyInterestGridLyapunov,
   clamp,
@@ -4378,7 +4391,7 @@ const interestOverlay = initInterestOverlay({
   getOverlayContext: () => interestOverlayCtx,
   getOverlayCanvas: () => interestOverlayCanvas,
   hasAnyManualTargets,
-  isHighResExportInProgress: () => highResExportInProgress,
+  isHighResExportInProgress: () => exportManager?.isHighResExportInProgress(),
   normalizeInterestOverlayOpacity,
   overlayToggleBtn,
   redrawOverlayCanvas: () => redrawInterestOverlayCanvas(lastRenderMeta),
@@ -4792,20 +4805,21 @@ async function draw() {
   }
   renderProgressStartedAt = performance.now();
   renderProgressShownThisDraw = false;
-  const { pxW, pxH } = getExportSizePx(canvas);
+  const { pxW, pxH } = exportManager.getExportSizePx(canvas);
   const cropScale = Math.max(
     1,
     canvas.width / Math.max(1, pxW),
     canvas.height / Math.max(1, pxH),
   );
-  const fullCanvas = ensureExportCacheCanvas(
+  const fullCanvas = exportManager.ensureExportCacheCanvas(
     Math.max(1, Math.round(pxW * cropScale)),
     Math.max(1, Math.round(pxH * cropScale)),
   );
+  const exportCtx = exportManager.getExportContext();
   let frameMetaFull;
   try {
     frameMetaFull = await renderFrame({
-      ctx: exportCacheCtx,
+      ctx: exportCtx,
       canvas: fullCanvas,
       formulaId: currentFormulaId,
       cmapName: appData.defaults.cmapName,
@@ -4866,12 +4880,7 @@ async function draw() {
   });
   clearPanZoomInteractionCache();
   renderRevision += 1;
-  exportCacheMeta = {
-    pxW: fullCanvas.width,
-    pxH: fullCanvas.height,
-    updatedAt: performance.now(),
-    renderRevision,
-  };
+  exportManager.markExportCacheRendered(fullCanvas.width, fullCanvas.height, renderRevision);
 
   const manualOverlayActive = shouldShowManualOverlay();
   if (manualOverlayActive && !wasManualOverlayActive && interestOverlay.isCalcInProgress()) {
@@ -4891,416 +4900,9 @@ async function draw() {
 
 }
 
-function formatScreenshotTimestamp(date) {
-  const parts = [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-    "-",
-    String(date.getHours()).padStart(2, "0"),
-    String(date.getMinutes()).padStart(2, "0"),
-    String(date.getSeconds()).padStart(2, "0"),
-  ];
-  return parts.join("");
-}
-
-function getExportSizePx(liveCanvas) {
-  const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-
-  const vw = (window.visualViewport && window.visualViewport.width) ? window.visualViewport.width : window.innerWidth;
-  const vh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
-  const orientationType = String(window.screen?.orientation?.type || "").toLowerCase();
-  const isLandscape = orientationType
-    ? orientationType.startsWith("landscape")
-    : vw > vh;
-
-  const viewportLong = Math.max(vw, vh);
-  const viewportShort = Math.max(1, Math.min(vw, vh));
-  const viewportAspect = viewportLong / viewportShort;
-
-  const screenW = Number(window.screen?.width) || 0;
-  const screenH = Number(window.screen?.height) || 0;
-  const availW = Number(window.screen?.availWidth) || 0;
-  const availH = Number(window.screen?.availHeight) || 0;
-
-  const rawPairs = [
-    { source: "screen", w: screenW, h: screenH },
-    { source: "avail", w: availW, h: availH },
-  ];
-
-  const candidates = rawPairs
-    .filter((pair) => pair.w > 0 && pair.h > 0)
-    .map((pair) => {
-      const long = Math.max(pair.w, pair.h);
-      const short = Math.min(pair.w, pair.h);
-      const aspect = long / Math.max(1, short);
-      return { ...pair, long, short, aspect };
-    });
-
-  const nonSquareCandidate = candidates.find((pair) => Number.isFinite(pair.aspect) && pair.aspect > 1.01) || null;
-  const baseCandidate = nonSquareCandidate || candidates[0] || null;
-  const hasScreenSize = Boolean(baseCandidate);
-
-  const rawCssLong = hasScreenSize ? baseCandidate.long : viewportLong;
-  const rawCssShort = hasScreenSize ? baseCandidate.short : viewportShort;
-
-  const isSuspiciousSquareScreen = hasScreenSize
-    && Math.abs(rawCssLong - rawCssShort) <= 1
-    && Number.isFinite(viewportAspect)
-    && viewportAspect > 1.01;
-
-  const cssLong = rawCssLong;
-  const cssShort = isSuspiciousSquareScreen
-    ? Math.max(1, Math.round(rawCssLong / viewportAspect))
-    : rawCssShort;
-
-  let pxW = Math.round((isLandscape ? cssLong : cssShort) * dpr);
-  let pxH = Math.round((isLandscape ? cssShort : cssLong) * dpr);
-
-  const liveMin = Math.max(1, Math.min(liveCanvas.width, liveCanvas.height));
-  const exportMin = Math.max(1, Math.min(pxW, pxH));
-  if (exportMin < liveMin) {
-    const upscale = liveMin / exportMin;
-    pxW = Math.round(pxW * upscale);
-    pxH = Math.round(pxH * upscale);
-  }
-
-  return {
-    pxW,
-    pxH,
-    dpr,
-    isLandscape,
-    hasScreenSize,
-    debug: {
-      orientationType,
-      vw,
-      vh,
-      viewportAspect,
-      screenW,
-      screenH,
-      availW,
-      availH,
-      selectedSource: baseCandidate?.source || "viewport",
-      selectedLong: rawCssLong,
-      selectedShort: rawCssShort,
-      isSuspiciousSquareScreen,
-      cssW: isLandscape ? cssLong : cssShort,
-      cssH: isLandscape ? cssShort : cssLong,
-      liveCanvasW: liveCanvas.width,
-      liveCanvasH: liveCanvas.height,
-    },
-  };
-}
-
-function buildScreenshotOverlayLines() {
-  const formula = appData.formulas.find((item) => item.id === currentFormulaId);
-  const params = getDerivedParams();
-  const iterValue = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  return `${formula?.name || currentFormulaId} | ${appData.defaults.cmapName} | a ${formatNumberForUi(params.a, 4)} | b ${formatNumberForUi(params.b, 4)} | c ${formatNumberForUi(params.c, 4)} | d ${formatNumberForUi(params.d, 4)} | iter ${formatNumberForUi(iterValue, 0)}`;
-}
-
-function drawScreenshotOverlay(targetCtx, width, height) {
-  const line = buildScreenshotOverlayLines();
-  const marginX = Math.max(16, Math.round(width * 0.02));
-  const panelHeight = Math.max(28, Math.round(height * 0.05));
-  const yTop = height - panelHeight;
-  const margin = Math.max(18, Math.round(width * 0.02));
-  const qrSize = clamp(Math.round(Math.min(width, height) * 0.14), 140, 320);
-  const qrX = width - margin - qrSize;
-  const qrY = height - margin - qrSize;
-  const maxTextWidth = Math.max(120, Math.min(width * 0.75, qrX - marginX - 12));
-
-  let fontSize = Math.max(11, Math.round(height * 0.02));
-  targetCtx.save();
-  targetCtx.textBaseline = "middle";
-  targetCtx.textAlign = "left";
-  while (fontSize > 9) {
-    targetCtx.font = `${fontSize}px Inter, system-ui, -apple-system, Segoe UI, sans-serif`;
-    if (targetCtx.measureText(line).width <= maxTextWidth) {
-      break;
-    }
-    fontSize -= 1;
-  }
-
-  targetCtx.fillStyle = "#000000";
-  targetCtx.fillRect(marginX, yTop, Math.max(80, qrX - marginX - 8), panelHeight);
-  targetCtx.fillStyle = OVERLAY_TEXT_COLOR;
-  targetCtx.fillText(line, marginX + 10, yTop + panelHeight * 0.5);
-
-  const shareUrl = buildShareUrl();
-  const qrCanvas = buildQrCanvas(shareUrl, qrSize);
-  targetCtx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
-
-  targetCtx.restore();
-}
-
-async function saveBlobToDevice(blob, filename) {
-  const file = new File([blob], filename, { type: "image/png" });
-  if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: filename });
-      pendingShareFile = null;
-      pendingShareTitle = "";
-      return;
-    } catch (error) {
-      const shareErrorName = String(error?.name || "");
-      const shareErrorMessage = String(error?.message || "");
-      const isUserCancelled = shareErrorName === "AbortError";
-      const requiresFreshTap = shareErrorName === "NotAllowedError"
-        || shareErrorName === "NotSupportedError"
-        || /not allowed|denied|permission|policy|context/i.test(shareErrorMessage);
-
-      if (isUserCancelled) {
-        throw new Error("Share cancelled.");
-      }
-
-      if (!requiresFreshTap) {
-        throw error;
-      }
-
-      pendingShareFile = file;
-      pendingShareTitle = filename;
-      console.info("Web Share API needs a fresh user activation. Waiting for explicit retry tap.", {
-        shareErrorName,
-        shareErrorMessage,
-      });
-      throw new Error("Share needs a fresh tap. Use 'Share prepared screenshot now'.");
-    }
-  }
-
-  const objectUrl = URL.createObjectURL(blob);
-  const downloadAnchor = document.createElement("a");
-  downloadAnchor.href = objectUrl;
-  downloadAnchor.download = filename;
-  document.body.append(downloadAnchor);
-  downloadAnchor.click();
-  downloadAnchor.remove();
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
-}
-
-function syncScreenshotMenuShareRetryUi() {
-  if (!screenshotMenuShareRetryEl) {
-    return;
-  }
-
-  const hasPendingShare = Boolean(pendingShareFile);
-  screenshotMenuShareRetryEl.classList.toggle("is-hidden", !hasPendingShare);
-  if (screenshotMenuShareRetryHintEl) {
-    screenshotMenuShareRetryHintEl.textContent = hasPendingShare
-      ? "Needed when browser requires a second explicit tap to share."
-      : "Shown when share needs a fresh tap.";
-  }
-  syncCameraButtonHighlight();
-}
-
-async function retryPendingShare() {
-  if (!pendingShareFile || !navigator.share) {
-    showToast("No prepared screenshot waiting to share.");
-    return;
-  }
-
-  try {
-    await navigator.share({ files: [pendingShareFile], title: pendingShareTitle || pendingShareFile.name });
-    pendingShareFile = null;
-    pendingShareTitle = "";
-    syncScreenshotMenuShareRetryUi();
-    closeScreenshotMenu();
-    showToast("Screenshot shared.");
-  } catch (error) {
-    if (String(error?.name || "") === "AbortError") {
-      showToast("Share cancelled.");
-      return;
-    }
-    console.error(error);
-    showToast(`Share failed: ${error.message}`);
-  }
-}
-
-function getExportWorldFromLiveMeta(exportWidth, exportHeight) {
-  const sourceMeta = lastFullRenderMeta || lastRenderMeta;
-  if (!sourceMeta?.world || !sourceMeta?.view) {
-    return null;
-  }
-
-  const liveView = sourceMeta.view;
-  const liveWorld = sourceMeta.world;
-  const liveSpanX = Math.max(liveWorld.maxX - liveWorld.minX, 1e-6);
-  const liveSpanY = Math.max(liveWorld.maxY - liveWorld.minY, 1e-6);
-  const sourceShortSpan = liveView.width <= liveView.height ? liveSpanX : liveSpanY;
-  const targetAspect = Math.max(1e-6, exportWidth / Math.max(1, exportHeight));
-
-  let exportSpanX;
-  let exportSpanY;
-  if (exportWidth >= exportHeight) {
-    exportSpanY = sourceShortSpan;
-    exportSpanX = exportSpanY * targetAspect;
-  } else {
-    exportSpanX = sourceShortSpan;
-    exportSpanY = exportSpanX / targetAspect;
-  }
-
-  const centerX = Number.isFinite(liveWorld.centerX) ? liveWorld.centerX : (liveWorld.minX + liveWorld.maxX) * 0.5;
-  const centerY = Number.isFinite(liveWorld.centerY) ? liveWorld.centerY : (liveWorld.minY + liveWorld.maxY) * 0.5;
-  const worldPerPxX = exportSpanX / Math.max(1, exportWidth - 1);
-  const worldPerPxY = exportSpanY / Math.max(1, exportHeight - 1);
-
-  return {
-    minX: centerX - exportSpanX * 0.5,
-    maxX: centerX + exportSpanX * 0.5,
-    minY: centerY - exportSpanY * 0.5,
-    maxY: centerY + exportSpanY * 0.5,
-    worldPerPxX,
-    worldPerPxY,
-  };
-}
-
-function ensureExportCacheCanvas(width, height) {
-  if (!exportCacheCanvas) {
-    exportCacheCanvas = document.createElement("canvas");
-    exportCacheCtx = exportCacheCanvas.getContext("2d", { willReadFrequently: true });
-  }
-  if (!exportCacheCtx) {
-    throw new Error("Screenshot export context unavailable.");
-  }
-  if (exportCacheCanvas.width !== width || exportCacheCanvas.height !== height) {
-    exportCacheCanvas.width = width;
-    exportCacheCanvas.height = height;
-  }
-  return exportCacheCanvas;
-}
-
-async function renderCurrentFrameIntoExportCanvas(targetCanvas, targetCtx) {
-  const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
-  const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
-  const scaleMode = getScaleMode();
-  const exportWorld = getExportWorldFromLiveMeta(targetCanvas.width, targetCanvas.height);
-
-  await renderFrame({
-    ctx: targetCtx,
-    canvas: targetCanvas,
-    formulaId: currentFormulaId,
-    cmapName: appData.defaults.cmapName,
-    params: getDerivedParams(),
-    iterations: iterationSetting,
-    burn: burnSetting,
-    scaleMode,
-    fixedView,
-    worldOverride: exportWorld,
-    seed: getSeedForFormula(currentFormulaId),
-    renderColoring: getRenderColoringOptions(),
-    backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
-  });
-}
-
-async function refreshExportCacheFromCurrentFrame() {
-  if (!canvas || !lastRenderMeta || !appData || !currentFormulaId) {
-    return;
-  }
-  const { pxW, pxH } = getExportSizePx(canvas);
-  const targetCanvas = ensureExportCacheCanvas(pxW, pxH);
-  await renderCurrentFrameIntoExportCanvas(targetCanvas, exportCacheCtx);
-  exportCacheMeta = {
-    pxW,
-    pxH,
-    updatedAt: performance.now(),
-    renderRevision,
-  };
-}
-
-function makeCanvasClone(sourceCanvas, includeOverlay) {
-  const outputCanvas = document.createElement("canvas");
-  outputCanvas.width = sourceCanvas.width;
-  outputCanvas.height = sourceCanvas.height;
-  const outputCtx = outputCanvas.getContext("2d", { willReadFrequently: true });
-  if (!outputCtx) {
-    throw new Error("Screenshot export context unavailable.");
-  }
-  outputCtx.drawImage(sourceCanvas, 0, 0);
-  if (includeOverlay) {
-    drawScreenshotOverlay(outputCtx, outputCanvas.width, outputCanvas.height);
-  }
-  return outputCanvas;
-}
-
-async function exportCanvasToBlob(canvasToExport) {
-  const blob = await new Promise((resolve) => canvasToExport.toBlob(resolve, "image/png"));
-  if (!blob) {
-    throw new Error("Screenshot export failed.");
-  }
-  return blob;
-}
-
-function getLongEdgeExportSize(targetLongEdge) {
-  const size = getExportSizePx(canvas);
-  const longEdge = Math.max(1, Number(targetLongEdge) || 1);
-  const aspect = size.pxW / Math.max(1, size.pxH);
-  if (aspect >= 1) {
-    return { width: longEdge, height: Math.max(1, Math.round(longEdge / aspect)) };
-  }
-  return { width: Math.max(1, Math.round(longEdge * aspect)), height: longEdge };
-}
-
-async function captureCachedScreenshot(includeOverlay) {
-  if (!exportCacheCanvas || !exportCacheMeta) {
-    showToast("Preparing latest screenshot...");
-    await refreshExportCacheFromCurrentFrame();
-  }
-  if (!exportCacheCanvas) {
-    throw new Error("No render cache available yet.");
-  }
-  const outputCanvas = makeCanvasClone(exportCacheCanvas, includeOverlay);
-  const blob = await exportCanvasToBlob(outputCanvas);
-  const filename = `hopalong-${includeOverlay ? "overlay" : "clean"}-${formatScreenshotTimestamp(new Date())}.png`;
-  await saveBlobToDevice(blob, filename);
-  showToast(includeOverlay ? "Saved overlay screenshot." : "Saved clean screenshot.");
-}
-
-async function captureHighResScreenshot(longEdgePx) {
-  const { width, height } = getLongEdgeExportSize(longEdgePx);
-  const targetCanvas = document.createElement("canvas");
-  targetCanvas.width = width;
-  targetCanvas.height = height;
-  const targetCtx = targetCanvas.getContext("2d", { willReadFrequently: true });
-  if (!targetCtx) {
-    throw new Error("Screenshot export context unavailable.");
-  }
-
-  const label = longEdgePx >= 7680 ? "8K" : "4K";
-  highResExportInProgress = true;
-  try {
-    await renderFrame({
-      ctx: targetCtx,
-      canvas: targetCanvas,
-      formulaId: currentFormulaId,
-      cmapName: appData.defaults.cmapName,
-      params: getDerivedParams(),
-      iterations: Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max)),
-      burn: Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max)),
-      scaleMode: getScaleMode(),
-      fixedView,
-      worldOverride: getExportWorldFromLiveMeta(width, height),
-      seed: getSeedForFormula(currentFormulaId),
-      renderColoring: getRenderColoringOptions(),
-      backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
-      onProgress: (percent, isComplete) => {
-        updateExportRenderProgressToast(`Rendering ${label} screenshot`, percent, isComplete);
-      },
-    });
-    const blob = await exportCanvasToBlob(targetCanvas);
-    const filenameLabel = longEdgePx >= 7680 ? "8k" : "4k";
-    const filename = `hopalong-clean-${filenameLabel}-${formatScreenshotTimestamp(new Date())}.png`;
-    await saveBlobToDevice(blob, filename);
-    showToast(`Saved clean ${label} screenshot.`);
-  } finally {
-    highResExportInProgress = false;
-    if (drawDirty) {
-      requestDraw();
-    }
-  }
-}
 
 function syncCameraButtonHighlight() {
-  const shouldHighlight = Boolean(pendingShareFile) || Boolean(screenshotMenuOverlayEl?.classList.contains("is-open"));
+  const shouldHighlight = Boolean(exportManager?.hasPendingShare()) || Boolean(screenshotMenuOverlayEl?.classList.contains("is-open"));
   cameraBtn?.classList.toggle("is-active", shouldHighlight);
 }
 
@@ -5315,37 +4917,39 @@ function closeScreenshotMenu() {
   syncCameraButtonHighlight();
 }
 
-async function captureScreenshotAction(action) {
-  try {
-    if (action === "clean") {
-      await captureCachedScreenshot(false);
-      return;
-    }
-    if (action === "overlay") {
-      await captureCachedScreenshot(true);
-      return;
-    }
-    if (action === "4k") {
-      showToast("Rendering 4K screenshot. This may take a moment.");
-      await captureHighResScreenshot(3840);
-      return;
-    }
-    if (action === "8k") {
-      showToast("Rendering 8K screenshot. This may take longer.");
-      await captureHighResScreenshot(7680);
-    }
-  } catch (error) {
-    if (error?.message === "Share cancelled.") {
-      showToast("Share cancelled.");
-      return;
-    }
-    if (error?.message === "Share needs a fresh tap. Use 'Share prepared screenshot now'.") {
-      openScreenshotMenu();
-      showToast("Share needs one more tap. Use 'Share prepared screenshot now'.");
-      return;
-    }
-    console.error(error);
-    showToast(`Screenshot failed: ${error.message}`);
+function syncScreenshotMenuShareRetryUi() {
+  if (!screenshotMenuShareRetryEl) {
+    return;
+  }
+
+  const hasPendingShare = Boolean(exportManager?.hasPendingShare());
+  screenshotMenuShareRetryEl.classList.toggle("is-hidden", !hasPendingShare);
+  if (screenshotMenuShareRetryHintEl) {
+    screenshotMenuShareRetryHintEl.textContent = hasPendingShare
+      ? "Needed when browser requires a second explicit tap to share."
+      : "Shown when share needs a fresh tap.";
+  }
+  syncCameraButtonHighlight();
+}
+
+async function retryPendingShare() {
+  const outcome = await exportManager?.retryPendingShare();
+  if (outcome === "missing") {
+    showToast("No prepared screenshot waiting to share.");
+    return;
+  }
+  if (outcome === "shared") {
+    syncScreenshotMenuShareRetryUi();
+    closeScreenshotMenu();
+    showToast("Screenshot shared.");
+    return;
+  }
+  if (outcome === "cancelled") {
+    showToast("Share cancelled.");
+    return;
+  }
+  if (outcome && outcome.startsWith("error:")) {
+    showToast(`Share failed: ${outcome.slice(6)}`);
   }
 }
 
@@ -5465,19 +5069,19 @@ function registerHandlers() {
   screenshotMenuBackdropEl?.addEventListener("click", () => closeScreenshotMenu());
   screenshotMenuCleanEl?.addEventListener("click", async () => {
     closeScreenshotMenu();
-    await captureScreenshotAction("clean");
+    await exportManager.captureScreenshotAction("clean", { openScreenshotMenu, onShareRetryStateChange: syncScreenshotMenuShareRetryUi });
   });
   screenshotMenuOverlayOptionEl?.addEventListener("click", async () => {
     closeScreenshotMenu();
-    await captureScreenshotAction("overlay");
+    await exportManager.captureScreenshotAction("overlay", { openScreenshotMenu, onShareRetryStateChange: syncScreenshotMenuShareRetryUi });
   });
   screenshotMenu4kEl?.addEventListener("click", async () => {
     closeScreenshotMenu();
-    await captureScreenshotAction("4k");
+    await exportManager.captureScreenshotAction("4k");
   });
   screenshotMenu8kEl?.addEventListener("click", async () => {
     closeScreenshotMenu();
-    await captureScreenshotAction("8k");
+    await exportManager.captureScreenshotAction("8k");
   });
   screenshotMenuShareRetryEl?.addEventListener("click", async () => {
     await retryPendingShare();
