@@ -10,6 +10,7 @@ import {
 import { createHelpOverlay } from "./helpOverlay.js";
 import { clamp } from "./utils.js";
 import { initUIPanels } from "./uiPanels.js";
+import { initInterestOverlay } from "./interestOverlay.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
@@ -285,15 +286,6 @@ let lastRenderMeta = null;
 let lastFullRenderMeta = null;
 let lastDrawTimestamp = 0;
 let fpsEstimate = 0;
-let interestOverlayScanCache = null;
-let interestOverlayCalcInProgress = false;
-let interestOverlayCalcProgressPercent = 0;
-let interestOverlayShowProgressToast = false;
-let interestOverlayLastProgressToastPercent = -1;
-let interestOverlayRecalcTimer = null;
-let interestOverlayPendingPlan = null;
-let interestOverlayComputeSeq = 0;
-let interestOverlayActiveJobSeq = 0;
 let wasManualOverlayActive = false;
 let drawScheduled = false;
 let drawDirty = false;
@@ -1670,7 +1662,7 @@ function syncDetailedSettingsControls() {
   if (detailInterestLyapunovRescaleToggleEl) detailInterestLyapunovRescaleToggleEl.checked = interestLyapunovRescale;
   if (detailInterestLyapunovMaxDistanceRangeEl) detailInterestLyapunovMaxDistanceRangeEl.value = String(interestLyapunovMaxDistance);
   if (detailInterestLyapunovMaxDistanceFormattedEl) detailInterestLyapunovMaxDistanceFormattedEl.textContent = formatNumberForUi(interestLyapunovMaxDistance, 3);
-  syncInterestOverlayToggleUi();
+  interestOverlay.syncToggleUi();
   const holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
   const touchZoomDeadbandPx = getTouchZoomDeadbandPx();
   const touchZoomRatioMin = getTouchZoomRatioMin();
@@ -1818,7 +1810,7 @@ function applyInterestOverlayEnabled(nextValue) {
   requestDraw();
   showToast(`Interest overlay ${appData.defaults.interestOverlayEnabled ? "enabled" : "disabled"}.`);
   if (appData.defaults.interestOverlayEnabled) {
-    scheduleInterestOverlayRecalc({ immediate: true, showProgress: true });
+    interestOverlay.scheduleRecalc({ immediate: true, showProgress: true });
   }
   commitCurrentStateToHistory();
 }
@@ -2168,7 +2160,7 @@ function syncParamModeVisuals() {
     item.dataset.modAxis = modAxis;
   }
 
-  syncInterestOverlayToggleUi();
+  interestOverlay.syncToggleUi();
 }
 
 function normalizeLegacyModeValue(mode) {
@@ -4373,221 +4365,38 @@ function getInterestGridLayout(view, rawGridSize) {
   };
 }
 
-function buildInterestOverlayScanKey({ planeConfig, baseParams, lyapunovConfig, gridCols, gridRows, scanIterations }) {
-  const fixedParamKeys = ["a", "b", "c", "d"].filter((key) => {
-    if (planeConfig.mode === "two_axis") {
-      return key !== planeConfig.axisXParam && key !== planeConfig.axisYParam;
-    }
-    return key !== planeConfig.axisParam;
-  });
-
-  const fixedParams = Object.fromEntries(fixedParamKeys.map((key) => [key, Number(baseParams[key]) || 0]));
-
-  return JSON.stringify({
-    formulaId: currentFormulaId,
-    planeMode: planeConfig.mode,
-    axisXParam: planeConfig.axisXParam || null,
-    axisYParam: planeConfig.axisYParam || null,
-    axisParam: planeConfig.axisParam || null,
-    axisXRange: planeConfig.axisXRange || null,
-    axisYRange: planeConfig.axisYRange || null,
-    axisRange: planeConfig.axisRange || null,
-    gridCols,
-    gridRows,
-    scanIterations,
-    lyapunovConfig,
-    fixedParams,
-  });
-}
-
-function getInterestOverlayScanPlan(meta = null) {
-  if (!appData || !currentFormulaId) {
-    return null;
-  }
-  if (!Boolean(appData.defaults.interestOverlayEnabled) || !Boolean(appData.defaults.interestLyapunovEnabled) || !hasAnyManualTargets()) {
-    return null;
-  }
-
-  const planeConfig = getInterestPlaneConfig();
-  if (!planeConfig) {
-    return null;
-  }
-
-  const view = meta?.view || { width: Math.max(1, canvas.width), height: Math.max(1, canvas.height) };
-  const gridLayout = getInterestGridLayout(view, appData.defaults.interestGridSize);
-  const gridCols = gridLayout.cols;
-  const gridRows = gridLayout.rows;
-  const scanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
-  const lyapunovConfig = {
-    minExponent: clamp(Number(appData.defaults.interestLyapunovMinExponent), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX),
-    delta0: clamp(Number(appData.defaults.interestLyapunovDelta0), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX),
-    rescale: Boolean(appData.defaults.interestLyapunovRescale),
-    maxDistance: clamp(Number(appData.defaults.interestLyapunovMaxDistance), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX),
-  };
-  const baseParams = getDerivedParams();
-  const scanKey = buildInterestOverlayScanKey({
-    planeConfig,
-    baseParams,
-    lyapunovConfig,
-    gridCols,
-    gridRows,
-    scanIterations,
-  });
-
-  return { planeConfig, gridLayout, gridCols, gridRows, scanIterations, lyapunovConfig, baseParams, scanKey };
-}
-
-function scheduleInterestOverlayRecalc({ meta = null, immediate = false, showProgress = false } = {}) {
-  if (highResExportInProgress) {
-    return;
-  }
-
-  const plan = getInterestOverlayScanPlan(meta);
-  if (!plan) {
-    interestOverlayPendingPlan = null;
-    if (interestOverlayRecalcTimer) {
-      window.clearTimeout(interestOverlayRecalcTimer);
-      interestOverlayRecalcTimer = null;
-    }
-    return;
-  }
-
-  if (interestOverlayScanCache?.scanKey === plan.scanKey) {
-    return;
-  }
-
-  interestOverlayPendingPlan = plan;
-  if (showProgress) {
-    interestOverlayShowProgressToast = true;
-    interestOverlayLastProgressToastPercent = -1;
-  }
-
-  if (interestOverlayRecalcTimer) {
-    window.clearTimeout(interestOverlayRecalcTimer);
-    interestOverlayRecalcTimer = null;
-  }
-
-  const delayMs = immediate ? 0 : 220;
-  interestOverlayRecalcTimer = window.setTimeout(() => {
-    interestOverlayRecalcTimer = null;
-    void runInterestOverlayRecalc();
-  }, delayMs);
-}
-
-async function runInterestOverlayRecalc() {
-  if (interestOverlayCalcInProgress) {
-    return;
-  }
-
-  const plan = interestOverlayPendingPlan;
-  if (!plan || interestOverlayScanCache?.scanKey === plan.scanKey) {
-    return;
-  }
-
-  const jobSeq = ++interestOverlayComputeSeq;
-  interestOverlayActiveJobSeq = jobSeq;
-  interestOverlayCalcInProgress = true;
-  interestOverlayCalcProgressPercent = 0;
-  interestOverlayLastProgressToastPercent = -1;
-
-  try {
-    await new Promise((resolve) => window.setTimeout(resolve, 0));
-
-    const scanResult = classifyInterestGridLyapunov({
-      formulaId: currentFormulaId,
-      baseParams: plan.baseParams,
-      plane: plan.planeConfig,
-      gridCols: plan.gridCols,
-      gridRows: plan.gridRows,
-      iterations: plan.scanIterations,
-      lyapunov: plan.lyapunovConfig,
-      onProgress: (percent) => {
-        const nextPercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
-        interestOverlayCalcProgressPercent = nextPercent;
-        if (interestOverlayShowProgressToast && nextPercent !== interestOverlayLastProgressToastPercent) {
-          showToast(`Interest overlay calc ${nextPercent}%`);
-          interestOverlayLastProgressToastPercent = nextPercent;
-        }
-      },
-    });
-
-    if (jobSeq !== interestOverlayActiveJobSeq) {
-      return;
-    }
-
-    if (interestOverlayPendingPlan?.scanKey === plan.scanKey) {
-      interestOverlayScanCache = {
-        scanKey: plan.scanKey,
-        scanResult,
-        computedAt: performance.now(),
-        gridCols: plan.gridCols,
-        gridRows: plan.gridRows,
-      };
-      redrawInterestOverlayCanvas(lastRenderMeta);
-    }
-  } finally {
-    interestOverlayCalcInProgress = false;
-    if (interestOverlayShowProgressToast) {
-      showToast("Interest overlay calc 100%");
-      interestOverlayShowProgressToast = false;
-    }
-
-    if (interestOverlayPendingPlan && interestOverlayScanCache?.scanKey !== interestOverlayPendingPlan.scanKey) {
-      scheduleInterestOverlayRecalc({ immediate: true, showProgress: true });
-    }
-  }
-}
-
-function shouldShowInterestOverlay() {
-  return Boolean(appData?.defaults?.interestOverlayEnabled) && shouldShowManualOverlay() && hasAnyManualTargets();
-}
-
-function drawInterestOverlay(meta, targetCtx = ctx) {
-  if (!meta || !shouldShowInterestOverlay() || !Boolean(appData.defaults.interestLyapunovEnabled)) {
-    return;
-  }
-
-  const plan = getInterestOverlayScanPlan(meta);
-  if (!plan) {
-    return;
-  }
-
-  if (!interestOverlayScanCache || interestOverlayScanCache.scanKey !== plan.scanKey) {
-    return;
-  }
-
-  const scanResult = interestOverlayScanCache?.scanResult;
-  if (!scanResult || scanResult.gridCols !== plan.gridCols || scanResult.gridRows !== plan.gridRows || !Array.isArray(scanResult.highCells) || scanResult.highCells.length === 0) {
-    return;
-  }
-
-  const { cellSize, offsetX, offsetY } = plan.gridLayout;
-
-  const overlayOpacity = normalizeInterestOverlayOpacity(appData.defaults.interestOverlayOpacity);
-
-  targetCtx.save();
-  targetCtx.imageSmoothingEnabled = false;
-  targetCtx.fillStyle = `rgba(120, 200, 255, ${overlayOpacity})`;
-  for (const cellIndex of scanResult.highCells) {
-    const col = cellIndex % plan.gridCols;
-    const row = Math.floor(cellIndex / plan.gridCols);
-    const left = Math.round(offsetX + col * cellSize);
-    const right = Math.round(offsetX + (col + 1) * cellSize);
-    const top = Math.round(offsetY + row * cellSize);
-    const bottom = Math.round(offsetY + (row + 1) * cellSize);
-    targetCtx.fillRect(left, top, Math.max(1, right - left), Math.max(1, bottom - top));
-  }
-
-  targetCtx.restore();
-}
-
-function syncInterestOverlayToggleUi() {
-  const enabled = Boolean(appData?.defaults?.interestOverlayEnabled);
-  const hasManualTargets = hasAnyManualTargets();
-  overlayToggleBtn?.classList.toggle("is-disabled", !hasManualTargets);
-  overlayToggleBtn?.classList.toggle("is-active", enabled && hasManualTargets);
-  overlayToggleBtn?.setAttribute("aria-pressed", enabled && hasManualTargets ? "true" : "false");
-}
+const interestOverlay = initInterestOverlay({
+  classifyInterestGridLyapunov,
+  clamp,
+  getAppData: () => appData,
+  getCanvasSize: () => ({ width: Math.max(1, canvas.width), height: Math.max(1, canvas.height) }),
+  getCurrentFormulaId: () => currentFormulaId,
+  getDerivedParams,
+  getInterestGridLayout,
+  getInterestPlaneConfig,
+  getLastRenderMeta: () => lastRenderMeta,
+  getOverlayContext: () => interestOverlayCtx,
+  getOverlayCanvas: () => interestOverlayCanvas,
+  hasAnyManualTargets,
+  isHighResExportInProgress: () => highResExportInProgress,
+  normalizeInterestOverlayOpacity,
+  overlayToggleBtn,
+  redrawOverlayCanvas: () => redrawInterestOverlayCanvas(lastRenderMeta),
+  shouldShowManualOverlay,
+  showToast,
+  windowObject: window,
+  performanceObject: performance,
+  interestConfig: {
+    scanIterationsMin: INTEREST_SCAN_ITERATIONS_MIN,
+    scanIterationsMax: INTEREST_SCAN_ITERATIONS_MAX,
+    lyapunovMinExponentMin: INTEREST_LYAPUNOV_MIN_EXPONENT_MIN,
+    lyapunovMinExponentMax: INTEREST_LYAPUNOV_MIN_EXPONENT_MAX,
+    lyapunovDelta0Min: INTEREST_LYAPUNOV_DELTA0_MIN,
+    lyapunovDelta0Max: INTEREST_LYAPUNOV_DELTA0_MAX,
+    lyapunovMaxDistanceMin: INTEREST_LYAPUNOV_MAX_DISTANCE_MIN,
+    lyapunovMaxDistanceMax: INTEREST_LYAPUNOV_MAX_DISTANCE_MAX,
+  },
+});
 
 function drawManualParamOverlay(meta, targetCtx = ctx) {
   if (!meta || !shouldShowManualOverlay()) {
@@ -4747,11 +4556,7 @@ function clearOverlayCanvas(targetCanvas, targetCtx) {
 }
 
 function redrawInterestOverlayCanvas(meta = lastRenderMeta) {
-  clearOverlayCanvas(interestOverlayCanvas, interestOverlayCtx);
-  if (!meta || !interestOverlayCtx) {
-    return;
-  }
-  drawInterestOverlay(meta, interestOverlayCtx);
+  interestOverlay.redrawOverlay(meta);
 }
 
 function redrawManualOverlayCanvas(meta = lastRenderMeta) {
@@ -5069,9 +4874,8 @@ async function draw() {
   };
 
   const manualOverlayActive = shouldShowManualOverlay();
-  if (manualOverlayActive && !wasManualOverlayActive && interestOverlayCalcInProgress) {
-    interestOverlayShowProgressToast = true;
-    interestOverlayLastProgressToastPercent = -1;
+  if (manualOverlayActive && !wasManualOverlayActive && interestOverlay.isCalcInProgress()) {
+    interestOverlay.enableProgressToast();
   }
   wasManualOverlayActive = manualOverlayActive;
 
@@ -5081,8 +4885,8 @@ async function draw() {
   syncDetailedSettingsControls();
   layoutFloatingActions();
 
-  if (shouldShowInterestOverlay()) {
-    scheduleInterestOverlayRecalc({ meta: lastRenderMeta, immediate: false, showProgress: true });
+  if (interestOverlay.shouldShowInterestOverlay()) {
+    interestOverlay.scheduleRecalc({ meta: lastRenderMeta, immediate: false, showProgress: true });
   }
 
 }
