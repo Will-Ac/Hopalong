@@ -1,4 +1,5 @@
 import { HELP_GROUP_BRACKETS, HELP_OVERLAY_GROUPS } from "./helpOverlayConfig.js";
+import { clamp } from "./utils.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -116,9 +117,6 @@ const HELP_CONTEXT_PANEL_SELECTORS = {
   settingsPanel: "#rangesEditorPanel",
 };
 
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
 
 function unionRects(rects) {
   const valid = rects.filter(Boolean);
