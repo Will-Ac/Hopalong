@@ -112,3 +112,15 @@ If a PR seems to have broken the app:
 5. Compare the changed files against the intended PR scope.
 6. Fix forward on the open PR when that is practical.
 7. Revert only if a safe forward fix is not realistic.
+
+## Linting (optional but recommended)
+
+- Run:
+  npm install
+  npm run lint
+
+- Purpose:
+  catch syntax errors early (like invalid destructuring or missing variables)
+
+- Note:
+  linting is advisory and does not affect runtime
