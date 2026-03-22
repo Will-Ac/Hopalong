@@ -9,6 +9,7 @@ import {
 } from "./formulas.js";
 import { createHelpOverlay } from "./helpOverlay.js";
 import { clamp } from "./utils.js";
+import { initUIPanels } from "./uiPanels.js";
 
 const DATA_PATH = "./data/hopalong_data.json";
 const DEFAULTS_PATH = "./data/defaults.json";
@@ -279,7 +280,6 @@ let activeColorSettingsMap = null;
 let activePickerTrigger = null;
 let activeInfoAnchorEl = null;
 let activeInfoPanelEl = null;
-let activeColourPanelSettings = "mode";
 let holdInterval = null;
 let lastRenderMeta = null;
 let lastFullRenderMeta = null;
@@ -311,6 +311,20 @@ let lastComputedUiMetrics = { fontSize: null, tileSize: null };
 let lastSizingViewport = { width: 0, height: 0 };
 let lastQuickSliderTopTapAt = 0;
 let helpOverlayController = null;
+let openRangesEditor;
+let closeRangesEditor;
+let openFormulaSettingsPanel;
+let closeFormulaSettingsPanel;
+let openColorSettingsPanel;
+let closeColorSettingsPanel;
+let openModeSettingsPanel;
+let closeModeSettingsPanel;
+let closeDismissablePanelsForTarget;
+let layoutFormulaSettingsPanel;
+let layoutColorSettingsPanel;
+let layoutModeSettingsPanel;
+let isPanelOpen;
+let getActiveColourPanelSettings;
 
 const HOLD_REPEAT_MS_DEFAULT = 60;
 const HOLD_REPEAT_MS_MIN = 20;
@@ -1575,99 +1589,6 @@ function resetAllFormulaSeeds() {
 function resetAllFormulaParamDefaults() {
   appData.defaults.formulaParamDefaultsByFormula = {};
 }
-
-function openRangesEditor() {
-  if (!rangesEditorPanelEl) {
-    return;
-  }
-
-  closeFormulaSettingsPanel();
-  closeColorSettingsPanel();
-  closeModeSettingsPanel();
-  rangesEditorPanelEl.classList.remove("is-hidden");
-  rangesEditorToggleEl?.classList.add("is-active");
-  rangesEditorToggleEl?.setAttribute("aria-pressed", "true");
-  syncDetailedSettingsControls();
-  hideSettingsInfo();
-  helpOverlayController?.render();
-}
-
-function closeRangesEditor() {
-  rangesEditorPanelEl?.classList.add("is-hidden");
-  rangesEditorToggleEl?.classList.remove("is-active");
-  rangesEditorToggleEl?.setAttribute("aria-pressed", "false");
-  hideSettingsInfo();
-  helpOverlayController?.render();
-}
-
-function openFormulaSettingsPanel(formulaId = null) {
-  if (!formulaSettingsPanelEl) {
-    return;
-  }
-
-  closeRangesEditor();
-  closeColorSettingsPanel();
-  closeModeSettingsPanel();
-  formulaSettingsPanelEl.classList.remove("is-hidden");
-  const targetFormulaId = formulaId || getSelectedRangesEditorFormulaId();
-  loadFormulaRangesIntoEditor(targetFormulaId);
-  syncSeedEditorInputs(targetFormulaId);
-  layoutFormulaSettingsPanel();
-  helpOverlayController?.render();
-}
-
-function closeFormulaSettingsPanel() {
-  formulaSettingsPanelEl?.classList.add("is-hidden");
-  helpOverlayController?.render();
-}
-
-function syncColourPanelSettingsSections() {
-  backgroundSettingsSectionEl?.classList.toggle("is-hidden", activeColourPanelSettings !== "background");
-  for (const sectionEl of modeSettingsSectionEls) {
-    sectionEl.classList.toggle("is-hidden", activeColourPanelSettings !== "mode");
-  }
-}
-
-function openModeSettingsPanel(sectionKey = "mode") {
-  if (!modeSettingsPanelEl) {
-    return;
-  }
-
-  activeColourPanelSettings = sectionKey;
-  syncColourPanelSettingsSections();
-  modeSettingsPanelEl.classList.remove("is-hidden");
-  layoutModeSettingsPanel();
-  helpOverlayController?.render();
-}
-
-function closeModeSettingsPanel() {
-  modeSettingsPanelEl?.classList.add("is-hidden");
-  helpOverlayController?.render();
-}
-
-function isPanelOpen(panelEl) {
-  return Boolean(panelEl && !panelEl.classList.contains("is-hidden"));
-}
-
-function closeDismissablePanelsForTarget(target) {
-  if (!(target instanceof Element)) {
-    return;
-  }
-
-  if (isPanelOpen(modeSettingsPanelEl) && !target.closest("#modeSettingsPanel, #pickerModeSettingsProxy, #pickerBackgroundSettingsProxy, #settingsInfoPopup")) {
-    closeModeSettingsPanel();
-  }
-  if (isPanelOpen(colorSettingsPanelEl) && !target.closest("#colorSettingsPanel, #pickerOverlay, #settingsInfoPopup")) {
-    closeColorSettingsPanel();
-  }
-  if (isPanelOpen(formulaSettingsPanelEl) && !target.closest("#formulaSettingsPanel, #pickerOverlay")) {
-    closeFormulaSettingsPanel();
-  }
-  if (isPanelOpen(rangesEditorPanelEl) && !target.closest("#rangesEditorPanel, #rangesEditorToggle, #settingsInfoPopup")) {
-    closeRangesEditor();
-  }
-}
-
 
 function getHoldTimingSettings() {
   const holdRepeatMs = Math.round(clamp(Number(appData?.defaults?.holdRepeatMs ?? HOLD_REPEAT_MS_DEFAULT), HOLD_REPEAT_MS_MIN, HOLD_REPEAT_MS_MAX));
@@ -3467,62 +3388,6 @@ function layoutPickerPanel() {
   helpOverlayController?.scheduleRender();
 }
 
-function layoutFormulaSettingsPanel() {
-  if (!formulaSettingsPanelEl || formulaSettingsPanelEl.classList.contains("is-hidden")) {
-    return;
-  }
-
-  const margin = 8;
-  const viewportWidth = window.innerWidth;
-  const pickerRect = pickerPanel?.getBoundingClientRect();
-  const panelWidth = formulaSettingsPanelEl.getBoundingClientRect().width || Math.min(380, viewportWidth - margin * 2);
-  const targetLeft = pickerRect
-    ? Math.max(margin, pickerRect.left - panelWidth - 8)
-    : margin;
-  formulaSettingsPanelEl.style.left = `${Math.round(Math.min(targetLeft, viewportWidth - panelWidth - margin))}px`;
-  formulaSettingsPanelEl.style.right = "auto";
-  helpOverlayController?.scheduleRender();
-}
-
-
-function layoutColorSettingsPanel() {
-  if (!colorSettingsPanelEl || colorSettingsPanelEl.classList.contains("is-hidden")) {
-    return;
-  }
-
-  const margin = 8;
-  const viewportWidth = window.innerWidth;
-  const pickerRect = pickerPanel?.getBoundingClientRect();
-  const panelWidth = colorSettingsPanelEl.getBoundingClientRect().width || Math.min(380, viewportWidth - margin * 2);
-  const targetLeft = pickerRect
-    ? Math.max(margin, pickerRect.left - panelWidth - 8)
-    : margin;
-  colorSettingsPanelEl.style.left = `${Math.round(Math.min(targetLeft, viewportWidth - panelWidth - margin))}px`;
-  colorSettingsPanelEl.style.right = "auto";
-  helpOverlayController?.scheduleRender();
-}
-
-function layoutModeSettingsPanel() {
-  if (!modeSettingsPanelEl || modeSettingsPanelEl.classList.contains("is-hidden")) {
-    return;
-  }
-
-  const margin = 8;
-  const viewportWidth = window.innerWidth;
-  const anchorId = activeColourPanelSettings === "background"
-    ? "pickerBackgroundSettingsProxy"
-    : "pickerModeSettingsProxy";
-  const anchorRect = document.getElementById(anchorId)?.getBoundingClientRect();
-  const parentRect = anchorRect ? pickerPanel?.getBoundingClientRect() : colorSettingsPanelEl?.getBoundingClientRect();
-  const panelWidth = modeSettingsPanelEl.getBoundingClientRect().width || Math.min(380, viewportWidth - margin * 2);
-  const targetLeft = parentRect && anchorRect
-    ? Math.max(margin, parentRect.left - panelWidth - 8)
-    : margin;
-  modeSettingsPanelEl.style.left = `${Math.round(Math.min(targetLeft, viewportWidth - panelWidth - margin))}px`;
-  modeSettingsPanelEl.style.right = "auto";
-  modeSettingsPanelEl.style.top = parentRect ? `${Math.round(parentRect.top)}px` : `${margin}px`;
-}
-
 function renderFormulaPicker() {
   if (pickerTopControls) {
     pickerTopControls.innerHTML = "";
@@ -3647,7 +3512,7 @@ function renderColorMapPicker() {
   backgroundSettingsBtn?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    if (isPanelOpen(modeSettingsPanelEl) && activeColourPanelSettings === "background") {
+    if (isPanelOpen(modeSettingsPanelEl) && getActiveColourPanelSettings() === "background") {
       closeModeSettingsPanel();
     } else {
       openModeSettingsPanel("background");
@@ -3656,7 +3521,7 @@ function renderColorMapPicker() {
   modeSettingsBtn?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    if (isPanelOpen(modeSettingsPanelEl) && activeColourPanelSettings === "mode") {
+    if (isPanelOpen(modeSettingsPanelEl) && getActiveColourPanelSettings() === "mode") {
       closeModeSettingsPanel();
     } else {
       openModeSettingsPanel("mode");
@@ -3809,25 +3674,51 @@ function renderColorStopsEditor() {
   });
 }
 
-function openColorSettingsPanel(cmapName) {
-  activeColorSettingsMap = cmapName;
-  colorSettingsNameEl.textContent = cmapName;
-  colorSettingsPreviewEl.style.background = buildColorMapGradient(cmapName);
-  closeRangesEditor();
-  closeFormulaSettingsPanel();
-  colorSettingsPanelEl.classList.remove("is-hidden");
-  renderColorStopsEditor();
-  layoutColorSettingsPanel();
-  helpOverlayController?.render();
-}
+({
+  openRangesEditor,
+  closeRangesEditor,
+  openFormulaSettingsPanel,
+  closeFormulaSettingsPanel,
+  openColorSettingsPanel,
+  closeColorSettingsPanel,
+  openModeSettingsPanel,
+  closeModeSettingsPanel,
+  closeDismissablePanelsForTarget,
+  layoutFormulaSettingsPanel,
+  layoutColorSettingsPanel,
+  layoutModeSettingsPanel,
+  isPanelOpen,
+  getActiveColourPanelSettings,
+} = initUIPanels({
+  rangesEditorPanelEl,
+  rangesEditorToggleEl,
+  formulaSettingsPanelEl,
+  colorSettingsPanelEl,
+  modeSettingsPanelEl,
+  backgroundSettingsSectionEl,
+  modeSettingsSectionEls,
+  pickerPanel,
+  renderHelpOverlay: () => helpOverlayController?.render(),
+  scheduleHelpOverlayRender: () => helpOverlayController?.scheduleRender(),
+  syncDetailedSettingsControls,
+  hideSettingsInfo,
+  getSelectedRangesEditorFormulaId,
+  loadFormulaRangesIntoEditor,
+  syncSeedEditorInputs,
+  setActiveColorSettingsMap: (value) => {
+    activeColorSettingsMap = value;
+  },
+  setColorSettingsName: (value) => {
+    colorSettingsNameEl.textContent = value;
+  },
+  setColorSettingsPreview: (value) => {
+    colorSettingsPreviewEl.style.background = value;
+  },
+  buildColorMapGradient,
+  renderColorStopsEditor,
+  saveDefaultsToStorage,
+}));
 
-function closeColorSettingsPanel() {
-  closeModeSettingsPanel();
-  activeColorSettingsMap = null;
-  colorSettingsPanelEl?.classList.add("is-hidden");
-  saveDefaultsToStorage();
-  helpOverlayController?.render();
-}
 function openPicker(kind, triggerEl) {
   activePicker = kind;
   activePickerTrigger = triggerEl;
