@@ -18,7 +18,6 @@ const manualOverlayCanvas = document.getElementById("manualOverlayCanvas");
 const toastEl = document.getElementById("toast");
 const formulaBtn = document.getElementById("formulaBtn");
 const cmapBtn = document.getElementById("cmapBtn");
-const debugBugBtn = document.getElementById("debugBugBtn");
 const debugInfoEl = document.getElementById("debugInfo");
 const debugPanelEl = document.getElementById("debugPanel");
 const rangesEditorToggleEl = document.getElementById("rangesEditorToggle");
@@ -34,10 +33,6 @@ const rangesFormulaNameEl = document.getElementById("rangesFormulaName");
 const rangesEditorWarningEl = document.getElementById("rangesEditorWarning");
 const formulaSettingsApplyEl = document.getElementById("formulaSettingsApply");
 const formulaSettingsResetEl = document.getElementById("formulaSettingsReset");
-const settingsTabColorEl = document.getElementById("settingsTabColor");
-const settingsTabGeneralEl = document.getElementById("settingsTabGeneral");
-const colorTabPanelEl = document.getElementById("colorTabPanel");
-const generalTabPanelEl = document.getElementById("generalTabPanel");
 const detailStartupIterationsRangeEl = document.getElementById("detailStartupIterationsRange");
 const detailStartupIterationsFormattedEl = document.getElementById("detailStartupIterationsFormatted");
 const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomItersRange");
@@ -1255,23 +1250,6 @@ function configureNameBoxWidths() {
 
 function layoutFloatingActions() {
   applyResponsiveUiSizing();
-
-  if (!debugBugBtn || !debugPanelEl || !paramOverlayEl) {
-    return;
-  }
-
-  const appRect = paramOverlayEl.parentElement?.getBoundingClientRect();
-  const bugRect = debugBugBtn.getBoundingClientRect();
-  if (!appRect) {
-    return;
-  }
-
-  const margin = 6;
-  const maxLeft = Math.max(0, appRect.width - debugPanelEl.offsetWidth - margin);
-  const nextLeft = clamp(bugRect.left - appRect.left, 0, maxLeft);
-  const nextTop = bugRect.bottom - appRect.top + margin;
-  debugPanelEl.style.left = `${Math.round(nextLeft)}px`;
-  debugPanelEl.style.top = `${Math.round(nextTop)}px`;
 }
 
 function collectUiTextLines() {
@@ -2160,7 +2138,6 @@ function syncRandomModeButton() {
 function syncDebugToggleUi() {
   const isDebug = Boolean(appData?.defaults?.debug);
   debugPanelEl?.classList.toggle("is-hidden", !isDebug);
-  debugBugBtn?.classList.toggle("is-active", isDebug);
   if (detailDebugToggleEl) {
     detailDebugToggleEl.checked = isDebug;
   }
