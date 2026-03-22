@@ -1,0 +1,185 @@
+# Architecture
+
+## 1. Overview
+
+Hopalong is a browser-based renderer for Hopalong-style attractors. The app lets the user pick a formula, adjust parameters, render the result to a canvas, add overlay information, and export or share the current view.
+
+High-level flow:
+
+1. User input changes a control, picker, or gesture.
+2. `js/main.js` updates grouped state and saved defaults.
+3. The renderer builds a new frame on the main canvas.
+4. Overlay modules draw interest/manual guidance on top.
+5. Export and history modules save, share, or restore the current setup.
+
+In practical terms, `main.js` owns the application lifecycle, while the other modules handle one focused job each.
+
+## 2. Module structure
+
+### `js/main.js`
+- Central orchestrator for the whole app.
+- Owns app startup, DOM wiring, input handlers, persistence, and render scheduling.
+- Groups mutable state into `renderState`, `uiState`, `overlayState`, `exportState`, and `historyStateRef`.
+- Calls into renderer, overlays, export, help, history, and panel modules.
+- Keeps the overall flow consistent: read defaults, react to UI, request draw, refresh overlays, then save/share state when needed.
+
+### `js/uiPanels.js`
+- Handles opening and closing of settings-style panels.
+- Manages panel layout beside the picker panel.
+- Closes panels when the user taps outside the active panel.
+- Keeps panel-specific UI concerns out of `main.js`.
+
+### `js/helpOverlay.js`
+- Renders the guided help overlay that points at key controls.
+- Computes label placement and connector lines.
+- Includes collision-aware placement helpers so labels and arrows stay readable.
+- Re-renders when panel layout or viewport position changes.
+
+### `js/renderer.js`
+- Implements the rendering pipeline for the attractor image.
+- Converts normalized slider settings into formula parameters.
+- Iterates the selected attractor formula to generate samples.
+- Builds the image, applies colour mapping, and returns view/world metadata for later overlays and exports.
+- Also exposes Lyapunov-based grid classification used by the interest overlay.
+
+### `js/interestOverlay.js`
+- Computes the interest overlay on a secondary canvas.
+- Schedules scans after relevant state changes instead of recalculating on every small event.
+- Caches scan results by a derived scan key.
+- Draws highlighted grid cells over the rendered image.
+
+### `js/exportManager.js`
+- Handles image export and sharing.
+- Builds clean screenshots, overlay screenshots, and fixed high-resolution outputs.
+- Reuses cached render data when possible.
+- Adds metadata overlays and QR/share payload support for exported PNGs.
+
+### `js/historyState.js`
+- Maintains the history stack for interactive navigation.
+- Stores snapshots of app state and supports backward/forward movement.
+- Builds share URLs from the current state.
+- Restores app state from history entries or shared URL payloads.
+
+### `js/utils.js`
+- Holds small shared helpers.
+- Currently provides clamp helpers reused across modules.
+- Keeps common math utilities in one place.
+
+### `js/colormaps.js`
+- Defines built-in colour maps and editable stop sets.
+- Samples colours for rendering.
+- Stores runtime overrides for user-edited colour stops.
+- Normalizes map names and exposes helpers for reading/writing colour stop data.
+
+## 3. State organisation
+
+`main.js` keeps most mutable state in a few grouped objects so the rest of the code can pass focused getters and callbacks into helper modules.
+
+### `renderState`
+Contains rendering and view data, including:
+- latest render metadata
+- render scheduling flags
+- render progress UI timing
+- render revision/generation counters
+- cached rendered frames
+- fixed-view pan/zoom state
+
+Read/write use:
+- Written mainly by `main.js` during draw scheduling, pan/zoom, and render completion.
+- Read by `exportManager`, `interestOverlay`, manual overlay drawing, and history restore logic.
+
+### `uiState`
+Contains interface-only state, including:
+- active slider/picker/panel tracking
+- help overlay controller
+- transient tap/hold state
+- info popup anchors
+- last computed layout metrics
+- panel control methods returned from `uiPanels.js`
+
+Read/write use:
+- Written mostly by `main.js` event handlers and `uiPanels.js` setup.
+- Read by help overlay rendering, picker/panel layout, and input handling.
+
+### `overlayState`
+Contains live interaction and overlay-related gesture state, including:
+- pointer tracking
+- current interaction mode
+- two-finger gesture details
+- manual modulation flags
+- history-tap suppression and tracking
+
+Read/write use:
+- Written by pointer and gesture handlers in `main.js`.
+- Read when deciding whether to modulate, pan/zoom, show overlays, or delay history actions.
+
+### `exportState`
+Contains export subsystem references.
+- Currently holds the export manager instance created by `initExportManager()`.
+
+Read/write use:
+- Written once during startup wiring in `main.js`.
+- Read whenever the app needs screenshot/export behaviour or needs to know whether a high-res export is in progress.
+
+### `historyStateRef`
+Contains history-related shared references, including:
+- render cache entries tied to history states
+- temporary shared-parameter overrides loaded from URL state
+- formula id tied to those shared parameters
+
+Read/write use:
+- Written by history commit/restore flows in `main.js` and `historyState.js` callbacks.
+- Read during restore, share loading, and cache reuse.
+
+## 4. Data flow
+
+### Render loop
+1. A control change, gesture, resize, or restore action calls `requestDraw()`.
+2. `main.js` marks the frame dirty and schedules one draw pass.
+3. The draw pass gathers formula, parameter, colour, seed, and view data.
+4. `renderer.renderFrame()` generates the attractor image and returns metadata.
+5. `main.js` updates render caches and metadata.
+6. Overlay canvases are redrawn using the latest render metadata.
+
+### Parameter changes
+1. User changes a slider, quick slider, picker, or parameter mode.
+2. `main.js` updates `appData.defaults` and related grouped state.
+3. Defaults are persisted to storage when appropriate.
+4. A new draw is requested.
+5. The resulting state may also be committed to history.
+
+### Overlay recalculation
+1. After a render or relevant setting change, `main.js` asks the interest overlay module to recalculate.
+2. `interestOverlay.js` builds a scan plan from the current formula, parameter plane, grid size, and Lyapunov settings.
+3. If the plan changed, it schedules a scan job.
+4. The scan result is cached and then drawn on the overlay canvas.
+5. Manual overlay drawing is handled separately in `main.js`, but both overlays use the latest render metadata.
+
+### Export flow
+1. The user requests a clean, overlay, 4K, or 8K capture.
+2. `main.js` delegates to `exportManager`.
+3. `exportManager` reads current render/view state through getters passed at startup.
+4. It reuses cached render data or renders to an export-sized canvas when needed.
+5. The manager saves or shares a PNG, optionally with metadata overlay content.
+
+### History / URL update
+1. `main.js` captures the current logical state after important user actions.
+2. `historyState.js` pushes it onto the bounded history stack.
+3. When sharing, `historyState.js` serializes formula, colour map, params, iterations, and view into the URL hash.
+4. On startup, the app checks for a shared hash and applies it before the first render.
+5. Moving backward or forward restores the saved state through `applyState()` callbacks supplied by `main.js`.
+
+## 5. Startup sequence
+
+1. Load bundled JSON data from `data/hopalong_data.json` and `data/defaults.json`.
+2. Normalize defaults, ranges, colour settings, interaction settings, and iteration limits.
+3. Load local storage overrides on top of the bundled defaults.
+4. Apply theme-related defaults such as background colour and dialog transparency.
+5. Build formula metadata, colormap availability, and seed/range structures.
+6. Initialize module instances for history, export, interest overlay, UI panels, and help overlay.
+7. Attach event handlers for buttons, pointers, keyboard input, resize, and panel interactions.
+8. Resolve initial formula and colour map.
+9. Apply shared URL state if a `#s=` payload is present.
+10. Commit the initial state to history.
+11. Request the first render.
+12. Show a startup toast once the app is ready.
