@@ -183,7 +183,7 @@ Manual overlay drawing is still handled separately in `main.js`, but both overla
 3. `exportManager` reads current render/view state through getters passed at startup.
 4. It reuses cached render data or renders to an export-sized canvas when needed.
 5. The manager saves or shares a PNG, optionally with metadata overlay content.
-6. The share dialog can also display an inline QR code, generated from the same share URL used by the share action.
+6. The share dialog can also display an inline QR code, generated from the same share URL used by the share action, and can attach a lightweight thumbnail from the current visible canvas when the platform supports file sharing.
 
 ### History / URL update
 1. `main.js` captures the current logical state after important user actions.

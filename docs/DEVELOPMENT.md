@@ -29,7 +29,7 @@ Startup parameter values for `a`–`d` are derived from formula defaults rather 
 
 Shared URLs are consumed on load and then removed from the address bar.
 
-Share dialog uses the Web Share API where supported to open the native system share sheet. If unavailable, it falls back to copying the link to the clipboard. The QR code and share action both use the same generated URL.
+Share dialog uses the Web Share API where supported. When file sharing is supported, it shares both the generated URL and a thumbnail of the current visible pattern. If file sharing is not supported, it falls back to URL-only sharing. If the Web Share API is unavailable, it falls back to copying the link to the clipboard. The QR code and share action both use the same generated URL.
 
 ## 3. Common pitfalls
 

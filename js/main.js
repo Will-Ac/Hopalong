@@ -4563,14 +4563,40 @@ function drawManualParamOverlay(meta, targetCtx = ctx) {
 
 async function shareLink() {
   const url = buildShareUrl();
+  const shareDataBase = {
+    title: "Hopalong Pattern",
+    text: "Check out this pattern",
+    url,
+  };
+  let thumbnailFile = null;
+
+  try {
+    thumbnailFile = await buildShareThumbnailFile();
+  } catch (error) {
+    console.warn("Failed to build share thumbnail.", error);
+  }
+
+  if (navigator.share && navigator.canShare && thumbnailFile) {
+    const shareDataWithFile = {
+      ...shareDataBase,
+      files: [thumbnailFile],
+    };
+
+    if (navigator.canShare(shareDataWithFile)) {
+      try {
+        await navigator.share(shareDataWithFile);
+        return;
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return;
+        }
+      }
+    }
+  }
 
   if (navigator.share) {
     try {
-      await navigator.share({
-        title: "Hopalong Pattern",
-        text: "Check out this pattern",
-        url,
-      });
+      await navigator.share(shareDataBase);
       return;
     } catch (error) {
       if (error?.name === "AbortError") {
@@ -4585,6 +4611,35 @@ async function shareLink() {
   } catch (error) {
     showToast("Unable to share link");
   }
+}
+
+async function buildShareThumbnailFile() {
+  if (typeof File !== "function" || !canvas) {
+    return null;
+  }
+
+  const sourceWidth = Math.max(1, canvas.width);
+  const sourceHeight = Math.max(1, canvas.height);
+  const maxDimension = 512;
+  const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+  const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+  const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+  const thumbnailCanvas = document.createElement("canvas");
+  thumbnailCanvas.width = targetWidth;
+  thumbnailCanvas.height = targetHeight;
+  const thumbnailCtx = thumbnailCanvas.getContext("2d", { alpha: false });
+  if (!thumbnailCtx) {
+    return null;
+  }
+
+  thumbnailCtx.drawImage(canvas, 0, 0, sourceWidth, sourceHeight, 0, 0, targetWidth, targetHeight);
+
+  const blob = await new Promise((resolve) => thumbnailCanvas.toBlob(resolve, "image/png"));
+  if (!blob) {
+    return null;
+  }
+
+  return new File([blob], "hopalong-share.png", { type: "image/png" });
 }
 
 function clearOverlayCanvas(targetCanvas, targetCtx) {
