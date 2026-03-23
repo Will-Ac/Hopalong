@@ -226,10 +226,12 @@ Manual overlay drawing is still handled separately in `main.js`, but both overla
 
 ## Runtime source of truth
 
+The project no longer uses a separate spec directory. Architecture is defined by source modules (`js/`) and documentation (`docs/`).
+
 - `js/formulas.js` is the formula source of truth shipped with the app.
 - `js/colormaps.js` is the colormap source of truth shipped with the app.
 - `data/defaults.json` contains bundled user-default values only.
 - The application no longer depends on `hopalong_data.json`.
-- Docs and spec-style files are for humans only; they are not runtime inputs.
+- Documentation is for humans only; it is not a runtime input.
 - The version badge is only a visible build/version check for reviewers and testers. It sits at the top-left of the UI.
 - A query-string cache buster such as `?v=XYZ` can force a fresh browser fetch, but it does not change app logic.
