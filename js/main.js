@@ -925,6 +925,19 @@ function applyFormulaPresetToSliders(formulaId) {
   return true;
 }
 
+function applyFormulaDefaults(formulaId) {
+  if (!formulaId || !appData?.defaults) {
+    return false;
+  }
+
+  const appliedPreset = applyFormulaPresetToSliders(formulaId);
+  appData.defaults.formulaSeeds = {
+    ...(appData.defaults.formulaSeeds || {}),
+    [formulaId]: getBuiltInFormulaSeed(formulaId),
+  };
+  return appliedPreset;
+}
+
 function findFormulaMeta(formulaId) {
   return appData?.formulas?.find((formula) => formula.id === formulaId) || null;
 }
@@ -2290,13 +2303,18 @@ function loadDefaultsFromStorage() {
   try {
     const raw = window.localStorage.getItem(APP_DEFAULTS_STORAGE_KEY);
     if (!raw) {
-      return;
+      return { hasRestoredState: false };
     }
 
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") {
-      return;
+      return { hasRestoredState: false };
     }
+
+    const restoredSliderState = parsed.sliders && ["a", "b", "c", "d"].some((key) => Number.isFinite(Number(parsed.sliders[key])));
+    const restoredFormulaState = Boolean(parsed.formulaId)
+      || restoredSliderState
+      || (parsed.formulaSeeds && Object.keys(parsed.formulaSeeds).length > 0);
 
     appData.defaults = {
       ...appData.defaults,
@@ -2322,8 +2340,11 @@ function loadDefaultsFromStorage() {
         ...(parsed.formulaParamDefaultsByFormula || {}),
       },
     };
+
+    return { hasRestoredState: restoredFormulaState };
   } catch (error) {
     console.warn("Could not load defaults.", error);
+    return { hasRestoredState: false };
   }
 }
 
@@ -5400,7 +5421,7 @@ function bootstrap() {
     installGlobalZoomBlockers();
     appData = loadData();
     builtInFormulaRanges = appData.formula_ranges_raw || {};
-    loadDefaultsFromStorage();
+    const { hasRestoredState = false } = loadDefaultsFromStorage() || {};
     normalizeIterationSettings();
     normalizeSliderDefaults();
     appData.defaults.backgroundColor = typeof appData.defaults.backgroundColor === "string" ? appData.defaults.backgroundColor : "#05070c";
@@ -5437,6 +5458,12 @@ function bootstrap() {
 
     currentFormulaId = resolveInitialFormulaId();
     appData.defaults.cmapName = resolveInitialColorMap();
+    const urlHasParams = window.location.hash.includes("#s=");
+    const hasExternalState = urlHasParams || hasRestoredState;
+    if (!hasExternalState) {
+      applyFormulaDefaults(currentFormulaId);
+      normalizeSliderDefaults();
+    }
     const loadedSharedState = applySharedStateFromHash();
     configureNameBoxWidths();
     updateCurrentPickerSelection();

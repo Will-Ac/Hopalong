@@ -2,10 +2,6 @@
   "cmapName": "Turbo",
   "scaleMode": "auto",
   "sliders": {
-    "a": 50.0,
-    "b": 50.0,
-    "c": 50.0,
-    "d": 50.0,
     "iters": 500000.0,
     "burn": 120.0
   },
