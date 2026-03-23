@@ -193,18 +193,19 @@ Manual overlay drawing is still handled separately in `main.js`, but both overla
 
 ## 5. Startup sequence
 
-1. Load bundled JSON data from `data/hopalong_data.json` and `data/defaults.json`.
-2. Normalize defaults, ranges, colour settings, interaction settings, and iteration limits.
-3. Load local storage overrides on top of the bundled defaults.
-4. Apply theme-related defaults such as background colour and dialog transparency.
-5. Build formula metadata, colormap availability, and seed/range structures.
-6. Initialize module instances for history, export, interest overlay, UI panels, and help overlay.
-7. Attach event handlers for buttons, pointers, keyboard input, resize, and panel interactions.
-8. Resolve initial formula and colour map.
-9. Apply shared URL state if a `#s=` payload is present.
-10. Commit the initial state to history.
-11. Request the first render.
-12. Show a startup toast once the app is ready.
+1. Load bundled defaults from `data/defaults.json` and clone them into app state.
+2. Read formula metadata, ranges, presets, seeds, and UI equations from `js/formulas.js`.
+3. Read available colour maps from `js/colormaps.js`.
+4. Normalize defaults, ranges, colour settings, interaction settings, and iteration limits.
+5. Load local storage overrides on top of the bundled defaults.
+6. Apply theme-related defaults such as background colour and dialog transparency.
+7. Initialize module instances for history, export, interest overlay, UI panels, and help overlay.
+8. Attach event handlers for buttons, pointers, keyboard input, resize, and panel interactions.
+9. Resolve initial formula and colour map.
+10. Apply shared URL state if a `#s=` payload is present.
+11. Commit the initial state to history.
+12. Request the first render.
+13. Show a startup toast once the app is ready.
 
 
 ## Module dependency map
@@ -225,7 +226,10 @@ Manual overlay drawing is still handled separately in `main.js`, but both overla
 
 ## Runtime source of truth
 
-- `data/defaults.json` and `data/hopalong_data.json` are the runtime data source of truth shipped with the app.
+- `js/formulas.js` is the formula source of truth shipped with the app.
+- `js/colormaps.js` is the colormap source of truth shipped with the app.
+- `data/defaults.json` contains bundled user-default values only.
+- The application no longer depends on `hopalong_data.json`.
 - Docs and spec-style files are for humans only; they are not runtime inputs.
 - The version badge is only a visible build/version check for reviewers and testers. It sits at the top-left of the UI.
 - A query-string cache buster such as `?v=XYZ` can force a fresh browser fetch, but it does not change app logic.

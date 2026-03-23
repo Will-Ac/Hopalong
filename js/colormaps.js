@@ -96,7 +96,7 @@ function normalizeColorMapName(name) {
     .trim();
 }
 
-export const ColorMaps = {
+export const COLORMAPS = {
   "User defined": (t) => fromStops([[0, [31, 119, 180]], [1, [255, 127, 14]]], t),
   Turbo: (t) => fromStops([
     [0.00, [48, 18, 59]], [0.10, [50, 44, 125]], [0.20, [32, 96, 189]], [0.30, [41, 158, 179]],
@@ -186,9 +186,9 @@ function sanitizeStops(stops) {
 
 function buildFallbackStops(name) {
   const fn =
-    ColorMaps[name]
+    COLORMAPS[name]
     || ColorMapLookup.get(normalizeColorMapName(name))
-    || ColorMaps[ColorMapNames[0]];
+    || COLORMAPS[Object.keys(COLORMAPS)[0]];
   if (!fn) {
     return null;
   }
@@ -250,22 +250,22 @@ export function setColorMapStopOverrides(overrides) {
   }
 }
 
-ColorMaps.ice_cyan_white = ColorMaps["Ice → Cyan → White"];
-ColorMaps.white_indigo = ColorMaps["White → Indigo"];
-ColorMaps.sand_coral_rose = ColorMaps["Sand → Coral → Rose"];
-ColorMaps.mint_teal_cyan = ColorMaps["Mint→Teal→Cyan"];
-ColorMaps.white_gold = ColorMaps["White → Gold"];
-ColorMaps.blue_white_orange_soft = ColorMaps["Blue↔White↔Orange"];
-ColorMaps.gray_white_lavender_soft = ColorMaps["Gray→White→Laven"];
-ColorMaps.pastel_5_band_contour = ColorMaps["Pastel 5-band soft"];
-ColorMaps.gold_contour_bands = ColorMaps["Gold contour bands"];
+const COLOR_MAP_ALIASES = {
+  ice_cyan_white: COLORMAPS["Ice → Cyan → White"],
+  white_indigo: COLORMAPS["White → Indigo"],
+  sand_coral_rose: COLORMAPS["Sand → Coral → Rose"],
+  mint_teal_cyan: COLORMAPS["Mint→Teal→Cyan"],
+  white_gold: COLORMAPS["White → Gold"],
+  blue_white_orange_soft: COLORMAPS["Blue↔White↔Orange"],
+  gray_white_lavender_soft: COLORMAPS["Gray→White→Laven"],
+  pastel_5_band_contour: COLORMAPS["Pastel 5-band soft"],
+  gold_contour_bands: COLORMAPS["Gold contour bands"],
+};
 
 const ColorMapLookup = new Map();
-for (const [name, fn] of Object.entries(ColorMaps)) {
+for (const [name, fn] of Object.entries({ ...COLORMAPS, ...COLOR_MAP_ALIASES })) {
   ColorMapLookup.set(normalizeColorMapName(name), fn);
 }
-
-export const ColorMapNames = Object.keys(ColorMaps).filter((name) => !name.includes("_"));
 
 export function sampleColorMap(name, t, background = [5, 7, 12]) {
   const runtimeStops = getColorMapStops(name);
@@ -278,8 +278,8 @@ export function sampleColorMap(name, t, background = [5, 7, 12]) {
     ];
   }
   const fn =
-    ColorMaps[name]
+    COLORMAPS[name]
     || ColorMapLookup.get(normalizeColorMapName(name))
-    || ColorMaps[ColorMapNames[0]];
+    || COLORMAPS[Object.keys(COLORMAPS)[0]];
   return fn ? fn(t) : [255, 255, 255];
 }

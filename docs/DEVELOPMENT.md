@@ -5,7 +5,7 @@
 This app is designed to run as a static site, so the normal usage model is simple:
 
 - Open the site through GitHub Pages, or any static file server that serves the repository contents.
-- Because the app loads JSON files with `fetch()`, use an HTTP server rather than opening `index.html` directly from the file system.
+- The app initializes from ES modules plus `data/defaults.json`, so use a modern browser or static server that supports module loading.
 - If you are checking a freshly deployed version and the browser seems stuck on older code, add a cache-busting query string such as `?v=XYZ`.
 
 Example:
@@ -58,7 +58,7 @@ If a fix does not appear:
 Open browser DevTools and watch the Console during startup and after each interaction.
 
 Useful things to look for:
-- fetch failures for JSON files
+- module or JSON import failures during startup
 - syntax errors that stop module loading
 - undefined function or property access errors
 - warnings from shared-state parsing

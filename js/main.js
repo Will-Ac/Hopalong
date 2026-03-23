@@ -1,4 +1,5 @@
-import { ColorMapNames, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
+import { DEFAULTS } from "./defaults.js";
+import { COLORMAPS, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
 import { renderFrame, getParamsForFormula, classifyInterestGridLyapunov, isRenderCancelledError } from "./renderer.js";
 import {
   FORMULA_METADATA,
@@ -13,9 +14,6 @@ import { initUIPanels } from "./uiPanels.js";
 import { initInterestOverlay } from "./interestOverlay.js";
 import { initExportManager } from "./exportManager.js";
 import { initHistoryState } from "./historyState.js";
-
-const DATA_PATH = "./data/hopalong_data.json";
-const DEFAULTS_PATH = "./data/defaults.json";
 
 const canvas = document.getElementById("c");
 const interestOverlayCanvas = document.getElementById("interestOverlayCanvas");
@@ -5268,18 +5266,10 @@ function registerHandlers() {
   );
 }
 
-async function fetchJson(path) {
-  const response = await fetch(path, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Failed to load ${path}: ${response.status}`);
-  }
-
-  return response.json();
-}
-
-async function loadData() {
-  const [data, defaults] = await Promise.all([fetchJson(DATA_PATH), fetchJson(DEFAULTS_PATH)]);
-  data.defaults = defaults;
+function loadData() {
+  const data = {
+    defaults: structuredClone(DEFAULTS),
+  };
   if (typeof data.defaults.debug !== "boolean") {
     data.defaults.debug = false;
   }
@@ -5396,10 +5386,7 @@ async function loadData() {
   data.formulas = FORMULA_METADATA.map((formula) => ({ ...formula }));
   data.formula_ranges_raw = JSON.parse(JSON.stringify(FORMULA_RANGES_RAW));
 
-  const configuredColormaps = Array.isArray(data.colormaps) ? data.colormaps : [];
-  const validConfigured = configuredColormaps.filter((name) => ColorMapNames.includes(name));
-  const missingFromConfig = ColorMapNames.filter((name) => !validConfigured.includes(name));
-  data.colormaps = [...validConfigured, ...missingFromConfig];
+  data.colormaps = Object.keys(COLORMAPS);
 
   if (data.colormaps.length === 0) {
     throw new Error("No valid colormaps found. Expected at least one colormap option.");
@@ -5408,10 +5395,10 @@ async function loadData() {
   return data;
 }
 
-async function bootstrap() {
+function bootstrap() {
   try {
     installGlobalZoomBlockers();
-    appData = await loadData();
+    appData = loadData();
     builtInFormulaRanges = appData.formula_ranges_raw || {};
     loadDefaultsFromStorage();
     normalizeIterationSettings();

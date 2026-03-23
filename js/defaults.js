@@ -1,0 +1,45 @@
+// Bundled user defaults extracted from data/defaults.json
+export const DEFAULTS = {
+  "cmapName": "Turbo",
+  "scaleMode": "auto",
+  "sliders": {
+    "a": 50.0,
+    "b": 50.0,
+    "c": 50.0,
+    "d": 50.0,
+    "iters": 500000.0,
+    "burn": 120.0
+  },
+  "notes": [
+    "a/b/c/d defaults are slider positions (0\u2013100).",
+    "Actual a/b/c/d values must be derived from slider position using formula-specific ranges.",
+    "debug controls whether the debug axis/tick/info overlay is shown."
+  ],
+  "debug": false,
+  "iterationAbsoluteMax": 100000000,
+  "iterationStartupDefault": 500000,
+  "maxRandomIters": 500000,
+  "historyCacheSize": 6,
+  "renderColorMode": "iteration_order",
+  "renderLogStrength": 9,
+  "renderDensityGamma": 0.6,
+  "renderHybridBlend": 0.3,
+  "backgroundColor": "#05070c",
+  "colorMapStopOverrides": {},
+  "overlayAlpha": 0.9,
+  "holdSpeedScale": 1.0,
+  "holdRepeatMs": 60,
+  "holdAccelStartMs": 350,
+  "holdAccelEndMs": 1400,
+  "touchZoomDeadbandPx": 2.5,
+  "touchZoomRatioMin": 0.002,
+  "interestOverlayEnabled": false,
+  "interestGridSize": 24,
+  "interestScanIterations": 1200,
+  "interestLyapunovEnabled": false,
+  "interestLyapunovMinExponent": 0.0,
+  "interestLyapunovDelta0": 1e-06,
+  "interestLyapunovRescale": true,
+  "interestLyapunovMaxDistance": 1000000,
+  "interestOverlayOpacity": 0.2
+};
