@@ -183,13 +183,15 @@ Manual overlay drawing is still handled separately in `main.js`, but both overla
 3. `exportManager` reads current render/view state through getters passed at startup.
 4. It reuses cached render data or renders to an export-sized canvas when needed.
 5. The manager saves or shares a PNG, optionally with metadata overlay content.
+6. The share dialog can also display an inline QR code, generated from the same versionless share URL used by the share action, and can attach a lightweight thumbnail from the current visible canvas when the platform supports file sharing.
 
 ### History / URL update
 1. `main.js` captures the current logical state after important user actions.
 2. `historyState.js` pushes it onto the bounded history stack.
-3. When sharing, `historyState.js` serializes formula, colour map, params, iterations, and view into the URL hash.
-4. On startup, the app checks for a shared hash and applies it before the first render.
-5. Moving backward or forward restores the saved state through `applyState()` callbacks supplied by `main.js`.
+3. When sharing, `historyState.js` serializes the current reproducible state into URL query parameters.
+4. On startup, the app checks for shared URL state, applies it before the first render, then treats those query parameters as transient and removes them from the address bar.
+5. Legacy `#s=` hash links are still accepted for compatibility.
+6. Moving backward or forward restores the saved state through `applyState()` callbacks supplied by `main.js`.
 
 ## 5. Startup sequence
 
@@ -203,10 +205,11 @@ Manual overlay drawing is still handled separately in `main.js`, but both overla
 8. Attach event handlers for buttons, pointers, keyboard input, resize, and panel interactions.
 9. Resolve initial formula and colour map.
 10. On first load with no shared URL or restored state, initialize `a`–`d` and seeds from `FORMULA_DEFAULT_PRESETS` and `FORMULA_DEFAULT_SEEDS` for the selected formula.
-11. Apply shared URL state if a `#s=` payload is present.
-12. Commit the initial state to history.
-13. Request the first render.
-14. Show a startup toast once the app is ready.
+11. Apply shared URL state if query parameters or a legacy `#s=` payload are present.
+12. For fresh loads and shared-state loads, force the interaction-ready mode: randomized controls, `a` on `ManY`, `b` on `ManX`, interest overlay off.
+13. Commit the initial state to history.
+14. Request the first render.
+15. Show a startup toast once the app is ready.
 
 
 ## Module dependency map

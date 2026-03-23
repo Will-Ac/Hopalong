@@ -18,7 +18,7 @@ export function initExportManager({
   showToast,
   requestDraw,
   updateExportRenderProgressToast,
-  buildSharePayload,
+  buildShareUrl,
   overlayTextColor,
   qrQuietZoneModules,
 }) {
@@ -121,10 +121,6 @@ export function initExportManager({
     const params = getDerivedParams();
     const iterValue = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
     return `${formula?.name || currentFormulaId} | ${appData.defaults.cmapName} | a ${formatNumberForUi(params.a, 4)} | b ${formatNumberForUi(params.b, 4)} | c ${formatNumberForUi(params.c, 4)} | d ${formatNumberForUi(params.d, 4)} | iter ${formatNumberForUi(iterValue, 0)}`;
-  }
-
-  function buildShareUrl() {
-    return `${location.origin}${location.pathname}#s=${buildSharePayload()}`;
   }
 
   function buildQrCanvas(text, sizePx) {

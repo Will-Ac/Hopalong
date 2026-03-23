@@ -143,8 +143,11 @@ const screenshotMenuCleanEl = document.getElementById("screenshotMenuClean");
 const screenshotMenuOverlayOptionEl = document.getElementById("screenshotMenuOverlayOption");
 const screenshotMenu4kEl = document.getElementById("screenshotMenu4k");
 const screenshotMenu8kEl = document.getElementById("screenshotMenu8k");
+const screenshotMenuCopyLinkEl = document.getElementById("screenshotMenuCopyLink");
 const screenshotMenuShareRetryEl = document.getElementById("screenshotMenuShareRetry");
 const screenshotMenuShareRetryHintEl = document.getElementById("screenshotMenuShareRetryHint");
+const shareQrContainerEl = document.getElementById("shareQrContainer");
+const shareQrCanvasEl = document.getElementById("shareQrCanvas");
 const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
 const randomModeTile = document.getElementById("randomModeTile");
@@ -993,7 +996,32 @@ function clearSharedParamsOverride() {
   historyStateRef.sharedParamsFormulaId = null;
 }
 
-function buildQrCanvas(text, sizePx) {
+function applyActualParamsToSliders(formulaId, params) {
+  if (!formulaId || !params || !appData?.defaults?.sliders) {
+    return;
+  }
+
+  const range = getRangeValuesForFormula(formulaId);
+  for (const paramKey of ["a", "b", "c", "d"]) {
+    if (!isFormulaParamUsed(formulaId, paramKey)) {
+      continue;
+    }
+
+    const actualValue = Number(params[paramKey]);
+    if (!Number.isFinite(actualValue)) {
+      continue;
+    }
+
+    const [min, max] = range[paramKey];
+    appData.defaults.sliders[paramKey] = actualToSliderValue(actualValue, min, max);
+  }
+}
+
+function buildQrCanvas(text, sizePx, {
+  background = "#000000",
+  foreground = OVERLAY_TEXT_COLOR,
+  targetCanvas = null,
+} = {}) {
   const qrcodeFactory = window.qrcode;
   if (typeof qrcodeFactory !== "function") {
     throw new Error("QR generator unavailable.");
@@ -1005,7 +1033,7 @@ function buildQrCanvas(text, sizePx) {
 
   const moduleCount = qr.getModuleCount();
   const totalModules = moduleCount + QR_QUIET_ZONE_MODULES * 2;
-  const canvasEl = document.createElement("canvas");
+  const canvasEl = targetCanvas || document.createElement("canvas");
   canvasEl.width = sizePx;
   canvasEl.height = sizePx;
   const qrCtx = canvasEl.getContext("2d", { alpha: false });
@@ -1013,9 +1041,9 @@ function buildQrCanvas(text, sizePx) {
     throw new Error("QR canvas context unavailable.");
   }
 
-  qrCtx.fillStyle = "#000000";
+  qrCtx.fillStyle = background;
   qrCtx.fillRect(0, 0, sizePx, sizePx);
-  qrCtx.fillStyle = OVERLAY_TEXT_COLOR;
+  qrCtx.fillStyle = foreground;
 
   for (let row = 0; row < moduleCount; row += 1) {
     for (let col = 0; col < moduleCount; col += 1) {
@@ -1032,6 +1060,23 @@ function buildQrCanvas(text, sizePx) {
   }
 
   return canvasEl;
+}
+
+function renderShareQr(url) {
+  if (!shareQrCanvasEl || !shareQrContainerEl) {
+    return;
+  }
+
+  const displaySize = 180;
+  const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  buildQrCanvas(url, displaySize * dpr, {
+    background: "#ffffff",
+    foreground: "#000000",
+    targetCanvas: shareQrCanvasEl,
+  });
+  shareQrCanvasEl.style.width = `${displaySize}px`;
+  shareQrCanvasEl.style.height = `${displaySize}px`;
+  shareQrContainerEl.classList.remove("is-hidden");
 }
 
 function resolveInitialFormulaId() {
@@ -2492,16 +2537,19 @@ const historyState = initHistoryState({
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
     iterations: Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max)),
+    burn: Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max)),
+    seed: getSeedForFormula(currentFormulaId),
+    scaleMode: getScaleMode(),
     view: renderState.fixedView || {},
   }),
-  applySharedState: ({ formulaId, cmapName, params, iterations, view }) => {
+  applySharedState: ({ formulaId, cmapName, params, iterations, burn, seed, scaleMode, view }) => {
     const formulaExists = appData.formulas.some((formula) => formula.id === formulaId);
     const cmapExists = appData.colormaps.includes(cmapName);
     if (!formulaExists || !cmapExists) {
       return false;
     }
 
-    appData.defaults.scaleMode = "fixed";
+    appData.defaults.scaleMode = scaleMode === "auto" ? "auto" : "fixed";
     for (const key of PARAM_MODE_KEYS) {
       paramModes[key] = { lockState: "fix", modAxis: "none" };
     }
@@ -2510,6 +2558,9 @@ const historyState = initHistoryState({
     currentFormulaId = formulaId;
     appData.defaults.cmapName = cmapName;
     appData.defaults.sliders.iters = Math.round(clamp(iterations, sliderControls.iters.min, sliderControls.iters.max));
+    if (Number.isFinite(Number(burn))) {
+      appData.defaults.sliders.burn = Math.round(clamp(burn, sliderControls.burn.min, sliderControls.burn.max));
+    }
     renderState.fixedView = {
       offsetX: view[0],
       offsetY: view[1],
@@ -2522,6 +2573,13 @@ const historyState = initHistoryState({
       d: params[3],
     };
     historyStateRef.sharedParamsFormulaId = formulaId;
+    if (seed && Number.isFinite(Number(seed.x)) && Number.isFinite(Number(seed.y))) {
+      appData.defaults.formulaSeeds = appData.defaults.formulaSeeds || {};
+      appData.defaults.formulaSeeds[formulaId] = {
+        x: seed.x,
+        y: seed.y,
+      };
+    }
     syncParamModeVisuals();
     syncScaleModeButton();
     syncRandomModeButton();
@@ -2532,8 +2590,8 @@ const historyState = initHistoryState({
 });
 
 const {
-  applySharedStateFromHash,
-  buildSharePayload,
+  applySharedStateFromUrl,
+  buildShareUrl,
   commitCurrentStateToHistory,
   moveBackward: moveBackwardInHistory,
   moveForward: moveForwardInHistory,
@@ -2541,6 +2599,23 @@ const {
   isApplyingHistoryState,
   persistCurrentHistoryViewState,
 } = historyState;
+
+function applyInteractionReadyMode() {
+  for (const key of PARAM_MODE_KEYS) {
+    paramModes[key] = {
+      lockState: "rand",
+      modAxis: "none",
+    };
+  }
+
+  paramModes.a.modAxis = "manY";
+  paramModes.b.modAxis = "manX";
+  normalizeParamModes();
+  appData.defaults.interestOverlayEnabled = false;
+  syncParamModeVisuals();
+  syncRandomModeButton();
+  interestOverlay.syncToggleUi();
+}
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -4275,6 +4350,20 @@ function normalizeCenteredCellCount(rawCount) {
   return rounded > 1 ? rounded - 1 : 1;
 }
 
+function hasStateParams(urlSearchParams) {
+  return [...urlSearchParams.keys()].some((key) => !["v"].includes(key));
+}
+
+function cleanUrl() {
+  const url = new URL(window.location.href);
+  const cleanParams = new URLSearchParams();
+  if (url.searchParams.has("v")) {
+    cleanParams.set("v", url.searchParams.get("v"));
+  }
+  const newUrl = url.pathname + (cleanParams.toString() ? `?${cleanParams.toString()}` : "");
+  history.replaceState(null, "", newUrl);
+}
+
 function getInterestGridLayout(view, rawGridSize) {
   const selectedGridSize = Math.round(clamp(Number(rawGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
   const width = Math.max(1, Number(view?.width) || 1);
@@ -4319,7 +4408,7 @@ exportState.exportManager = initExportManager({
   showToast,
   requestDraw,
   updateExportRenderProgressToast,
-  buildSharePayload,
+  buildShareUrl,
   overlayTextColor: OVERLAY_TEXT_COLOR,
   qrQuietZoneModules: QR_QUIET_ZONE_MODULES,
 });
@@ -4505,6 +4594,87 @@ function drawManualParamOverlay(meta, targetCtx = ctx) {
   }
 
   targetCtx.restore();
+}
+
+async function shareLink() {
+  const url = buildShareUrl();
+  const shareDataBase = {
+    title: "Hopalong Pattern",
+    text: "Check out this pattern",
+    url,
+  };
+  let thumbnailFile = null;
+
+  try {
+    thumbnailFile = await buildShareThumbnailFile();
+  } catch (error) {
+    console.warn("Failed to build share thumbnail.", error);
+  }
+
+  if (navigator.share && navigator.canShare && thumbnailFile) {
+    const shareDataWithFile = {
+      ...shareDataBase,
+      files: [thumbnailFile],
+    };
+
+    if (navigator.canShare(shareDataWithFile)) {
+      try {
+        await navigator.share(shareDataWithFile);
+        return;
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return;
+        }
+      }
+    }
+  }
+
+  if (navigator.share) {
+    try {
+      await navigator.share(shareDataBase);
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return;
+      }
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast("Link copied");
+  } catch (error) {
+    showToast("Unable to share link");
+  }
+}
+
+async function buildShareThumbnailFile() {
+  if (typeof File !== "function" || !canvas) {
+    return null;
+  }
+
+  const sourceWidth = Math.max(1, canvas.width);
+  const sourceHeight = Math.max(1, canvas.height);
+  const maxDimension = 512;
+  const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+  const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+  const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+  const thumbnailCanvas = document.createElement("canvas");
+  thumbnailCanvas.width = targetWidth;
+  thumbnailCanvas.height = targetHeight;
+  const thumbnailCtx = thumbnailCanvas.getContext("2d", { alpha: false });
+  if (!thumbnailCtx) {
+    return null;
+  }
+
+  thumbnailCtx.drawImage(canvas, 0, 0, sourceWidth, sourceHeight, 0, 0, targetWidth, targetHeight);
+
+  const blob = await new Promise((resolve) => thumbnailCanvas.toBlob(resolve, "image/png"));
+  if (!blob) {
+    return null;
+  }
+
+  return new File([blob], "hopalong-share.png", { type: "image/png" });
 }
 
 function clearOverlayCanvas(targetCanvas, targetCtx) {
@@ -4853,6 +5023,12 @@ function syncCameraButtonHighlight() {
 }
 
 function openScreenshotMenu() {
+  try {
+    renderShareQr(buildShareUrl());
+  } catch (error) {
+    console.warn("Could not render share QR.", error);
+    shareQrContainerEl?.classList.add("is-hidden");
+  }
   syncScreenshotMenuShareRetryUi();
   screenshotMenuOverlayEl?.classList.add("is-open");
   syncCameraButtonHighlight();
@@ -5028,6 +5204,9 @@ function registerHandlers() {
   screenshotMenu8kEl?.addEventListener("click", async () => {
     closeScreenshotMenu();
     await exportState.exportManager.captureScreenshotAction("8k");
+  });
+  screenshotMenuCopyLinkEl?.addEventListener("click", async () => {
+    await shareLink();
   });
   screenshotMenuShareRetryEl?.addEventListener("click", async () => {
     await retryPendingShare();
@@ -5458,13 +5637,21 @@ function bootstrap() {
 
     currentFormulaId = resolveInitialFormulaId();
     appData.defaults.cmapName = resolveInitialColorMap();
-    const urlHasParams = window.location.hash.includes("#s=");
+    const searchParams = new URLSearchParams(window.location.search);
+    const urlHasParams = hasStateParams(searchParams) || window.location.hash.includes("#s=");
     const hasExternalState = urlHasParams || hasRestoredState;
     if (!hasExternalState) {
       applyFormulaDefaults(currentFormulaId);
       normalizeSliderDefaults();
     }
-    const loadedSharedState = applySharedStateFromHash();
+    const loadedSharedState = applySharedStateFromUrl();
+    if (loadedSharedState && historyStateRef.sharedParamsFormulaId === currentFormulaId && historyStateRef.sharedParamsOverride) {
+      applyActualParamsToSliders(currentFormulaId, historyStateRef.sharedParamsOverride);
+      clearSharedParamsOverride();
+    }
+    if (!hasRestoredState || loadedSharedState) {
+      applyInteractionReadyMode();
+    }
     configureNameBoxWidths();
     updateCurrentPickerSelection();
     refreshParamButtons();
@@ -5476,6 +5663,9 @@ function bootstrap() {
     syncParamModeVisuals();
     saveParamModesToStorage();
     saveDefaultsToStorage();
+    if (loadedSharedState && hasStateParams(searchParams)) {
+      cleanUrl();
+    }
 
     registerHandlers();
     initHelpOverlay();
