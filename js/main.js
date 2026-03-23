@@ -326,6 +326,7 @@ const renderState = {
   renderGeneration: 0,
   currentRenderCache: null,
   activePanZoomCacheEntry: null,
+  pendingSharedWorldView: null,
   fixedView: {
     offsetX: 0,
     offsetY: 0,
@@ -2639,12 +2640,24 @@ const historyState = initHistoryState({
     appData.defaults.cmapName = cmapName;
     appData.defaults.sliders.iters = Math.round(clamp(iterations, sliderControls.iters.min, sliderControls.iters.max));
     appData.defaults.sliders.burn = Math.round(clamp(DEFAULT_BURN, sliderControls.burn.min, sliderControls.burn.max));
-    const nextFixedView = getFixedViewFromSharedWorldView(view) || {
-      offsetX: view[0],
-      offsetY: view[1],
-      zoom: view[2],
-    };
-    renderState.fixedView = nextFixedView;
+    const sharedCenterX = Number(view?.[0]);
+    const sharedCenterY = Number(view?.[1]);
+    const sharedMinSpan = Number(view?.[2]);
+    const isSharedWorldView = Number.isFinite(sharedCenterX)
+      && Number.isFinite(sharedCenterY)
+      && Number.isFinite(sharedMinSpan)
+      && sharedMinSpan > 0
+      && view.length >= 4;
+    if (isSharedWorldView) {
+      renderState.pendingSharedWorldView = [...view];
+    } else {
+      renderState.pendingSharedWorldView = null;
+      renderState.fixedView = {
+        offsetX: view[0],
+        offsetY: view[1],
+        zoom: view[2],
+      };
+    }
     historyStateRef.sharedParamsOverride = {
       a: params[0],
       b: params[1],
@@ -4997,6 +5010,13 @@ async function draw() {
   const renderGenerationAtStart = renderState.renderGeneration;
   const startedAt = performance.now();
   const didResize = resizeCanvas();
+  if (renderState.pendingSharedWorldView) {
+    const nextFixedView = getFixedViewFromSharedWorldView(renderState.pendingSharedWorldView);
+    if (nextFixedView) {
+      renderState.fixedView = nextFixedView;
+      renderState.pendingSharedWorldView = null;
+    }
+  }
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const iterations = iterationSetting;
