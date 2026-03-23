@@ -326,6 +326,7 @@ const renderState = {
   renderGeneration: 0,
   currentRenderCache: null,
   activePanZoomCacheEntry: null,
+  pendingSharedWorldView: null,
   fixedView: {
     offsetX: 0,
     offsetY: 0,
@@ -1958,6 +1959,86 @@ function syncFixedViewFromLastRenderMeta() {
   return true;
 }
 
+function getWorldSharedViewModel() {
+  const meta = renderState.lastRenderMeta;
+  const metaWorld = meta?.world;
+  const metaView = meta?.view;
+  const canvasWidth = Math.max(1, Number(metaView?.width) || canvas.width || 1);
+  const canvasHeight = Math.max(1, Number(metaView?.height) || canvas.height || 1);
+  const minDim = Math.max(1, Math.min(canvasWidth, canvasHeight));
+
+  if (metaWorld && Number.isFinite(metaWorld.minX) && Number.isFinite(metaWorld.maxX)
+    && Number.isFinite(metaWorld.minY) && Number.isFinite(metaWorld.maxY)) {
+    const spanX = Number(metaWorld.maxX) - Number(metaWorld.minX);
+    const spanY = Number(metaWorld.maxY) - Number(metaWorld.minY);
+    const worldUnitsPerPixel = Math.max(spanX / canvasWidth, spanY / canvasHeight);
+    if (Number.isFinite(worldUnitsPerPixel) && worldUnitsPerPixel > 0) {
+      const centerX = Number.isFinite(metaWorld.centerX) ? Number(metaWorld.centerX) : (Number(metaWorld.minX) + Number(metaWorld.maxX)) * 0.5;
+      const centerY = Number.isFinite(metaWorld.centerY) ? Number(metaWorld.centerY) : (Number(metaWorld.minY) + Number(metaWorld.maxY)) * 0.5;
+      if (Number.isFinite(centerX) && Number.isFinite(centerY)) {
+        return {
+          cx: centerX,
+          cy: centerY,
+          ms: worldUnitsPerPixel * minDim,
+          ar: canvasWidth / canvasHeight,
+        };
+      }
+    }
+  }
+
+  const zoom = Number(renderState.fixedView?.zoom ?? 1);
+  if (!Number.isFinite(zoom) || zoom <= 0) {
+    return null;
+  }
+
+  const scale = (minDim / 220) * zoom;
+  if (!Number.isFinite(scale) || scale <= 0) {
+    return null;
+  }
+
+  const viewCenterX = canvasWidth * 0.5 + Number(renderState.fixedView?.offsetX ?? 0);
+  const viewCenterY = canvasHeight * 0.5 + Number(renderState.fixedView?.offsetY ?? 0);
+  return {
+    cx: (canvasWidth * 0.5 - viewCenterX) / scale,
+    cy: (canvasHeight * 0.5 - viewCenterY) / scale,
+    ms: minDim / scale,
+    ar: canvasWidth / canvasHeight,
+  };
+}
+
+function getFixedViewFromSharedWorldView(view) {
+  const centerX = Number(view?.[0]);
+  const centerY = Number(view?.[1]);
+  const minSpan = Number(view?.[2]);
+  const senderAspectRatio = Number(view?.[3]);
+  const canvasWidth = Math.max(1, canvas.width);
+  const canvasHeight = Math.max(1, canvas.height);
+  const minDim = Math.max(1, Math.min(canvasWidth, canvasHeight));
+  if (!Number.isFinite(centerX) || !Number.isFinite(centerY) || !Number.isFinite(minSpan) || minSpan <= 0) {
+    return null;
+  }
+
+  let scale = minDim / minSpan;
+  if (Number.isFinite(senderAspectRatio) && senderAspectRatio > 0) {
+    const senderWorldWidth = senderAspectRatio >= 1 ? minSpan * senderAspectRatio : minSpan;
+    const senderWorldHeight = senderAspectRatio >= 1 ? minSpan : minSpan / senderAspectRatio;
+    const scaleFromWidth = canvasWidth / senderWorldWidth;
+    const scaleFromHeight = canvasHeight / senderWorldHeight;
+    scale = Math.min(scaleFromWidth, scaleFromHeight);
+  }
+  if (!Number.isFinite(scale) || scale <= 0) {
+    return null;
+  }
+
+  const fixedCenterX = canvasWidth * 0.5 - centerX * scale;
+  const fixedCenterY = canvasHeight * 0.5 - centerY * scale;
+  return {
+    offsetX: fixedCenterX - canvasWidth * 0.5,
+    offsetY: fixedCenterY - canvasHeight * 0.5,
+    zoom: scale / (minDim / 220),
+  };
+}
+
 function setScaleModeFixed(reason = "manual pan/zoom") {
   if (!appData || !isAutoScale()) {
     return;
@@ -2538,7 +2619,7 @@ const historyState = initHistoryState({
     params: getDerivedParams(),
     iterations: Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max)),
     scaleMode: getScaleMode(),
-    view: renderState.fixedView || {},
+    view: getWorldSharedViewModel() || renderState.fixedView || {},
     renderColorMode: appData.defaults.renderColorMode,
     backgroundColor: appData.defaults.backgroundColor,
   }),
@@ -2559,11 +2640,24 @@ const historyState = initHistoryState({
     appData.defaults.cmapName = cmapName;
     appData.defaults.sliders.iters = Math.round(clamp(iterations, sliderControls.iters.min, sliderControls.iters.max));
     appData.defaults.sliders.burn = Math.round(clamp(DEFAULT_BURN, sliderControls.burn.min, sliderControls.burn.max));
-    renderState.fixedView = {
-      offsetX: view[0],
-      offsetY: view[1],
-      zoom: view[2],
-    };
+    const sharedCenterX = Number(view?.[0]);
+    const sharedCenterY = Number(view?.[1]);
+    const sharedMinSpan = Number(view?.[2]);
+    const isSharedWorldView = Number.isFinite(sharedCenterX)
+      && Number.isFinite(sharedCenterY)
+      && Number.isFinite(sharedMinSpan)
+      && sharedMinSpan > 0
+      && view.length >= 4;
+    if (isSharedWorldView) {
+      renderState.pendingSharedWorldView = [...view];
+    } else {
+      renderState.pendingSharedWorldView = null;
+      renderState.fixedView = {
+        offsetX: view[0],
+        offsetY: view[1],
+        zoom: view[2],
+      };
+    }
     historyStateRef.sharedParamsOverride = {
       a: params[0],
       b: params[1],
@@ -4916,6 +5010,13 @@ async function draw() {
   const renderGenerationAtStart = renderState.renderGeneration;
   const startedAt = performance.now();
   const didResize = resizeCanvas();
+  if (renderState.pendingSharedWorldView) {
+    const nextFixedView = getFixedViewFromSharedWorldView(renderState.pendingSharedWorldView);
+    if (nextFixedView) {
+      renderState.fixedView = nextFixedView;
+      renderState.pendingSharedWorldView = null;
+    }
+  }
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
   const iterations = iterationSetting;

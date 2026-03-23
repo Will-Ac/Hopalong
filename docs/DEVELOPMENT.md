@@ -35,13 +35,16 @@ Compact share URL schema:
 - `m` = colour map name
 - `a`, `b`, `c`, `d` = derived formula parameters
 - `i` = iterations
-- `z` = zoom (omitted when `1`)
-- `ox` = offsetX (omitted when `0`)
-- `oy` = offsetY (omitted when `0`)
+- `cx` = shared world-space centre X
+- `cy` = shared world-space centre Y
+- `ms` = world-space span across the sender's smaller viewport dimension
+- `ar` = sender viewport aspect ratio used only to rebuild the sender's full visible bounds without cropping
 - `rm` = render color mode (omitted when using the default mode)
 - `bg` = background color (simple name or hex without `#`, omitted when using the default background)
 
 Burn is no longer included in share URLs and is fixed internally to a default value.
+
+Shared view framing is device-independent. The sender stores `cx`, `cy`, and `ms`, where `ms` is the visible world span across the sender's smaller viewport dimension at share time. A compact `ar` value stores only the sender's aspect ratio so the receiver can rebuild the full sender-visible world bounds without sending device size, scale, or DPR. Receivers then fit those bounds into their own canvas, so they will reproduce at least the sender's full visible area and may reveal extra area.
 
 Share parsing remains backward compatible with older URLs, including older links that still contain `burn`, `formula`, `cmap`, `iters`, `zoom`, `offsetX`, `offsetY`, or other legacy keys. Legacy burn values are ignored.
 
