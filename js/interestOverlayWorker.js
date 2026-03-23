@@ -21,6 +21,7 @@ self.onmessage = (event) => {
       gridRows: message.gridRows,
       iterations: message.iterations,
       lyapunov: message.lyapunov,
+      step2: message.step2,
       onProgress: (percent) => {
         if (activeJobId !== message.jobId || activeScanKey !== message.scanKey) {
           return;
@@ -30,6 +31,28 @@ self.onmessage = (event) => {
           jobId: message.jobId,
           scanKey: message.scanKey,
           percent,
+        });
+      },
+      onMediumCells: (partialScanResult) => {
+        if (activeJobId !== message.jobId || activeScanKey !== message.scanKey) {
+          return;
+        }
+        self.postMessage({
+          type: "medium-result",
+          jobId: message.jobId,
+          scanKey: message.scanKey,
+          scanResult: partialScanResult,
+        });
+      },
+      onHighInterestBatch: (partialScanResult) => {
+        if (activeJobId !== message.jobId || activeScanKey !== message.scanKey) {
+          return;
+        }
+        self.postMessage({
+          type: "high-interest-batch",
+          jobId: message.jobId,
+          scanKey: message.scanKey,
+          scanResult: partialScanResult,
         });
       },
     });

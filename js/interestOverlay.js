@@ -41,7 +41,7 @@ export function initInterestOverlay({
     targetCtx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
   }
 
-  function buildInterestOverlayScanKey({ formulaId, planeConfig, baseParams, lyapunovConfig, gridCols, gridRows, scanIterations }) {
+  function buildInterestOverlayScanKey({ formulaId, planeConfig, baseParams, lyapunovConfig, step2Config, gridCols, gridRows, scanIterations }) {
     const fixedParamKeys = ["a", "b", "c", "d"].filter((key) => {
       if (planeConfig.mode === "two_axis") {
         return key !== planeConfig.axisXParam && key !== planeConfig.axisYParam;
@@ -64,6 +64,7 @@ export function initInterestOverlay({
       gridRows,
       scanIterations,
       lyapunovConfig,
+      step2Config,
       fixedParams,
     });
   }
@@ -94,6 +95,9 @@ export function initInterestOverlay({
       rescale: Boolean(appData.defaults.interestLyapunovRescale),
       maxDistance: clamp(Number(appData.defaults.interestLyapunovMaxDistance), interestConfig.lyapunovMaxDistanceMin, interestConfig.lyapunovMaxDistanceMax),
     };
+    const step2Config = {
+      threshold: clamp(Number(appData.defaults.interestStep2Threshold), interestConfig.step2ThresholdMin, interestConfig.step2ThresholdMax),
+    };
     const baseParams = getDerivedParams();
     const scanKey = buildInterestOverlayScanKey({
       formulaId: currentFormulaId,
@@ -103,9 +107,10 @@ export function initInterestOverlay({
       gridCols,
       gridRows,
       scanIterations,
+      step2Config,
     });
 
-    return { planeConfig, gridLayout, gridCols, gridRows, scanIterations, lyapunovConfig, baseParams, scanKey, formulaId: currentFormulaId };
+    return { planeConfig, gridLayout, gridCols, gridRows, scanIterations, lyapunovConfig, step2Config, baseParams, scanKey, formulaId: currentFormulaId };
   }
 
   function shouldShowInterestOverlay() {
@@ -125,6 +130,7 @@ export function initInterestOverlay({
       gridRows: plan.gridRows,
       iterations: plan.scanIterations,
       lyapunov: plan.lyapunovConfig,
+      step2: plan.step2Config,
     };
   }
 
@@ -168,6 +174,32 @@ export function initInterestOverlay({
     redrawOverlayCanvas();
   }
 
+  function applyPartialHighInterestBatch(plan, jobSeq, partialScanResult) {
+    if (jobSeq !== interestOverlayActiveJobSeq) {
+      return;
+    }
+    if (interestOverlayPendingPlan?.scanKey !== plan.scanKey || !interestOverlayScanCache || interestOverlayScanCache.scanKey !== plan.scanKey) {
+      return;
+    }
+    if (interestOverlayScanCache.gridCols !== partialScanResult.gridCols || interestOverlayScanCache.gridRows !== partialScanResult.gridRows || !Array.isArray(partialScanResult.highCells) || partialScanResult.highCells.length === 0) {
+      return;
+    }
+
+    const mergedHighCells = Array.isArray(interestOverlayScanCache.scanResult?.highCells)
+      ? interestOverlayScanCache.scanResult.highCells.slice()
+      : [];
+    for (const cellIndex of partialScanResult.highCells) {
+      if (!mergedHighCells.includes(cellIndex)) {
+        mergedHighCells.push(cellIndex);
+      }
+    }
+    interestOverlayScanCache.scanResult = {
+      ...interestOverlayScanCache.scanResult,
+      highCells: mergedHighCells,
+    };
+    redrawOverlayCanvas();
+  }
+
   function ensureWorker() {
     if (!interestOverlayWorkerAvailable) {
       return null;
@@ -184,6 +216,24 @@ export function initInterestOverlay({
           if (message.jobId === interestOverlayActiveJobSeq && message.scanKey === interestOverlayActiveScanKey) {
             handleCalcProgress(message.percent);
           }
+          return;
+        }
+
+        if (message.type === "medium-result") {
+          const plan = interestOverlayPendingPlan;
+          if (!plan || message.jobId !== interestOverlayActiveJobSeq || message.scanKey !== interestOverlayActiveScanKey || plan.scanKey !== message.scanKey) {
+            return;
+          }
+          applyCompletedScanResult(plan, message.jobId, message.scanResult);
+          return;
+        }
+
+        if (message.type === "high-interest-batch") {
+          const plan = interestOverlayPendingPlan;
+          if (!plan || message.jobId !== interestOverlayActiveJobSeq || message.scanKey !== interestOverlayActiveScanKey || plan.scanKey !== message.scanKey) {
+            return;
+          }
+          applyPartialHighInterestBatch(plan, message.jobId, message.scanResult);
           return;
         }
 
@@ -314,7 +364,10 @@ export function initInterestOverlay({
           gridRows: plan.gridRows,
           iterations: plan.scanIterations,
           lyapunov: plan.lyapunovConfig,
+          step2: plan.step2Config,
           onProgress: handleCalcProgress,
+          onMediumCells: (partialScanResult) => applyCompletedScanResult(plan, jobSeq, partialScanResult),
+          onHighInterestBatch: (partialScanResult) => applyPartialHighInterestBatch(plan, jobSeq, partialScanResult),
         });
         applyCompletedScanResult(plan, jobSeq, scanResult);
       } catch (error) {
@@ -350,7 +403,13 @@ export function initInterestOverlay({
     }
 
     const scanResult = interestOverlayScanCache?.scanResult;
-    if (!scanResult || scanResult.gridCols !== plan.gridCols || scanResult.gridRows !== plan.gridRows || !Array.isArray(scanResult.highCells) || scanResult.highCells.length === 0) {
+    if (!scanResult || scanResult.gridCols !== plan.gridCols || scanResult.gridRows !== plan.gridRows) {
+      return;
+    }
+
+    const mediumCells = Array.isArray(scanResult.mediumCells) ? scanResult.mediumCells : scanResult.highCells;
+    const highCells = Array.isArray(scanResult.highCells) ? scanResult.highCells : [];
+    if ((!mediumCells || mediumCells.length === 0) && highCells.length === 0) {
       return;
     }
 
@@ -360,7 +419,18 @@ export function initInterestOverlay({
     targetCtx.save();
     targetCtx.imageSmoothingEnabled = false;
     targetCtx.fillStyle = `rgba(120, 200, 255, ${overlayOpacity})`;
-    for (const cellIndex of scanResult.highCells) {
+    for (const cellIndex of mediumCells) {
+      const col = cellIndex % plan.gridCols;
+      const row = Math.floor(cellIndex / plan.gridCols);
+      const left = Math.round(offsetX + col * cellSize);
+      const right = Math.round(offsetX + (col + 1) * cellSize);
+      const top = Math.round(offsetY + row * cellSize);
+      const bottom = Math.round(offsetY + (row + 1) * cellSize);
+      targetCtx.fillRect(left, top, Math.max(1, right - left), Math.max(1, bottom - top));
+    }
+
+    targetCtx.fillStyle = `rgba(60, 110, 190, ${Math.min(1, overlayOpacity + 0.12)})`;
+    for (const cellIndex of highCells) {
       const col = cellIndex % plan.gridCols;
       const row = Math.floor(cellIndex / plan.gridCols);
       const left = Math.round(offsetX + col * cellSize);

@@ -76,6 +76,8 @@ const detailInterestLyapunovDelta0FormattedEl = document.getElementById("detailI
 const detailInterestLyapunovRescaleToggleEl = document.getElementById("detailInterestLyapunovRescaleToggle");
 const detailInterestLyapunovMaxDistanceRangeEl = document.getElementById("detailInterestLyapunovMaxDistanceRange");
 const detailInterestLyapunovMaxDistanceFormattedEl = document.getElementById("detailInterestLyapunovMaxDistanceFormatted");
+const detailInterestStep2ThresholdRangeEl = document.getElementById("detailInterestStep2ThresholdRange");
+const detailInterestStep2ThresholdFormattedEl = document.getElementById("detailInterestStep2ThresholdFormatted");
 const detailColorModeSelectEl = document.getElementById("detailColorModeSelect");
 const detailLogStrengthRangeEl = document.getElementById("detailLogStrengthRange");
 const detailLogStrengthFormattedEl = document.getElementById("detailLogStrengthFormatted");
@@ -1601,6 +1603,7 @@ function syncDetailedSettingsControls() {
   const interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
   const interestLyapunovRescale = Boolean(appData.defaults.interestLyapunovRescale);
   const interestLyapunovMaxDistance = clamp(Number(appData.defaults.interestLyapunovMaxDistance), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
+  const interestStep2Threshold = clamp(Number(appData.defaults.interestStep2Threshold), 0.05, 0.5);
   if (detailInterestGridSizeRangeEl) detailInterestGridSizeRangeEl.value = String(interestGridSize);
   if (detailInterestGridSizeFormattedEl) detailInterestGridSizeFormattedEl.textContent = formatNumberForUi(interestGridSize, 0);
   if (detailInterestScanIterationsRangeEl) detailInterestScanIterationsRangeEl.value = String(interestScanIterations);
@@ -1613,6 +1616,8 @@ function syncDetailedSettingsControls() {
   if (detailInterestLyapunovRescaleToggleEl) detailInterestLyapunovRescaleToggleEl.checked = interestLyapunovRescale;
   if (detailInterestLyapunovMaxDistanceRangeEl) detailInterestLyapunovMaxDistanceRangeEl.value = String(interestLyapunovMaxDistance);
   if (detailInterestLyapunovMaxDistanceFormattedEl) detailInterestLyapunovMaxDistanceFormattedEl.textContent = formatNumberForUi(interestLyapunovMaxDistance, 3);
+  if (detailInterestStep2ThresholdRangeEl) detailInterestStep2ThresholdRangeEl.value = String(interestStep2Threshold);
+  if (detailInterestStep2ThresholdFormattedEl) detailInterestStep2ThresholdFormattedEl.textContent = formatNumberForUi(interestStep2Threshold, 2);
   interestOverlay.syncToggleUi();
   const holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
   const touchZoomDeadbandPx = getTouchZoomDeadbandPx();
@@ -1825,6 +1830,14 @@ function applyInterestLyapunovRescale(nextValue) {
 
 function applyInterestLyapunovMaxDistance(nextValue) {
   appData.defaults.interestLyapunovMaxDistance = clamp(Number(nextValue), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  requestDraw();
+  commitCurrentStateToHistory();
+}
+
+function applyInterestStep2Threshold(nextValue) {
+  appData.defaults.interestStep2Threshold = clamp(Number(nextValue), 0.05, 0.5);
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   requestDraw();
@@ -2497,6 +2510,7 @@ function captureCurrentState() {
     interestLyapunovDelta0: appData.defaults.interestLyapunovDelta0,
     interestLyapunovRescale: appData.defaults.interestLyapunovRescale,
     interestLyapunovMaxDistance: appData.defaults.interestLyapunovMaxDistance,
+    interestStep2Threshold: appData.defaults.interestStep2Threshold,
     holdSpeedScale: appData.defaults.holdSpeedScale,
     holdRepeatMs: appData.defaults.holdRepeatMs,
     holdAccelStartMs: appData.defaults.holdAccelStartMs,
@@ -2557,6 +2571,7 @@ function applyState(state) {
   appData.defaults.interestLyapunovDelta0 = clamp(Number(state.interestLyapunovDelta0 ?? appData.defaults.interestLyapunovDelta0), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
   appData.defaults.interestLyapunovRescale = Boolean(state.interestLyapunovRescale ?? appData.defaults.interestLyapunovRescale);
   appData.defaults.interestLyapunovMaxDistance = clamp(Number(state.interestLyapunovMaxDistance ?? appData.defaults.interestLyapunovMaxDistance), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
+  appData.defaults.interestStep2Threshold = clamp(Number(state.interestStep2Threshold ?? appData.defaults.interestStep2Threshold), 0.05, 0.5);
   appData.defaults.holdSpeedScale = clamp(Number(state.holdSpeedScale ?? appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
   appData.defaults.holdRepeatMs = Math.round(Number(state.holdRepeatMs ?? appData.defaults.holdRepeatMs ?? HOLD_REPEAT_MS_DEFAULT));
   appData.defaults.holdAccelStartMs = Math.round(Number(state.holdAccelStartMs ?? appData.defaults.holdAccelStartMs ?? HOLD_ACCEL_START_MS_DEFAULT));
@@ -4542,6 +4557,8 @@ const interestOverlay = initInterestOverlay({
     lyapunovDelta0Max: INTEREST_LYAPUNOV_DELTA0_MAX,
     lyapunovMaxDistanceMin: INTEREST_LYAPUNOV_MAX_DISTANCE_MIN,
     lyapunovMaxDistanceMax: INTEREST_LYAPUNOV_MAX_DISTANCE_MAX,
+    step2ThresholdMin: 0.05,
+    step2ThresholdMax: 0.5,
   },
 });
 
@@ -5398,6 +5415,7 @@ function registerHandlers() {
   detailInterestLyapunovDelta0RangeEl?.addEventListener("input", () => applyInterestLyapunovDelta0(detailInterestLyapunovDelta0RangeEl.value));
   detailInterestLyapunovRescaleToggleEl?.addEventListener("change", () => applyInterestLyapunovRescale(detailInterestLyapunovRescaleToggleEl.checked));
   detailInterestLyapunovMaxDistanceRangeEl?.addEventListener("input", () => applyInterestLyapunovMaxDistance(detailInterestLyapunovMaxDistanceRangeEl.value));
+  detailInterestStep2ThresholdRangeEl?.addEventListener("input", () => applyInterestStep2Threshold(detailInterestStep2ThresholdRangeEl.value));
   holdSpeedRangeEl?.addEventListener("input", () => applyHoldSpeedScale(holdSpeedRangeEl.value));
   holdRepeatMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdRepeatMs", holdRepeatMsRangeEl.value));
   holdAccelStartMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdAccelStartMs", holdAccelStartMsRangeEl.value));
@@ -5630,6 +5648,9 @@ function loadData() {
   if (typeof data.defaults.interestLyapunovMaxDistance !== "number") {
     data.defaults.interestLyapunovMaxDistance = INTEREST_LYAPUNOV_MAX_DISTANCE_MAX;
   }
+  if (typeof data.defaults.interestStep2Threshold !== "number") {
+    data.defaults.interestStep2Threshold = 0.22;
+  }
   if (typeof data.defaults.holdSpeedScale !== "number") {
     data.defaults.holdSpeedScale = 1;
   }
@@ -5663,6 +5684,7 @@ function loadData() {
   data.defaults.interestLyapunovMinExponent = clamp(data.defaults.interestLyapunovMinExponent, INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
   data.defaults.interestLyapunovDelta0 = clamp(data.defaults.interestLyapunovDelta0, INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
   data.defaults.interestLyapunovMaxDistance = clamp(data.defaults.interestLyapunovMaxDistance, INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
+  data.defaults.interestStep2Threshold = clamp(data.defaults.interestStep2Threshold, 0.05, 0.5);
   data.defaults.holdSpeedScale = clamp(data.defaults.holdSpeedScale, HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
   data.defaults.holdRepeatMs = Math.round(clamp(data.defaults.holdRepeatMs, HOLD_REPEAT_MS_MIN, HOLD_REPEAT_MS_MAX));
   data.defaults.holdAccelStartMs = Math.round(clamp(data.defaults.holdAccelStartMs, HOLD_ACCEL_START_MS_MIN, HOLD_ACCEL_START_MS_MAX));
@@ -5721,6 +5743,7 @@ function bootstrap() {
     appData.defaults.interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0 ?? 1e-6), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
     appData.defaults.interestLyapunovRescale = Boolean(appData.defaults.interestLyapunovRescale ?? true);
     appData.defaults.interestLyapunovMaxDistance = clamp(Number(appData.defaults.interestLyapunovMaxDistance ?? INTEREST_LYAPUNOV_MAX_DISTANCE_MAX), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
+    appData.defaults.interestStep2Threshold = clamp(Number(appData.defaults.interestStep2Threshold ?? 0.22), 0.05, 0.5);
     normalizeIterationSettings();
     appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
     appData.defaults.touchZoomDeadbandPx = clamp(Number(appData.defaults.touchZoomDeadbandPx ?? TOUCH_ZOOM_DEADBAND_PX_DEFAULT), TOUCH_ZOOM_DEADBAND_PX_MIN, TOUCH_ZOOM_DEADBAND_PX_MAX);

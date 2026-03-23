@@ -391,10 +391,22 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
 }
 
 
-export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gridCols = 25, gridRows = 25, iterations = 1200, lyapunov = {}, onProgress = null }) {
+export function classifyInterestGridLyapunov({
+  formulaId,
+  baseParams,
+  plane,
+  gridCols = 25,
+  gridRows = 25,
+  iterations = 1200,
+  lyapunov = {},
+  step2 = {},
+  onProgress = null,
+  onMediumCells = null,
+  onHighInterestBatch = null,
+}) {
   const step = formulaStepById.get(formulaId);
   if (!step || !plane) {
-    return { gridCols: 0, gridRows: 0, highCells: [] };
+    return { gridCols: 0, gridRows: 0, mediumCells: [], highCells: [] };
   }
 
   const safeGridCols = Math.max(1, Math.round(Number(gridCols) || 25));
@@ -409,6 +421,15 @@ export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gri
   const shouldRescale = Boolean(lyapunov?.rescale);
   const epsilon = 1e-12;
   const minValidSteps = Math.max(4, Math.floor(sampleIterations * 0.1));
+
+  const step2BurnIn = 64;
+  const step2RetainedSamples = 192;
+  const step2GridSize = 8;
+  const step2GridCellCount = step2GridSize * step2GridSize;
+  const step2ThresholdRaw = Number(step2?.threshold);
+  const step2Threshold = Number.isFinite(step2ThresholdRaw) ? step2ThresholdRaw : 0.22;
+  const step2BatchSize = Math.max(1, Math.round(Number(step2?.batchSize) || 24));
+  const degenerateBoundsEpsilon = 1e-9;
 
   const safeBase = {
     a: Number(baseParams?.a) || 0,
@@ -478,8 +499,95 @@ export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gri
     return sumLogRatio / validSteps;
   };
 
-  const highCells = [];
+  const computeHighInterestScore = (cellParams) => {
+    const retainedX = new Array(step2RetainedSamples);
+    const retainedY = new Array(step2RetainedSamples);
+    let x = 0;
+    let y = 0;
+    let retainedCount = 0;
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    let sumX = 0;
+    let sumY = 0;
+    const totalSteps = step2BurnIn + step2RetainedSamples;
 
+    for (let i = 0; i < totalSteps; i += 1) {
+      [x, y] = step(x, y, cellParams.a, cellParams.b, cellParams.c, cellParams.d);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return Number.NEGATIVE_INFINITY;
+      }
+      if (i < step2BurnIn) {
+        continue;
+      }
+
+      retainedX[retainedCount] = x;
+      retainedY[retainedCount] = y;
+      retainedCount += 1;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+      sumX += x;
+      sumY += y;
+    }
+
+    const spanX = maxX - minX;
+    const spanY = maxY - minY;
+    if (retainedCount < 2 || !Number.isFinite(spanX) || !Number.isFinite(spanY) || spanX <= degenerateBoundsEpsilon || spanY <= degenerateBoundsEpsilon) {
+      return Number.NEGATIVE_INFINITY;
+    }
+
+    const meanX = sumX / retainedCount;
+    const meanY = sumY / retainedCount;
+    let covXX = 0;
+    let covXY = 0;
+    let covYY = 0;
+    const occupied = new Uint8Array(step2GridCellCount);
+    let occupiedBins = 0;
+
+    for (let i = 0; i < retainedCount; i += 1) {
+      const sampleX = retainedX[i];
+      const sampleY = retainedY[i];
+      const u = (sampleX - minX) / spanX;
+      const v = (sampleY - minY) / spanY;
+      const binX = Math.min(step2GridSize - 1, Math.max(0, Math.floor(u * step2GridSize)));
+      const binY = Math.min(step2GridSize - 1, Math.max(0, Math.floor(v * step2GridSize)));
+      const binIndex = binY * step2GridSize + binX;
+      if (occupied[binIndex] === 0) {
+        occupied[binIndex] = 1;
+        occupiedBins += 1;
+      }
+
+      const dx = sampleX - meanX;
+      const dy = sampleY - meanY;
+      covXX += dx * dx;
+      covXY += dx * dy;
+      covYY += dy * dy;
+    }
+
+    const invCount = 1 / retainedCount;
+    covXX *= invCount;
+    covXY *= invCount;
+    covYY *= invCount;
+
+    const trace = covXX + covYY;
+    const determinant = covXX * covYY - covXY * covXY;
+    const discriminant = Math.max(0, trace * trace - 4 * determinant);
+    const root = Math.sqrt(discriminant);
+    const lambda1 = Math.max((trace + root) * 0.5, 0);
+    const lambda2 = Math.max((trace - root) * 0.5, 0);
+    if (!Number.isFinite(lambda1) || lambda1 <= epsilon || !Number.isFinite(lambda2)) {
+      return Number.NEGATIVE_INFINITY;
+    }
+
+    const occupancyRatio = occupiedBins / step2GridCellCount;
+    const widthRatio = Math.max(0, Math.min(1, lambda2 / lambda1));
+    return occupancyRatio * Math.sqrt(widthRatio);
+  };
+
+  const mediumCells = [];
   const totalCells = Math.max(1, safeGridCols * safeGridRows);
   let processedCells = 0;
   let nextProgressPercent = 0;
@@ -496,42 +604,59 @@ export function classifyInterestGridLyapunov({ formulaId, baseParams, plane, gri
     }
   };
 
-  if (plane.mode === "one_axis") {
-    const [axisMin, axisMax] = plane.axisRange || [safeBase[plane.axisParam], safeBase[plane.axisParam]];
-    for (let col = 0; col < safeGridCols; col += 1) {
-      const cellParams = { ...safeBase };
+  const getCellParams = (row, col) => {
+    const cellParams = { ...safeBase };
+    if (plane.mode === "one_axis") {
+      const [axisMin, axisMax] = plane.axisRange || [safeBase[plane.axisParam], safeBase[plane.axisParam]];
       cellParams[plane.axisParam] = sampleAxisValue(axisMin, axisMax, col, safeGridCols);
-      const lambda = computeLambdaForParams(cellParams);
-      if (Number.isFinite(lambda) && lambda >= minExponent) {
-        for (let row = 0; row < safeGridRows; row += 1) {
-          highCells.push(row * safeGridCols + col);
-        }
-      }
-      processedCells += safeGridRows;
-      emitProgress(false);
+      return cellParams;
     }
 
-    emitProgress(true);
-    return { gridCols: safeGridCols, gridRows: safeGridRows, highCells };
-  }
-
-  const [xMin, xMax] = plane.axisXRange || [safeBase[plane.axisXParam], safeBase[plane.axisXParam]];
-  const [yMin, yMax] = plane.axisYRange || [safeBase[plane.axisYParam], safeBase[plane.axisYParam]];
+    const [xMin, xMax] = plane.axisXRange || [safeBase[plane.axisXParam], safeBase[plane.axisXParam]];
+    const [yMin, yMax] = plane.axisYRange || [safeBase[plane.axisYParam], safeBase[plane.axisYParam]];
+    cellParams[plane.axisXParam] = sampleAxisValue(xMin, xMax, col, safeGridCols);
+    cellParams[plane.axisYParam] = sampleAxisValue(yMax, yMin, row, safeGridRows);
+    return cellParams;
+  };
 
   for (let row = 0; row < safeGridRows; row += 1) {
     for (let col = 0; col < safeGridCols; col += 1) {
-      const cellParams = { ...safeBase };
-      cellParams[plane.axisXParam] = sampleAxisValue(xMin, xMax, col, safeGridCols);
-      cellParams[plane.axisYParam] = sampleAxisValue(yMax, yMin, row, safeGridRows);
+      const cellParams = getCellParams(row, col);
       const lambda = computeLambdaForParams(cellParams);
       if (Number.isFinite(lambda) && lambda >= minExponent) {
-        highCells.push(row * safeGridCols + col);
+        mediumCells.push(row * safeGridCols + col);
       }
       processedCells += 1;
       emitProgress(false);
     }
   }
 
+  if (typeof onMediumCells === "function") {
+    onMediumCells({ gridCols: safeGridCols, gridRows: safeGridRows, mediumCells: mediumCells.slice(), highCells: [] });
+  }
+
+  const highCells = [];
+  let highInterestBatch = [];
+  for (const cellIndex of mediumCells) {
+    const row = Math.floor(cellIndex / safeGridCols);
+    const col = cellIndex % safeGridCols;
+    const cellParams = getCellParams(row, col);
+    const highInterestScore = computeHighInterestScore(cellParams);
+    if (Number.isFinite(highInterestScore) && highInterestScore >= step2Threshold) {
+      highCells.push(cellIndex);
+      highInterestBatch.push(cellIndex);
+      // Phase 2 only upgrades already-rendered medium cells, in small batches, so dark cells appear progressively.
+      if (highInterestBatch.length >= step2BatchSize && typeof onHighInterestBatch === "function") {
+        onHighInterestBatch({ gridCols: safeGridCols, gridRows: safeGridRows, highCells: highInterestBatch.slice() });
+        highInterestBatch = [];
+      }
+    }
+  }
+
+  if (highInterestBatch.length > 0 && typeof onHighInterestBatch === "function") {
+    onHighInterestBatch({ gridCols: safeGridCols, gridRows: safeGridRows, highCells: highInterestBatch.slice() });
+  }
+
   emitProgress(true);
-  return { gridCols: safeGridCols, gridRows: safeGridRows, highCells };
+  return { gridCols: safeGridCols, gridRows: safeGridRows, mediumCells, highCells };
 }
