@@ -996,6 +996,27 @@ function clearSharedParamsOverride() {
   historyStateRef.sharedParamsFormulaId = null;
 }
 
+function applyActualParamsToSliders(formulaId, params) {
+  if (!formulaId || !params || !appData?.defaults?.sliders) {
+    return;
+  }
+
+  const range = getRangeValuesForFormula(formulaId);
+  for (const paramKey of ["a", "b", "c", "d"]) {
+    if (!isFormulaParamUsed(formulaId, paramKey)) {
+      continue;
+    }
+
+    const actualValue = Number(params[paramKey]);
+    if (!Number.isFinite(actualValue)) {
+      continue;
+    }
+
+    const [min, max] = range[paramKey];
+    appData.defaults.sliders[paramKey] = actualToSliderValue(actualValue, min, max);
+  }
+}
+
 function buildQrCanvas(text, sizePx, {
   background = "#000000",
   foreground = OVERLAY_TEXT_COLOR,
@@ -5624,6 +5645,10 @@ function bootstrap() {
       normalizeSliderDefaults();
     }
     const loadedSharedState = applySharedStateFromUrl();
+    if (loadedSharedState && historyStateRef.sharedParamsFormulaId === currentFormulaId && historyStateRef.sharedParamsOverride) {
+      applyActualParamsToSliders(currentFormulaId, historyStateRef.sharedParamsOverride);
+      clearSharedParamsOverride();
+    }
     if (!hasRestoredState || loadedSharedState) {
       applyInteractionReadyMode();
     }
