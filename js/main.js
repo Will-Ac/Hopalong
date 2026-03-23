@@ -146,11 +146,13 @@ const screenshotMenu8kEl = document.getElementById("screenshotMenu8k");
 const screenshotMenuCopyLinkEl = document.getElementById("screenshotMenuCopyLink");
 const screenshotMenuShareRetryEl = document.getElementById("screenshotMenuShareRetry");
 const screenshotMenuShareRetryHintEl = document.getElementById("screenshotMenuShareRetryHint");
+const shareQrContainerEl = document.getElementById("shareQrContainer");
+const shareQrCanvasEl = document.getElementById("shareQrCanvas");
 const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
 const randomModeTile = document.getElementById("randomModeTile");
 
-const APP_VERSION = "PR20.1";
+const APP_VERSION = "PR20.2";
 
 const ITERATION_FALLBACK_ABSOLUTE_MAX = 1000000000;
 const ITERATION_FALLBACK_STARTUP_DEFAULT = 500000;
@@ -996,7 +998,11 @@ function clearSharedParamsOverride() {
   historyStateRef.sharedParamsFormulaId = null;
 }
 
-function buildQrCanvas(text, sizePx) {
+function buildQrCanvas(text, sizePx, {
+  background = "#000000",
+  foreground = OVERLAY_TEXT_COLOR,
+  targetCanvas = null,
+} = {}) {
   const qrcodeFactory = window.qrcode;
   if (typeof qrcodeFactory !== "function") {
     throw new Error("QR generator unavailable.");
@@ -1008,7 +1014,7 @@ function buildQrCanvas(text, sizePx) {
 
   const moduleCount = qr.getModuleCount();
   const totalModules = moduleCount + QR_QUIET_ZONE_MODULES * 2;
-  const canvasEl = document.createElement("canvas");
+  const canvasEl = targetCanvas || document.createElement("canvas");
   canvasEl.width = sizePx;
   canvasEl.height = sizePx;
   const qrCtx = canvasEl.getContext("2d", { alpha: false });
@@ -1016,9 +1022,9 @@ function buildQrCanvas(text, sizePx) {
     throw new Error("QR canvas context unavailable.");
   }
 
-  qrCtx.fillStyle = "#000000";
+  qrCtx.fillStyle = background;
   qrCtx.fillRect(0, 0, sizePx, sizePx);
-  qrCtx.fillStyle = OVERLAY_TEXT_COLOR;
+  qrCtx.fillStyle = foreground;
 
   for (let row = 0; row < moduleCount; row += 1) {
     for (let col = 0; col < moduleCount; col += 1) {
@@ -1035,6 +1041,23 @@ function buildQrCanvas(text, sizePx) {
   }
 
   return canvasEl;
+}
+
+function renderShareQr(url) {
+  if (!shareQrCanvasEl || !shareQrContainerEl) {
+    return;
+  }
+
+  const displaySize = 180;
+  const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  buildQrCanvas(url, displaySize * dpr, {
+    background: "#ffffff",
+    foreground: "#000000",
+    targetCanvas: shareQrCanvasEl,
+  });
+  shareQrCanvasEl.style.width = `${displaySize}px`;
+  shareQrCanvasEl.style.height = `${displaySize}px`;
+  shareQrContainerEl.classList.remove("is-hidden");
 }
 
 function resolveInitialFormulaId() {
@@ -4895,6 +4918,12 @@ function syncCameraButtonHighlight() {
 }
 
 function openScreenshotMenu() {
+  try {
+    renderShareQr(buildShareUrl());
+  } catch (error) {
+    console.warn("Could not render share QR.", error);
+    shareQrContainerEl?.classList.add("is-hidden");
+  }
   syncScreenshotMenuShareRetryUi();
   screenshotMenuOverlayEl?.classList.add("is-open");
   syncCameraButtonHighlight();

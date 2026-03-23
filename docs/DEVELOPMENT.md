@@ -31,6 +31,8 @@ Shared URLs are consumed on load and then removed from the address bar.
 
 Use `Copy Share Link` to generate a reproducible URL.
 
+Share dialog includes a QR code generated from the same URL as `Copy Share Link`, allowing direct device-to-device sharing without screenshots.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
