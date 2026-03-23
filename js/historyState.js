@@ -9,6 +9,7 @@ export function initHistoryState({
   getShareState,
   applySharedState,
   getLocation = () => window.location,
+  appVersion = "",
 }) {
   let isApplyingHistoryState = false;
   let historyStates = [];
@@ -78,29 +79,91 @@ export function initHistoryState({
     state.fixedView = { ...nextFixedView };
   }
 
-  function buildSharePayload() {
-    const { formulaId, cmapName, params, iterations, view } = getShareState();
-    const paramText = `${params.a},${params.b},${params.c},${params.d}`;
-    const viewText = `${view.offsetX ?? 0},${view.offsetY ?? 0},${view.zoom ?? 1}`;
-    const refreshToken = Date.now().toString(36);
-
-    const pairs = [
-      ["f", formulaId],
-      ["c", cmapName],
-      ["p", paramText],
-      ["i", String(iterations)],
-      ["v", viewText],
-      ["r", refreshToken],
-    ];
-
-    return pairs
-      .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
-      .join("&");
-  }
-
   function buildShareUrl() {
     const location = getLocation();
-    return `${location.origin}${location.pathname}#s=${buildSharePayload()}`;
+    const {
+      formulaId,
+      cmapName,
+      params,
+      iterations,
+      burn,
+      seed,
+      scaleMode,
+      view,
+    } = getShareState();
+    const url = new URL(`${location.origin}${location.pathname}`);
+    const searchParams = new URLSearchParams();
+
+    searchParams.set("formula", formulaId);
+    searchParams.set("cmap", cmapName);
+    searchParams.set("a", String(params.a));
+    searchParams.set("b", String(params.b));
+    searchParams.set("c", String(params.c));
+    searchParams.set("d", String(params.d));
+    searchParams.set("iters", String(iterations));
+    searchParams.set("burn", String(burn));
+    searchParams.set("scale", String(scaleMode || "fixed"));
+    searchParams.set("offsetX", String(view?.offsetX ?? 0));
+    searchParams.set("offsetY", String(view?.offsetY ?? 0));
+    searchParams.set("zoom", String(view?.zoom ?? 1));
+    searchParams.set("seedX", String(seed?.x ?? 0));
+    searchParams.set("seedY", String(seed?.y ?? 0));
+    if (appVersion) {
+      searchParams.set("v", appVersion);
+    }
+
+    url.search = searchParams.toString();
+    return url.toString();
+  }
+
+  function applySharedStateFromSearch() {
+    const location = getLocation();
+    const params = new URLSearchParams(location.search || "");
+    const formulaId = params.get("formula");
+    const cmapName = params.get("cmap");
+    const rawParamValues = ["a", "b", "c", "d"].map((key) => Number.parseFloat(params.get(key) || ""));
+    const iterations = Number.parseInt(params.get("iters") || "", 10);
+    const burn = Number.parseInt(params.get("burn") || "", 10);
+    const scaleMode = params.get("scale") || "fixed";
+    const view = [
+      Number.parseFloat(params.get("offsetX") || "0"),
+      Number.parseFloat(params.get("offsetY") || "0"),
+      Number.parseFloat(params.get("zoom") || "1"),
+    ];
+    const seed = {
+      x: Number.parseFloat(params.get("seedX") || "0"),
+      y: Number.parseFloat(params.get("seedY") || "0"),
+    };
+
+    if (!formulaId || !cmapName) {
+      return false;
+    }
+    if (rawParamValues.some((value) => !Number.isFinite(value))) {
+      return false;
+    }
+    if (!Number.isFinite(iterations) || iterations < 1) {
+      return false;
+    }
+    if (!Number.isFinite(burn) || burn < 0) {
+      return false;
+    }
+    if (view.some((value) => !Number.isFinite(value)) || view[2] <= 0) {
+      return false;
+    }
+    if (!Number.isFinite(seed.x) || !Number.isFinite(seed.y)) {
+      return false;
+    }
+
+    return applySharedState({
+      formulaId,
+      cmapName,
+      params: rawParamValues,
+      iterations,
+      burn,
+      seed,
+      scaleMode,
+      view,
+    });
   }
 
   function applySharedStateFromHash() {
@@ -148,6 +211,9 @@ export function initHistoryState({
         cmapName,
         params: pValues,
         iterations,
+        burn: null,
+        seed: null,
+        scaleMode: "fixed",
         view: vValues,
       });
     } catch (error) {
@@ -156,10 +222,15 @@ export function initHistoryState({
     }
   }
 
+  function applySharedStateFromUrl() {
+    return applySharedStateFromSearch() || applySharedStateFromHash();
+  }
+
   return {
-    buildSharePayload,
     buildShareUrl,
+    applySharedStateFromSearch,
     applySharedStateFromHash,
+    applySharedStateFromUrl,
     captureCurrentState,
     commitCurrentStateToHistory,
     moveBackward: () => moveHistory(-1),

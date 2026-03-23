@@ -27,6 +27,10 @@ The version badge is a lightweight visual check, not a release system. It helps 
 
 Startup parameter values for `a`–`d` are derived from formula defaults rather than fixed slider values when the app starts without URL or restored state.
 
+Shared URLs are consumed on load and then removed from the address bar.
+
+Use `Copy Share Link` to generate a reproducible URL.
+
 ## 3. Common pitfalls
 
 ### State grouping errors

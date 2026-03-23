@@ -143,11 +143,14 @@ const screenshotMenuCleanEl = document.getElementById("screenshotMenuClean");
 const screenshotMenuOverlayOptionEl = document.getElementById("screenshotMenuOverlayOption");
 const screenshotMenu4kEl = document.getElementById("screenshotMenu4k");
 const screenshotMenu8kEl = document.getElementById("screenshotMenu8k");
+const screenshotMenuCopyLinkEl = document.getElementById("screenshotMenuCopyLink");
 const screenshotMenuShareRetryEl = document.getElementById("screenshotMenuShareRetry");
 const screenshotMenuShareRetryHintEl = document.getElementById("screenshotMenuShareRetryHint");
 const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
 const randomModeTile = document.getElementById("randomModeTile");
+
+const APP_VERSION = "PR20.1";
 
 const ITERATION_FALLBACK_ABSOLUTE_MAX = 1000000000;
 const ITERATION_FALLBACK_STARTUP_DEFAULT = 500000;
@@ -2478,6 +2481,7 @@ function applyState(state) {
 }
 
 const historyState = initHistoryState({
+  appVersion: APP_VERSION,
   historyLimit: HISTORY_LIMIT,
   getAppData: () => appData,
   getCurrentFormulaId: () => currentFormulaId,
@@ -2492,16 +2496,19 @@ const historyState = initHistoryState({
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
     iterations: Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max)),
+    burn: Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max)),
+    seed: getSeedForFormula(currentFormulaId),
+    scaleMode: getScaleMode(),
     view: renderState.fixedView || {},
   }),
-  applySharedState: ({ formulaId, cmapName, params, iterations, view }) => {
+  applySharedState: ({ formulaId, cmapName, params, iterations, burn, seed, scaleMode, view }) => {
     const formulaExists = appData.formulas.some((formula) => formula.id === formulaId);
     const cmapExists = appData.colormaps.includes(cmapName);
     if (!formulaExists || !cmapExists) {
       return false;
     }
 
-    appData.defaults.scaleMode = "fixed";
+    appData.defaults.scaleMode = scaleMode === "auto" ? "auto" : "fixed";
     for (const key of PARAM_MODE_KEYS) {
       paramModes[key] = { lockState: "fix", modAxis: "none" };
     }
@@ -2510,6 +2517,9 @@ const historyState = initHistoryState({
     currentFormulaId = formulaId;
     appData.defaults.cmapName = cmapName;
     appData.defaults.sliders.iters = Math.round(clamp(iterations, sliderControls.iters.min, sliderControls.iters.max));
+    if (Number.isFinite(Number(burn))) {
+      appData.defaults.sliders.burn = Math.round(clamp(burn, sliderControls.burn.min, sliderControls.burn.max));
+    }
     renderState.fixedView = {
       offsetX: view[0],
       offsetY: view[1],
@@ -2522,6 +2532,13 @@ const historyState = initHistoryState({
       d: params[3],
     };
     historyStateRef.sharedParamsFormulaId = formulaId;
+    if (seed && Number.isFinite(Number(seed.x)) && Number.isFinite(Number(seed.y))) {
+      appData.defaults.formulaSeeds = appData.defaults.formulaSeeds || {};
+      appData.defaults.formulaSeeds[formulaId] = {
+        x: seed.x,
+        y: seed.y,
+      };
+    }
     syncParamModeVisuals();
     syncScaleModeButton();
     syncRandomModeButton();
@@ -2532,8 +2549,8 @@ const historyState = initHistoryState({
 });
 
 const {
-  applySharedStateFromHash,
-  buildSharePayload,
+  applySharedStateFromUrl,
+  buildShareUrl,
   commitCurrentStateToHistory,
   moveBackward: moveBackwardInHistory,
   moveForward: moveForwardInHistory,
@@ -4275,6 +4292,20 @@ function normalizeCenteredCellCount(rawCount) {
   return rounded > 1 ? rounded - 1 : 1;
 }
 
+function hasStateParams(urlSearchParams) {
+  return [...urlSearchParams.keys()].some((key) => !["v"].includes(key));
+}
+
+function cleanUrl() {
+  const url = new URL(window.location.href);
+  const cleanParams = new URLSearchParams();
+  if (url.searchParams.has("v")) {
+    cleanParams.set("v", url.searchParams.get("v"));
+  }
+  const newUrl = url.pathname + (cleanParams.toString() ? `?${cleanParams.toString()}` : "");
+  history.replaceState(null, "", newUrl);
+}
+
 function getInterestGridLayout(view, rawGridSize) {
   const selectedGridSize = Math.round(clamp(Number(rawGridSize), INTEREST_GRID_SIZE_MIN, INTEREST_GRID_SIZE_MAX));
   const width = Math.max(1, Number(view?.width) || 1);
@@ -4319,7 +4350,7 @@ exportState.exportManager = initExportManager({
   showToast,
   requestDraw,
   updateExportRenderProgressToast,
-  buildSharePayload,
+  buildShareUrl,
   overlayTextColor: OVERLAY_TEXT_COLOR,
   qrQuietZoneModules: QR_QUIET_ZONE_MODULES,
 });
@@ -4505,6 +4536,17 @@ function drawManualParamOverlay(meta, targetCtx = ctx) {
   }
 
   targetCtx.restore();
+}
+
+async function copyShareLink() {
+  const url = buildShareUrl();
+
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast("Share link copied");
+  } catch (error) {
+    showToast("Failed to copy link");
+  }
 }
 
 function clearOverlayCanvas(targetCanvas, targetCtx) {
@@ -5029,6 +5071,9 @@ function registerHandlers() {
     closeScreenshotMenu();
     await exportState.exportManager.captureScreenshotAction("8k");
   });
+  screenshotMenuCopyLinkEl?.addEventListener("click", async () => {
+    await copyShareLink();
+  });
   screenshotMenuShareRetryEl?.addEventListener("click", async () => {
     await retryPendingShare();
   });
@@ -5458,13 +5503,14 @@ function bootstrap() {
 
     currentFormulaId = resolveInitialFormulaId();
     appData.defaults.cmapName = resolveInitialColorMap();
-    const urlHasParams = window.location.hash.includes("#s=");
+    const searchParams = new URLSearchParams(window.location.search);
+    const urlHasParams = hasStateParams(searchParams) || window.location.hash.includes("#s=");
     const hasExternalState = urlHasParams || hasRestoredState;
     if (!hasExternalState) {
       applyFormulaDefaults(currentFormulaId);
       normalizeSliderDefaults();
     }
-    const loadedSharedState = applySharedStateFromHash();
+    const loadedSharedState = applySharedStateFromUrl();
     configureNameBoxWidths();
     updateCurrentPickerSelection();
     refreshParamButtons();
@@ -5476,6 +5522,9 @@ function bootstrap() {
     syncParamModeVisuals();
     saveParamModesToStorage();
     saveDefaultsToStorage();
+    if (loadedSharedState && hasStateParams(searchParams)) {
+      cleanUrl();
+    }
 
     registerHandlers();
     initHelpOverlay();
