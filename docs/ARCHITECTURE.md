@@ -202,10 +202,11 @@ Manual overlay drawing is still handled separately in `main.js`, but both overla
 7. Initialize module instances for history, export, interest overlay, UI panels, and help overlay.
 8. Attach event handlers for buttons, pointers, keyboard input, resize, and panel interactions.
 9. Resolve initial formula and colour map.
-10. Apply shared URL state if a `#s=` payload is present.
-11. Commit the initial state to history.
-12. Request the first render.
-13. Show a startup toast once the app is ready.
+10. On first load with no shared URL or restored state, initialize `a`–`d` and seeds from `FORMULA_DEFAULT_PRESETS` and `FORMULA_DEFAULT_SEEDS` for the selected formula.
+11. Apply shared URL state if a `#s=` payload is present.
+12. Commit the initial state to history.
+13. Request the first render.
+14. Show a startup toast once the app is ready.
 
 
 ## Module dependency map

@@ -25,6 +25,8 @@ Recommended workflow:
 
 The version badge is a lightweight visual check, not a release system. It helps reviewers confirm which PR build they are looking at. The badge is shown in the top-left of the UI.
 
+Startup parameter values for `a`–`d` are derived from formula defaults rather than fixed slider values when the app starts without URL or restored state.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
