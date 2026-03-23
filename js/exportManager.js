@@ -48,36 +48,13 @@ export function initExportManager({
     const vh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
     const orientationType = String(window.screen?.orientation?.type || "").toLowerCase();
     const isLandscape = orientationType ? orientationType.startsWith("landscape") : vw > vh;
-    const viewportLong = Math.max(vw, vh);
-    const viewportShort = Math.max(1, Math.min(vw, vh));
-    const viewportAspect = viewportLong / viewportShort;
     const screenW = Number(window.screen?.width) || 0;
     const screenH = Number(window.screen?.height) || 0;
-    const availW = Number(window.screen?.availWidth) || 0;
-    const availH = Number(window.screen?.availHeight) || 0;
-    const rawPairs = [
-      { source: "screen", w: screenW, h: screenH },
-      { source: "avail", w: availW, h: availH },
-    ];
-    const candidates = rawPairs
-      .filter((pair) => pair.w > 0 && pair.h > 0)
-      .map((pair) => {
-        const long = Math.max(pair.w, pair.h);
-        const short = Math.min(pair.w, pair.h);
-        const aspect = long / Math.max(1, short);
-        return { ...pair, long, short, aspect };
-      });
-    const nonSquareCandidate = candidates.find((pair) => Number.isFinite(pair.aspect) && pair.aspect > 1.01) || null;
-    const baseCandidate = nonSquareCandidate || candidates[0] || null;
-    const hasScreenSize = Boolean(baseCandidate);
-    const rawCssLong = hasScreenSize ? baseCandidate.long : viewportLong;
-    const rawCssShort = hasScreenSize ? baseCandidate.short : viewportShort;
-    const isSuspiciousSquareScreen = hasScreenSize
-      && Math.abs(rawCssLong - rawCssShort) <= 1
-      && Number.isFinite(viewportAspect)
-      && viewportAspect > 1.01;
-    const cssLong = rawCssLong;
-    const cssShort = isSuspiciousSquareScreen ? Math.max(1, Math.round(rawCssLong / viewportAspect)) : rawCssShort;
+    const hasUsableScreenSize = screenW > 0 && screenH > 0;
+    const cssW = hasUsableScreenSize ? screenW : Math.max(1, vw);
+    const cssH = hasUsableScreenSize ? screenH : Math.max(1, vh);
+    const cssLong = Math.max(cssW, cssH);
+    const cssShort = Math.max(1, Math.min(cssW, cssH));
     let pxW = Math.round((isLandscape ? cssLong : cssShort) * dpr);
     let pxH = Math.round((isLandscape ? cssShort : cssLong) * dpr);
     const liveMin = Math.max(1, Math.min(liveCanvas.width, liveCanvas.height));
@@ -92,20 +69,16 @@ export function initExportManager({
       pxH,
       dpr,
       isLandscape,
-      hasScreenSize,
+      hasScreenSize: hasUsableScreenSize,
       debug: {
         orientationType,
         vw,
         vh,
-        viewportAspect,
         screenW,
         screenH,
-        availW,
-        availH,
-        selectedSource: baseCandidate?.source || "viewport",
-        selectedLong: rawCssLong,
-        selectedShort: rawCssShort,
-        isSuspiciousSquareScreen,
+        selectedSource: hasUsableScreenSize ? "screen" : "viewport",
+        selectedLong: cssLong,
+        selectedShort: cssShort,
         cssW: isLandscape ? cssLong : cssShort,
         cssH: isLandscape ? cssShort : cssLong,
         liveCanvasW: liveCanvas.width,
