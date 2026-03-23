@@ -29,9 +29,7 @@ Startup parameter values for `a`–`d` are derived from formula defaults rather 
 
 Shared URLs are consumed on load and then removed from the address bar.
 
-Use `Copy Share Link` to generate a reproducible URL.
-
-Share dialog includes a QR code generated from the same URL as `Copy Share Link`, allowing direct device-to-device sharing without screenshots.
+Share dialog uses the Web Share API where supported to open the native system share sheet. If unavailable, it falls back to copying the link to the clipboard. The QR code and share action both use the same generated URL.
 
 ## 3. Common pitfalls
 

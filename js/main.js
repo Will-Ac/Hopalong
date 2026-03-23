@@ -152,7 +152,7 @@ const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
 const randomModeTile = document.getElementById("randomModeTile");
 
-const APP_VERSION = "PR20.2";
+const APP_VERSION = "PR20.3";
 
 const ITERATION_FALLBACK_ABSOLUTE_MAX = 1000000000;
 const ITERATION_FALLBACK_STARTUP_DEFAULT = 500000;
@@ -4561,14 +4561,29 @@ function drawManualParamOverlay(meta, targetCtx = ctx) {
   targetCtx.restore();
 }
 
-async function copyShareLink() {
+async function shareLink() {
   const url = buildShareUrl();
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: "Hopalong Pattern",
+        text: "Check out this pattern",
+        url,
+      });
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return;
+      }
+    }
+  }
 
   try {
     await navigator.clipboard.writeText(url);
-    showToast("Share link copied");
+    showToast("Link copied");
   } catch (error) {
-    showToast("Failed to copy link");
+    showToast("Unable to share link");
   }
 }
 
@@ -5101,7 +5116,7 @@ function registerHandlers() {
     await exportState.exportManager.captureScreenshotAction("8k");
   });
   screenshotMenuCopyLinkEl?.addEventListener("click", async () => {
-    await copyShareLink();
+    await shareLink();
   });
   screenshotMenuShareRetryEl?.addEventListener("click", async () => {
     await retryPendingShare();
