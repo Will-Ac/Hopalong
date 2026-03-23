@@ -63,8 +63,8 @@ In practical terms, `main.js` owns the application lifecycle, while the other mo
 ### `js/historyState.js`
 - Maintains the history stack for interactive navigation.
 - Stores snapshots of app state and supports backward/forward movement.
-- Builds share URLs from the current state.
-- Restores app state from history entries or shared URL payloads.
+- Builds share URLs from the current state using a device-independent world-view model (`cx`, `cy`, `ms`) plus a compact sender aspect-ratio hint (`ar`).
+- Restores app state from history entries or shared URL payloads, reconstructing fixed view from the receiver canvas so shared links never crop relative to the sender.
 
 ### `js/utils.js`
 - Holds small shared helpers.
