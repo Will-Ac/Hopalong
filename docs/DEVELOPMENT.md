@@ -6,10 +6,10 @@ This app is designed to run as a static site, so the normal usage model is simpl
 
 - Open the site through GitHub Pages, or any static file server that serves the repository contents.
 - Because the app loads JSON files with `fetch()`, use an HTTP server rather than opening `index.html` directly from the file system.
-- If you are checking a freshly deployed version and the browser seems stuck on older code, add a cache-busting query string such as `?v=PR11.2`.
+- If you are checking a freshly deployed version and the browser seems stuck on older code, add a cache-busting query string such as `?v=XYZ`.
 
 Example:
-- `https://<your-pages-site>/Hopalong/?v=PR11.2`
+- `https://<your-pages-site>/Hopalong/?v=XYZ`
 
 ## 2. PR workflow
 
@@ -21,7 +21,7 @@ Recommended workflow:
 3. Update the visible version badge when the PR intentionally changes the shipped build.
 4. Use the badge/query-string pair together so reviewers can confirm they are testing the right build.
 
-The version badge is a lightweight visual check, not a release system. It helps reviewers confirm which PR build they are looking at.
+The version badge is a lightweight visual check, not a release system. It helps reviewers confirm which PR build they are looking at. The badge is shown in the top-left of the UI.
 
 ## 3. Common pitfalls
 
@@ -49,7 +49,7 @@ This project is easy to cache aggressively because it is a static web app.
 If a fix does not appear:
 - hard refresh first
 - open DevTools and disable cache while testing
-- add `?v=<new-version>` to the URL
+- add `?v=XYZ` to the URL
 - confirm the on-screen version badge matches the build you expect
 
 ## 4. Debugging guide
@@ -84,6 +84,23 @@ A simple approach:
 
 When in doubt, log the smallest possible state snapshot near the handoff between modules. That usually shows whether the bug is in the producer or the consumer.
 
+### Interest Overlay (Worker-based)
+
+- Overlay computation runs in `js/interestOverlayWorker.js`.
+- Main-thread coordination lives in `js/interestOverlay.js`.
+- `interestOverlay.js` owns scheduling, scan-key validation, cache application, redraw, and worker lifecycle.
+- The worker receives a job payload, runs the heavy scan, and posts progress/result messages back.
+
+If the overlay fails:
+- check the browser console first
+- check for worker load errors
+- check message passing between `interestOverlay.js` and `interestOverlayWorker.js`
+- check for `jobId` / `scanKey` mismatches that cause stale results to be ignored
+
+Notes:
+- Worker errors appear in the DevTools console.
+- The worker must be served from the same origin, so do not test it with `file://`.
+
 
 ## Smoke test checklist
 
@@ -107,7 +124,7 @@ If a PR seems to have broken the app:
 
 1. Check the browser console first.
 2. Verify the version badge matches the build you think you are testing.
-3. Reload with a fresh query string, for example `?v=112`.
+3. Reload with a fresh query string, for example `?v=XYZ`.
 4. Hard refresh the page.
 5. Compare the changed files against the intended PR scope.
 6. Fix forward on the open PR when that is practical.
@@ -137,4 +154,4 @@ Before opening or merging a PR:
 3. Test the app in the browser.
 4. Open DevTools and confirm the console stays clear during startup and your quick smoke test.
 5. Verify the on-screen version badge matches the PR build you expect.
-6. If the browser appears to serve old files, reload with a cache-busting query string such as `?v=PR13.1`.
+6. If the browser appears to serve old files, reload with a cache-busting query string such as `?v=XYZ`.
