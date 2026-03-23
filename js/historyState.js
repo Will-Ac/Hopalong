@@ -9,7 +9,6 @@ export function initHistoryState({
   getShareState,
   applySharedState,
   getLocation = () => window.location,
-  appVersion = "",
 }) {
   let isApplyingHistoryState = false;
   let historyStates = [];
@@ -108,10 +107,6 @@ export function initHistoryState({
     searchParams.set("zoom", String(view?.zoom ?? 1));
     searchParams.set("seedX", String(seed?.x ?? 0));
     searchParams.set("seedY", String(seed?.y ?? 0));
-    if (appVersion) {
-      searchParams.set("v", appVersion);
-    }
-
     url.search = searchParams.toString();
     return url.toString();
   }

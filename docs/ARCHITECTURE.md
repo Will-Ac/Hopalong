@@ -183,7 +183,7 @@ Manual overlay drawing is still handled separately in `main.js`, but both overla
 3. `exportManager` reads current render/view state through getters passed at startup.
 4. It reuses cached render data or renders to an export-sized canvas when needed.
 5. The manager saves or shares a PNG, optionally with metadata overlay content.
-6. The share dialog can also display an inline QR code, generated from the same share URL used by the share action, and can attach a lightweight thumbnail from the current visible canvas when the platform supports file sharing.
+6. The share dialog can also display an inline QR code, generated from the same versionless share URL used by the share action, and can attach a lightweight thumbnail from the current visible canvas when the platform supports file sharing.
 
 ### History / URL update
 1. `main.js` captures the current logical state after important user actions.
@@ -206,9 +206,10 @@ Manual overlay drawing is still handled separately in `main.js`, but both overla
 9. Resolve initial formula and colour map.
 10. On first load with no shared URL or restored state, initialize `a`–`d` and seeds from `FORMULA_DEFAULT_PRESETS` and `FORMULA_DEFAULT_SEEDS` for the selected formula.
 11. Apply shared URL state if query parameters or a legacy `#s=` payload are present.
-12. Commit the initial state to history.
-13. Request the first render.
-14. Show a startup toast once the app is ready.
+12. For fresh loads and shared-state loads, force the interaction-ready mode: randomized controls, `a` on `ManY`, `b` on `ManX`, interest overlay off.
+13. Commit the initial state to history.
+14. Request the first render.
+15. Show a startup toast once the app is ready.
 
 
 ## Module dependency map

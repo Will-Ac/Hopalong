@@ -152,8 +152,6 @@ const scaleModeBtn = document.getElementById("scaleModeBtn");
 const randomModeBtn = document.getElementById("randomModeBtn");
 const randomModeTile = document.getElementById("randomModeTile");
 
-const APP_VERSION = "PR20.3";
-
 const ITERATION_FALLBACK_ABSOLUTE_MAX = 1000000000;
 const ITERATION_FALLBACK_STARTUP_DEFAULT = 500000;
 const ITERATION_FALLBACK_RANDOM_MAX = 500000;
@@ -2504,7 +2502,6 @@ function applyState(state) {
 }
 
 const historyState = initHistoryState({
-  appVersion: APP_VERSION,
   historyLimit: HISTORY_LIMIT,
   getAppData: () => appData,
   getCurrentFormulaId: () => currentFormulaId,
@@ -2581,6 +2578,23 @@ const {
   isApplyingHistoryState,
   persistCurrentHistoryViewState,
 } = historyState;
+
+function applyInteractionReadyMode() {
+  for (const key of PARAM_MODE_KEYS) {
+    paramModes[key] = {
+      lockState: "rand",
+      modAxis: "none",
+    };
+  }
+
+  paramModes.a.modAxis = "manY";
+  paramModes.b.modAxis = "manX";
+  normalizeParamModes();
+  appData.defaults.interestOverlayEnabled = false;
+  syncParamModeVisuals();
+  syncRandomModeButton();
+  interestOverlay.syncToggleUi();
+}
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -5610,6 +5624,9 @@ function bootstrap() {
       normalizeSliderDefaults();
     }
     const loadedSharedState = applySharedStateFromUrl();
+    if (!hasRestoredState || loadedSharedState) {
+      applyInteractionReadyMode();
+    }
     configureNameBoxWidths();
     updateCurrentPickerSelection();
     refreshParamButtons();

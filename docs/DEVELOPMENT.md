@@ -27,7 +27,11 @@ The version badge is a lightweight visual check, not a release system. It helps 
 
 Startup parameter values for `a`–`d` are derived from formula defaults rather than fixed slider values when the app starts without URL or restored state.
 
+Generated share URLs do not include a version parameter.
+
 Shared URLs are consumed on load and then removed from the address bar.
+
+After both fresh load and shared-state load, the app enters an interaction-ready mode with randomised controls enabled where applicable, `a` mapped to `ManY`, `b` mapped to `ManX`, and the interest overlay turned off. Shared URLs still reproduce the visual state first, before these interaction-mode overrides are applied.
 
 Share dialog uses the Web Share API where supported. When file sharing is supported, it shares both the generated URL and a thumbnail of the current visible pattern. If file sharing is not supported, it falls back to URL-only sharing. If the Web Share API is unavailable, it falls back to copying the link to the clipboard. The QR code and share action both use the same generated URL.
 
