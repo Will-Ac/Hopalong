@@ -122,6 +122,8 @@ When in doubt, log the smallest possible state snapshot near the handoff between
 - Main-thread coordination lives in `js/interestOverlay.js`.
 - `interestOverlay.js` owns scheduling, scan-key validation, cache application, redraw, and worker lifecycle.
 - The worker receives a job payload, runs the heavy scan, and posts progress/result messages back.
+- The interest overlay now keeps the existing Lyapunov pass as step 1 for medium-interest cells, then runs a worker-side step 2 refinement on only those passing cells to progressively upgrade a subset to darker high-interest cells.
+- The advanced `High interest threshold` setting is passed from the detailed settings UI into the worker job payload and only affects the step 2 refinement score cutoff.
 
 If the overlay fails:
 - check the browser console first
