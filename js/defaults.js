@@ -41,6 +41,7 @@ export const DEFAULTS = {
   "interestLyapunovDelta0": 1e-06,
   "interestLyapunovRescale": true,
   "interestLyapunovMaxDistance": 1000000,
+  "interestHighThreshold": 0.22,
   "interestOverlayOpacity": 0.2
 };
 
