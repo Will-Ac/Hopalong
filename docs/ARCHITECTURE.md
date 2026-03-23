@@ -40,13 +40,19 @@ In practical terms, `main.js` owns the application lifecycle, while the other mo
 - Converts normalized slider settings into formula parameters.
 - Iterates the selected attractor formula to generate samples.
 - Builds the image, applies colour mapping, and returns view/world metadata for later overlays and exports.
-- Also exposes Lyapunov-based grid classification used by the interest overlay.
+- Also exposes the Lyapunov-based grid classification function reused by the interest overlay worker.
 
 ### `js/interestOverlay.js`
-- Computes the interest overlay on a secondary canvas.
-- Schedules scans after relevant state changes instead of recalculating on every small event.
-- Caches scan results by a derived scan key.
-- Draws highlighted grid cells over the rendered image.
+- Owns interest overlay state on a secondary canvas.
+- Decides when recalculation is needed after relevant state changes instead of recalculating on every small event.
+- Builds scan plans and scan keys, owns the overlay cache, and redraws highlighted grid cells over the rendered image.
+- Manages the worker lifecycle and only applies results that still match the currently valid request.
+
+### `js/interestOverlayWorker.js`
+- Performs the heavy Lyapunov/classification scan for one overlay job.
+- Runs off the main thread and does not touch DOM APIs.
+- Receives the scan plan, formula parameters, and grid settings from `js/interestOverlay.js`.
+- Returns the computed overlay grid result to the main thread.
 
 ### `js/exportManager.js`
 - Handles image export and sharing.
@@ -149,11 +155,27 @@ Read/write use:
 5. The resulting state may also be committed to history.
 
 ### Overlay recalculation
+Main thread flow:
 1. After a render or relevant setting change, `main.js` asks the interest overlay module to recalculate.
-2. `interestOverlay.js` builds a scan plan from the current formula, parameter plane, grid size, and Lyapunov settings.
-3. If the plan changed, it schedules a scan job.
-4. The scan result is cached and then drawn on the overlay canvas.
-5. Manual overlay drawing is handled separately in `main.js`, but both overlays use the latest render metadata.
+2. `interestOverlay.js` detects invalidation, builds the scan plan, and derives the `scanKey`.
+3. If a new calculation is required, `interestOverlay.js` starts or reuses the worker and sends a job payload containing the `jobId`, `scanKey`, and calculation inputs.
+4. The main thread receives the worker result.
+5. The result is applied only if both the `jobId` and `scanKey` still match the current valid request.
+6. The cached result is then drawn on the overlay canvas.
+
+Worker flow:
+1. `js/interestOverlayWorker.js` receives one job payload.
+2. The worker runs the full Lyapunov/classification scan off the main thread.
+3. The worker returns the computed overlay grid result to `interestOverlay.js`.
+
+Stale-result protection:
+- Worker results are ignored unless both the `jobId` and `scanKey` still match.
+
+Cancellation model:
+- The worker is terminated only when a newer required scan invalidates the current in-flight scan.
+- Pointer movement or other UI interaction that does not invalidate the scan does not cancel the job.
+
+Manual overlay drawing is still handled separately in `main.js`, but both overlays use the latest render metadata.
 
 ### Export flow
 1. The user requests a clean, overlay, 4K, or 8K capture.
@@ -193,6 +215,7 @@ Read/write use:
   - `js/helpOverlay.js`
   - `js/renderer.js`
   - `js/interestOverlay.js`
+  - `js/interestOverlayWorker.js` (indirectly, via `js/interestOverlay.js`)
   - `js/exportManager.js`
   - `js/historyState.js`
 - `js/utils.js` provides shared helper functions.
@@ -204,5 +227,5 @@ Read/write use:
 
 - `data/defaults.json` and `data/hopalong_data.json` are the runtime data source of truth shipped with the app.
 - Docs and spec-style files are for humans only; they are not runtime inputs.
-- The version badge is only a visible build/version check for reviewers and testers.
-- A query-string cache buster such as `?v=112` can force a fresh browser fetch, but it does not change app logic.
+- The version badge is only a visible build/version check for reviewers and testers. It sits at the top-left of the UI.
+- A query-string cache buster such as `?v=XYZ` can force a fresh browser fetch, but it does not change app logic.
