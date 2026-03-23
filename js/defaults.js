@@ -43,3 +43,6 @@ export const DEFAULTS = {
   "interestLyapunovMaxDistance": 1000000,
   "interestOverlayOpacity": 0.2
 };
+
+
+export const DEFAULT_BURN = Math.round(DEFAULTS.sliders.burn);
