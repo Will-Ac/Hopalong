@@ -29,6 +29,23 @@ Startup parameter values for `a`–`d` are derived from formula defaults rather 
 
 Generated share URLs do not include a version parameter.
 
+Compact share URL schema:
+
+- `f` = formula id
+- `m` = colour map name
+- `a`, `b`, `c`, `d` = derived formula parameters
+- `i` = iterations
+- `z` = zoom (omitted when `1`)
+- `ox` = offsetX (omitted when `0`)
+- `oy` = offsetY (omitted when `0`)
+- `rm` = render color mode (omitted when using the default mode)
+- `bg` = background color (simple name or hex without `#`, omitted when using the default background)
+
+Burn is no longer included in share URLs and is fixed internally to a default value.
+
+Share parsing remains backward compatible with older URLs, including older links that still contain `burn`, `formula`, `cmap`, `iters`, `zoom`, `offsetX`, `offsetY`, or other legacy keys. Legacy burn values are ignored.
+
+
 Shared URLs are consumed on load and then removed from the address bar.
 
 After both fresh load and shared-state load, the app enters an interaction-ready mode with randomised controls enabled where applicable, `a` mapped to `ManY`, `b` mapped to `ManX`, and the interest overlay turned off. Shared URLs still reproduce the visual state first, before these interaction-mode overrides are applied.

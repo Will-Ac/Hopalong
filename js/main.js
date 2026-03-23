@@ -1,4 +1,4 @@
-import { DEFAULTS } from "./defaults.js";
+import { DEFAULT_BURN, DEFAULTS } from "./defaults.js";
 import { COLORMAPS, sampleColorMap, getColorMapStops, setColorMapStops, getColorMapStopOverrides, setColorMapStopOverrides } from "./colormaps.js";
 import { renderFrame, getParamsForFormula, classifyInterestGridLyapunov, isRenderCancelledError } from "./renderer.js";
 import {
@@ -2537,12 +2537,12 @@ const historyState = initHistoryState({
     cmapName: appData.defaults.cmapName,
     params: getDerivedParams(),
     iterations: Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max)),
-    burn: Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max)),
-    seed: getSeedForFormula(currentFormulaId),
     scaleMode: getScaleMode(),
     view: renderState.fixedView || {},
+    renderColorMode: appData.defaults.renderColorMode,
+    backgroundColor: appData.defaults.backgroundColor,
   }),
-  applySharedState: ({ formulaId, cmapName, params, iterations, burn, seed, scaleMode, view }) => {
+  applySharedState: ({ formulaId, cmapName, params, iterations, seed, scaleMode, view, renderColorMode, backgroundColor }) => {
     const formulaExists = appData.formulas.some((formula) => formula.id === formulaId);
     const cmapExists = appData.colormaps.includes(cmapName);
     if (!formulaExists || !cmapExists) {
@@ -2558,9 +2558,7 @@ const historyState = initHistoryState({
     currentFormulaId = formulaId;
     appData.defaults.cmapName = cmapName;
     appData.defaults.sliders.iters = Math.round(clamp(iterations, sliderControls.iters.min, sliderControls.iters.max));
-    if (Number.isFinite(Number(burn))) {
-      appData.defaults.sliders.burn = Math.round(clamp(burn, sliderControls.burn.min, sliderControls.burn.max));
-    }
+    appData.defaults.sliders.burn = Math.round(clamp(DEFAULT_BURN, sliderControls.burn.min, sliderControls.burn.max));
     renderState.fixedView = {
       offsetX: view[0],
       offsetY: view[1],
@@ -2573,6 +2571,13 @@ const historyState = initHistoryState({
       d: params[3],
     };
     historyStateRef.sharedParamsFormulaId = formulaId;
+    appData.defaults.renderColorMode = RENDER_COLOR_MODE_SET.has(renderColorMode)
+      ? renderColorMode
+      : DEFAULTS.renderColorMode;
+    appData.defaults.backgroundColor = typeof backgroundColor === "string" && backgroundColor
+      ? backgroundColor
+      : DEFAULTS.backgroundColor;
+    applyBackgroundTheme();
     if (seed && Number.isFinite(Number(seed.x)) && Number.isFinite(Number(seed.y))) {
       appData.defaults.formulaSeeds = appData.defaults.formulaSeeds || {};
       appData.defaults.formulaSeeds[formulaId] = {

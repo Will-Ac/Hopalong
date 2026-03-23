@@ -1,3 +1,5 @@
+import { DEFAULT_BURN, DEFAULTS } from "./defaults.js";
+
 export function initHistoryState({
   historyLimit,
   getAppData,
@@ -78,6 +80,35 @@ export function initHistoryState({
     state.fixedView = { ...nextFixedView };
   }
 
+  function formatCompactNumber(value) {
+    return Number(value).toString();
+  }
+
+  function normalizeBackgroundColorForShare(value) {
+    if (typeof value !== "string") {
+      return "";
+    }
+    return value.startsWith("#") ? value.slice(1) : value;
+  }
+
+  function decodeBackgroundColor(value) {
+    if (typeof value !== "string" || !value.trim()) {
+      return null;
+    }
+    const trimmed = value.trim();
+    return /^[0-9a-f]{3}([0-9a-f]{3})?$/i.test(trimmed) ? `#${trimmed}` : trimmed;
+  }
+
+  function readFirst(params, keys) {
+    for (const key of keys) {
+      const value = params.get(key);
+      if (value != null && value !== "") {
+        return value;
+      }
+    }
+    return null;
+  }
+
   function buildShareUrl() {
     const location = getLocation();
     const {
@@ -85,28 +116,31 @@ export function initHistoryState({
       cmapName,
       params,
       iterations,
-      burn,
-      seed,
-      scaleMode,
       view,
+      renderColorMode,
+      backgroundColor,
     } = getShareState();
     const url = new URL(`${location.origin}${location.pathname}`);
     const searchParams = new URLSearchParams();
 
-    searchParams.set("formula", formulaId);
-    searchParams.set("cmap", cmapName);
-    searchParams.set("a", String(params.a));
-    searchParams.set("b", String(params.b));
-    searchParams.set("c", String(params.c));
-    searchParams.set("d", String(params.d));
-    searchParams.set("iters", String(iterations));
-    searchParams.set("burn", String(burn));
-    searchParams.set("scale", String(scaleMode || "fixed"));
-    searchParams.set("offsetX", String(view?.offsetX ?? 0));
-    searchParams.set("offsetY", String(view?.offsetY ?? 0));
-    searchParams.set("zoom", String(view?.zoom ?? 1));
-    searchParams.set("seedX", String(seed?.x ?? 0));
-    searchParams.set("seedY", String(seed?.y ?? 0));
+    searchParams.set("f", formulaId);
+    searchParams.set("m", cmapName);
+    searchParams.set("a", formatCompactNumber(params.a));
+    searchParams.set("b", formatCompactNumber(params.b));
+    searchParams.set("c", formatCompactNumber(params.c));
+    searchParams.set("d", formatCompactNumber(params.d));
+    searchParams.set("i", String(Math.round(iterations)));
+
+    const zoom = Number(view?.zoom ?? 1);
+    const offsetX = Number(view?.offsetX ?? 0);
+    const offsetY = Number(view?.offsetY ?? 0);
+    if (zoom !== 1) searchParams.set("z", formatCompactNumber(zoom));
+    if (offsetX !== 0) searchParams.set("ox", formatCompactNumber(offsetX));
+    if (offsetY !== 0) searchParams.set("oy", formatCompactNumber(offsetY));
+    if (renderColorMode && renderColorMode !== DEFAULTS.renderColorMode) searchParams.set("rm", renderColorMode);
+    const encodedBackgroundColor = normalizeBackgroundColorForShare(backgroundColor);
+    if (encodedBackgroundColor && backgroundColor !== DEFAULTS.backgroundColor) searchParams.set("bg", encodedBackgroundColor);
+
     url.search = searchParams.toString();
     return url.toString();
   }
@@ -114,21 +148,20 @@ export function initHistoryState({
   function applySharedStateFromSearch() {
     const location = getLocation();
     const params = new URLSearchParams(location.search || "");
-    const formulaId = params.get("formula");
-    const cmapName = params.get("cmap");
-    const rawParamValues = ["a", "b", "c", "d"].map((key) => Number.parseFloat(params.get(key) || ""));
-    const iterations = Number.parseInt(params.get("iters") || "", 10);
-    const burn = Number.parseInt(params.get("burn") || "", 10);
-    const scaleMode = params.get("scale") || "fixed";
+    const formulaId = readFirst(params, ["f", "formula"]);
+    const cmapName = readFirst(params, ["m", "cmap"]);
+    const rawParamValues = ["a", "b", "c", "d"].map((key) => Number.parseFloat(readFirst(params, [key]) || ""));
+    const iterations = Number.parseInt(readFirst(params, ["i", "iters"]) || "", 10);
     const view = [
-      Number.parseFloat(params.get("offsetX") || "0"),
-      Number.parseFloat(params.get("offsetY") || "0"),
-      Number.parseFloat(params.get("zoom") || "1"),
+      Number.parseFloat(readFirst(params, ["ox", "offsetX"]) || "0"),
+      Number.parseFloat(readFirst(params, ["oy", "offsetY"]) || "0"),
+      Number.parseFloat(readFirst(params, ["z", "zoom"]) || "1"),
     ];
-    const seed = {
-      x: Number.parseFloat(params.get("seedX") || "0"),
-      y: Number.parseFloat(params.get("seedY") || "0"),
-    };
+    const seedX = Number.parseFloat(readFirst(params, ["seedX"]) || "0");
+    const seedY = Number.parseFloat(readFirst(params, ["seedY"]) || "0");
+    const renderColorMode = readFirst(params, ["rm", "renderColorMode"]);
+    const backgroundColor = decodeBackgroundColor(readFirst(params, ["bg", "backgroundColor"]));
+    const scaleMode = readFirst(params, ["scale"]) || "fixed";
 
     if (!formulaId || !cmapName) {
       return false;
@@ -139,13 +172,10 @@ export function initHistoryState({
     if (!Number.isFinite(iterations) || iterations < 1) {
       return false;
     }
-    if (!Number.isFinite(burn) || burn < 0) {
-      return false;
-    }
     if (view.some((value) => !Number.isFinite(value)) || view[2] <= 0) {
       return false;
     }
-    if (!Number.isFinite(seed.x) || !Number.isFinite(seed.y)) {
+    if (!Number.isFinite(seedX) || !Number.isFinite(seedY)) {
       return false;
     }
 
@@ -154,10 +184,12 @@ export function initHistoryState({
       cmapName,
       params: rawParamValues,
       iterations,
-      burn,
-      seed,
+      burn: DEFAULT_BURN,
+      seed: params.has("seedX") || params.has("seedY") ? { x: seedX, y: seedY } : null,
       scaleMode,
       view,
+      renderColorMode,
+      backgroundColor,
     });
   }
 
@@ -206,10 +238,12 @@ export function initHistoryState({
         cmapName,
         params: pValues,
         iterations,
-        burn: null,
+        burn: DEFAULT_BURN,
         seed: null,
         scaleMode: "fixed",
         view: vValues,
+        renderColorMode: null,
+        backgroundColor: null,
       });
     } catch (error) {
       console.warn("Could not parse shared hash state.", error);
