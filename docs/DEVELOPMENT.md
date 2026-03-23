@@ -15,6 +15,8 @@ Example:
 
 Keep changes small and easy to review.
 
+Architecture is code-driven: the source modules in `js/` and the docs in `docs/` are the maintained sources of truth. Do not reintroduce a separate spec folder or duplicate architecture details in parallel files.
+
 Recommended workflow:
 1. Make one focused change per PR.
 2. Reload the app and test the affected controls before merging.
