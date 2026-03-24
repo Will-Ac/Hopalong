@@ -28,6 +28,13 @@ export const HELP_OVERLAY_GROUPS = [
     noArrow: true,
   },
   {
+    id: "tour-step",
+    group: "tour",
+    lines: [],
+    label: { x: 0.5, y: 0.12 },
+    noArrow: true,
+  },
+  {
     id: "canvas-left",
     group: "canvas",
     variant: "canvasSplit",

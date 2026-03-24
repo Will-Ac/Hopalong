@@ -271,6 +271,42 @@ export function createHelpOverlay(options) {
       const rowEl = document.createElement("div");
       rowEl.className = "helpOverlay__row";
 
+      if (row.controlType === "tourStepper") {
+        const controlsEl = document.createElement("div");
+        controlsEl.className = "helpOverlay__tourControls";
+
+        const stepEl = document.createElement("span");
+        stepEl.className = "helpOverlay__tourStep";
+        stepEl.textContent = row.stepText || "";
+        controlsEl.append(stepEl);
+
+        const nextBtn = document.createElement("button");
+        nextBtn.type = "button";
+        nextBtn.className = "helpOverlay__tourBtn";
+        nextBtn.textContent = row.nextLabel || "Next";
+        nextBtn.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          options.onTourNext?.();
+        });
+        controlsEl.append(nextBtn);
+
+        const endBtn = document.createElement("button");
+        endBtn.type = "button";
+        endBtn.className = "helpOverlay__tourBtn";
+        endBtn.textContent = row.endLabel || "End tour";
+        endBtn.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          options.onTourClose?.();
+        });
+        controlsEl.append(endBtn);
+
+        rowEl.append(controlsEl);
+        el.append(rowEl);
+        continue;
+      }
+
       if (row.iconSelector) rowEl.append(makeTopbarIcon(row.iconSelector));
       if (row.tilePreview) rowEl.append(makeTilePreviewIcon(row.tilePreview));
 
@@ -463,6 +499,23 @@ const HELP_PLACEMENT_POLICY = {
         primitive: "anchorBand",
         alignment: { sourceType: "anchor", sourceKey: "topbarRight", sourceEdge: "x", selfEdge: "right", offset: 0 },
         band: { sourceType: "viewport", position: "top", offset: 0 },
+      },
+    ],
+  },
+  "tour-step": {
+    priority: 1,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    preferredPlacement: {
+      primitive: "viewportBand",
+      alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 0 },
+      band: { sourceType: "viewport", position: "top", y: 32, offset: 0 },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 0 },
+        band: { sourceType: "groupOrViewportRatio", sourceGroup: "topbar", position: "alignTop", ratio: 0.12, offset: 0 },
       },
     ],
   },
@@ -883,10 +936,12 @@ function resolveHelpContent() {
   const activeContexts = resolveVisibleHelpContexts();
   if (activeContexts.length === 1 && activeContexts[0] === "main") {
     const focusedHelpItemId = options.getFocusedHelpItemId?.();
-    const groups = focusedHelpItemId
-      ? MAIN_HELP_ITEMS.filter((group) => group.id === focusedHelpItemId)
+    const focusedHelpItemIds = options.getFocusedHelpItemIds?.()
+      ?? (focusedHelpItemId ? [focusedHelpItemId] : null);
+    const groups = focusedHelpItemIds?.length
+      ? MAIN_HELP_ITEMS.filter((group) => focusedHelpItemIds.includes(group.id))
       : MAIN_HELP_ITEMS;
-    const brackets = focusedHelpItemId
+    const brackets = focusedHelpItemIds?.length
       ? HELP_GROUP_BRACKETS.filter((bracket) => groups.some((group) => group.target?.bracketId === bracket.id))
       : HELP_GROUP_BRACKETS;
     return { groups, brackets, activeContexts: [] };

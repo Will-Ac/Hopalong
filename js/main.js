@@ -24,10 +24,6 @@ const welcomeOverlayEl = document.getElementById("welcomeOverlay");
 const welcomeTakeTourBtnEl = document.getElementById("welcomeTakeTourBtn");
 const welcomeDontShowBtnEl = document.getElementById("welcomeDontShowBtn");
 const welcomeDismissBtnEl = document.getElementById("welcomeDismissBtn");
-const tourControlsEl = document.getElementById("tourControls");
-const tourStepLabelEl = document.getElementById("tourStepLabel");
-const tourNextBtnEl = document.getElementById("tourNextBtn");
-const tourCloseBtnEl = document.getElementById("tourCloseBtn");
 const formulaBtn = document.getElementById("formulaBtn");
 const cmapBtn = document.getElementById("cmapBtn");
 const debugInfoEl = document.getElementById("debugInfo");
@@ -389,16 +385,16 @@ const PARAM_LONG_PRESS_MS = 550;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
 const APP_DEFAULTS_STORAGE_KEY = "hopalong.defaults.v2";
 const WELCOME_DISMISSED_STORAGE_KEY = "hopalong.welcomeDismissed.v1";
-const GUIDED_TOUR_SEQUENCE = [
-  "canvas-right",
-  "canvas-left",
-  "params",
-  "slider",
-  "tile-border-legend",
-  "formula-cmap",
-  "random",
-  "topbar",
-  "canvas-device-controls",
+const GUIDED_TOUR_STEPS = [
+  { title: "Tap right + center divider", itemIds: ["canvas-right", "canvas-left"] },
+  { title: "Tap left", itemIds: ["canvas-left", "canvas-right"] },
+  { title: "Parameters", itemIds: ["params"] },
+  { title: "Slider", itemIds: ["slider"] },
+  { title: "Border", itemIds: ["tile-border-legend"] },
+  { title: "Formula / color map", itemIds: ["formula-cmap"] },
+  { title: "Random / fixed all", itemIds: ["random"] },
+  { title: "Top button bar", itemIds: ["topbar"] },
+  { title: "Canvas help", itemIds: ["canvas-device-controls"] },
 ];
 const PARAM_LOCK_STATES = new Set(["fix", "rand"]);
 const PARAM_MOD_AXES = new Set(["none", "manX", "manY"]);
@@ -2334,17 +2330,20 @@ function hideWelcomePanel() {
   welcomeOverlayEl?.setAttribute("aria-hidden", "true");
 }
 
+function getGuidedTourStep() {
+  return GUIDED_TOUR_STEPS[uiState.guidedTourIndex] || GUIDED_TOUR_STEPS[0];
+}
+
+function getGuidedTourFocusItemIds() {
+  if (!uiState.guidedTourActive) {
+    return null;
+  }
+  const step = getGuidedTourStep();
+  return [...step.itemIds, "tour-step"];
+}
+
 function updateGuidedTourUi() {
-  const isOpen = uiState.guidedTourActive;
-  tourControlsEl?.classList.toggle("is-open", isOpen);
-  const stepCount = GUIDED_TOUR_SEQUENCE.length;
-  if (tourStepLabelEl && isOpen) {
-    tourStepLabelEl.textContent = `Step ${uiState.guidedTourIndex + 1}/${stepCount}`;
-  }
-  if (tourNextBtnEl && isOpen) {
-    const isLastStep = uiState.guidedTourIndex >= stepCount - 1;
-    tourNextBtnEl.textContent = isLastStep ? "Finish" : "Next";
-  }
+  uiState.helpOverlayController?.render();
 }
 
 function endGuidedTour({ closeHelpOverlay = true } = {}) {
@@ -2377,7 +2376,7 @@ function goToNextGuidedTourStep() {
   if (!uiState.guidedTourActive) {
     return;
   }
-  if (uiState.guidedTourIndex >= GUIDED_TOUR_SEQUENCE.length - 1) {
+  if (uiState.guidedTourIndex >= GUIDED_TOUR_STEPS.length - 1) {
     endGuidedTour();
     return;
   }
@@ -5665,17 +5664,27 @@ function initHelpOverlay() {
 
       return contexts;
     },
-    getFocusedHelpItemId: () => {
-      if (!uiState.guidedTourActive) {
-        return null;
-      }
-      return GUIDED_TOUR_SEQUENCE[uiState.guidedTourIndex] || null;
-    },
+    getFocusedHelpItemIds: () => getGuidedTourFocusItemIds(),
     getHelpLinesForItem: (itemId) => {
       if (itemId === "canvas-device-controls") {
         return getCanvasDeviceHelpLines();
       }
+      if (itemId === "tour-step" && uiState.guidedTourActive) {
+        const totalSteps = GUIDED_TOUR_STEPS.length;
+        const currentStep = getGuidedTourStep();
+        const isLastStep = uiState.guidedTourIndex >= totalSteps - 1;
+        return [
+          { noAction: true, body: `Step ${uiState.guidedTourIndex + 1}/${totalSteps}: ${currentStep.title}` },
+          { controlType: "tourStepper", stepText: currentStep.title, nextLabel: isLastStep ? "Finish" : "Next", endLabel: "End tour" },
+        ];
+      }
       return null;
+    },
+    onTourNext: () => {
+      goToNextGuidedTourStep();
+    },
+    onTourClose: () => {
+      endGuidedTour();
     },
     onOpened: () => {
       showToast("Help mode enabled.");
@@ -5813,12 +5822,6 @@ function registerHandlers() {
   });
   welcomeTakeTourBtnEl?.addEventListener("click", () => {
     startGuidedTour();
-  });
-  tourNextBtnEl?.addEventListener("click", () => {
-    goToNextGuidedTourStep();
-  });
-  tourCloseBtnEl?.addEventListener("click", () => {
-    endGuidedTour();
   });
 
   const toggleRandomMode = (event) => {

@@ -112,6 +112,15 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
   - desktop: wheel/right-drag/shift-drag/left-drag controls
   - touch: two-finger pinch/drag/rotate and one-finger drag controls
 
+## Onboarding fixes (PR30.2)
+
+- Welcome title now reads **AttractorLab**.
+- Guided tour steps now support grouped help activation so context can stay visible:
+  - step 1 shows tap-right with the center divider context
+  - step 2 shows tap-left with tap-right + center divider context
+- Tour step controls now render as a help-overlay item and use the same help placement policy engine (top-middle preferred with normal fallback handling).
+- Final tour step now reliably shows the new device-specific canvas help panel.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
