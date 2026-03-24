@@ -75,6 +75,13 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Rotation metadata is preserved through the final cropped frame metadata path, so debug axes/grid stay aligned after gesture release.
 - Formula changes now reset viewport rotation back to `0` radians.
 
+## Rotation activation threshold (PR27)
+
+- Two-finger gestures now accumulate absolute rotation deltas from gesture start and only enable rotation once the cumulative total passes an activation threshold.
+- The activation threshold is user-adjustable in **Settings** with **Rotation threshold (°)**.
+- The threshold is stored in degrees for UI clarity and converted to radians for gesture logic.
+- Setting the threshold to `0°` disables accidental-rotation protection and keeps rotation active immediately (legacy PR26 behaviour).
+
 ## 3. Common pitfalls
 
 ### State grouping errors

@@ -34,6 +34,7 @@ export const DEFAULTS = {
   "holdAccelEndMs": 1400,
   "touchZoomDeadbandPx": 2.5,
   "touchZoomRatioMin": 0.002,
+  "rotationActivationThresholdDegrees": 10,
   "interestOverlayEnabled": false,
   "interestGridSize": 24,
   "interestScanIterations": 1200,

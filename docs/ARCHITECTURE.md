@@ -112,6 +112,7 @@ Contains live interaction and overlay-related gesture state, including:
 - pointer tracking
 - current interaction mode
 - two-finger gesture details
+- two-finger rotation activation state (cumulative rotation + activation flag)
 - manual modulation flags
 - history-tap suppression and tracking
 
