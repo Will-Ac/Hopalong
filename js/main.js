@@ -3010,7 +3010,7 @@ function getFixedViewScale(viewWidth = canvas.width, viewHeight = canvas.height)
   return (minDim / 220) * (Number.isFinite(zoom) && zoom > 0 ? zoom : 1);
 }
 
-function rotateVectorToViewBasis(deltaX, deltaY) {
+function mapScreenDeltaToModulationDelta(deltaX, deltaY) {
   const cos = Number.isFinite(renderState.fixedView?.rotationCos) ? renderState.fixedView.rotationCos : 1;
   const sin = Number.isFinite(renderState.fixedView?.rotationSin) ? renderState.fixedView.rotationSin : 0;
   return {
@@ -3024,12 +3024,11 @@ function applyManualModulation(deltaX, deltaY, { invalidate = true } = {}) {
   if (!manX && !manY) {
     return false;
   }
-  const rotatedDelta = rotateVectorToViewBasis(deltaX, deltaY);
 
   if (manX) {
     const control = sliderControls[manX];
     appData.defaults.sliders[manX] = clamp(
-      appData.defaults.sliders[manX] + rotatedDelta.x * MODULATION_SENSITIVITY * control.stepSize,
+      appData.defaults.sliders[manX] + deltaX * MODULATION_SENSITIVITY * control.stepSize,
       control.min,
       control.max,
     );
@@ -3038,7 +3037,7 @@ function applyManualModulation(deltaX, deltaY, { invalidate = true } = {}) {
   if (manY) {
     const control = sliderControls[manY];
     appData.defaults.sliders[manY] = clamp(
-      appData.defaults.sliders[manY] - rotatedDelta.y * MODULATION_SENSITIVITY * control.stepSize,
+      appData.defaults.sliders[manY] - deltaY * MODULATION_SENSITIVITY * control.stepSize,
       control.min,
       control.max,
     );
@@ -3387,7 +3386,10 @@ function onCanvasPointerMove(event) {
       overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
       return;
     }
-    const didModulate = applyManualModulation(pos.x - overlayState.lastPointerPosition.x, pos.y - overlayState.lastPointerPosition.y, { invalidate: false });
+    const dxScreen = pos.x - overlayState.lastPointerPosition.x;
+    const dyScreen = pos.y - overlayState.lastPointerPosition.y;
+    const modulationDelta = mapScreenDeltaToModulationDelta(dxScreen, dyScreen);
+    const didModulate = applyManualModulation(modulationDelta.x, modulationDelta.y, { invalidate: false });
     overlayState.isManualModulating = overlayState.isManualModulating || didModulate;
     overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
     return;
