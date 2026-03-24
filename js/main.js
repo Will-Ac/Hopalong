@@ -705,10 +705,22 @@ function drawInteractionFrameFromCache(frameEntry) {
   const destY = (clippedY - sourceRectY) * destScaleY;
   const destWidth = clippedWidth * destScaleX;
   const destHeight = clippedHeight * destScaleY;
+  const sourceRotation = Number(frameEntry.sourceFixedView?.rotation) || 0;
+  const targetRotation = Number(renderState.fixedView?.rotation) || 0;
+  const rotationDelta = normalizeRotationAngle(targetRotation - sourceRotation);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(frameEntry.canvas, clippedX, clippedY, clippedWidth, clippedHeight, destX, destY, destWidth, destHeight);
+  if (Math.abs(rotationDelta) > 1e-12) {
+    ctx.save();
+    ctx.translate(viewportWidth * 0.5, viewportHeight * 0.5);
+    ctx.rotate(rotationDelta);
+    ctx.translate(-viewportWidth * 0.5, -viewportHeight * 0.5);
+    ctx.drawImage(frameEntry.canvas, clippedX, clippedY, clippedWidth, clippedHeight, destX, destY, destWidth, destHeight);
+    ctx.restore();
+  } else {
+    ctx.drawImage(frameEntry.canvas, clippedX, clippedY, clippedWidth, clippedHeight, destX, destY, destWidth, destHeight);
+  }
   // Keep debug/overlay layers synced to live pan+zoom instead of stale cached frame metadata.
   const liveMeta = buildLiveInteractionMeta(frameEntry);
   renderState.lastRenderMeta = liveMeta;
@@ -2847,6 +2859,7 @@ function randomizeAllParameters() {
     const previousFormulaId = currentFormulaId;
     currentFormulaId = randomChoice(appData.formulas).id;
     if (currentFormulaId !== previousFormulaId) {
+      setFixedViewRotation(0);
       applyFormulaPresetToSliders(currentFormulaId);
     }
   }
@@ -3691,6 +3704,7 @@ function renderFormulaPicker() {
       const previousFormulaId = currentFormulaId;
       currentFormulaId = formula.id;
       if (previousFormulaId !== currentFormulaId) {
+        setFixedViewRotation(0);
         applyFormulaPresetToSliders(currentFormulaId);
       }
       if (getParamMode("formula") === "rand") {
@@ -4999,6 +5013,9 @@ function drawBaseRenderFromFullCanvas(fullCanvas, frameMetaFull) {
   const viewWorldMaxX = viewWorldMinX + worldPerPxX * Math.max(1, cropW - 1);
   const viewWorldMinY = fullWorld.minY + cropY * worldPerPxY;
   const viewWorldMaxY = viewWorldMinY + worldPerPxY * Math.max(1, cropH - 1);
+  const preservedRotation = Number.isFinite(fullView.rotation) ? Number(fullView.rotation) : Number(renderState.fixedView?.rotation) || 0;
+  const preservedRotationCos = Number.isFinite(fullView.rotationCos) ? Number(fullView.rotationCos) : Math.cos(preservedRotation);
+  const preservedRotationSin = Number.isFinite(fullView.rotationSin) ? Number(fullView.rotationSin) : Math.sin(preservedRotation);
 
   return {
     cropX, cropY, cropW, cropH,
@@ -5017,8 +5034,11 @@ function drawBaseRenderFromFullCanvas(fullCanvas, frameMetaFull) {
         height: cropH,
         centerX: cropW * 0.5,
         centerY: cropH * 0.5,
-        scaleX: (cropW - 1) / Math.max(viewWorldMaxX - viewWorldMinX, 1e-6),
-        scaleY: (cropH - 1) / Math.max(viewWorldMaxY - viewWorldMinY, 1e-6),
+        scaleX: Number.isFinite(fullView.scaleX) ? Number(fullView.scaleX) : (cropW - 1) / Math.max(viewWorldMaxX - viewWorldMinX, 1e-6),
+        scaleY: Number.isFinite(fullView.scaleY) ? Number(fullView.scaleY) : (cropH - 1) / Math.max(viewWorldMaxY - viewWorldMinY, 1e-6),
+        rotation: preservedRotation,
+        rotationCos: preservedRotationCos,
+        rotationSin: preservedRotationSin,
       },
     },
   };

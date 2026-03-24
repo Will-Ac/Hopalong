@@ -211,10 +211,10 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
   let mapCenterY = 0;
   let mapWorldCenterX = 0;
   let mapWorldCenterY = 0;
-  let mapRotation = 0;
-  let mapRotationCos = 1;
-  let mapRotationSin = 0;
-  let useRotatedMapping = false;
+  let mapRotation = Number.isFinite(fixedView?.rotation) ? fixedView.rotation : 0;
+  let mapRotationCos = Number.isFinite(fixedView?.rotationCos) ? fixedView.rotationCos : Math.cos(mapRotation);
+  let mapRotationSin = Number.isFinite(fixedView?.rotationSin) ? fixedView.rotationSin : Math.sin(mapRotation);
+  let useRotatedMapping = Math.abs(mapRotationSin) > 1e-12 || Math.abs(mapRotationCos - 1) > 1e-12;
 
   if (worldOverride) {
     worldMinX = Number(worldOverride.minX);
@@ -236,11 +236,6 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
     mapScaleY = scale;
     mapCenterX = width * 0.5;
     mapCenterY = height * 0.5;
-    mapRotation = Number.isFinite(fixedView?.rotation) ? fixedView.rotation : 0;
-    mapRotationCos = Number.isFinite(fixedView?.rotationCos) ? fixedView.rotationCos : Math.cos(mapRotation);
-    mapRotationSin = Number.isFinite(fixedView?.rotationSin) ? fixedView.rotationSin : Math.sin(mapRotation);
-    useRotatedMapping = Math.abs(mapRotationSin) > 1e-12 || Math.abs(mapRotationCos - 1) > 1e-12;
-
     const invScale = 1 / Math.max(scale, 1e-9);
     const corners = [
       [0, 0],
@@ -288,19 +283,33 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
     worldSpanY = Math.max(worldMaxY - worldMinY, 1e-6);
     mapScaleX = (width - 1) / worldSpanX;
     mapScaleY = (height - 1) / worldSpanY;
-    mapCenterX = 0;
-    mapCenterY = 0;
-    mapWorldCenterX = worldMinX;
-    mapWorldCenterY = worldMinY;
+    if (useRotatedMapping) {
+      mapCenterX = width * 0.5;
+      mapCenterY = height * 0.5;
+      mapWorldCenterX = (worldMinX + worldMaxX) * 0.5;
+      mapWorldCenterY = (worldMinY + worldMaxY) * 0.5;
+    } else {
+      mapCenterX = 0;
+      mapCenterY = 0;
+      mapWorldCenterX = worldMinX;
+      mapWorldCenterY = worldMinY;
+    }
   }
 
   if (!Number.isFinite(mapScaleX) || mapScaleX <= 0) {
     mapScaleX = (width - 1) / worldSpanX;
     mapScaleY = (height - 1) / worldSpanY;
-    mapCenterX = 0;
-    mapCenterY = 0;
-    mapWorldCenterX = worldMinX;
-    mapWorldCenterY = worldMinY;
+    if (useRotatedMapping) {
+      mapCenterX = width * 0.5;
+      mapCenterY = height * 0.5;
+      mapWorldCenterX = (worldMinX + worldMaxX) * 0.5;
+      mapWorldCenterY = (worldMinY + worldMaxY) * 0.5;
+    } else {
+      mapCenterX = 0;
+      mapCenterY = 0;
+      mapWorldCenterX = worldMinX;
+      mapWorldCenterY = worldMinY;
+    }
   }
 
   const colorLut = new Uint8Array(LUT_SIZE * 3);

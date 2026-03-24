@@ -69,6 +69,12 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Debug axes, grid lines, and tick labels use the same rotated mapping basis, so overlay alignment stays logically consistent with the rotated view.
 - Attractor formulas and attractor iteration maths are unchanged; rotation only affects view-space mapping.
 
+## Rotation behaviour fixes (PR26.2)
+
+- Cached interaction preview now applies live rotation during active two-finger gestures, so the pattern rotates immediately (not only after gesture end).
+- Rotation metadata is preserved through the final cropped frame metadata path, so debug axes/grid stay aligned after gesture release.
+- Formula changes now reset viewport rotation back to `0` radians.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
