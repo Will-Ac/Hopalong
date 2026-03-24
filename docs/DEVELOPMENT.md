@@ -92,6 +92,15 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - The hidden full settings view still contains all existing controls and advanced options unchanged.
 - Default **Dialog transparency** is now `0.5` (50%).
 
+## Desktop input update (PR29)
+
+- On desktop, hold **Shift** and drag with the primary mouse button to rotate the view from horizontal drag movement.
+- Desktop input mapping remains:
+  - normal left drag = modulation
+  - right drag = pan
+  - scroll/wheel = zoom
+- **Show debug text** now defaults to OFF for fresh/default state.
+
 ## 3. Common pitfalls
 
 ### State grouping errors

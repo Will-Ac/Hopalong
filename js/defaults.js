@@ -16,7 +16,7 @@ export const DEFAULTS = {
     "debug controls whether the debug axis/tick/info overlay is shown."
   ],
   "debug": false,
-  "debugText": true,
+  "debugText": false,
   "iterationAbsoluteMax": 100000000,
   "iterationStartupDefault": 500000,
   "maxRandomIters": 1000000,
