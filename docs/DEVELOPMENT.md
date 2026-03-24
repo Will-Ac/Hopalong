@@ -82,6 +82,16 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - The threshold is stored in degrees for UI clarity and converted to radians for gesture logic.
 - Setting the threshold to `0°` disables accidental-rotation protection and keeps rotation active immediately (legacy PR26 behaviour).
 
+## Settings access and defaults (PR28)
+
+- Settings now have two access modes:
+  - **Normal tap** on the gear button opens a simplified settings view.
+  - **Long press for more than 5 seconds** on the gear button opens the hidden full developer settings view.
+- The simplified settings view intentionally exposes only one control: **Show X & Y axes**.
+- The simplified **Show X & Y axes** control maps directly to the existing debug overlay visibility setting (same stored value).
+- The hidden full settings view still contains all existing controls and advanced options unchanged.
+- Default **Dialog transparency** is now `0.5` (50%).
+
 ## 3. Common pitfalls
 
 ### State grouping errors
