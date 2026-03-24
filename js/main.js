@@ -441,6 +441,7 @@ const DEGREES_TO_RADIANS = Math.PI / 180;
 const SINGLE_TOUCH_MODULATION_START_DRAW_DELAY_MS = 24;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
+const DESKTOP_SHIFT_DRAG_ROTATION_SENSITIVITY = 0.005;
 
 const LEGACY_SLIDER_KEY_MAP = {
   alpha: "a",
@@ -3437,6 +3438,15 @@ function onCanvasPointerMove(event) {
     }
     const dxScreen = pos.x - overlayState.lastPointerPosition.x;
     const dyScreen = pos.y - overlayState.lastPointerPosition.y;
+    if (event.pointerType === "mouse" && event.shiftKey) {
+      prepareFixedViewForPanZoom("manual pan/zoom");
+      beginPanZoomInteraction();
+      setFixedViewRotation(renderState.fixedView.rotation + (dxScreen * DESKTOP_SHIFT_DRAG_ROTATION_SENSITIVITY));
+      persistCurrentHistoryViewState(renderState.fixedView);
+      requestDraw();
+      overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
+      return;
+    }
     const modulationDelta = mapScreenDeltaToModulationDelta(dxScreen, dyScreen);
     const didModulate = applyManualModulation(modulationDelta.x, modulationDelta.y, { invalidate: false });
     overlayState.isManualModulating = overlayState.isManualModulating || didModulate;
@@ -5930,7 +5940,7 @@ function loadData() {
     data.defaults.debug = false;
   }
   if (typeof data.defaults.debugText !== "boolean") {
-    data.defaults.debugText = true;
+    data.defaults.debugText = false;
   }
 
   data.defaults.sliders = migrateLegacySliderKeys({
@@ -6078,7 +6088,7 @@ function bootstrap() {
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
     appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.5), 0.1, 1);
     appData.defaults.interestOverlayEnabled = Boolean(appData.defaults.interestOverlayEnabled);
-    appData.defaults.debugText = Boolean(appData.defaults.debugText ?? true);
+    appData.defaults.debugText = Boolean(appData.defaults.debugText ?? false);
     appData.defaults.interestOverlayOpacity = normalizeInterestOverlayOpacity(appData.defaults.interestOverlayOpacity ?? INTEREST_OVERLAY_OPACITY_DEFAULT);
     appData.defaults.interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize ?? 256);
     appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? 500), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
