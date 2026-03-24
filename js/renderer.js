@@ -205,6 +205,16 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
   let worldMaxY;
   let worldSpanX;
   let worldSpanY;
+  let mapScaleX = 0;
+  let mapScaleY = 0;
+  let mapCenterX = 0;
+  let mapCenterY = 0;
+  let mapWorldCenterX = 0;
+  let mapWorldCenterY = 0;
+  let mapRotation = 0;
+  let mapRotationCos = 1;
+  let mapRotationSin = 0;
+  let useRotatedMapping = false;
 
   if (worldOverride) {
     worldMinX = Number(worldOverride.minX);
@@ -220,10 +230,38 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
     const scale = (minDim / 220) * zoom;
     const centerX = width * 0.5 + (fixedView?.offsetX ?? 0);
     const centerY = height * 0.5 + (fixedView?.offsetY ?? 0);
-    worldMinX = (0 - centerX) / scale;
-    worldMaxX = (width - centerX) / scale;
-    worldMinY = (0 - centerY) / scale;
-    worldMaxY = (height - centerY) / scale;
+    mapWorldCenterX = (width * 0.5 - centerX) / Math.max(scale, 1e-9);
+    mapWorldCenterY = (height * 0.5 - centerY) / Math.max(scale, 1e-9);
+    mapScaleX = scale;
+    mapScaleY = scale;
+    mapCenterX = width * 0.5;
+    mapCenterY = height * 0.5;
+    mapRotation = Number.isFinite(fixedView?.rotation) ? fixedView.rotation : 0;
+    mapRotationCos = Number.isFinite(fixedView?.rotationCos) ? fixedView.rotationCos : Math.cos(mapRotation);
+    mapRotationSin = Number.isFinite(fixedView?.rotationSin) ? fixedView.rotationSin : Math.sin(mapRotation);
+    useRotatedMapping = Math.abs(mapRotationSin) > 1e-12 || Math.abs(mapRotationCos - 1) > 1e-12;
+
+    const invScale = 1 / Math.max(scale, 1e-9);
+    const corners = [
+      [0, 0],
+      [width, 0],
+      [width, height],
+      [0, height],
+    ];
+    worldMinX = Number.POSITIVE_INFINITY;
+    worldMaxX = Number.NEGATIVE_INFINITY;
+    worldMinY = Number.POSITIVE_INFINITY;
+    worldMaxY = Number.NEGATIVE_INFINITY;
+    for (const [sx, sy] of corners) {
+      const dx = (sx - mapCenterX) * invScale;
+      const dy = (sy - mapCenterY) * invScale;
+      const wx = mapWorldCenterX + dx * mapRotationCos + dy * mapRotationSin;
+      const wy = mapWorldCenterY - dx * mapRotationSin + dy * mapRotationCos;
+      if (wx < worldMinX) worldMinX = wx;
+      if (wx > worldMaxX) worldMaxX = wx;
+      if (wy < worldMinY) worldMinY = wy;
+      if (wy > worldMaxY) worldMaxY = wy;
+    }
     worldSpanX = Math.max(worldMaxX - worldMinX, 1e-6);
     worldSpanY = Math.max(worldMaxY - worldMinY, 1e-6);
   } else {
@@ -248,6 +286,21 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
     worldMaxY = centerY + paddedSpanY * 0.5;
     worldSpanX = Math.max(worldMaxX - worldMinX, 1e-6);
     worldSpanY = Math.max(worldMaxY - worldMinY, 1e-6);
+    mapScaleX = (width - 1) / worldSpanX;
+    mapScaleY = (height - 1) / worldSpanY;
+    mapCenterX = 0;
+    mapCenterY = 0;
+    mapWorldCenterX = worldMinX;
+    mapWorldCenterY = worldMinY;
+  }
+
+  if (!Number.isFinite(mapScaleX) || mapScaleX <= 0) {
+    mapScaleX = (width - 1) / worldSpanX;
+    mapScaleY = (height - 1) / worldSpanY;
+    mapCenterX = 0;
+    mapCenterY = 0;
+    mapWorldCenterX = worldMinX;
+    mapWorldCenterY = worldMinY;
   }
 
   const colorLut = new Uint8Array(LUT_SIZE * 3);
@@ -267,8 +320,17 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
         maybeEmitProgress(0.7 + (i / Math.max(1, sampleCount)) * 0.3);
         await maybeYieldToBrowser();
       }
-      const px = Math.round(((xs[i] - worldMinX) / worldSpanX) * (width - 1));
-      const py = Math.round(((ys[i] - worldMinY) / worldSpanY) * (height - 1));
+      let px;
+      let py;
+      if (useRotatedMapping) {
+        const dx = xs[i] - mapWorldCenterX;
+        const dy = ys[i] - mapWorldCenterY;
+        px = Math.round(mapCenterX + (dx * mapRotationCos - dy * mapRotationSin) * mapScaleX);
+        py = Math.round(mapCenterY + (dx * mapRotationSin + dy * mapRotationCos) * mapScaleY);
+      } else {
+        px = Math.round((xs[i] - mapWorldCenterX) * mapScaleX + mapCenterX);
+        py = Math.round((ys[i] - mapWorldCenterY) * mapScaleY + mapCenterY);
+      }
 
       if (px < 0 || py < 0 || px >= width || py >= height) {
         continue;
@@ -293,8 +355,17 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
         maybeEmitProgress(0.7 + (i / Math.max(1, sampleCount)) * 0.15);
         await maybeYieldToBrowser();
       }
-      const px = Math.round(((xs[i] - worldMinX) / worldSpanX) * (width - 1));
-      const py = Math.round(((ys[i] - worldMinY) / worldSpanY) * (height - 1));
+      let px;
+      let py;
+      if (useRotatedMapping) {
+        const dx = xs[i] - mapWorldCenterX;
+        const dy = ys[i] - mapWorldCenterY;
+        px = Math.round(mapCenterX + (dx * mapRotationCos - dy * mapRotationSin) * mapScaleX);
+        py = Math.round(mapCenterY + (dx * mapRotationSin + dy * mapRotationCos) * mapScaleY);
+      } else {
+        px = Math.round((xs[i] - mapWorldCenterX) * mapScaleX + mapCenterX);
+        py = Math.round((ys[i] - mapWorldCenterY) * mapScaleY + mapCenterY);
+      }
 
       if (px < 0 || py < 0 || px >= width || py >= height) {
         continue;
@@ -384,8 +455,11 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
       height,
       centerX: width * 0.5,
       centerY: height * 0.5,
-      scaleX: (width - 1) / worldSpanX,
-      scaleY: (height - 1) / worldSpanY,
+      scaleX: mapScaleX,
+      scaleY: mapScaleY,
+      rotation: mapRotation,
+      rotationCos: mapRotationCos,
+      rotationSin: mapRotationSin,
     },
   };
 }

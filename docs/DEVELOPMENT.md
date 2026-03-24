@@ -39,6 +39,7 @@ Compact share URL schema:
 - `cy` = shared world-space centre Y
 - `ms` = world-space span across the sender's smaller viewport dimension
 - `ar` = sender viewport aspect ratio used only to rebuild the sender's full visible bounds without cropping
+- `rot` = shared viewport rotation in radians (optional, defaults to `0`)
 - `rm` = render color mode (omitted when using the default mode)
 - `bg` = background color (simple name or hex without `#`, omitted when using the default background)
 
@@ -60,6 +61,13 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Debug overlay visuals (axes, grid lines, tick/scale labels, and debug text) use a red palette so they are visually distinct from the interest overlay.
 - Debug text now has its own setting (`Show debug text`) under **Debug overlay**; turning it off hides the left diagnostics text while keeping the debug grid/axes active.
 - During active pan/zoom, debug axes/grid/scale redraw live from the current viewport state instead of waiting for gesture end.
+
+## View rotation notes (PR26)
+
+- The viewport now supports two-finger rotation gestures alongside existing pinch zoom and pan.
+- Rotation is implemented in viewport/world mapping math (`screen ↔ world`) rather than rotating the canvas element.
+- Debug axes, grid lines, and tick labels use the same rotated mapping basis, so overlay alignment stays logically consistent with the rotated view.
+- Attractor formulas and attractor iteration maths are unchanged; rotation only affects view-space mapping.
 
 ## 3. Common pitfalls
 

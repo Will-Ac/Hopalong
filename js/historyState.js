@@ -136,6 +136,7 @@ export function initHistoryState({
     const centerY = Number(sharedView?.cy);
     const minSpan = Number(sharedView?.ms);
     const aspectRatio = Number(sharedView?.ar);
+    const rotation = Number(sharedView?.rot);
     if (Number.isFinite(centerX) && Number.isFinite(centerY) && Number.isFinite(minSpan) && minSpan > 0) {
       searchParams.set("cx", formatCompactNumber(centerX));
       searchParams.set("cy", formatCompactNumber(centerY));
@@ -143,13 +144,18 @@ export function initHistoryState({
       if (Number.isFinite(aspectRatio) && aspectRatio > 0) {
         searchParams.set("ar", formatCompactNumber(aspectRatio));
       }
+      if (Number.isFinite(rotation) && rotation !== 0) {
+        searchParams.set("rot", formatCompactNumber(rotation));
+      }
     } else {
       const zoom = Number(view?.zoom ?? 1);
       const offsetX = Number(view?.offsetX ?? 0);
       const offsetY = Number(view?.offsetY ?? 0);
+      const fallbackRotation = Number(view?.rotation ?? 0);
       if (zoom !== 1) searchParams.set("z", formatCompactNumber(zoom));
       if (offsetX !== 0) searchParams.set("ox", formatCompactNumber(offsetX));
       if (offsetY !== 0) searchParams.set("oy", formatCompactNumber(offsetY));
+      if (fallbackRotation !== 0) searchParams.set("r", formatCompactNumber(fallbackRotation));
     }
     if (renderColorMode && renderColorMode !== DEFAULTS.renderColorMode) searchParams.set("rm", renderColorMode);
     const encodedBackgroundColor = normalizeBackgroundColorForShare(backgroundColor);
@@ -170,16 +176,18 @@ export function initHistoryState({
     const sharedCenterY = Number.parseFloat(readFirst(params, ["cy"]) || "NaN");
     const sharedMinSpan = Number.parseFloat(readFirst(params, ["ms"]) || "NaN");
     const sharedAspectRatio = Number.parseFloat(readFirst(params, ["ar"]) || "NaN");
+    const sharedRotation = Number.parseFloat(readFirst(params, ["rot", "r"]) || "0");
     const hasWorldSharedView = Number.isFinite(sharedCenterX)
       && Number.isFinite(sharedCenterY)
       && Number.isFinite(sharedMinSpan)
       && sharedMinSpan > 0;
     const view = hasWorldSharedView
-      ? [sharedCenterX, sharedCenterY, sharedMinSpan, sharedAspectRatio]
+      ? [sharedCenterX, sharedCenterY, sharedMinSpan, sharedAspectRatio, sharedRotation]
       : [
         Number.parseFloat(readFirst(params, ["ox", "offsetX"]) || "0"),
         Number.parseFloat(readFirst(params, ["oy", "offsetY"]) || "0"),
         Number.parseFloat(readFirst(params, ["z", "zoom"]) || "1"),
+        sharedRotation,
       ];
     const seedX = Number.parseFloat(readFirst(params, ["seedX"]) || "0");
     const seedY = Number.parseFloat(readFirst(params, ["seedY"]) || "0");
