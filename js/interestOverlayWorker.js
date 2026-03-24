@@ -1,4 +1,3 @@
-import { classifyInterestGridLyapunov } from "./renderer.js";
 import { VARIANTS } from "./formulas.js";
 
 const formulaStepById = new Map(VARIANTS.map((formula) => [formula.id, formula.step]));
@@ -7,7 +6,6 @@ const STEP2_RETAINED_SAMPLES = 192;
 const STEP2_GRID_SIZE = 8;
 const STEP2_TOTAL_BINS = STEP2_GRID_SIZE * STEP2_GRID_SIZE;
 const STEP2_DEGENERATE_EPSILON = 1e-9;
-const STEP2_PROGRESS_START = 85;
 
 let activeJobId = 0;
 let activeScanKey = null;
@@ -21,28 +19,13 @@ function sampleAxisValue(minValue, maxValue, index, count) {
   return minValue + (maxValue - minValue) * t;
 }
 
-function getCellParams(baseParams, plane, gridCols, gridRows, cellIndex) {
-  const cellParams = {
+function createBaseParams(baseParams) {
+  return {
     a: Number(baseParams?.a) || 0,
     b: Number(baseParams?.b) || 0,
     c: Number(baseParams?.c) || 0,
     d: Number(baseParams?.d) || 0,
   };
-
-  if (plane.mode === "one_axis") {
-    const [axisMin, axisMax] = plane.axisRange || [cellParams[plane.axisParam], cellParams[plane.axisParam]];
-    const col = cellIndex % gridCols;
-    cellParams[plane.axisParam] = sampleAxisValue(axisMin, axisMax, col, gridCols);
-    return cellParams;
-  }
-
-  const [xMin, xMax] = plane.axisXRange || [cellParams[plane.axisXParam], cellParams[plane.axisXParam]];
-  const [yMin, yMax] = plane.axisYRange || [cellParams[plane.axisYParam], cellParams[plane.axisYParam]];
-  const col = cellIndex % gridCols;
-  const row = Math.floor(cellIndex / gridCols);
-  cellParams[plane.axisXParam] = sampleAxisValue(xMin, xMax, col, gridCols);
-  cellParams[plane.axisYParam] = sampleAxisValue(yMax, yMin, row, gridRows);
-  return cellParams;
 }
 
 function computeHighInterestScore(step, cellParams) {
@@ -135,67 +118,192 @@ function computeHighInterestScore(step, cellParams) {
   return occupancyRatio * Math.sqrt(widthRatio);
 }
 
-function emitStep2Progress(processed, total, jobId, scanKey) {
-  if (total <= 0 || !isActiveJob(jobId, scanKey)) {
+function classifyCellStep1({ step, cellParams, sampleIterations, minExponent, d0, maxDistance, shouldRescale }) {
+  const epsilon = 1e-12;
+  const minValidSteps = Math.max(4, Math.floor(sampleIterations * 0.1));
+  const earlyCheckStart = Math.max(minValidSteps, Math.floor(sampleIterations * 0.2));
+  const earlyAcceptMargin = 0.02;
+  const earlyRejectMargin = 0.02;
+
+  let x1 = 0;
+  let y1 = 0;
+  let x2 = d0;
+  let y2 = 0;
+
+  let sumLogRatio = 0;
+  let validSteps = 0;
+  let previousDistance = d0;
+  let minObservedLog = Number.POSITIVE_INFINITY;
+  let maxObservedLog = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i < sampleIterations; i += 1) {
+    [x1, y1] = step(x1, y1, cellParams.a, cellParams.b, cellParams.c, cellParams.d);
+    [x2, y2] = step(x2, y2, cellParams.a, cellParams.b, cellParams.c, cellParams.d);
+
+    if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
+      break;
+    }
+
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const d1Raw = Math.hypot(dx, dy);
+    if (!Number.isFinite(d1Raw)) {
+      continue;
+    }
+
+    const dPrev = Math.max(previousDistance, epsilon);
+    const dNext = Math.max(Math.min(d1Raw, maxDistance), epsilon);
+    const ratio = dNext / dPrev;
+    if (!Number.isFinite(ratio) || ratio <= 0) {
+      continue;
+    }
+
+    const logRatio = Math.log(Math.max(ratio, epsilon));
+    if (!Number.isFinite(logRatio)) {
+      continue;
+    }
+
+    sumLogRatio += logRatio;
+    validSteps += 1;
+    if (logRatio < minObservedLog) minObservedLog = logRatio;
+    if (logRatio > maxObservedLog) maxObservedLog = logRatio;
+
+    if (shouldRescale) {
+      const scale = d0 / Math.max(d1Raw, epsilon);
+      x2 = x1 + dx * scale;
+      y2 = y1 + dy * scale;
+      previousDistance = d0;
+    } else {
+      previousDistance = dNext;
+    }
+
+    // Conservative step-1 early exit: only decide early after enough evidence and
+    // only when even pessimistic/optimistic projections remain clearly separated.
+    if (validSteps >= minValidSteps && i + 1 >= earlyCheckStart) {
+      const remaining = sampleIterations - (i + 1);
+      const projectedTotalSteps = validSteps + remaining;
+      const projectedMinAverage = (sumLogRatio + remaining * minObservedLog) / Math.max(1, projectedTotalSteps);
+      const projectedMaxAverage = (sumLogRatio + remaining * maxObservedLog) / Math.max(1, projectedTotalSteps);
+      if (projectedMaxAverage < minExponent - earlyRejectMargin) {
+        return { passesStep1: false };
+      }
+      if (projectedMinAverage > minExponent + earlyAcceptMargin) {
+        return { passesStep1: true };
+      }
+    }
+  }
+
+  if (validSteps < minValidSteps) {
+    return { passesStep1: false };
+  }
+
+  return { passesStep1: (sumLogRatio / validSteps) >= minExponent };
+}
+
+function postRowUpdate({ jobId, scanKey, row, mediumCells, highInterestCells, percent }) {
+  if (!isActiveJob(jobId, scanKey)) {
     return;
   }
 
-  const fraction = processed / total;
-  const percent = Math.max(STEP2_PROGRESS_START, Math.min(99, Math.floor(STEP2_PROGRESS_START + fraction * (100 - STEP2_PROGRESS_START))));
   self.postMessage({
-    type: "progress",
+    type: "row-interest-update",
     jobId,
     scanKey,
+    row,
+    mediumCells,
+    highInterestCells,
     percent,
   });
 }
 
-function emitHighInterestBatch(batch, jobId, scanKey) {
-  if (!batch.length || !isActiveJob(jobId, scanKey)) {
-    return;
-  }
-
-  self.postMessage({
-    type: "high-interest-batch",
-    jobId,
-    scanKey,
-    highInterestCells: batch,
-  });
-}
-
-function refineHighInterestCells({ scanResult, formulaId, baseParams, plane, gridCols, gridRows, step2Threshold, jobId, scanKey }) {
+function runCombinedInterestPass({ formulaId, baseParams, plane, gridCols, gridRows, iterations, lyapunov, step2Threshold, jobId, scanKey }) {
   const step = formulaStepById.get(formulaId);
-  const mediumCells = Array.isArray(scanResult?.highCells) ? scanResult.highCells : [];
-  if (!step || !plane || mediumCells.length === 0) {
-    return [];
+  if (!step || !plane) {
+    return { gridCols: 0, gridRows: 0, mediumCells: [], highInterestCells: [] };
   }
 
-  const highInterestCells = [];
-  let batch = [];
+  const safeGridCols = Math.max(1, Math.round(Number(gridCols) || 25));
+  const safeGridRows = Math.max(1, Math.round(Number(gridRows) || 25));
+  const sampleIterations = Math.max(1, Math.round(Number(iterations) || 1200));
 
-  for (let index = 0; index < mediumCells.length; index += 1) {
+  const d0Raw = Number(lyapunov?.delta0);
+  const d0 = Number.isFinite(d0Raw) && d0Raw > 0 ? d0Raw : 1e-6;
+  const minExponent = Number(lyapunov?.minExponent) || 0;
+  const maxDistanceRaw = Number(lyapunov?.maxDistance);
+  const maxDistance = Number.isFinite(maxDistanceRaw) && maxDistanceRaw > 0 ? maxDistanceRaw : 1e6;
+  const shouldRescale = Boolean(lyapunov?.rescale);
+  const safeBase = createBaseParams(baseParams);
+
+  const mediumCells = [];
+  const highInterestCells = [];
+
+  const [xMin, xMax] = plane.axisXRange || [safeBase[plane.axisXParam], safeBase[plane.axisXParam]];
+  const [yMin, yMax] = plane.axisYRange || [safeBase[plane.axisYParam], safeBase[plane.axisYParam]];
+  const [axisMin, axisMax] = plane.axisRange || [safeBase[plane.axisParam], safeBase[plane.axisParam]];
+
+  for (let row = 0; row < safeGridRows; row += 1) {
     if (!isActiveJob(jobId, scanKey)) {
       break;
     }
 
-    const cellIndex = mediumCells[index];
-    const cellParams = getCellParams(baseParams, plane, gridCols, gridRows, cellIndex);
-    // Step 2 only refines cells that already passed the unchanged Lyapunov gate.
-    const score = computeHighInterestScore(step, cellParams);
-    if (Number.isFinite(score) && score >= step2Threshold) {
-      highInterestCells.push(cellIndex);
-      batch.push(cellIndex);
-      if (batch.length >= 64) {
-        emitHighInterestBatch(batch, jobId, scanKey);
-        batch = [];
+    const rowMediumCells = [];
+    const rowHighInterestCells = [];
+
+    for (let col = 0; col < safeGridCols; col += 1) {
+      const cellIndex = row * safeGridCols + col;
+      const cellParams = { ...safeBase };
+
+      if (plane.mode === "one_axis") {
+        cellParams[plane.axisParam] = sampleAxisValue(axisMin, axisMax, col, safeGridCols);
+      } else {
+        cellParams[plane.axisXParam] = sampleAxisValue(xMin, xMax, col, safeGridCols);
+        cellParams[plane.axisYParam] = sampleAxisValue(yMax, yMin, row, safeGridRows);
+      }
+
+      const step1Result = classifyCellStep1({
+        step,
+        cellParams,
+        sampleIterations,
+        minExponent,
+        d0,
+        maxDistance,
+        shouldRescale,
+      });
+
+      // Combined flow: step 2 runs immediately in the same row pass, but only for
+      // cells that pass the unchanged step-1 Lyapunov gate.
+      if (!step1Result.passesStep1) {
+        continue;
+      }
+
+      rowMediumCells.push(cellIndex);
+      mediumCells.push(cellIndex);
+
+      const score = computeHighInterestScore(step, cellParams);
+      if (Number.isFinite(score) && score >= step2Threshold) {
+        rowHighInterestCells.push(cellIndex);
+        highInterestCells.push(cellIndex);
       }
     }
 
-    emitStep2Progress(index + 1, mediumCells.length, jobId, scanKey);
+    const percent = Math.min(99, Math.floor(((row + 1) / Math.max(1, safeGridRows)) * 100));
+    // Progressive updates are row-batched to reduce worker/main-thread chatter.
+    postRowUpdate({
+      jobId,
+      scanKey,
+      row,
+      mediumCells: rowMediumCells,
+      highInterestCells: rowHighInterestCells,
+      percent,
+    });
   }
 
-  emitHighInterestBatch(batch, jobId, scanKey);
-  return highInterestCells;
+  return {
+    gridCols: safeGridCols,
+    gridRows: safeGridRows,
+    mediumCells,
+    highInterestCells,
+  };
 }
 
 self.onmessage = (event) => {
@@ -208,7 +316,10 @@ self.onmessage = (event) => {
   activeScanKey = message.scanKey || null;
 
   try {
-    const scanResult = classifyInterestGridLyapunov({
+    const step2ThresholdRaw = Number(message.step2Threshold);
+    const step2Threshold = Number.isFinite(step2ThresholdRaw) ? step2ThresholdRaw : 0.22;
+
+    const scanResult = runCombinedInterestPass({
       formulaId: message.formulaId,
       baseParams: message.baseParams,
       plane: message.plane,
@@ -216,43 +327,6 @@ self.onmessage = (event) => {
       gridRows: message.gridRows,
       iterations: message.iterations,
       lyapunov: message.lyapunov,
-      onProgress: (percent) => {
-        if (!isActiveJob(message.jobId, message.scanKey)) {
-          return;
-        }
-        self.postMessage({
-          type: "progress",
-          jobId: message.jobId,
-          scanKey: message.scanKey,
-          percent,
-        });
-      },
-    });
-
-    if (!isActiveJob(message.jobId, message.scanKey)) {
-      return;
-    }
-
-    self.postMessage({
-      type: "medium-interest-ready",
-      jobId: message.jobId,
-      scanKey: message.scanKey,
-      scanResult: {
-        ...scanResult,
-        mediumCells: Array.isArray(scanResult?.highCells) ? scanResult.highCells : [],
-        highInterestCells: [],
-      },
-    });
-
-    const step2ThresholdRaw = Number(message.step2Threshold);
-    const step2Threshold = Number.isFinite(step2ThresholdRaw) ? step2ThresholdRaw : 0.22;
-    const highInterestCells = refineHighInterestCells({
-      scanResult,
-      formulaId: message.formulaId,
-      baseParams: message.baseParams,
-      plane: message.plane,
-      gridCols: message.gridCols,
-      gridRows: message.gridRows,
       step2Threshold,
       jobId: message.jobId,
       scanKey: message.scanKey,
@@ -266,11 +340,7 @@ self.onmessage = (event) => {
       type: "result",
       jobId: message.jobId,
       scanKey: message.scanKey,
-      scanResult: {
-        ...scanResult,
-        mediumCells: Array.isArray(scanResult?.highCells) ? scanResult.highCells : [],
-        highInterestCells,
-      },
+      scanResult,
     });
   } catch (error) {
     console.error("Interest overlay worker calculation failed.", error);

@@ -154,7 +154,29 @@ export function initInterestOverlay({
     }
   }
 
-  function applyPartialHighInterestBatch(plan, jobSeq, highInterestCells) {
+  function resetProgressiveScanCache(plan) {
+    if (!plan) {
+      return;
+    }
+
+    // Clear previous overlay results before progressive row updates for a new scan.
+    interestOverlayScanCache = {
+      scanKey: plan.scanKey,
+      scanResult: {
+        gridCols: plan.gridCols,
+        gridRows: plan.gridRows,
+        mediumCells: [],
+        highCells: [],
+        highInterestCells: [],
+      },
+      computedAt: performanceObject.now(),
+      gridCols: plan.gridCols,
+      gridRows: plan.gridRows,
+    };
+    redrawOverlayCanvas();
+  }
+
+  function applyRowInterestUpdate(plan, jobSeq, rowMediumCells, rowHighInterestCells) {
     if (jobSeq !== interestOverlayActiveJobSeq) {
       return;
     }
@@ -162,25 +184,26 @@ export function initInterestOverlay({
       return;
     }
 
-    const nextCells = Array.isArray(highInterestCells) ? highInterestCells : [];
+    const mediumCellsForRow = Array.isArray(rowMediumCells) ? rowMediumCells : [];
+    const highInterestCellsForRow = Array.isArray(rowHighInterestCells) ? rowHighInterestCells : [];
     const existingCache = interestOverlayScanCache;
     const mediumCells = Array.isArray(existingCache?.scanResult?.mediumCells)
-      ? existingCache.scanResult.mediumCells
-      : (Array.isArray(existingCache?.scanResult?.highCells) ? existingCache.scanResult.highCells : []);
-    const mergedHighInterestCells = Array.isArray(existingCache?.scanResult?.highInterestCells)
+      ? existingCache.scanResult.mediumCells.slice()
+      : (Array.isArray(existingCache?.scanResult?.highCells) ? existingCache.scanResult.highCells.slice() : []);
+    const highInterestCells = Array.isArray(existingCache?.scanResult?.highInterestCells)
       ? existingCache.scanResult.highInterestCells.slice()
       : [];
 
-    let didChange = false;
-    for (const cellIndex of nextCells) {
-      if (!mergedHighInterestCells.includes(cellIndex)) {
-        mergedHighInterestCells.push(cellIndex);
-        didChange = true;
-      }
+    if (mediumCellsForRow.length === 0 && highInterestCellsForRow.length === 0) {
+      return;
     }
 
-    if (!didChange) {
-      return;
+    // Row-wise progressive apply: append this completed row's medium/high cells only.
+    if (mediumCellsForRow.length > 0) {
+      mediumCells.push(...mediumCellsForRow);
+    }
+    if (highInterestCellsForRow.length > 0) {
+      highInterestCells.push(...highInterestCellsForRow);
     }
 
     interestOverlayScanCache = {
@@ -189,9 +212,9 @@ export function initInterestOverlay({
         ...(existingCache?.scanResult || {}),
         gridCols: plan.gridCols,
         gridRows: plan.gridRows,
-        mediumCells: mediumCells.slice(),
+        mediumCells,
         highCells: mediumCells.slice(),
-        highInterestCells: mergedHighInterestCells,
+        highInterestCells,
       },
       computedAt: performanceObject.now(),
       gridCols: plan.gridCols,
@@ -247,7 +270,7 @@ export function initInterestOverlay({
           return;
         }
 
-        if (message.type === "medium-interest-ready") {
+        if (message.type === "row-interest-update") {
           const plan = interestOverlayPendingPlan;
           if (!interestOverlayCalcInProgress) {
             return;
@@ -258,22 +281,10 @@ export function initInterestOverlay({
           if (!plan || plan.scanKey !== message.scanKey) {
             return;
           }
-          applyCompletedScanResult(plan, message.jobId, message.scanResult);
-          return;
-        }
-
-        if (message.type === "high-interest-batch") {
-          const plan = interestOverlayPendingPlan;
-          if (!interestOverlayCalcInProgress) {
-            return;
+          applyRowInterestUpdate(plan, message.jobId, message.mediumCells, message.highInterestCells);
+          if (Number.isFinite(message.percent)) {
+            handleCalcProgress(message.percent);
           }
-          if (message.jobId !== interestOverlayActiveJobSeq || message.scanKey !== interestOverlayActiveScanKey) {
-            return;
-          }
-          if (!plan || plan.scanKey !== message.scanKey) {
-            return;
-          }
-          applyPartialHighInterestBatch(plan, message.jobId, message.highInterestCells);
           return;
         }
 
@@ -391,6 +402,7 @@ export function initInterestOverlay({
     interestOverlayCalcInProgress = true;
     interestOverlayCalcProgressPercent = 0;
     interestOverlayLastProgressToastPercent = -1;
+    resetProgressiveScanCache(plan);
 
     const worker = ensureWorker();
     if (!worker) {
