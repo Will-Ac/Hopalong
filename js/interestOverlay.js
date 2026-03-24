@@ -154,6 +154,28 @@ export function initInterestOverlay({
     }
   }
 
+  function resetProgressiveScanCache(plan) {
+    if (!plan) {
+      return;
+    }
+
+    // Clear previous overlay results before progressive row updates for a new scan.
+    interestOverlayScanCache = {
+      scanKey: plan.scanKey,
+      scanResult: {
+        gridCols: plan.gridCols,
+        gridRows: plan.gridRows,
+        mediumCells: [],
+        highCells: [],
+        highInterestCells: [],
+      },
+      computedAt: performanceObject.now(),
+      gridCols: plan.gridCols,
+      gridRows: plan.gridRows,
+    };
+    redrawOverlayCanvas();
+  }
+
   function applyRowInterestUpdate(plan, jobSeq, rowMediumCells, rowHighInterestCells) {
     if (jobSeq !== interestOverlayActiveJobSeq) {
       return;
@@ -380,6 +402,7 @@ export function initInterestOverlay({
     interestOverlayCalcInProgress = true;
     interestOverlayCalcProgressPercent = 0;
     interestOverlayLastProgressToastPercent = -1;
+    resetProgressiveScanCache(plan);
 
     const worker = ensureWorker();
     if (!worker) {
