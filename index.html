@@ -69,6 +69,7 @@
       }
       #c,
       #interestOverlayCanvas,
+      #debugOverlayCanvas,
       #manualOverlayCanvas {
         position: absolute;
         inset: 0;
@@ -82,6 +83,7 @@
         touch-action: none;
       }
       #interestOverlayCanvas,
+      #debugOverlayCanvas,
       #manualOverlayCanvas {
         pointer-events: none;
       }
@@ -135,6 +137,7 @@
       #debugPanel.is-hidden { display: none; }
       #debugInfo {
         margin: 0;
+        color: rgba(255, 130, 130, 0.96);
         font-variant-numeric: tabular-nums;
         white-space: pre-line;
       }
@@ -1259,10 +1262,11 @@
   </head>
   <body>
     <div id="app">
-      <div id="version-badge">PR24.1</div>
+      <div id="version-badge">PR25.1</div>
       <div id="canvasStack">
         <canvas id="c"></canvas>
         <canvas id="interestOverlayCanvas"></canvas>
+        <canvas id="debugOverlayCanvas"></canvas>
         <canvas id="manualOverlayCanvas"></canvas>
       </div>
       <p id="toast" aria-live="polite" aria-atomic="true"></p>
@@ -1420,6 +1424,7 @@ Scale</button>
           <div class="perfSettingCard">
             <div class="perfSettingHead"><span class="perfSettingLabel">Debug overlay</span><button id="infoDebug" class="perfInfoBtn" type="button">i</button></div>
             <label class="modeOption"><input id="detailDebugToggle" type="checkbox" /> Show debug overlays and diagnostics</label>
+            <label class="modeOption"><input id="detailDebugTextToggle" type="checkbox" /> Show debug text</label>
           </div>
         </div>
         <div id="settingsInfoPopup" class="is-hidden" role="dialog" aria-live="polite">
