@@ -274,11 +274,18 @@ export function createHelpOverlay(options) {
       if (row.controlType === "tourStepper") {
         const controlsEl = document.createElement("div");
         controlsEl.className = "helpOverlay__tourControls";
-
-        const stepEl = document.createElement("span");
-        stepEl.className = "helpOverlay__tourStep";
-        stepEl.textContent = row.stepText || "";
-        controlsEl.append(stepEl);
+        if (row.showPrevious) {
+          const previousBtn = document.createElement("button");
+          previousBtn.type = "button";
+          previousBtn.className = "helpOverlay__tourBtn";
+          previousBtn.textContent = row.previousLabel || "Previous";
+          previousBtn.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            options.onTourPrevious?.();
+          });
+          controlsEl.append(previousBtn);
+        }
 
         const nextBtn = document.createElement("button");
         nextBtn.type = "button";
@@ -503,19 +510,20 @@ const HELP_PLACEMENT_POLICY = {
     ],
   },
   "tour-step": {
-    priority: 1,
+    priority: 0,
     wrappingAllowed: true,
     shrinkAllowed: true,
+    constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "viewportBand",
-      alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 0 },
-      band: { sourceType: "viewport", position: "top", y: 32, offset: 0 },
+      alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 170 },
+      band: { sourceType: "viewport", position: "middle", y: 190, offset: 0 },
     },
     fallbackPlacements: [
       {
         primitive: "viewportBand",
-        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 0 },
-        band: { sourceType: "groupOrViewportRatio", sourceGroup: "topbar", position: "alignTop", ratio: 0.12, offset: 0 },
+        alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
+        band: { sourceType: "viewport", position: "middle", y: 190, offset: 0 },
       },
     ],
   },
@@ -596,27 +604,17 @@ const HELP_PLACEMENT_POLICY = {
     maxLines: 4,
     wrappingAllowed: true,
     shrinkAllowed: true,
-    dependencyIds: ["canvas-right"],
     constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
-      primitive: "centerSplit",
-      centerAnchorKey: "viewportCenter",
-      side: "right",
-      gap: LAYOUT.dividerTapGap + 6,
-      band: { sourceType: "group", sourceGroup: "canvas-right", position: "alignTop", offset: 0 },
+      primitive: "viewportBand",
+      alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 120 },
+      band: { sourceType: "viewport", position: "middle", y: 210, offset: 0 },
     },
     fallbackPlacements: [
       {
-        primitive: "centerSplit",
-        centerAnchorKey: "viewportCenter",
-        side: "right",
-        gap: LAYOUT.dividerTapGap + 6,
-        band: { sourceType: "group", sourceGroup: "canvas-right", position: "alignTop", offset: 0 },
-      },
-      {
         primitive: "viewportBand",
-        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 160 },
-        band: { sourceType: "viewport", position: "middle", y: 180, offset: 0 },
+        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 80 },
+        band: { sourceType: "viewport", position: "middle", y: 210, offset: 0 },
       },
     ],
   },
@@ -892,13 +890,22 @@ function buildHelpItemRegistry(groups) {
   return groups.map((group) => {
     const dynamicLines = options.getHelpLinesForItem?.(group.id);
     const normalizedLines = Array.isArray(dynamicLines) && dynamicLines.length ? dynamicLines : group.lines;
-    const policy = HELP_PLACEMENT_POLICY[group.id] || {
+    const basePolicy = HELP_PLACEMENT_POLICY[group.id] || {
       priority: 50,
       wrappingAllowed: true,
       shrinkAllowed: true,
       preferredPlacement: { primitive: "viewportBand", xAlign: "center", band: "middle" },
       fallbackPlacements: [{ primitive: "viewportBand", xAlign: "center", band: "middle" }],
     };
+    const policyOverride = options.getHelpPolicyOverride?.(group.id) || null;
+    const policy = policyOverride
+      ? {
+        ...basePolicy,
+        ...policyOverride,
+        preferredPlacement: policyOverride.preferredPlacement ?? basePolicy.preferredPlacement,
+        fallbackPlacements: policyOverride.fallbackPlacements ?? basePolicy.fallbackPlacements,
+      }
+      : basePolicy;
     return {
       id: group.id,
       group: { ...group, lines: normalizedLines },
@@ -1473,7 +1480,12 @@ function clampPlacedGroupsToViewport(ctx) {
 function renderCanvasDivider({ viewportHeight, layouts }) {
     const leftTap = layouts.find((item) => item.group.id === "canvas-left");
     const rightTap = layouts.find((item) => item.group.id === "canvas-right");
-    if (!leftTap || !rightTap) {
+    const forceSingleDivider = options.shouldForceCanvasDivider?.();
+    if (!leftTap && !rightTap) {
+      dom.centerDivider.style.display = "none";
+      return;
+    }
+    if (!forceSingleDivider && (!leftTap || !rightTap)) {
       dom.centerDivider.style.display = "none";
       return;
     }

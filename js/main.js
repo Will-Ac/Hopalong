@@ -386,8 +386,8 @@ const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
 const APP_DEFAULTS_STORAGE_KEY = "hopalong.defaults.v2";
 const WELCOME_DISMISSED_STORAGE_KEY = "hopalong.welcomeDismissed.v1";
 const GUIDED_TOUR_STEPS = [
-  { title: "Tap right + center divider", itemIds: ["canvas-right", "canvas-left"] },
-  { title: "Tap left", itemIds: ["canvas-left", "canvas-right"] },
+  { title: "Tap right + center divider", itemIds: ["canvas-right"] },
+  { title: "Tap left + center divider", itemIds: ["canvas-left"] },
   { title: "Parameters", itemIds: ["params"] },
   { title: "Slider", itemIds: ["slider"] },
   { title: "Border", itemIds: ["tile-border-legend"] },
@@ -396,6 +396,68 @@ const GUIDED_TOUR_STEPS = [
   { title: "Top button bar", itemIds: ["topbar"] },
   { title: "Canvas help", itemIds: ["canvas-device-controls"] },
 ];
+const TOUR_STEP_PLACEMENT_OVERRIDES = {
+  params: {
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "quickSlider",
+      relation: {
+        x: { sourceEdge: "center", selfEdge: "center", offset: -120 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
+        relation: {
+          x: { sourceEdge: "center", selfEdge: "center", offset: -120 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+        },
+      },
+    ],
+  },
+  slider: {
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "quickSlider",
+      relation: {
+        x: { sourceEdge: "center", selfEdge: "center", offset: 0 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: -12 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
+        relation: {
+          x: { sourceEdge: "center", selfEdge: "center", offset: 0 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -12 },
+        },
+      },
+    ],
+  },
+  "tile-border-legend": {
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "quickSlider",
+      relation: {
+        x: { sourceEdge: "center", selfEdge: "center", offset: 126 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
+        relation: {
+          x: { sourceEdge: "center", selfEdge: "center", offset: 126 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+        },
+      },
+    ],
+  },
+};
 const PARAM_LOCK_STATES = new Set(["fix", "rand"]);
 const PARAM_MOD_AXES = new Set(["none", "manX", "manY"]);
 const PARAM_MODE_KEYS = ["formula", "cmap", "a", "b", "c", "d", "iters"];
@@ -2342,6 +2404,23 @@ function getGuidedTourFocusItemIds() {
   return [...step.itemIds, "tour-step"];
 }
 
+function getTourPlacementOverrideForItem(itemId) {
+  if (!uiState.guidedTourActive) {
+    return null;
+  }
+  if (uiState.guidedTourIndex < 2 || uiState.guidedTourIndex > 4) {
+    return null;
+  }
+  return TOUR_STEP_PLACEMENT_OVERRIDES[itemId] || null;
+}
+
+function shouldForceCanvasDividerForTourStep() {
+  if (!uiState.guidedTourActive) {
+    return false;
+  }
+  return uiState.guidedTourIndex === 0 || uiState.guidedTourIndex === 1;
+}
+
 function updateGuidedTourUi() {
   uiState.helpOverlayController?.render();
 }
@@ -2381,6 +2460,19 @@ function goToNextGuidedTourStep() {
     return;
   }
   uiState.guidedTourIndex += 1;
+  updateGuidedTourUi();
+  uiState.helpOverlayController?.render();
+}
+
+function goToPreviousGuidedTourStep() {
+  if (!uiState.guidedTourActive) {
+    return;
+  }
+  if (uiState.guidedTourIndex <= 0) {
+    uiState.helpOverlayController?.render();
+    return;
+  }
+  uiState.guidedTourIndex -= 1;
   updateGuidedTourUi();
   uiState.helpOverlayController?.render();
 }
@@ -5665,6 +5757,8 @@ function initHelpOverlay() {
       return contexts;
     },
     getFocusedHelpItemIds: () => getGuidedTourFocusItemIds(),
+    getHelpPolicyOverride: (itemId) => getTourPlacementOverrideForItem(itemId),
+    shouldForceCanvasDivider: () => shouldForceCanvasDividerForTourStep(),
     getHelpLinesForItem: (itemId) => {
       if (itemId === "canvas-device-controls") {
         return getCanvasDeviceHelpLines();
@@ -5672,13 +5766,23 @@ function initHelpOverlay() {
       if (itemId === "tour-step" && uiState.guidedTourActive) {
         const totalSteps = GUIDED_TOUR_STEPS.length;
         const currentStep = getGuidedTourStep();
+        const isFirstStep = uiState.guidedTourIndex === 0;
         const isLastStep = uiState.guidedTourIndex >= totalSteps - 1;
         return [
-          { noAction: true, body: `Step ${uiState.guidedTourIndex + 1}/${totalSteps}: ${currentStep.title}` },
-          { controlType: "tourStepper", stepText: currentStep.title, nextLabel: isLastStep ? "Finish" : "Next", endLabel: "End tour" },
+          { heading: true, action: `Step ${uiState.guidedTourIndex + 1}/${totalSteps} — ${currentStep.title}`, delimiter: "" },
+          {
+            controlType: "tourStepper",
+            showPrevious: !isFirstStep,
+            previousLabel: "Previous",
+            nextLabel: isLastStep ? "Finish" : "Next",
+            endLabel: "End tour",
+          },
         ];
       }
       return null;
+    },
+    onTourPrevious: () => {
+      goToPreviousGuidedTourStep();
     },
     onTourNext: () => {
       goToNextGuidedTourStep();

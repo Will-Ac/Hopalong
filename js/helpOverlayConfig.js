@@ -21,7 +21,7 @@ export const HELP_OVERLAY_GROUPS = [
       line("", "open/close help", { iconSelector: "#helpBtn", noAction: true }),
       line("", "open/close settings", { iconSelector: "#rangesEditorToggle", noAction: true }),
       line("", "auto/fix scale to screen", { iconSelector: "#scaleModeBtn", noAction: true }),
-      line("", "save image", { iconSelector: "#cameraBtn", noAction: true }),
+      line("", "save / share image", { iconSelector: "#cameraBtn", noAction: true }),
     ],
     label: { x: 0.82, y: 0.18 },
     target: { selector: "#topRightActions", attach: "bottom" },

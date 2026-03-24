@@ -121,6 +121,16 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Tour step controls now render as a help-overlay item and use the same help placement policy engine (top-middle preferred with normal fallback handling).
 - Final tour step now reliably shows the new device-specific canvas help panel.
 
+## Onboarding/tour refinements (PR30.3)
+
+- Splash copy was updated to the new single-line attractor description while keeping the **AttractorLab** title unchanged.
+- Guided tour step content was tightened so:
+  - step 1 shows only tap-right plus the center divider
+  - step 2 shows only tap-left plus the center divider
+- Guided placement was refined so steps 3–5 (Parameters, Slider, Border) prefer low placement above the slider area using help policy overrides.
+- Top button help wording now reads **save / share image**.
+- Tour guide dialog is now a compact title-and-controls panel (Previous / Next / End tour) placed via the same help placement policy system on the right-middle side.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
