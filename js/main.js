@@ -343,6 +343,9 @@ const renderState = {
     offsetX: 0,
     offsetY: 0,
     zoom: 1,
+    rotation: 0,
+    rotationCos: 1,
+    rotationSin: 0,
   },
 };
 
@@ -604,17 +607,38 @@ function buildLiveInteractionMeta(frameEntry) {
   const baseMeta = frameEntry?.meta || renderState.lastRenderMeta;
   const width = Math.max(1, canvas.width);
   const height = Math.max(1, canvas.height);
-  const minDim = Math.max(1, Math.min(width, height));
-  const zoom = Number(renderState.fixedView?.zoom ?? 1);
-  const scale = (minDim / 220) * (Number.isFinite(zoom) && zoom > 0 ? zoom : 1);
+  const scale = getFixedViewScale(width, height);
   const centerScreenX = width * 0.5 + Number(renderState.fixedView?.offsetX ?? 0);
   const centerScreenY = height * 0.5 + Number(renderState.fixedView?.offsetY ?? 0);
-  const worldCenterX = (width * 0.5 - centerScreenX) / Math.max(scale, 1e-9);
-  const worldCenterY = (height * 0.5 - centerScreenY) / Math.max(scale, 1e-9);
-  const worldMinX = (0 - centerScreenX) / Math.max(scale, 1e-9);
-  const worldMaxX = (width - centerScreenX) / Math.max(scale, 1e-9);
-  const worldMinY = (0 - centerScreenY) / Math.max(scale, 1e-9);
-  const worldMaxY = (height - centerScreenY) / Math.max(scale, 1e-9);
+  const mapCenterX = width * 0.5;
+  const mapCenterY = height * 0.5;
+  const mapWorldCenterX = (mapCenterX - centerScreenX) / Math.max(scale, 1e-9);
+  const mapWorldCenterY = (mapCenterY - centerScreenY) / Math.max(scale, 1e-9);
+  const invScale = 1 / Math.max(scale, 1e-9);
+  const cos = Number.isFinite(renderState.fixedView?.rotationCos) ? renderState.fixedView.rotationCos : 1;
+  const sin = Number.isFinite(renderState.fixedView?.rotationSin) ? renderState.fixedView.rotationSin : 0;
+  const corners = [
+    [0, 0],
+    [width, 0],
+    [width, height],
+    [0, height],
+  ];
+  let worldMinX = Number.POSITIVE_INFINITY;
+  let worldMaxX = Number.NEGATIVE_INFINITY;
+  let worldMinY = Number.POSITIVE_INFINITY;
+  let worldMaxY = Number.NEGATIVE_INFINITY;
+  for (const [sx, sy] of corners) {
+    const dx = (sx - mapCenterX) * invScale;
+    const dy = (sy - mapCenterY) * invScale;
+    const wx = mapWorldCenterX + dx * cos + dy * sin;
+    const wy = mapWorldCenterY - dx * sin + dy * cos;
+    if (wx < worldMinX) worldMinX = wx;
+    if (wx > worldMaxX) worldMaxX = wx;
+    if (wy < worldMinY) worldMinY = wy;
+    if (wy > worldMaxY) worldMaxY = wy;
+  }
+  const worldCenterX = mapWorldCenterX;
+  const worldCenterY = mapWorldCenterY;
 
   return {
     ...(baseMeta || {}),
@@ -631,8 +655,11 @@ function buildLiveInteractionMeta(frameEntry) {
       height,
       centerX: width * 0.5,
       centerY: height * 0.5,
-      scaleX: Math.max(1, width - 1) / Math.max(worldMaxX - worldMinX, 1e-9),
-      scaleY: Math.max(1, height - 1) / Math.max(worldMaxY - worldMinY, 1e-9),
+      scaleX: scale,
+      scaleY: scale,
+      rotation: renderState.fixedView?.rotation ?? 0,
+      rotationCos: cos,
+      rotationSin: sin,
     },
   };
 }
@@ -678,10 +705,22 @@ function drawInteractionFrameFromCache(frameEntry) {
   const destY = (clippedY - sourceRectY) * destScaleY;
   const destWidth = clippedWidth * destScaleX;
   const destHeight = clippedHeight * destScaleY;
+  const sourceRotation = Number(frameEntry.sourceFixedView?.rotation) || 0;
+  const targetRotation = Number(renderState.fixedView?.rotation) || 0;
+  const rotationDelta = normalizeRotationAngle(targetRotation - sourceRotation);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(frameEntry.canvas, clippedX, clippedY, clippedWidth, clippedHeight, destX, destY, destWidth, destHeight);
+  if (Math.abs(rotationDelta) > 1e-12) {
+    ctx.save();
+    ctx.translate(viewportWidth * 0.5, viewportHeight * 0.5);
+    ctx.rotate(rotationDelta);
+    ctx.translate(-viewportWidth * 0.5, -viewportHeight * 0.5);
+    ctx.drawImage(frameEntry.canvas, clippedX, clippedY, clippedWidth, clippedHeight, destX, destY, destWidth, destHeight);
+    ctx.restore();
+  } else {
+    ctx.drawImage(frameEntry.canvas, clippedX, clippedY, clippedWidth, clippedHeight, destX, destY, destWidth, destHeight);
+  }
   // Keep debug/overlay layers synced to live pan+zoom instead of stale cached frame metadata.
   const liveMeta = buildLiveInteractionMeta(frameEntry);
   renderState.lastRenderMeta = liveMeta;
@@ -2016,7 +2055,9 @@ function syncFixedViewFromLastRenderMeta() {
     offsetX: fixedCenterX - viewCenterX,
     offsetY: fixedCenterY - viewCenterY,
     zoom: scale / baseScale,
+    rotation: normalizeRotationAngle(Number(renderState.lastRenderMeta?.view?.rotation ?? renderState.fixedView?.rotation ?? 0)),
   };
+  syncFixedViewRotationCache();
 
   return true;
 }
@@ -2043,6 +2084,7 @@ function getWorldSharedViewModel() {
           cy: centerY,
           ms: worldUnitsPerPixel * minDim,
           ar: canvasWidth / canvasHeight,
+          rot: normalizeRotationAngle(Number(metaView?.rotation ?? renderState.fixedView?.rotation ?? 0)),
         };
       }
     }
@@ -2065,6 +2107,7 @@ function getWorldSharedViewModel() {
     cy: (canvasHeight * 0.5 - viewCenterY) / scale,
     ms: minDim / scale,
     ar: canvasWidth / canvasHeight,
+    rot: normalizeRotationAngle(Number(renderState.fixedView?.rotation ?? 0)),
   };
 }
 
@@ -2098,6 +2141,7 @@ function getFixedViewFromSharedWorldView(view) {
     offsetX: fixedCenterX - canvasWidth * 0.5,
     offsetY: fixedCenterY - canvasHeight * 0.5,
     zoom: scale / (minDim / 220),
+    rotation: normalizeRotationAngle(Number(view?.[4]) || 0),
   };
 }
 
@@ -2651,7 +2695,9 @@ function applyState(state) {
       offsetX: Number.isFinite(state.fixedView.offsetX) ? state.fixedView.offsetX : 0,
       offsetY: Number.isFinite(state.fixedView.offsetY) ? state.fixedView.offsetY : 0,
       zoom: Number.isFinite(state.fixedView.zoom) && state.fixedView.zoom > 0 ? state.fixedView.zoom : 1,
+      rotation: normalizeRotationAngle(Number(state.fixedView.rotation) || 0),
     };
+    syncFixedViewRotationCache();
   }
   syncSeedEditorInputs(currentFormulaId);
   syncQuickSliderPosition();
@@ -2724,7 +2770,9 @@ const historyState = initHistoryState({
         offsetX: view[0],
         offsetY: view[1],
         zoom: view[2],
+        rotation: normalizeRotationAngle(Number(view?.[3]) || 0),
       };
+      syncFixedViewRotationCache();
     }
     historyStateRef.sharedParamsOverride = {
       a: params[0],
@@ -2811,6 +2859,7 @@ function randomizeAllParameters() {
     const previousFormulaId = currentFormulaId;
     currentFormulaId = randomChoice(appData.formulas).id;
     if (currentFormulaId !== previousFormulaId) {
+      setFixedViewRotation(0);
       applyFormulaPresetToSliders(currentFormulaId);
     }
   }
@@ -2904,6 +2953,35 @@ function getCanvasPointerPosition(event) {
   };
 }
 
+function normalizeRotationAngle(angle) {
+  const tau = Math.PI * 2;
+  let next = Number(angle);
+  if (!Number.isFinite(next)) {
+    return 0;
+  }
+  next %= tau;
+  if (next > Math.PI) {
+    next -= tau;
+  } else if (next < -Math.PI) {
+    next += tau;
+  }
+  return next;
+}
+
+function syncFixedViewRotationCache() {
+  const rotation = normalizeRotationAngle(renderState.fixedView?.rotation ?? 0);
+  renderState.fixedView.rotation = rotation;
+  renderState.fixedView.rotationCos = Math.cos(rotation);
+  renderState.fixedView.rotationSin = Math.sin(rotation);
+}
+
+function setFixedViewRotation(nextRotation) {
+  renderState.fixedView.rotation = normalizeRotationAngle(nextRotation);
+  syncFixedViewRotationCache();
+}
+
+syncFixedViewRotationCache();
+
 function getManualAxisTargets() {
   let manX = null;
   let manY = null;
@@ -2924,6 +3002,21 @@ function requestLiveModulationDraw() {
   redrawInterestOverlayCanvas(renderState.lastRenderMeta);
   redrawManualOverlayCanvas(renderState.lastRenderMeta);
   requestDraw({ invalidate: false });
+}
+
+function getFixedViewScale(viewWidth = canvas.width, viewHeight = canvas.height) {
+  const minDim = Math.max(1, Math.min(viewWidth, viewHeight));
+  const zoom = Number(renderState.fixedView?.zoom ?? 1);
+  return (minDim / 220) * (Number.isFinite(zoom) && zoom > 0 ? zoom : 1);
+}
+
+function mapScreenDeltaToModulationDelta(deltaX, deltaY) {
+  const cos = Number.isFinite(renderState.fixedView?.rotationCos) ? renderState.fixedView.rotationCos : 1;
+  const sin = Number.isFinite(renderState.fixedView?.rotationSin) ? renderState.fixedView.rotationSin : 0;
+  return {
+    x: deltaX * cos + deltaY * sin,
+    y: -deltaX * sin + deltaY * cos,
+  };
 }
 
 function applyManualModulation(deltaX, deltaY, { invalidate = true } = {}) {
@@ -3077,6 +3170,7 @@ function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
   const posA = getCanvasPointerPosition(ptrA);
   const posB = getCanvasPointerPosition(ptrB);
   const lastD = Math.hypot(posB.x - posA.x, posB.y - posA.y);
+  const lastAngle = Math.atan2(posB.y - posA.y, posB.x - posA.x);
   const lastMX = (posA.x + posB.x) * 0.5;
   const lastMY = (posA.y + posB.y) * 0.5;
 
@@ -3086,6 +3180,7 @@ function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
     startD: lastD,
     startZoom: renderState.fixedView.zoom,
     lastD,
+    lastAngle,
     lastMX,
     lastMY,
     justStarted: true,
@@ -3101,10 +3196,14 @@ function clearTwoFingerGesture() {
 }
 
 function cloneFixedViewSnapshot(view = renderState.fixedView) {
+  const rotation = normalizeRotationAngle(view?.rotation ?? 0);
   return {
     offsetX: Number.isFinite(view?.offsetX) ? view.offsetX : 0,
     offsetY: Number.isFinite(view?.offsetY) ? view.offsetY : 0,
     zoom: Number.isFinite(view?.zoom) && view.zoom > 0 ? view.zoom : 1,
+    rotation,
+    rotationCos: Math.cos(rotation),
+    rotationSin: Math.sin(rotation),
   };
 }
 
@@ -3287,7 +3386,10 @@ function onCanvasPointerMove(event) {
       overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
       return;
     }
-    const didModulate = applyManualModulation(pos.x - overlayState.lastPointerPosition.x, pos.y - overlayState.lastPointerPosition.y, { invalidate: false });
+    const dxScreen = pos.x - overlayState.lastPointerPosition.x;
+    const dyScreen = pos.y - overlayState.lastPointerPosition.y;
+    const modulationDelta = mapScreenDeltaToModulationDelta(dxScreen, dyScreen);
+    const didModulate = applyManualModulation(modulationDelta.x, modulationDelta.y, { invalidate: false });
     overlayState.isManualModulating = overlayState.isManualModulating || didModulate;
     overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
     return;
@@ -3321,6 +3423,7 @@ function onCanvasPointerMove(event) {
     y: (posA.y + posB.y) * 0.5,
   };
   const distance = Math.hypot(posB.x - posA.x, posB.y - posA.y);
+  const angle = Math.atan2(posB.y - posA.y, posB.x - posA.x);
   const dxm = midpoint.x - overlayState.twoFingerGesture.lastMX;
   const dym = midpoint.y - overlayState.twoFingerGesture.lastMY;
   const dd = distance - overlayState.twoFingerGesture.lastD;
@@ -3328,6 +3431,7 @@ function onCanvasPointerMove(event) {
 
   if (overlayState.twoFingerGesture.justStarted) {
     overlayState.twoFingerGesture.lastD = distance;
+    overlayState.twoFingerGesture.lastAngle = angle;
     overlayState.twoFingerGesture.lastMX = midpoint.x;
     overlayState.twoFingerGesture.lastMY = midpoint.y;
     overlayState.twoFingerGesture.justStarted = false;
@@ -3340,12 +3444,15 @@ function onCanvasPointerMove(event) {
   const touchZoomRatioMin = getTouchZoomRatioMin();
   const shouldPan = panMagnitude > PAN_DEADBAND_PX;
   const shouldZoom = Math.abs(dd) > touchZoomDeadbandThreshold || zoomRatioDelta > touchZoomRatioMin;
+  const deltaAngle = normalizeRotationAngle(angle - overlayState.twoFingerGesture.lastAngle);
+  const shouldRotate = Math.abs(deltaAngle) > 0.001;
 
   overlayState.lastTwoDebug = {
     state: overlayState.interactionState,
     dxm,
     dym,
     dd,
+    deltaAngle,
     ratioStep,
     viewZoom: renderState.fixedView.zoom,
     touchZoomDeadbandThreshold,
@@ -3353,8 +3460,9 @@ function onCanvasPointerMove(event) {
   };
 
   if (!overlayState.twoFingerGesture.isArmed) {
-    if (!shouldZoom && !shouldPan) {
+    if (!shouldZoom && !shouldPan && !shouldRotate) {
       overlayState.twoFingerGesture.lastD = distance;
+      overlayState.twoFingerGesture.lastAngle = angle;
       overlayState.twoFingerGesture.lastMX = midpoint.x;
       overlayState.twoFingerGesture.lastMY = midpoint.y;
       return;
@@ -3374,12 +3482,20 @@ function onCanvasPointerMove(event) {
     }
   }
 
+  if (shouldRotate) {
+    setFixedViewRotation(renderState.fixedView.rotation + deltaAngle);
+  }
+
   if (targetZoom !== null || shouldPan) {
     beginPanZoomInteraction();
     applyTwoFingerGestureTransform(targetZoom, midpoint.x, midpoint.y, shouldPan ? dxm : 0, shouldPan ? dym : 0);
+  } else if (shouldRotate) {
+    persistCurrentHistoryViewState(renderState.fixedView);
+    requestDraw();
   }
 
   overlayState.twoFingerGesture.lastD = distance;
+  overlayState.twoFingerGesture.lastAngle = angle;
   overlayState.twoFingerGesture.lastMX = midpoint.x;
   overlayState.twoFingerGesture.lastMY = midpoint.y;
 }
@@ -3590,6 +3706,7 @@ function renderFormulaPicker() {
       const previousFormulaId = currentFormulaId;
       currentFormulaId = formula.id;
       if (previousFormulaId !== currentFormulaId) {
+        setFixedViewRotation(0);
         applyFormulaPresetToSliders(currentFormulaId);
       }
       if (getParamMode("formula") === "rand") {
@@ -4898,6 +5015,9 @@ function drawBaseRenderFromFullCanvas(fullCanvas, frameMetaFull) {
   const viewWorldMaxX = viewWorldMinX + worldPerPxX * Math.max(1, cropW - 1);
   const viewWorldMinY = fullWorld.minY + cropY * worldPerPxY;
   const viewWorldMaxY = viewWorldMinY + worldPerPxY * Math.max(1, cropH - 1);
+  const preservedRotation = Number.isFinite(fullView.rotation) ? Number(fullView.rotation) : Number(renderState.fixedView?.rotation) || 0;
+  const preservedRotationCos = Number.isFinite(fullView.rotationCos) ? Number(fullView.rotationCos) : Math.cos(preservedRotation);
+  const preservedRotationSin = Number.isFinite(fullView.rotationSin) ? Number(fullView.rotationSin) : Math.sin(preservedRotation);
 
   return {
     cropX, cropY, cropW, cropH,
@@ -4916,8 +5036,11 @@ function drawBaseRenderFromFullCanvas(fullCanvas, frameMetaFull) {
         height: cropH,
         centerX: cropW * 0.5,
         centerY: cropH * 0.5,
-        scaleX: (cropW - 1) / Math.max(viewWorldMaxX - viewWorldMinX, 1e-6),
-        scaleY: (cropH - 1) / Math.max(viewWorldMaxY - viewWorldMinY, 1e-6),
+        scaleX: Number.isFinite(fullView.scaleX) ? Number(fullView.scaleX) : (cropW - 1) / Math.max(viewWorldMaxX - viewWorldMinX, 1e-6),
+        scaleY: Number.isFinite(fullView.scaleY) ? Number(fullView.scaleY) : (cropH - 1) / Math.max(viewWorldMaxY - viewWorldMinY, 1e-6),
+        rotation: preservedRotation,
+        rotationCos: preservedRotationCos,
+        rotationSin: preservedRotationSin,
       },
     },
   };
@@ -4973,8 +5096,26 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
   debugPanelEl.classList.toggle("is-hidden", !showDebugText);
 
   const { view, world } = meta;
-  const xAxisY = axisScreenPosition(world.minY, world.maxY, view.height);
-  const yAxisX = axisScreenPosition(world.minX, world.maxX, view.width);
+  const rotationCos = Number.isFinite(view.rotationCos) ? view.rotationCos : Math.cos(Number(view.rotation) || 0);
+  const rotationSin = Number.isFinite(view.rotationSin) ? view.rotationSin : Math.sin(Number(view.rotation) || 0);
+  const centerX = Number.isFinite(world.centerX) ? world.centerX : (world.minX + world.maxX) * 0.5;
+  const centerY = Number.isFinite(world.centerY) ? world.centerY : (world.minY + world.maxY) * 0.5;
+  const scaleX = Number(view.scaleX) || 0;
+  const scaleY = Number(view.scaleY) || 0;
+  const hasScale = Number.isFinite(scaleX) && Number.isFinite(scaleY) && scaleX > 0 && scaleY > 0;
+  const worldToScreen = (wx, wy) => {
+    if (!hasScale) {
+      return { x: 0, y: 0 };
+    }
+    const dx = wx - centerX;
+    const dy = wy - centerY;
+    const rx = dx * rotationCos - dy * rotationSin;
+    const ry = dx * rotationSin + dy * rotationCos;
+    return {
+      x: view.centerX + rx * scaleX,
+      y: view.centerY + ry * scaleY,
+    };
+  };
   const xTicks = buildTickValues(world.minX, world.maxX, view.width);
   const yTicks = buildTickValues(world.minY, world.maxY, view.height);
   const originVisible = world.minX <= 0 && world.maxX >= 0 && world.minY <= 0 && world.maxY >= 0;
@@ -4996,18 +5137,20 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
     if (showMinorX) {
       const start = Math.ceil(world.minX / minorXStep) * minorXStep;
       for (let value = start; value <= world.maxX + minorXStep * 0.5; value += minorXStep) {
-        const px = ((value - world.minX) / (world.maxX - world.minX)) * view.width;
-        targetCtx.moveTo(px, 0);
-        targetCtx.lineTo(px, view.height);
+        const p0 = worldToScreen(value, world.minY);
+        const p1 = worldToScreen(value, world.maxY);
+        targetCtx.moveTo(p0.x, p0.y);
+        targetCtx.lineTo(p1.x, p1.y);
       }
     }
 
     if (showMinorY) {
       const start = Math.ceil(world.minY / minorYStep) * minorYStep;
       for (let value = start; value <= world.maxY + minorYStep * 0.5; value += minorYStep) {
-        const py = ((value - world.minY) / (world.maxY - world.minY)) * view.height;
-        targetCtx.moveTo(0, py);
-        targetCtx.lineTo(view.width, py);
+        const p0 = worldToScreen(world.minX, value);
+        const p1 = worldToScreen(world.maxX, value);
+        targetCtx.moveTo(p0.x, p0.y);
+        targetCtx.lineTo(p1.x, p1.y);
       }
     }
 
@@ -5018,50 +5161,60 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
   targetCtx.lineWidth = 1;
   targetCtx.beginPath();
   for (const xValue of xTicks.values) {
-    const xTick = ((xValue - world.minX) / (world.maxX - world.minX)) * view.width;
-    targetCtx.moveTo(xTick, 0);
-    targetCtx.lineTo(xTick, view.height);
+    const p0 = worldToScreen(xValue, world.minY);
+    const p1 = worldToScreen(xValue, world.maxY);
+    targetCtx.moveTo(p0.x, p0.y);
+    targetCtx.lineTo(p1.x, p1.y);
   }
   for (const yValue of yTicks.values) {
     if (originVisible && Math.abs(yValue) <= yTicks.step * 0.5) {
       continue;
     }
-    const yTick = ((yValue - world.minY) / (world.maxY - world.minY)) * view.height;
-    targetCtx.moveTo(0, yTick);
-    targetCtx.lineTo(view.width, yTick);
+    const p0 = worldToScreen(world.minX, yValue);
+    const p1 = worldToScreen(world.maxX, yValue);
+    targetCtx.moveTo(p0.x, p0.y);
+    targetCtx.lineTo(p1.x, p1.y);
   }
   targetCtx.stroke();
 
   targetCtx.strokeStyle = DEBUG_OVERLAY_COLORS.axes;
   targetCtx.lineWidth = 1.8;
   targetCtx.beginPath();
-  targetCtx.moveTo(0, xAxisY);
-  targetCtx.lineTo(view.width, xAxisY);
-  targetCtx.moveTo(yAxisX, 0);
-  targetCtx.lineTo(yAxisX, view.height);
+  {
+    const p0 = worldToScreen(world.minX, 0);
+    const p1 = worldToScreen(world.maxX, 0);
+    targetCtx.moveTo(p0.x, p0.y);
+    targetCtx.lineTo(p1.x, p1.y);
+  }
+  {
+    const p0 = worldToScreen(0, world.minY);
+    const p1 = worldToScreen(0, world.maxY);
+    targetCtx.moveTo(p0.x, p0.y);
+    targetCtx.lineTo(p1.x, p1.y);
+  }
   targetCtx.stroke();
 
   targetCtx.strokeStyle = DEBUG_OVERLAY_COLORS.ticks;
   targetCtx.lineWidth = 1;
   for (const xValue of xTicks.values) {
-    const xTick = ((xValue - world.minX) / (world.maxX - world.minX)) * view.width;
+    const p = worldToScreen(xValue, 0);
     targetCtx.beginPath();
-    targetCtx.moveTo(xTick, xAxisY - 6);
-    targetCtx.lineTo(xTick, xAxisY + 6);
+    targetCtx.moveTo(p.x - rotationSin * 6, p.y + rotationCos * 6);
+    targetCtx.lineTo(p.x + rotationSin * 6, p.y - rotationCos * 6);
     targetCtx.stroke();
-    targetCtx.fillText(formatTickValue(xValue, xTicks.step), xTick + 4, xAxisY - 10);
+    targetCtx.fillText(formatTickValue(xValue, xTicks.step), p.x + 4, p.y - 10);
   }
 
   for (const yValue of yTicks.values) {
     if (originVisible && Math.abs(yValue) <= yTicks.step * 0.5) {
       continue;
     }
-    const yTick = ((yValue - world.minY) / (world.maxY - world.minY)) * view.height;
+    const p = worldToScreen(0, yValue);
     targetCtx.beginPath();
-    targetCtx.moveTo(yAxisX - 6, yTick);
-    targetCtx.lineTo(yAxisX + 6, yTick);
+    targetCtx.moveTo(p.x - rotationCos * 6, p.y - rotationSin * 6);
+    targetCtx.lineTo(p.x + rotationCos * 6, p.y + rotationSin * 6);
     targetCtx.stroke();
-    targetCtx.fillText(formatTickValue(yValue, yTicks.step), yAxisX + 9, yTick - 4);
+    targetCtx.fillText(formatTickValue(yValue, yTicks.step), p.x + 9, p.y - 4);
   }
 
   targetCtx.restore();
@@ -5073,8 +5226,8 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
 
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   const params = getDerivedParams();
-  const centerX = (world.minX + world.maxX) / 2;
-  const centerY = (world.minY + world.maxY) / 2;
+  const worldCenterX = (world.minX + world.maxX) / 2;
+  const worldCenterY = (world.minY + world.maxY) / 2;
 
   debugInfoEl.textContent = [
     `formula: ${formula?.name || currentFormulaId}`,
@@ -5086,7 +5239,8 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
     "seeds: 1",
     `x range: ${formatNumberForUi(world.minX, 3)} to ${formatNumberForUi(world.maxX, 3)}`,
     `y range: ${formatNumberForUi(world.minY, 3)} to ${formatNumberForUi(world.maxY, 3)}`,
-    `range centre: (${formatNumberForUi(centerX, 3)}, ${formatNumberForUi(centerY, 3)})`,
+    `range centre: (${formatNumberForUi(worldCenterX, 3)}, ${formatNumberForUi(worldCenterY, 3)})`,
+    `rotation (rad): ${formatNumberForUi(Number(view.rotation) || 0, 4)}`,
     `gesture state: ${overlayState.interactionState}`,
     `2f dxm/dym/dd: ${overlayState.lastTwoDebug ? `${formatNumberForUi(overlayState.lastTwoDebug.dxm, 2)} / ${formatNumberForUi(overlayState.lastTwoDebug.dym, 2)} / ${formatNumberForUi(overlayState.lastTwoDebug.dd, 2)}` : "-"}`,
     `2f ratioStep/zoom: ${overlayState.lastTwoDebug ? `${formatNumberForUi(overlayState.lastTwoDebug.ratioStep, 4)} / ${formatNumberForUi(overlayState.lastTwoDebug.viewZoom, 4)}` : "-"}`,
@@ -5107,6 +5261,7 @@ async function draw() {
     const nextFixedView = getFixedViewFromSharedWorldView(renderState.pendingSharedWorldView);
     if (nextFixedView) {
       renderState.fixedView = nextFixedView;
+      syncFixedViewRotationCache();
       renderState.pendingSharedWorldView = null;
     }
   }
