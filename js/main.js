@@ -64,7 +64,9 @@ const touchZoomRatioMinValueEl = document.getElementById("touchZoomRatioMinValue
 const rotationThresholdRangeEl = document.getElementById("rotationThresholdRange");
 const rotationThresholdValueEl = document.getElementById("rotationThresholdValue");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
+const detailDebugToggleLabelEl = document.getElementById("detailDebugToggleLabel");
 const detailDebugTextToggleEl = document.getElementById("detailDebugTextToggle");
+const detailDebugLabelEl = document.getElementById("detailDebugLabel");
 const detailInterestOverlayToggleEl = document.getElementById("detailInterestOverlayToggle");
 const detailInterestOverlayOpacityRangeEl = document.getElementById("detailInterestOverlayOpacityRange");
 const detailInterestOverlayOpacityFormattedEl = document.getElementById("detailInterestOverlayOpacityFormatted");
@@ -160,7 +162,7 @@ const randomModeTile = document.getElementById("randomModeTile");
 
 const ITERATION_FALLBACK_ABSOLUTE_MAX = 1000000000;
 const ITERATION_FALLBACK_STARTUP_DEFAULT = 500000;
-const ITERATION_FALLBACK_RANDOM_MAX = 500000;
+const ITERATION_FALLBACK_RANDOM_MAX = 1000000;
 const HISTORY_CACHE_SIZE_DEFAULT = 6;
 const HISTORY_CACHE_SIZE_MIN = 1;
 const HISTORY_CACHE_SIZE_MAX = 20;
@@ -202,7 +204,7 @@ const INTEREST_OVERLAY_OPACITY_MAX = 0.8;
 const INTEREST_OVERLAY_OPACITY_DEFAULT = 0.2;
 const INTEREST_HIGH_THRESHOLD_MIN = 0.05;
 const INTEREST_HIGH_THRESHOLD_MAX = 0.5;
-const INTEREST_HIGH_THRESHOLD_DEFAULT = 0.22;
+const INTEREST_HIGH_THRESHOLD_DEFAULT = 0.1;
 const PAN_ZOOM_SETTLE_MS = 200;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MIN = -1;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MAX = 1;
@@ -319,6 +321,9 @@ const uiState = {
   layoutModeSettingsPanel: undefined,
   isPanelOpen: undefined,
   getActiveColourPanelSettings: undefined,
+  settingsPanelMode: "simple",
+  settingsLongPressTimer: null,
+  settingsLongPressTriggered: false,
 };
 const renderState = {
   lastRenderMeta: null,
@@ -351,13 +356,13 @@ const renderState = {
   },
 };
 
-const HOLD_REPEAT_MS_DEFAULT = 60;
+const HOLD_REPEAT_MS_DEFAULT = 300;
 const HOLD_REPEAT_MS_MIN = 20;
 const HOLD_REPEAT_MS_MAX = 300;
-const HOLD_ACCEL_START_MS_DEFAULT = 350;
+const HOLD_ACCEL_START_MS_DEFAULT = 5000;
 const HOLD_ACCEL_START_MS_MIN = 0;
 const HOLD_ACCEL_START_MS_MAX = 5000;
-const HOLD_ACCEL_END_MS_DEFAULT = 1400;
+const HOLD_ACCEL_END_MS_DEFAULT = 8000;
 const HOLD_ACCEL_END_MS_MIN = 100;
 const HOLD_ACCEL_END_MS_MAX = 8000;
 const HOLD_MAX_MULTIPLIER = 30;
@@ -368,6 +373,7 @@ const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
 const PARAM_MOVE_CANCEL_PX = 10;
 const PARAM_SWIPE_TRIGGER_PX = 20;
 const DOUBLE_TAP_MS = 320;
+const SETTINGS_LONG_PRESS_MS = 5000;
 const PARAM_LONG_PRESS_MS = 550;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
 const APP_DEFAULTS_STORAGE_KEY = "hopalong.defaults.v2";
@@ -1649,6 +1655,18 @@ function normalizeHoldTimingDefaults() {
   appData.defaults.holdAccelEndMs = holdAccelEndMs;
 }
 
+function setSettingsPanelMode(mode) {
+  const nextMode = mode === "full" ? "full" : "simple";
+  uiState.settingsPanelMode = nextMode;
+  rangesEditorPanelEl?.classList.toggle("simpleSettingsMode", nextMode === "simple");
+  if (detailDebugLabelEl) {
+    detailDebugLabelEl.textContent = nextMode === "simple" ? "Show X & Y axes" : "Debug overlay";
+  }
+  if (detailDebugToggleLabelEl) {
+    detailDebugToggleLabelEl.textContent = nextMode === "simple" ? "Show X & Y axes" : "Show debug overlays and diagnostics";
+  }
+}
+
 function syncDetailedSettingsControls() {
   const {
     iterationAbsoluteMax,
@@ -1714,7 +1732,7 @@ function syncDetailedSettingsControls() {
   if (detailInterestHighThresholdRangeEl) detailInterestHighThresholdRangeEl.value = String(interestHighThreshold);
   if (detailInterestHighThresholdFormattedEl) detailInterestHighThresholdFormattedEl.textContent = formatNumberForUi(interestHighThreshold, 2);
   interestOverlay.syncToggleUi();
-  const holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  const holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 50), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
   const touchZoomDeadbandPx = getTouchZoomDeadbandPx();
   const touchZoomRatioMin = getTouchZoomRatioMin();
   const rotationThresholdDegrees = getRotationActivationThresholdDegrees();
@@ -2686,7 +2704,7 @@ function applyState(state) {
   appData.defaults.interestLyapunovRescale = Boolean(state.interestLyapunovRescale ?? appData.defaults.interestLyapunovRescale);
   appData.defaults.interestLyapunovMaxDistance = clamp(Number(state.interestLyapunovMaxDistance ?? appData.defaults.interestLyapunovMaxDistance), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
   appData.defaults.interestHighThreshold = normalizeInterestHighThreshold(state.interestHighThreshold ?? appData.defaults.interestHighThreshold);
-  appData.defaults.holdSpeedScale = clamp(Number(state.holdSpeedScale ?? appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  appData.defaults.holdSpeedScale = clamp(Number(state.holdSpeedScale ?? appData.defaults.holdSpeedScale ?? 50), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
   appData.defaults.holdRepeatMs = Math.round(Number(state.holdRepeatMs ?? appData.defaults.holdRepeatMs ?? HOLD_REPEAT_MS_DEFAULT));
   appData.defaults.holdAccelStartMs = Math.round(Number(state.holdAccelStartMs ?? appData.defaults.holdAccelStartMs ?? HOLD_ACCEL_START_MS_DEFAULT));
   appData.defaults.holdAccelEndMs = Math.round(Number(state.holdAccelEndMs ?? appData.defaults.holdAccelEndMs ?? HOLD_ACCEL_END_MS_DEFAULT));
@@ -4320,7 +4338,7 @@ function isTextEntryTarget(el) {
 }
 
 function getHoldSpeedScale() {
-  return clamp(Number(appData?.defaults?.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  return clamp(Number(appData?.defaults?.holdSpeedScale ?? 50), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
 }
 
 function stepSliderKey(sliderKey, direction, stepSize) {
@@ -5656,12 +5674,48 @@ function registerHandlers() {
     randomBtnLastTap = now;
   });
 
-  rangesEditorToggleEl?.addEventListener("click", () => {
+  const clearSettingsLongPressTimer = () => {
+    if (uiState.settingsLongPressTimer !== null) {
+      window.clearTimeout(uiState.settingsLongPressTimer);
+      uiState.settingsLongPressTimer = null;
+    }
+  };
+
+  rangesEditorToggleEl?.addEventListener("pointerdown", (event) => {
+    if (!event.isPrimary) return;
+    uiState.settingsLongPressTriggered = false;
+    clearSettingsLongPressTimer();
+    uiState.settingsLongPressTimer = window.setTimeout(() => {
+      uiState.settingsLongPressTriggered = true;
+      setSettingsPanelMode("full");
+      uiState.openRangesEditor();
+      clearSettingsLongPressTimer();
+    }, SETTINGS_LONG_PRESS_MS + 1);
+  });
+
+  rangesEditorToggleEl?.addEventListener("pointerup", (event) => {
+    if (!event.isPrimary) return;
+    clearSettingsLongPressTimer();
+    if (uiState.settingsLongPressTriggered) {
+      uiState.settingsLongPressTriggered = false;
+      return;
+    }
+    setSettingsPanelMode("simple");
     if (rangesEditorPanelEl?.classList.contains("is-hidden")) {
       uiState.openRangesEditor();
     } else {
       uiState.closeRangesEditor();
     }
+  });
+
+  rangesEditorToggleEl?.addEventListener("pointercancel", () => {
+    clearSettingsLongPressTimer();
+    uiState.settingsLongPressTriggered = false;
+  });
+
+  rangesEditorToggleEl?.addEventListener("pointerleave", () => {
+    clearSettingsLongPressTimer();
+    uiState.settingsLongPressTriggered = false;
   });
   formulaSettingsCloseEl?.addEventListener("click", uiState.closeFormulaSettingsPanel);
   formulaSettingsCloseBottomEl?.addEventListener("click", uiState.closeFormulaSettingsPanel);
@@ -5900,7 +5954,7 @@ function loadData() {
     data.defaults.renderHybridBlend = 0.3;
   }
   if (typeof data.defaults.overlayAlpha !== "number") {
-    data.defaults.overlayAlpha = 0.9;
+    data.defaults.overlayAlpha = 0.5;
   }
   if (typeof data.defaults.interestOverlayEnabled !== "boolean") {
     data.defaults.interestOverlayEnabled = false;
@@ -5909,13 +5963,13 @@ function loadData() {
     data.defaults.interestOverlayOpacity = INTEREST_OVERLAY_OPACITY_DEFAULT;
   }
   if (typeof data.defaults.interestGridSize !== "number") {
-    data.defaults.interestGridSize = 24;
+    data.defaults.interestGridSize = 256;
   }
   if (typeof data.defaults.interestScanIterations !== "number") {
-    data.defaults.interestScanIterations = 1200;
+    data.defaults.interestScanIterations = 500;
   }
   if (typeof data.defaults.interestLyapunovEnabled !== "boolean") {
-    data.defaults.interestLyapunovEnabled = false;
+    data.defaults.interestLyapunovEnabled = true;
   }
   if (typeof data.defaults.interestLyapunovMinExponent !== "number") {
     data.defaults.interestLyapunovMinExponent = 0;
@@ -5933,7 +5987,7 @@ function loadData() {
     data.defaults.interestHighThreshold = INTEREST_HIGH_THRESHOLD_DEFAULT;
   }
   if (typeof data.defaults.holdSpeedScale !== "number") {
-    data.defaults.holdSpeedScale = 1;
+    data.defaults.holdSpeedScale = 50;
   }
   if (typeof data.defaults.holdRepeatMs !== "number") {
     data.defaults.holdRepeatMs = HOLD_REPEAT_MS_DEFAULT;
@@ -6022,20 +6076,20 @@ function bootstrap() {
     normalizeSliderDefaults();
     appData.defaults.backgroundColor = typeof appData.defaults.backgroundColor === "string" ? appData.defaults.backgroundColor : "#05070c";
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
-    appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.9), 0.1, 1);
+    appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.5), 0.1, 1);
     appData.defaults.interestOverlayEnabled = Boolean(appData.defaults.interestOverlayEnabled);
     appData.defaults.debugText = Boolean(appData.defaults.debugText ?? true);
     appData.defaults.interestOverlayOpacity = normalizeInterestOverlayOpacity(appData.defaults.interestOverlayOpacity ?? INTEREST_OVERLAY_OPACITY_DEFAULT);
-    appData.defaults.interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize ?? 24);
-    appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? 1200), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
-    appData.defaults.interestLyapunovEnabled = Boolean(appData.defaults.interestLyapunovEnabled);
+    appData.defaults.interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize ?? 256);
+    appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? 500), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+    appData.defaults.interestLyapunovEnabled = appData.defaults.interestLyapunovEnabled !== false;
     appData.defaults.interestLyapunovMinExponent = clamp(Number(appData.defaults.interestLyapunovMinExponent ?? 0), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
     appData.defaults.interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0 ?? 1e-6), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);
     appData.defaults.interestLyapunovRescale = Boolean(appData.defaults.interestLyapunovRescale ?? true);
     appData.defaults.interestLyapunovMaxDistance = clamp(Number(appData.defaults.interestLyapunovMaxDistance ?? INTEREST_LYAPUNOV_MAX_DISTANCE_MAX), INTEREST_LYAPUNOV_MAX_DISTANCE_MIN, INTEREST_LYAPUNOV_MAX_DISTANCE_MAX);
     appData.defaults.interestHighThreshold = normalizeInterestHighThreshold(appData.defaults.interestHighThreshold ?? INTEREST_HIGH_THRESHOLD_DEFAULT);
     normalizeIterationSettings();
-    appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 1), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+    appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 50), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
     appData.defaults.touchZoomDeadbandPx = clamp(Number(appData.defaults.touchZoomDeadbandPx ?? TOUCH_ZOOM_DEADBAND_PX_DEFAULT), TOUCH_ZOOM_DEADBAND_PX_MIN, TOUCH_ZOOM_DEADBAND_PX_MAX);
     appData.defaults.touchZoomRatioMin = clamp(Number(appData.defaults.touchZoomRatioMin ?? TOUCH_ZOOM_RATIO_MIN_DEFAULT), TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
     appData.defaults.rotationActivationThresholdDegrees = clamp(
@@ -6083,6 +6137,7 @@ function bootstrap() {
     syncSeedEditorInputs(currentFormulaId);
     rangesEditorFormulaId = currentFormulaId;
     syncDebugToggleUi();
+    setSettingsPanelMode("simple");
     syncScaleModeButton();
     syncRandomModeButton();
     syncParamModeVisuals();

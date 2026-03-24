@@ -249,6 +249,12 @@
       .settingsTabPanel.is-hidden {
         display: none;
       }
+      #rangesEditorPanel.simpleSettingsMode .perfSettingCard:not(.simpleSettingsCard) {
+        display: none;
+      }
+      #rangesEditorPanel.simpleSettingsMode .fullSettingsOnly {
+        display: none !important;
+      }
       .pickerOptionRow {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
@@ -1262,7 +1268,7 @@
   </head>
   <body>
     <div id="app">
-      <div id="version-badge">PR27.1</div>
+      <div id="version-badge">PR28.1</div>
       <div id="canvasStack">
         <canvas id="c"></canvas>
         <canvas id="interestOverlayCanvas"></canvas>
@@ -1428,10 +1434,10 @@ Scale</button>
               <div id="rotationThresholdValue" class="perfFormattedValue">Rotation threshold: 10°</div>
             </div>
           </div>
-          <div class="perfSettingCard">
-            <div class="perfSettingHead"><span class="perfSettingLabel">Debug overlay</span><button id="infoDebug" class="perfInfoBtn" type="button">i</button></div>
-            <label class="modeOption"><input id="detailDebugToggle" type="checkbox" /> Show debug overlays and diagnostics</label>
-            <label class="modeOption"><input id="detailDebugTextToggle" type="checkbox" /> Show debug text</label>
+          <div class="perfSettingCard simpleSettingsCard">
+            <div class="perfSettingHead"><span id="detailDebugLabel" class="perfSettingLabel">Debug overlay</span><button id="infoDebug" class="perfInfoBtn fullSettingsOnly" type="button">i</button></div>
+            <label class="modeOption"><input id="detailDebugToggle" type="checkbox" /> <span id="detailDebugToggleLabel">Show debug overlays and diagnostics</span></label>
+            <label class="modeOption fullSettingsOnly"><input id="detailDebugTextToggle" type="checkbox" /> Show debug text</label>
           </div>
         </div>
         <div id="settingsInfoPopup" class="is-hidden" role="dialog" aria-live="polite">

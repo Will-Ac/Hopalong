@@ -1,5 +1,7 @@
 # Architecture
 
+No architecture changes required.
+
 ## 1. Overview
 
 Hopalong is a browser-based renderer for Hopalong-style attractors. The app lets the user pick a formula, adjust parameters, render the result to a canvas, add overlay information, and export or share the current view.
