@@ -20,6 +20,14 @@ const interestOverlayCanvas = document.getElementById("interestOverlayCanvas");
 const debugOverlayCanvas = document.getElementById("debugOverlayCanvas");
 const manualOverlayCanvas = document.getElementById("manualOverlayCanvas");
 const toastEl = document.getElementById("toast");
+const welcomeOverlayEl = document.getElementById("welcomeOverlay");
+const welcomeTakeTourBtnEl = document.getElementById("welcomeTakeTourBtn");
+const welcomeDontShowBtnEl = document.getElementById("welcomeDontShowBtn");
+const welcomeDismissBtnEl = document.getElementById("welcomeDismissBtn");
+const tourControlsEl = document.getElementById("tourControls");
+const tourStepLabelEl = document.getElementById("tourStepLabel");
+const tourNextBtnEl = document.getElementById("tourNextBtn");
+const tourCloseBtnEl = document.getElementById("tourCloseBtn");
 const formulaBtn = document.getElementById("formulaBtn");
 const cmapBtn = document.getElementById("cmapBtn");
 const debugInfoEl = document.getElementById("debugInfo");
@@ -307,6 +315,9 @@ const uiState = {
   lastSizingViewport: { width: 0, height: 0 },
   lastQuickSliderTopTapAt: 0,
   helpOverlayController: null,
+  welcomeVisible: false,
+  guidedTourActive: false,
+  guidedTourIndex: 0,
   openRangesEditor: undefined,
   closeRangesEditor: undefined,
   openFormulaSettingsPanel: undefined,
@@ -377,6 +388,18 @@ const SETTINGS_LONG_PRESS_MS = 5000;
 const PARAM_LONG_PRESS_MS = 550;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
 const APP_DEFAULTS_STORAGE_KEY = "hopalong.defaults.v2";
+const WELCOME_DISMISSED_STORAGE_KEY = "hopalong.welcomeDismissed.v1";
+const GUIDED_TOUR_SEQUENCE = [
+  "canvas-right",
+  "canvas-left",
+  "params",
+  "slider",
+  "tile-border-legend",
+  "formula-cmap",
+  "random",
+  "topbar",
+  "canvas-device-controls",
+];
 const PARAM_LOCK_STATES = new Set(["fix", "rand"]);
 const PARAM_MOD_AXES = new Set(["none", "manX", "manY"]);
 const PARAM_MODE_KEYS = ["formula", "cmap", "a", "b", "c", "d", "iters"];
@@ -2255,6 +2278,112 @@ function maybeShowLandscapeHint() {
       // ignore storage access errors
     }
   }, 350);
+}
+
+function isTouchDeviceForHelp() {
+  return navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches;
+}
+
+function getCanvasDeviceHelpLines() {
+  if (isTouchDeviceForHelp()) {
+    return [
+      { action: "2 finger pinch", body: "zoom" },
+      { action: "2 finger drag", body: "pan" },
+      { action: "2 finger rotate", body: "rotate" },
+      { action: "1 finger drag", body: "screen control selected values" },
+    ];
+  }
+
+  return [
+    { action: "Scroll", body: "zoom" },
+    { action: "Right drag", body: "pan" },
+    { action: "Shift drag", body: "rotate" },
+    { action: "Left drag", body: "screen control selected values" },
+  ];
+}
+
+function getWelcomeAutoShowEnabled() {
+  try {
+    return window.localStorage.getItem(WELCOME_DISMISSED_STORAGE_KEY) !== "1";
+  } catch {
+    return true;
+  }
+}
+
+function setWelcomeAutoShowEnabled(enabled) {
+  try {
+    if (enabled) {
+      window.localStorage.removeItem(WELCOME_DISMISSED_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(WELCOME_DISMISSED_STORAGE_KEY, "1");
+    }
+  } catch {
+    // ignore storage access errors
+  }
+}
+
+function showWelcomePanel() {
+  uiState.welcomeVisible = true;
+  welcomeOverlayEl?.classList.add("is-open");
+  welcomeOverlayEl?.setAttribute("aria-hidden", "false");
+}
+
+function hideWelcomePanel() {
+  uiState.welcomeVisible = false;
+  welcomeOverlayEl?.classList.remove("is-open");
+  welcomeOverlayEl?.setAttribute("aria-hidden", "true");
+}
+
+function updateGuidedTourUi() {
+  const isOpen = uiState.guidedTourActive;
+  tourControlsEl?.classList.toggle("is-open", isOpen);
+  const stepCount = GUIDED_TOUR_SEQUENCE.length;
+  if (tourStepLabelEl && isOpen) {
+    tourStepLabelEl.textContent = `Step ${uiState.guidedTourIndex + 1}/${stepCount}`;
+  }
+  if (tourNextBtnEl && isOpen) {
+    const isLastStep = uiState.guidedTourIndex >= stepCount - 1;
+    tourNextBtnEl.textContent = isLastStep ? "Finish" : "Next";
+  }
+}
+
+function endGuidedTour({ closeHelpOverlay = true } = {}) {
+  if (!uiState.guidedTourActive) {
+    updateGuidedTourUi();
+    return;
+  }
+  uiState.guidedTourActive = false;
+  uiState.guidedTourIndex = 0;
+  updateGuidedTourUi();
+  if (closeHelpOverlay) {
+    uiState.helpOverlayController?.close();
+  } else {
+    uiState.helpOverlayController?.render();
+  }
+}
+
+function startGuidedTour() {
+  hideWelcomePanel();
+  uiState.guidedTourActive = true;
+  uiState.guidedTourIndex = 0;
+  updateGuidedTourUi();
+  if (!uiState.helpOverlayController?.isOpen()) {
+    uiState.helpOverlayController?.open();
+  }
+  uiState.helpOverlayController?.render();
+}
+
+function goToNextGuidedTourStep() {
+  if (!uiState.guidedTourActive) {
+    return;
+  }
+  if (uiState.guidedTourIndex >= GUIDED_TOUR_SEQUENCE.length - 1) {
+    endGuidedTour();
+    return;
+  }
+  uiState.guidedTourIndex += 1;
+  updateGuidedTourUi();
+  uiState.helpOverlayController?.render();
 }
 
 function getGlobalRandomFixMixState() {
@@ -5536,10 +5665,25 @@ function initHelpOverlay() {
 
       return contexts;
     },
+    getFocusedHelpItemId: () => {
+      if (!uiState.guidedTourActive) {
+        return null;
+      }
+      return GUIDED_TOUR_SEQUENCE[uiState.guidedTourIndex] || null;
+    },
+    getHelpLinesForItem: (itemId) => {
+      if (itemId === "canvas-device-controls") {
+        return getCanvasDeviceHelpLines();
+      }
+      return null;
+    },
     onOpened: () => {
       showToast("Help mode enabled.");
     },
     onClosed: () => {
+      if (uiState.guidedTourActive) {
+        endGuidedTour({ closeHelpOverlay: false });
+      }
       showToast("Help mode closed.");
     },
   });
@@ -5659,6 +5803,22 @@ function registerHandlers() {
       return;
     }
     uiState.helpOverlayController.toggle();
+  });
+  welcomeDismissBtnEl?.addEventListener("click", () => {
+    hideWelcomePanel();
+  });
+  welcomeDontShowBtnEl?.addEventListener("click", () => {
+    setWelcomeAutoShowEnabled(false);
+    hideWelcomePanel();
+  });
+  welcomeTakeTourBtnEl?.addEventListener("click", () => {
+    startGuidedTour();
+  });
+  tourNextBtnEl?.addEventListener("click", () => {
+    goToNextGuidedTourStep();
+  });
+  tourCloseBtnEl?.addEventListener("click", () => {
+    endGuidedTour();
   });
 
   const toggleRandomMode = (event) => {
@@ -6159,6 +6319,12 @@ function bootstrap() {
 
     registerHandlers();
     initHelpOverlay();
+    updateGuidedTourUi();
+    if (getWelcomeAutoShowEnabled()) {
+      showWelcomePanel();
+    } else {
+      hideWelcomePanel();
+    }
     maybeShowLandscapeHint();
     commitCurrentStateToHistory();
     requestDraw();

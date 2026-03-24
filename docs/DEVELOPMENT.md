@@ -101,6 +101,17 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
   - scroll/wheel = zoom
 - **Show debug text** now defaults to OFF for fresh/default state.
 
+## Welcome + guided help onboarding (PR30)
+
+- First-run startup now shows a large welcome panel with a short plain-language summary of what the app does.
+- The welcome panel has **Take tour**, **Don’t show me again**, and **Continue** actions.
+- **Don’t show me again** is stored locally in `localStorage` and suppresses future automatic startup display.
+- **Take tour** starts a guided mode that steps through help overlay items one at a time using **Next** and **End tour** controls.
+- The guided sequence reuses the existing help overlay and placement logic, instead of creating a separate positioning system.
+- A new canvas help item was added with device-specific input text:
+  - desktop: wheel/right-drag/shift-drag/left-drag controls
+  - touch: two-finger pinch/drag/rotate and one-finger drag controls
+
 ## 3. Common pitfalls
 
 ### State grouping errors

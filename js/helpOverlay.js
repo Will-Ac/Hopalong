@@ -538,6 +538,35 @@ const HELP_PLACEMENT_POLICY = {
       },
     ],
   },
+  "canvas-device-controls": {
+    priority: 3,
+    maxLines: 4,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    dependencyIds: ["canvas-right"],
+    constraints: { preserveSideOfCenter: "right" },
+    preferredPlacement: {
+      primitive: "centerSplit",
+      centerAnchorKey: "viewportCenter",
+      side: "right",
+      gap: LAYOUT.dividerTapGap + 6,
+      band: { sourceType: "group", sourceGroup: "canvas-right", position: "alignTop", offset: 0 },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "centerSplit",
+        centerAnchorKey: "viewportCenter",
+        side: "right",
+        gap: LAYOUT.dividerTapGap + 6,
+        band: { sourceType: "group", sourceGroup: "canvas-right", position: "alignTop", offset: 0 },
+      },
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 160 },
+        band: { sourceType: "viewport", position: "middle", y: 180, offset: 0 },
+      },
+    ],
+  },
   params: {
     priority: 4,
     wrappingAllowed: true,
@@ -808,6 +837,8 @@ function resolveAnchors(ctx) {
 
 function buildHelpItemRegistry(groups) {
   return groups.map((group) => {
+    const dynamicLines = options.getHelpLinesForItem?.(group.id);
+    const normalizedLines = Array.isArray(dynamicLines) && dynamicLines.length ? dynamicLines : group.lines;
     const policy = HELP_PLACEMENT_POLICY[group.id] || {
       priority: 50,
       wrappingAllowed: true,
@@ -817,7 +848,7 @@ function buildHelpItemRegistry(groups) {
     };
     return {
       id: group.id,
-      group,
+      group: { ...group, lines: normalizedLines },
       policy,
       dependencyIds: policy.dependencyIds || [],
       visibleWhen: policy.visibleWhen || (() => true),
@@ -851,7 +882,14 @@ function resolveVisibleHelpContexts() {
 function resolveHelpContent() {
   const activeContexts = resolveVisibleHelpContexts();
   if (activeContexts.length === 1 && activeContexts[0] === "main") {
-    return { groups: MAIN_HELP_ITEMS, brackets: HELP_GROUP_BRACKETS, activeContexts: [] };
+    const focusedHelpItemId = options.getFocusedHelpItemId?.();
+    const groups = focusedHelpItemId
+      ? MAIN_HELP_ITEMS.filter((group) => group.id === focusedHelpItemId)
+      : MAIN_HELP_ITEMS;
+    const brackets = focusedHelpItemId
+      ? HELP_GROUP_BRACKETS.filter((bracket) => groups.some((group) => group.target?.bracketId === bracket.id))
+      : HELP_GROUP_BRACKETS;
+    return { groups, brackets, activeContexts: [] };
   }
 
   return {

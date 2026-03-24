@@ -115,6 +115,70 @@
         top: var(--toast-below-top, 56px);
       }
 
+      #welcomeOverlay {
+        position: absolute;
+        inset: 0;
+        z-index: 70;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(4, 6, 10, 0.62);
+      }
+      #welcomeOverlay.is-open { display: flex; }
+      #welcomePanel {
+        width: min(760px, calc(100vw - 24px));
+        border-radius: 14px;
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.22);
+        background: var(--panel-bg);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        padding: 16px;
+        display: grid;
+        gap: 12px;
+      }
+      .welcomeTitle {
+        margin: 0;
+        font-size: clamp(20px, 3.2vw, 28px);
+      }
+      .welcomeBody {
+        margin: 0;
+        line-height: 1.45;
+        font-size: clamp(14px, 2vw, 17px);
+      }
+      .welcomeActions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .welcomeActionBtn {
+        border-radius: 9px;
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.26);
+        background: rgba(var(--ui-gray-rgb), 0.12);
+        color: var(--text);
+        min-height: 40px;
+        padding: 8px 14px;
+      }
+      #welcomeDismissBtn {
+        margin-left: auto;
+      }
+      #tourControls {
+        position: absolute;
+        top: calc(10px + env(safe-area-inset-top));
+        left: max(44px, env(safe-area-inset-left));
+        z-index: 72;
+        display: none;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(var(--ui-gray-rgb), 0.18);
+        background: var(--panel-bg);
+      }
+      #tourControls.is-open { display: inline-flex; }
+      #tourStepLabel { min-width: 84px; }
+
       #debugPanel {
         position: absolute;
         top: calc(42px + env(safe-area-inset-top));
@@ -1268,7 +1332,7 @@
   </head>
   <body>
     <div id="app">
-      <div id="version-badge">PR29.1</div>
+      <div id="version-badge">PR30.1</div>
       <div id="canvasStack">
         <canvas id="c"></canvas>
         <canvas id="interestOverlayCanvas"></canvas>
@@ -1278,6 +1342,22 @@
       <p id="toast" aria-live="polite" aria-atomic="true"></p>
       <div id="debugPanel" class="is-hidden">
         <p id="debugInfo">Debug off</p>
+      </div>
+      <div id="welcomeOverlay" aria-hidden="true">
+        <section id="welcomePanel" role="dialog" aria-modal="true" aria-label="Welcome">
+          <h2 class="welcomeTitle">Welcome to Hopalong</h2>
+          <p class="welcomeBody">This app creates mathematical art patterns. Explore by tapping, dragging, and changing settings. You can also drag on the screen to control selected values in real time. Take a short tour to learn the main controls.</p>
+          <div class="welcomeActions">
+            <button id="welcomeTakeTourBtn" class="welcomeActionBtn" type="button">Take tour</button>
+            <button id="welcomeDontShowBtn" class="welcomeActionBtn" type="button">Don’t show me again</button>
+            <button id="welcomeDismissBtn" class="welcomeActionBtn" type="button">Continue</button>
+          </div>
+        </section>
+      </div>
+      <div id="tourControls" aria-live="polite">
+        <span id="tourStepLabel">Step 1</span>
+        <button id="tourNextBtn" class="welcomeActionBtn" type="button">Next</button>
+        <button id="tourCloseBtn" class="welcomeActionBtn" type="button">End tour</button>
       </div>
       <div id="topRightActions">
         <button id="overlayToggleBtn" class="topActionBtn" type="button" aria-label="Toggle interest overlay" title="Interest overlay"><svg class="eyeIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.2 12s3.3-6 9.8-6 9.8 6 9.8 6-3.3 6-9.8 6-9.8-6-9.8-6Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="eyePupil" cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></button>

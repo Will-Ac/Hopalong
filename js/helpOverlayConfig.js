@@ -44,6 +44,14 @@ export const HELP_OVERLAY_GROUPS = [
     noArrow: true,
   },
   {
+    id: "canvas-device-controls",
+    group: "canvas",
+    variant: "canvasSplit",
+    lines: [],
+    label: { x: 0.72, y: 0.31 },
+    noArrow: true,
+  },
+  {
     id: "formula-cmap",
     group: "bottomTiles",
     lines: [
