@@ -17,6 +17,7 @@ import { initHistoryState } from "./historyState.js";
 
 const canvas = document.getElementById("c");
 const interestOverlayCanvas = document.getElementById("interestOverlayCanvas");
+const debugOverlayCanvas = document.getElementById("debugOverlayCanvas");
 const manualOverlayCanvas = document.getElementById("manualOverlayCanvas");
 const toastEl = document.getElementById("toast");
 const formulaBtn = document.getElementById("formulaBtn");
@@ -61,6 +62,7 @@ const touchZoomDeadbandValueEl = document.getElementById("touchZoomDeadbandValue
 const touchZoomRatioMinRangeEl = document.getElementById("touchZoomRatioMinRange");
 const touchZoomRatioMinValueEl = document.getElementById("touchZoomRatioMinValue");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
+const detailDebugTextToggleEl = document.getElementById("detailDebugTextToggle");
 const detailInterestOverlayToggleEl = document.getElementById("detailInterestOverlayToggle");
 const detailInterestOverlayOpacityRangeEl = document.getElementById("detailInterestOverlayOpacityRange");
 const detailInterestOverlayOpacityFormattedEl = document.getElementById("detailInterestOverlayOpacityFormatted");
@@ -284,6 +286,7 @@ function normalizeIterationSettings(defaults = appData?.defaults) {
 
 const ctx = canvas.getContext("2d", { alpha: false });
 const interestOverlayCtx = interestOverlayCanvas?.getContext("2d");
+const debugOverlayCtx = debugOverlayCanvas?.getContext("2d");
 const manualOverlayCtx = manualOverlayCanvas?.getContext("2d");
 let appData = null;
 let currentFormulaId = null;
@@ -597,6 +600,43 @@ function drawCachedFrameEntry(frameEntry, { syncExport = true } = {}) {
   return true;
 }
 
+function buildLiveInteractionMeta(frameEntry) {
+  const baseMeta = frameEntry?.meta || renderState.lastRenderMeta;
+  const width = Math.max(1, canvas.width);
+  const height = Math.max(1, canvas.height);
+  const minDim = Math.max(1, Math.min(width, height));
+  const zoom = Number(renderState.fixedView?.zoom ?? 1);
+  const scale = (minDim / 220) * (Number.isFinite(zoom) && zoom > 0 ? zoom : 1);
+  const centerScreenX = width * 0.5 + Number(renderState.fixedView?.offsetX ?? 0);
+  const centerScreenY = height * 0.5 + Number(renderState.fixedView?.offsetY ?? 0);
+  const worldCenterX = (width * 0.5 - centerScreenX) / Math.max(scale, 1e-9);
+  const worldCenterY = (height * 0.5 - centerScreenY) / Math.max(scale, 1e-9);
+  const worldMinX = (0 - centerScreenX) / Math.max(scale, 1e-9);
+  const worldMaxX = (width - centerScreenX) / Math.max(scale, 1e-9);
+  const worldMinY = (0 - centerScreenY) / Math.max(scale, 1e-9);
+  const worldMaxY = (height - centerScreenY) / Math.max(scale, 1e-9);
+
+  return {
+    ...(baseMeta || {}),
+    world: {
+      minX: worldMinX,
+      maxX: worldMaxX,
+      minY: worldMinY,
+      maxY: worldMaxY,
+      centerX: worldCenterX,
+      centerY: worldCenterY,
+    },
+    view: {
+      width,
+      height,
+      centerX: width * 0.5,
+      centerY: height * 0.5,
+      scaleX: Math.max(1, width - 1) / Math.max(worldMaxX - worldMinX, 1e-9),
+      scaleY: Math.max(1, height - 1) / Math.max(worldMaxY - worldMinY, 1e-9),
+    },
+  };
+}
+
 function drawInteractionFrameFromCache(frameEntry) {
   if (!frameEntry?.canvas || !frameEntry.sourceFixedView || !renderState.fixedView) {
     return false;
@@ -642,11 +682,11 @@ function drawInteractionFrameFromCache(frameEntry) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(frameEntry.canvas, clippedX, clippedY, clippedWidth, clippedHeight, destX, destY, destWidth, destHeight);
-  if (frameEntry.meta) {
-    renderState.lastRenderMeta = frameEntry.meta;
-    renderState.lastFullRenderMeta = frameEntry.fullMeta || frameEntry.meta;
-    redrawOverlayCanvases(renderState.lastRenderMeta);
-  }
+  // Keep debug/overlay layers synced to live pan+zoom instead of stale cached frame metadata.
+  const liveMeta = buildLiveInteractionMeta(frameEntry);
+  renderState.lastRenderMeta = liveMeta;
+  renderState.lastFullRenderMeta = frameEntry.fullMeta || liveMeta;
+  redrawOverlayCanvases(liveMeta);
   return true;
 }
 
@@ -877,8 +917,9 @@ function resizeCanvas() {
 
   const didResizeBase = resizeCanvasElement(canvas, width, height);
   const didResizeInterest = resizeCanvasElement(interestOverlayCanvas, width, height);
+  const didResizeDebug = resizeCanvasElement(debugOverlayCanvas, width, height);
   const didResizeManual = resizeCanvasElement(manualOverlayCanvas, width, height);
-  return didResizeBase || didResizeInterest || didResizeManual;
+  return didResizeBase || didResizeInterest || didResizeDebug || didResizeManual;
 }
 
 
@@ -1597,6 +1638,7 @@ function syncDetailedSettingsControls() {
   if (detailBurnRangeEl) detailBurnRangeEl.value = String(burnValue);
   if (detailBurnFormattedEl) detailBurnFormattedEl.textContent = formatNumberForUi(burnValue, 0);
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
+  if (detailDebugTextToggleEl) detailDebugTextToggleEl.checked = appData.defaults.debugText !== false;
   if (detailOverlayAlphaRangeEl) detailOverlayAlphaRangeEl.value = String(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1));
   if (detailOverlayAlphaFormattedEl) detailOverlayAlphaFormattedEl.textContent = formatNumberForUi(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1), 2);
   if (detailInterestOverlayToggleEl) detailInterestOverlayToggleEl.checked = Boolean(appData.defaults.interestOverlayEnabled);
@@ -2102,6 +2144,10 @@ function syncDebugToggleUi() {
   debugPanelEl?.classList.toggle("is-hidden", !isDebug);
   if (detailDebugToggleEl) {
     detailDebugToggleEl.checked = isDebug;
+  }
+  if (detailDebugTextToggleEl) {
+    detailDebugTextToggleEl.checked = appData?.defaults?.debugText !== false;
+    detailDebugTextToggleEl.disabled = !isDebug;
   }
   layoutFloatingActions();
 }
@@ -4811,17 +4857,25 @@ function redrawInterestOverlayCanvas(meta = renderState.lastRenderMeta) {
   interestOverlay.redrawOverlay(meta);
 }
 
+function redrawDebugOverlayCanvas(meta = renderState.lastRenderMeta) {
+  clearOverlayCanvas(debugOverlayCanvas, debugOverlayCtx);
+  if (!meta || !debugOverlayCtx) {
+    return;
+  }
+  drawDebugOverlay(meta, debugOverlayCtx);
+}
+
 function redrawManualOverlayCanvas(meta = renderState.lastRenderMeta) {
   clearOverlayCanvas(manualOverlayCanvas, manualOverlayCtx);
   if (!meta || !manualOverlayCtx) {
     return;
   }
-  drawDebugOverlay(meta, manualOverlayCtx);
   drawManualParamOverlay(meta, manualOverlayCtx);
 }
 
 function redrawOverlayCanvases(meta = renderState.lastRenderMeta) {
   redrawInterestOverlayCanvas(meta);
+  redrawDebugOverlayCanvas(meta);
   redrawManualOverlayCanvas(meta);
 }
 
@@ -4869,6 +4923,14 @@ function drawBaseRenderFromFullCanvas(fullCanvas, frameMetaFull) {
   };
 }
 
+const DEBUG_OVERLAY_COLORS = {
+  text: "rgba(255,120,120,0.96)",
+  minorGrid: "rgba(255,90,90,0.2)",
+  majorGrid: "rgba(255,90,90,0.34)",
+  axes: "rgba(255,120,120,0.9)",
+  ticks: "rgba(255,140,140,0.95)",
+};
+
 function formatDebugDimension(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) {
@@ -4906,7 +4968,9 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
     return;
   }
 
-  debugPanelEl.classList.remove("is-hidden");
+  // Keep the left debug text independently toggleable from the debug grid/axes layer.
+  const showDebugText = appData.defaults.debugText !== false;
+  debugPanelEl.classList.toggle("is-hidden", !showDebugText);
 
   const { view, world } = meta;
   const xAxisY = axisScreenPosition(world.minY, world.maxY, view.height);
@@ -4921,11 +4985,11 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
 
   targetCtx.save();
   const tickFontPx = Math.max(15, Math.round(Math.min(view.width, view.height) * 0.014));
-  targetCtx.fillStyle = "rgba(255,255,255,0.92)";
+  targetCtx.fillStyle = DEBUG_OVERLAY_COLORS.text;
   targetCtx.font = `${tickFontPx}px system-ui, sans-serif`;
 
   if (showMinorX || showMinorY) {
-    targetCtx.strokeStyle = "rgba(255,255,255,0.08)";
+    targetCtx.strokeStyle = DEBUG_OVERLAY_COLORS.minorGrid;
     targetCtx.lineWidth = 1;
     targetCtx.beginPath();
 
@@ -4950,7 +5014,7 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
     targetCtx.stroke();
   }
 
-  targetCtx.strokeStyle = "rgba(255,255,255,0.16)";
+  targetCtx.strokeStyle = DEBUG_OVERLAY_COLORS.majorGrid;
   targetCtx.lineWidth = 1;
   targetCtx.beginPath();
   for (const xValue of xTicks.values) {
@@ -4968,7 +5032,7 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
   }
   targetCtx.stroke();
 
-  targetCtx.strokeStyle = "rgba(255,255,255,0.78)";
+  targetCtx.strokeStyle = DEBUG_OVERLAY_COLORS.axes;
   targetCtx.lineWidth = 1.8;
   targetCtx.beginPath();
   targetCtx.moveTo(0, xAxisY);
@@ -4977,7 +5041,7 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
   targetCtx.lineTo(yAxisX, view.height);
   targetCtx.stroke();
 
-  targetCtx.strokeStyle = "rgba(255,255,255,0.9)";
+  targetCtx.strokeStyle = DEBUG_OVERLAY_COLORS.ticks;
   targetCtx.lineWidth = 1;
   for (const xValue of xTicks.values) {
     const xTick = ((xValue - world.minX) / (world.maxX - world.minX)) * view.width;
@@ -5001,6 +5065,11 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
   }
 
   targetCtx.restore();
+
+  if (!showDebugText) {
+    debugInfoEl.textContent = "Debug text hidden";
+    return;
+  }
 
   const formula = appData.formulas.find((item) => item.id === currentFormulaId);
   const params = getDerivedParams();
@@ -5437,6 +5506,13 @@ function registerHandlers() {
     requestDraw();
   });
 
+  // The debug text switch only controls the left diagnostics panel, not the debug grid/axes canvas.
+  detailDebugTextToggleEl?.addEventListener("change", () => {
+    appData.defaults.debugText = Boolean(detailDebugTextToggleEl.checked);
+    saveDefaultsToStorage();
+    redrawOverlayCanvases(renderState.lastRenderMeta);
+  });
+
   detailColorModeSelectEl?.addEventListener("change", () => applyRenderColorMode(detailColorModeSelectEl.value));
   detailLogStrengthRangeEl?.addEventListener("input", () => applyRenderColorParam("renderLogStrength", detailLogStrengthRangeEl.value, 0.5, 30, 1));
   detailDensityGammaRangeEl?.addEventListener("input", () => applyRenderColorParam("renderDensityGamma", detailDensityGammaRangeEl.value, 0.2, 2, 2));
@@ -5604,6 +5680,9 @@ function loadData() {
   if (typeof data.defaults.debug !== "boolean") {
     data.defaults.debug = false;
   }
+  if (typeof data.defaults.debugText !== "boolean") {
+    data.defaults.debugText = true;
+  }
 
   data.defaults.sliders = migrateLegacySliderKeys({
     ...(data.defaults.sliders || {}),
@@ -5742,6 +5821,7 @@ function bootstrap() {
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
     appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.9), 0.1, 1);
     appData.defaults.interestOverlayEnabled = Boolean(appData.defaults.interestOverlayEnabled);
+    appData.defaults.debugText = Boolean(appData.defaults.debugText ?? true);
     appData.defaults.interestOverlayOpacity = normalizeInterestOverlayOpacity(appData.defaults.interestOverlayOpacity ?? INTEREST_OVERLAY_OPACITY_DEFAULT);
     appData.defaults.interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize ?? 24);
     appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? 1200), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));

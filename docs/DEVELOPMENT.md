@@ -55,6 +55,12 @@ After both fresh load and shared-state load, the app enters an interaction-ready
 
 Share dialog uses the Web Share API where supported. When file sharing is supported, it shares both the generated URL and a thumbnail of the current visible pattern. If file sharing is not supported, it falls back to URL-only sharing. If the Web Share API is unavailable, it falls back to copying the link to the clipboard. The QR code and share action both use the same generated URL.
 
+## Debug overlay notes (PR25)
+
+- Debug overlay visuals (axes, grid lines, tick/scale labels, and debug text) use a red palette so they are visually distinct from the interest overlay.
+- Debug text now has its own setting (`Show debug text`) under **Debug overlay**; turning it off hides the left diagnostics text while keeping the debug grid/axes active.
+- During active pan/zoom, debug axes/grid/scale redraw live from the current viewport state instead of waiting for gesture end.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
