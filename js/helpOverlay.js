@@ -525,14 +525,19 @@ const HELP_PLACEMENT_POLICY = {
     constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "viewportBand",
-      alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
-      band: { sourceType: "groupOrViewportRatio", sourceGroup: "topbar", position: "alignTop", ratio: 0.5, offset: 0 },
+      alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -12 },
+      band: { sourceType: "groupOrViewportRatio", sourceGroup: "topbar", position: "alignTop", ratio: 0.55, offset: 0 },
     },
     fallbackPlacements: [
       {
         primitive: "viewportBand",
-        alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
-        band: { sourceType: "viewport", position: "middle", y: 190, offset: 0 },
+        alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -12 },
+        band: { sourceType: "viewport", position: "middle", offset: 72 },
+      },
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -12 },
+        band: { sourceType: "viewport", position: "top", y: 280, offset: 0 },
       },
     ],
   },
@@ -1365,6 +1370,18 @@ function getStrictX(layout, ctx) {
   return resolveAxisLock(layout, ctx);
 }
 
+function getMinLeftX(layout, ctx) {
+  const minLeftAnchorKey = layout.item.policy.constraints?.minLeftAnchorKey;
+  if (!minLeftAnchorKey) {
+    return null;
+  }
+  const anchorX = ctx.anchors.get(minLeftAnchorKey)?.x;
+  if (!Number.isFinite(anchorX)) {
+    return null;
+  }
+  return anchorX + (layout.item.policy.constraints?.minLeftOffset || 0);
+}
+
 function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
   const { forbiddenRegions, viewportWidth, margin, uiTop, placedRects } = ctx;
   const rect = {
@@ -1375,7 +1392,8 @@ function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
   };
 
   const strictX = getStrictX(layout, ctx);
-  const minX = Number.isFinite(strictX) ? 0 : margin;
+  const minLeftX = getMinLeftX(layout, ctx);
+  const minX = Number.isFinite(strictX) ? 0 : Math.max(margin, Number.isFinite(minLeftX) ? minLeftX : margin);
   const maxX = Number.isFinite(strictX) ? viewportWidth : viewportWidth - margin;
   if (rect.left < minX || rect.right > maxX || rect.top < margin || rect.bottom > uiTop - margin) {
     return { valid: false, score: Number.POSITIVE_INFINITY };
@@ -1414,12 +1432,21 @@ function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
 function findFirstFreeSpot(layout, ctx, placedRects, lockX = null) {
   const step = 10;
   const maxY = Math.max(ctx.margin, ctx.uiTop - layout.height - ctx.margin);
-  const xStart = Number.isFinite(lockX) ? lockX : ctx.margin;
+  const minLeftX = getMinLeftX(layout, ctx);
+  const effectiveMinX = Math.max(ctx.margin, Number.isFinite(minLeftX) ? minLeftX : ctx.margin);
+  if (Number.isFinite(lockX) && lockX < effectiveMinX) {
+    return null;
+  }
+  const xStart = Number.isFinite(lockX) ? lockX : effectiveMinX;
   const xEnd = Number.isFinite(lockX) ? lockX : (ctx.viewportWidth - layout.width - ctx.margin);
+  const side = layout.item.policy.constraints?.preserveSideOfCenter;
+  const centerX = ctx.anchors.get("viewportCenter")?.x ?? (ctx.viewportWidth / 2);
 
   for (let y = ctx.margin; y <= maxY; y += step) {
     for (let x = xStart; x <= xEnd; x += step) {
       const rect = { left: x, top: y, right: x + layout.width, bottom: y + layout.height };
+      if (side === "left" && rect.right > centerX) continue;
+      if (side === "right" && rect.left < centerX) continue;
       if (ctx.forbiddenRegions.some((region) => overlapArea(rect, region) > 0)) continue;
       if (placedRects.some((placedRect) => overlapArea(rect, placedRect.rect) > 0)) continue;
       return { x, y };

@@ -304,3 +304,12 @@ Before opening or merging a PR:
   - small screens (`Math.min(width, height) < 1500`) start the existing guided tour at step 1
   - larger screens continue to open the normal full help overlay (all relevant help items at once)
 - Small-screen `?` launches the same guided tour system used by onboarding and does not show the onboarding welcome splash first.
+
+## Guided help, settings placement, and modulation fixes (PR32.2)
+
+- Tapping `?` while guided help is already active now closes help correctly on small screens (same close intent as large-screen help toggle behaviour).
+- Tour placement policy was refined (including the `tour-step` policy and tour-step placement overrides for `params` and `tile-border-legend`) so small portrait layouts prefer right/mid tour dialog placement and keep bottom-region help closer to the slider area.
+- Bottom-region help placement now enforces a policy constraint so relevant help boxes do not place left of the leftmost bottom tile anchor.
+- `#rangesEditorPanel` now stays top-aligned below the top button bar on small screens instead of anchoring to the bottom.
+- `touchZoomRatioMin` default is now `0.01` (data/defaults and code fallback consistent).
+- Desktop rotated modulation mapping now keeps mouse left-drag modulation screen-aligned after rotation, while touch modulation mapping remains unchanged.
