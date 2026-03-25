@@ -198,6 +198,13 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Rotation interaction now keeps the rendered pattern layer and XY/grid/debug overlays aligned during live interaction by using one consistent rotation-aware view transform basis for both cached-frame draw and overlay metadata.
 - Committed redraw now keeps crop/view metadata consistent with the live rotation-aware path, avoiding post-gesture jump/re-alignment between pattern and overlay layers.
 
+## Rotation pivot and Auto Scale icon update (PR33.6)
+
+- Touch two-finger rotation now pivots around the midpoint between the two active touch points.
+- Desktop Shift-drag rotation now pivots around the screen center.
+- The shared rotation-aware alignment path between pattern and XY/grid/debug overlays from PR33.5 is preserved.
+- Auto Scale now uses a fit-to-screen icon (four outward diagonal arrows) in the top button bar, and the matching small icon shown in help content updates automatically from that same button SVG.
+
 ## 3. Common pitfalls
 
 ### State grouping errors

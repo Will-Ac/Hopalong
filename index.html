@@ -965,13 +965,11 @@
         z-index: 33;
         backdrop-filter: blur(2px);
         -webkit-backdrop-filter: blur(2px);
-        font-size: var(--ui-font-size);
-        font-weight: var(--ui-font-weight);
-        letter-spacing: 0.02em;
-        text-align: center;
-        line-height: 1.1;
-        white-space: pre-line;
-        overflow: hidden;
+      }
+      #scaleModeBtn .fitIcon {
+        width: 22px;
+        height: 22px;
+        display: block;
       }
       #randomModeBtn {
         position: relative;
@@ -1150,10 +1148,9 @@
         height: 18px;
         display: block;
       }
-      .helpOverlay__inlineIcon.is-autoscale {
-        font-size: 6px;
-        line-height: 0.82;
-        letter-spacing: -0.01em;
+      .helpOverlay__inlineIcon.is-autoscale svg {
+        width: 16px;
+        height: 16px;
       }
       .helpOverlay__tilePreview {
         width: 18px;
@@ -1343,7 +1340,7 @@
   </head>
   <body>
     <div id="app">
-      <div id="version-badge">PR33.5</div>
+      <div id="version-badge">PR33.6</div>
       <div id="canvasStack">
         <canvas id="c"></canvas>
         <canvas id="interestOverlayCanvas"></canvas>
@@ -1369,8 +1366,7 @@
         <button id="overlayToggleBtn" class="topActionBtn" type="button" aria-label="Toggle interest overlay" title="Interest overlay"><svg class="eyeIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.2 12s3.3-6 9.8-6 9.8 6 9.8 6-3.3 6-9.8 6-9.8-6-9.8-6Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="eyePupil" cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></button>
         <button id="helpBtn" class="topActionBtn" type="button" aria-label="Help" aria-pressed="false" title="Help"><span class="helpIcon" aria-hidden="true">?</span></button>
         <button id="rangesEditorToggle" class="topActionBtn" type="button" aria-label="Open ranges editor" aria-pressed="false"><svg class="settingsIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.2 2.9h3.6l.5 2a7.5 7.5 0 0 1 1.5.6l1.8-1 2.5 2.5-1 1.8c.23.48.43.98.57 1.5l2.05.5v3.6l-2.05.5a7.4 7.4 0 0 1-.57 1.5l1 1.8-2.5 2.5-1.8-1a7.5 7.5 0 0 1-1.5.6l-.5 2h-3.6l-.5-2a7.5 7.5 0 0 1-1.5-.6l-1.8 1-2.5-2.5 1-1.8a7.4 7.4 0 0 1-.57-1.5L2 13.8v-3.6l2.05-.5c.14-.52.34-1.02.57-1.5l-1-1.8 2.5-2.5 1.8 1c.48-.23.98-.43 1.5-.6l.5-2Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.9"/></svg></button>
-        <button id="scaleModeBtn" class="topActionBtn" type="button" aria-label="Toggle auto scale">Auto
-Scale</button>
+        <button id="scaleModeBtn" class="topActionBtn" type="button" aria-label="Toggle auto scale"><svg class="fitIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 9 4 4m0 0h3.8M4 4v3.8M15 9l5-5m0 0h-3.8M20 4v3.8M9 15l-5 5m0 0h3.8M4 20v-3.8M15 15l5 5m0 0h-3.8M20 20v-3.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button id="cameraBtn" class="topActionBtn" type="button" aria-label="Take screenshot"><svg class="cameraIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h2.2l1.1-1.6a1 1 0 0 1 .83-.44h2.74c.33 0 .64.16.83.44L16.8 6H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2Zm4 9a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
       <aside id="rangesEditorPanel" class="is-hidden" aria-label="Settings editor">

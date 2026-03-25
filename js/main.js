@@ -2395,7 +2395,6 @@ function setScaleModeFixed(reason = "manual pan/zoom") {
 
 function syncScaleModeButton() {
   const isAuto = getScaleMode() === "auto";
-  scaleModeBtn.textContent = "Auto\nScale";
   scaleModeBtn.classList.toggle("is-active", isAuto);
   scaleModeBtn.setAttribute("aria-label", isAuto ? "Disable auto scale" : "Enable auto scale");
   scaleModeBtn.title = isAuto ? "Auto scale on" : "Auto scale off";
@@ -3381,6 +3380,38 @@ function setFixedViewRotation(nextRotation) {
   syncFixedViewRotationCache();
 }
 
+function rotateFixedViewAroundScreenPivot(deltaRotation, pivotX, pivotY) {
+  if (!Number.isFinite(deltaRotation) || Math.abs(deltaRotation) <= 1e-12) {
+    return false;
+  }
+  const safePivotX = Number.isFinite(pivotX) ? pivotX : canvas.width * 0.5;
+  const safePivotY = Number.isFinite(pivotY) ? pivotY : canvas.height * 0.5;
+
+  const beforeMeta = buildLiveInteractionMeta(null, renderState.fixedView);
+  const pivotWorld = screenToWorldFromMeta(safePivotX, safePivotY, beforeMeta);
+  if (!pivotWorld) {
+    return false;
+  }
+
+  const nextRotation = normalizeRotationAngle(renderState.fixedView.rotation + deltaRotation);
+  const nextView = cloneFixedViewSnapshot({
+    ...renderState.fixedView,
+    rotation: nextRotation,
+  });
+  const rotatedMeta = buildLiveInteractionMeta(null, nextView);
+  const projectedPivot = worldToScreenFromMeta(pivotWorld.x, pivotWorld.y, rotatedMeta);
+  if (!projectedPivot) {
+    return false;
+  }
+
+  nextView.offsetX += safePivotX - projectedPivot.x;
+  nextView.offsetY += safePivotY - projectedPivot.y;
+  renderState.fixedView.offsetX = nextView.offsetX;
+  renderState.fixedView.offsetY = nextView.offsetY;
+  setFixedViewRotation(nextRotation);
+  return true;
+}
+
 syncFixedViewRotationCache();
 
 function getManualAxisTargets() {
@@ -3806,7 +3837,7 @@ function onCanvasPointerMove(event) {
     if (event.pointerType === "mouse" && event.shiftKey) {
       prepareFixedViewForPanZoom("manual pan/zoom");
       beginPanZoomInteraction();
-      setFixedViewRotation(renderState.fixedView.rotation + (dxScreen * DESKTOP_SHIFT_DRAG_ROTATION_SENSITIVITY));
+      rotateFixedViewAroundScreenPivot(dxScreen * DESKTOP_SHIFT_DRAG_ROTATION_SENSITIVITY, canvas.width * 0.5, canvas.height * 0.5);
       persistCurrentHistoryViewState(renderState.fixedView);
       requestDraw();
       overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
@@ -3917,7 +3948,7 @@ function onCanvasPointerMove(event) {
   }
 
   if (shouldRotate) {
-    setFixedViewRotation(renderState.fixedView.rotation + deltaAngle);
+    rotateFixedViewAroundScreenPivot(deltaAngle, midpoint.x, midpoint.y);
   }
 
   if (targetZoom !== null || shouldPan) {
