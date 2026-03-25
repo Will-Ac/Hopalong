@@ -398,12 +398,13 @@ const GUIDED_TOUR_STEPS = [
 ];
 const TOUR_STEP_PLACEMENT_OVERRIDES = {
   params: {
+    wrappingAllowed: false,
     preferredPlacement: {
       primitive: "relativeToTarget",
       targetKey: "quickSlider",
       relation: {
-        x: { sourceEdge: "center", selfEdge: "center", offset: -120 },
-        y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+        x: { sourceEdge: "center", selfEdge: "center", offset: 0 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: -10 },
       },
     },
     fallbackPlacements: [
@@ -411,8 +412,16 @@ const TOUR_STEP_PLACEMENT_OVERRIDES = {
         primitive: "relativeToTarget",
         targetKey: "quickSlider",
         relation: {
-          x: { sourceEdge: "center", selfEdge: "center", offset: -120 },
-          y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -10 },
+        },
+      },
+      {
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
+        relation: {
+          x: { sourceEdge: "right", selfEdge: "right", offset: 0 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -10 },
         },
       },
     ],
@@ -442,8 +451,8 @@ const TOUR_STEP_PLACEMENT_OVERRIDES = {
       primitive: "relativeToTarget",
       targetKey: "quickSlider",
       relation: {
-        x: { sourceEdge: "center", selfEdge: "center", offset: 126 },
-        y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+        x: { sourceEdge: "right", selfEdge: "right", offset: 0 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: -10 },
       },
     },
     fallbackPlacements: [
@@ -451,8 +460,16 @@ const TOUR_STEP_PLACEMENT_OVERRIDES = {
         primitive: "relativeToTarget",
         targetKey: "quickSlider",
         relation: {
-          x: { sourceEdge: "center", selfEdge: "center", offset: 126 },
-          y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+          x: { sourceEdge: "center", selfEdge: "center", offset: 0 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -10 },
+        },
+      },
+      {
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
+        relation: {
+          x: { sourceEdge: "left", selfEdge: "left", offset: 0 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -10 },
         },
       },
     ],
@@ -512,7 +529,7 @@ const PAN_DEADBAND_PX = 1.5 * DPR;
 const TOUCH_ZOOM_DEADBAND_PX_DEFAULT = 2.5;
 const TOUCH_ZOOM_DEADBAND_PX_MIN = 0;
 const TOUCH_ZOOM_DEADBAND_PX_MAX = 40;
-const TOUCH_ZOOM_RATIO_MIN_DEFAULT = 0.002;
+const TOUCH_ZOOM_RATIO_MIN_DEFAULT = 0.01;
 const TOUCH_ZOOM_RATIO_MIN_MIN = 0;
 const TOUCH_ZOOM_RATIO_MIN_MAX = 0.12;
 const ROTATION_ACTIVATION_THRESHOLD_DEGREES_DEFAULT = 15;
@@ -3288,6 +3305,10 @@ function mapScreenDeltaToModulationDelta(deltaX, deltaY) {
   };
 }
 
+function mapMouseDeltaToModulationDelta(deltaX, deltaY) {
+  return { x: deltaX, y: deltaY };
+}
+
 function applyManualModulation(deltaX, deltaY, { invalidate = true } = {}) {
   const { manX, manY } = getManualAxisTargets();
   if (!manX && !manY) {
@@ -3680,7 +3701,9 @@ function onCanvasPointerMove(event) {
       overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
       return;
     }
-    const modulationDelta = mapScreenDeltaToModulationDelta(dxScreen, dyScreen);
+    const modulationDelta = event.pointerType === "mouse"
+      ? mapMouseDeltaToModulationDelta(dxScreen, dyScreen)
+      : mapScreenDeltaToModulationDelta(dxScreen, dyScreen);
     const didModulate = applyManualModulation(modulationDelta.x, modulationDelta.y, { invalidate: false });
     overlayState.isManualModulating = overlayState.isManualModulating || didModulate;
     overlayState.lastPointerPosition = { x: pos.x, y: pos.y };

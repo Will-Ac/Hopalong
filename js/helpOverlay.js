@@ -522,7 +522,10 @@ const HELP_PLACEMENT_POLICY = {
     priority: 0,
     wrappingAllowed: true,
     shrinkAllowed: true,
-    constraints: { preserveSideOfCenter: "right" },
+    constraints: {
+      preserveSideOfCenter: "right",
+      lockAxis: { axis: "x", lockToSourceType: "anchor", lockToSourceKey: "topbarRight", lockToEdge: "right" },
+    },
     preferredPlacement: {
       primitive: "viewportBand",
       alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
@@ -1375,7 +1378,8 @@ function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
   };
 
   const strictX = getStrictX(layout, ctx);
-  const minX = Number.isFinite(strictX) ? 0 : margin;
+  const leftBottomTileX = ctx.anchors.get("leftBottomTile")?.x ?? margin;
+  const minX = Number.isFinite(strictX) ? Math.max(0, leftBottomTileX) : Math.max(margin, leftBottomTileX);
   const maxX = Number.isFinite(strictX) ? viewportWidth : viewportWidth - margin;
   if (rect.left < minX || rect.right > maxX || rect.top < margin || rect.bottom > uiTop - margin) {
     return { valid: false, score: Number.POSITIVE_INFINITY };
@@ -1414,7 +1418,8 @@ function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
 function findFirstFreeSpot(layout, ctx, placedRects, lockX = null) {
   const step = 10;
   const maxY = Math.max(ctx.margin, ctx.uiTop - layout.height - ctx.margin);
-  const xStart = Number.isFinite(lockX) ? lockX : ctx.margin;
+  const leftBottomTileX = ctx.anchors.get("leftBottomTile")?.x ?? ctx.margin;
+  const xStart = Number.isFinite(lockX) ? lockX : Math.max(ctx.margin, leftBottomTileX);
   const xEnd = Number.isFinite(lockX) ? lockX : (ctx.viewportWidth - layout.width - ctx.margin);
 
   for (let y = ctx.margin; y <= maxY; y += step) {
@@ -1464,7 +1469,13 @@ function resolveFallbackPlacement(layout, ctx, placedRects) {
     }
   }
   return {
-    x: Number.isFinite(lockX) ? lockX : clamp(layout.x, ctx.margin, ctx.viewportWidth - layout.width - ctx.margin),
+    x: Number.isFinite(lockX)
+      ? lockX
+      : clamp(
+        layout.x,
+        Math.max(ctx.margin, ctx.anchors.get("leftBottomTile")?.x ?? ctx.margin),
+        ctx.viewportWidth - layout.width - ctx.margin,
+      ),
     y: clamp(ctx.margin, ctx.margin, ctx.uiTop - layout.height - ctx.margin),
   };
 }
@@ -1494,7 +1505,8 @@ function placeGroupsInPriorityOrder(ctx) {
 function clampPlacedGroupsToViewport(ctx) {
   for (const layout of ctx.layouts) {
     const strictX = getStrictX(layout, ctx);
-    const minX = Number.isFinite(strictX) ? 0 : ctx.margin;
+    const leftBottomTileX = ctx.anchors.get("leftBottomTile")?.x ?? ctx.margin;
+    const minX = Number.isFinite(strictX) ? Math.max(0, leftBottomTileX) : Math.max(ctx.margin, leftBottomTileX);
     const maxX = Number.isFinite(strictX)
       ? ctx.viewportWidth - layout.width
       : ctx.viewportWidth - layout.width - ctx.margin;
