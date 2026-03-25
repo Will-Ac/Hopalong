@@ -520,7 +520,7 @@ const FULL_HELP_LARGE_SCREEN_PLACEMENT_OVERRIDES = {
       primitive: "relativeToTarget",
       targetKey: "quickSlider",
       relation: {
-        x: { sourceEdge: "center", selfEdge: "center", offset: -140 },
+        x: { sourceEdge: "center", selfEdge: "center", offset: 110 },
         y: { sourceEdge: "top", selfEdge: "bottom", offset: -12 },
       },
     },
@@ -530,7 +530,7 @@ const FULL_HELP_LARGE_SCREEN_PLACEMENT_OVERRIDES = {
       primitive: "relativeToTarget",
       targetKey: "quickSlider",
       relation: {
-        x: { sourceEdge: "center", selfEdge: "center", offset: 0 },
+        x: { sourceEdge: "center", selfEdge: "center", offset: -110 },
         y: { sourceEdge: "top", selfEdge: "bottom", offset: -12 },
       },
     },

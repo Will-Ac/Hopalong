@@ -185,6 +185,14 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Canvas help now prefers a centered-above position so it stays above the tap group instead of competing for the same central zone.
 - Slider and params help now prefer placement just above the quick slider area in full-help large-screen mode.
 
+## Branding and lower help pair refinement (PR33.3)
+
+- User-facing onboarding branding now reads **Attractor Lab** (with a space).
+- In large-screen full-help mode, slider and params preferred placement was refined as a lower left/right pair near the quick slider:
+  - slider help prefers lower-left of center
+  - params help prefers lower-right of center
+- Both still use the existing policy system and fallback/overlap handling.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
