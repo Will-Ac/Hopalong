@@ -151,6 +151,12 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
   - step 2: center divider + tap left (no tap right)
 - Mobile help overlay now correctly applies deeper shrink-to-fit fallback when no free placement is found, reducing overlap without global text-size reduction.
 
+## Tour position refinements (PR30.6)
+
+- Guided step 1 and step 2 canvas tap labels now use centered vertical placement, keeping their label centers aligned to screen center.
+- Divider positioning in forced single-side tour steps now anchors to the active tap label center so step 1/2 divider alignment matches the tap guidance.
+- Canvas help preferred placement is now centered using the same help placement policy system.
+
 ## 3. Common pitfalls
 
 ### State grouping errors

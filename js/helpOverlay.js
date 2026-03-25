@@ -572,7 +572,7 @@ const HELP_PLACEMENT_POLICY = {
       centerAnchorKey: "viewportCenter",
       side: "left",
       gap: LAYOUT.dividerTapGap,
-      band: { sourceType: "between", sourceGroup: "topbar", position: "center", minY: 8, bottomPadding: 180 },
+      band: { sourceType: "viewport", position: "middle", offset: 0 },
     },
     fallbackPlacements: [
       {
@@ -580,7 +580,7 @@ const HELP_PLACEMENT_POLICY = {
         centerAnchorKey: "viewportCenter",
         side: "left",
         gap: LAYOUT.dividerTapGap,
-        band: { sourceType: "between", sourceGroup: "topbar", position: "center", minY: 8, bottomPadding: 180 },
+        band: { sourceType: "viewport", position: "middle", offset: 0 },
       },
     ],
   },
@@ -595,7 +595,7 @@ const HELP_PLACEMENT_POLICY = {
       centerAnchorKey: "viewportCenter",
       side: "right",
       gap: LAYOUT.dividerTapGap,
-      band: { sourceType: "group", sourceGroup: "canvas-left", position: "alignTop", offset: 0 },
+      band: { sourceType: "viewport", position: "middle", offset: 0 },
     },
     fallbackPlacements: [
       {
@@ -603,7 +603,7 @@ const HELP_PLACEMENT_POLICY = {
         centerAnchorKey: "viewportCenter",
         side: "right",
         gap: LAYOUT.dividerTapGap,
-        band: { sourceType: "group", sourceGroup: "canvas-left", position: "alignTop", offset: 0 },
+        band: { sourceType: "viewport", position: "middle", offset: 0 },
       },
     ],
   },
@@ -616,13 +616,13 @@ const HELP_PLACEMENT_POLICY = {
     preferredPlacement: {
       primitive: "viewportBand",
       alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 0 },
-      band: { sourceType: "viewport", position: "middle", y: 210, offset: 0 },
+      band: { sourceType: "viewport", position: "middle", offset: 0 },
     },
     fallbackPlacements: [
       {
         primitive: "viewportBand",
         alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 60 },
-        band: { sourceType: "viewport", position: "middle", y: 210, offset: 0 },
+        band: { sourceType: "viewport", position: "middle", offset: 0 },
       },
     ],
   },
@@ -1207,7 +1207,10 @@ function resolveBandY(layout, bandSpec = {}, ctx) {
   const offset = bandSpec.offset || 0;
 
   if (sourceType === "viewport") {
-    if (position === "middle") return Math.max(margin, uiTop - layout.height - 12) + offset;
+    if (position === "middle") {
+      const centered = (ctx.viewportHeight - layout.height) / 2;
+      return clamp(centered, margin, uiTop - layout.height - margin) + offset;
+    }
     return margin + offset + (bandSpec.y || 0);
   }
 
@@ -1511,7 +1514,8 @@ function renderCanvasDivider({ viewportHeight, layouts }) {
     dom.centerDivider.style.display = "";
     const tapLineCenterY = leftTap && rightTap
       ? Math.round((leftTap.y + leftTap.height / 2 + rightTap.y + rightTap.height / 2) / 2)
-      : Math.round(viewportHeight * LAYOUT.dividerYOffsetFactor);
+      : Math.round((leftTap || rightTap)?.y + (leftTap || rightTap)?.height / 2)
+        || Math.round(viewportHeight * LAYOUT.dividerYOffsetFactor);
 
     const tapLineHeight = leftTap && rightTap
       ? Math.round(Math.max(leftTap.height, rightTap.height) * 2)
