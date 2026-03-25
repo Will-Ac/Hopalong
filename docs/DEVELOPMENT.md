@@ -297,3 +297,10 @@ Before opening or merging a PR:
 4. Open DevTools and confirm the console stays clear during startup and your quick smoke test.
 5. Verify the on-screen version badge matches the PR build you expect.
 6. If the browser appears to serve old files, reload with a cache-busting query string such as `?v=XYZ`.
+
+## Help button behaviour by screen size (PR32.1)
+
+- The `?` help button now routes by current viewport size (`window.innerWidth`/`window.innerHeight`):
+  - small screens (`Math.min(width, height) < 1500`) start the existing guided tour at step 1
+  - larger screens continue to open the normal full help overlay (all relevant help items at once)
+- Small-screen `?` launches the same guided tour system used by onboarding and does not show the onboarding welcome splash first.

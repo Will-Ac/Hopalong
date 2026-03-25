@@ -2353,6 +2353,12 @@ function isTouchDeviceForHelp() {
   return navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches;
 }
 
+function shouldUseGuidedHelpForCurrentScreen() {
+  const viewportWidth = Math.round(window.innerWidth || 0);
+  const viewportHeight = Math.round(window.innerHeight || 0);
+  return Math.min(viewportWidth, viewportHeight) < 1500;
+}
+
 function getCanvasDeviceHelpLines() {
   if (isTouchDeviceForHelp()) {
     return [
@@ -5926,6 +5932,14 @@ function registerHandlers() {
 
   helpBtn?.addEventListener("click", () => {
     if (!uiState.helpOverlayController) {
+      return;
+    }
+    if (shouldUseGuidedHelpForCurrentScreen()) {
+      startGuidedTour();
+      return;
+    }
+    if (uiState.guidedTourActive) {
+      endGuidedTour();
       return;
     }
     uiState.helpOverlayController.toggle();
