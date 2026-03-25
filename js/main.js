@@ -515,9 +515,9 @@ const TOUCH_ZOOM_DEADBAND_PX_MAX = 40;
 const TOUCH_ZOOM_RATIO_MIN_DEFAULT = 0.002;
 const TOUCH_ZOOM_RATIO_MIN_MIN = 0;
 const TOUCH_ZOOM_RATIO_MIN_MAX = 0.12;
-const ROTATION_ACTIVATION_THRESHOLD_DEGREES_DEFAULT = 10;
+const ROTATION_ACTIVATION_THRESHOLD_DEGREES_DEFAULT = 15;
 const ROTATION_ACTIVATION_THRESHOLD_DEGREES_MIN = 0;
-const ROTATION_ACTIVATION_THRESHOLD_DEGREES_MAX = 20;
+const ROTATION_ACTIVATION_THRESHOLD_DEGREES_MAX = 30;
 const DEGREES_TO_RADIANS = Math.PI / 180;
 const SINGLE_TOUCH_MODULATION_START_DRAW_DELAY_MS = 24;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
@@ -703,15 +703,17 @@ function buildLiveInteractionMeta(frameEntry) {
   const width = Math.max(1, canvas.width);
   const height = Math.max(1, canvas.height);
   const scale = getFixedViewScale(width, height);
-  const centerScreenX = width * 0.5 + Number(renderState.fixedView?.offsetX ?? 0);
-  const centerScreenY = height * 0.5 + Number(renderState.fixedView?.offsetY ?? 0);
   const mapCenterX = width * 0.5;
   const mapCenterY = height * 0.5;
-  const mapWorldCenterX = (mapCenterX - centerScreenX) / Math.max(scale, 1e-9);
-  const mapWorldCenterY = (mapCenterY - centerScreenY) / Math.max(scale, 1e-9);
-  const invScale = 1 / Math.max(scale, 1e-9);
   const cos = Number.isFinite(renderState.fixedView?.rotationCos) ? renderState.fixedView.rotationCos : 1;
   const sin = Number.isFinite(renderState.fixedView?.rotationSin) ? renderState.fixedView.rotationSin : 0;
+  const centerScreenX = width * 0.5 + Number(renderState.fixedView?.offsetX ?? 0);
+  const centerScreenY = height * 0.5 + Number(renderState.fixedView?.offsetY ?? 0);
+  const deltaWorldX = (mapCenterX - centerScreenX) / Math.max(scale, 1e-9);
+  const deltaWorldY = (mapCenterY - centerScreenY) / Math.max(scale, 1e-9);
+  const mapWorldCenterX = deltaWorldX * cos + deltaWorldY * sin;
+  const mapWorldCenterY = -deltaWorldX * sin + deltaWorldY * cos;
+  const invScale = 1 / Math.max(scale, 1e-9);
   const corners = [
     [0, 0],
     [width, 0],
@@ -2219,9 +2221,13 @@ function getWorldSharedViewModel() {
 
   const viewCenterX = canvasWidth * 0.5 + Number(renderState.fixedView?.offsetX ?? 0);
   const viewCenterY = canvasHeight * 0.5 + Number(renderState.fixedView?.offsetY ?? 0);
+  const cos = Number.isFinite(renderState.fixedView?.rotationCos) ? renderState.fixedView.rotationCos : 1;
+  const sin = Number.isFinite(renderState.fixedView?.rotationSin) ? renderState.fixedView.rotationSin : 0;
+  const deltaWorldX = (canvasWidth * 0.5 - viewCenterX) / scale;
+  const deltaWorldY = (canvasHeight * 0.5 - viewCenterY) / scale;
   return {
-    cx: (canvasWidth * 0.5 - viewCenterX) / scale,
-    cy: (canvasHeight * 0.5 - viewCenterY) / scale,
+    cx: deltaWorldX * cos + deltaWorldY * sin,
+    cy: -deltaWorldX * sin + deltaWorldY * cos,
     ms: minDim / scale,
     ar: canvasWidth / canvasHeight,
     rot: normalizeRotationAngle(Number(renderState.fixedView?.rotation ?? 0)),
@@ -2252,13 +2258,18 @@ function getFixedViewFromSharedWorldView(view) {
     return null;
   }
 
-  const fixedCenterX = canvasWidth * 0.5 - centerX * scale;
-  const fixedCenterY = canvasHeight * 0.5 - centerY * scale;
+  const rotation = normalizeRotationAngle(Number(view?.[4]) || 0);
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const deltaScreenX = -((centerX * cos - centerY * sin) * scale);
+  const deltaScreenY = -((centerX * sin + centerY * cos) * scale);
+  const fixedCenterX = canvasWidth * 0.5 + deltaScreenX;
+  const fixedCenterY = canvasHeight * 0.5 + deltaScreenY;
   return {
     offsetX: fixedCenterX - canvasWidth * 0.5,
     offsetY: fixedCenterY - canvasHeight * 0.5,
     zoom: scale / (minDim / 220),
-    rotation: normalizeRotationAngle(Number(view?.[4]) || 0),
+    rotation,
   };
 }
 
@@ -3144,6 +3155,8 @@ function randomizeAllParameters() {
     appData.defaults.sliders[sliderKey] = preservedValue;
   }
 
+  appData.defaults.scaleMode = "auto";
+  syncScaleModeButton();
   saveDefaultsToStorage();
   requestDraw();
   commitCurrentStateToHistory();

@@ -516,8 +516,8 @@ const HELP_PLACEMENT_POLICY = {
     constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "viewportBand",
-      alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 170 },
-      band: { sourceType: "viewport", position: "middle", y: 190, offset: 0 },
+      alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
+      band: { sourceType: "groupOrViewportRatio", sourceGroup: "topbar", position: "alignTop", ratio: 0.5, offset: 0 },
     },
     fallbackPlacements: [
       {
@@ -607,13 +607,13 @@ const HELP_PLACEMENT_POLICY = {
     constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "viewportBand",
-      alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 120 },
+      alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 0 },
       band: { sourceType: "viewport", position: "middle", y: 210, offset: 0 },
     },
     fallbackPlacements: [
       {
         primitive: "viewportBand",
-        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 80 },
+        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 60 },
         band: { sourceType: "viewport", position: "middle", y: 210, offset: 0 },
       },
     ],

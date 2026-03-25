@@ -131,6 +131,18 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Top button help wording now reads **save / share image**.
 - Tour guide dialog is now a compact title-and-controls panel (Previous / Next / End tour) placed via the same help placement policy system on the right-middle side.
 
+## Onboarding, tour, and rotation fixes (PR30.4)
+
+- Updated onboarding splash copy to the latest welcome wording while keeping the existing panel style and structure.
+- Refined tour placement:
+  - tour dialog now prefers right-side, vertically centered policy placement
+  - slider help (step 4) is policy-overridden to stay close to the quick slider
+  - canvas help (step 9) now prefers centered placement
+- Step 1 is explicitly forced to show tap-right plus center divider in guided mode.
+- Rotation threshold defaults were adjusted to `15°` with a maximum setting of `30°`.
+- Fixed rotated-view pan commit alignment so post-redraw position remains consistent with live gesture movement.
+- Randomize/new-image flow now restores auto scale mode so the newly generated image re-centers predictably.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
