@@ -33,7 +33,7 @@ export const DEFAULTS = {
   "holdAccelStartMs": 5000,
   "holdAccelEndMs": 8000,
   "touchZoomDeadbandPx": 2.5,
-  "touchZoomRatioMin": 0.002,
+  "touchZoomRatioMin": 0.01,
   "rotationActivationThresholdDegrees": 10,
   "interestOverlayEnabled": false,
   "interestGridSize": 256,

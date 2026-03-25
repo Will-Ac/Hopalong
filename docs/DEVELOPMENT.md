@@ -161,6 +161,19 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 
 - Canvas help preferred placement now uses a true centered policy target, with nearest-to-center fallback offsets when overlap prevents exact center placement.
 
+## Mobile guided help and rotation fixes (PR33.1)
+
+- `?` help mode selection now uses device-type detection:
+  - phones (`iPhone`, or `Android` with `Mobile` in user-agent) open the guided tour
+  - tablets/desktops keep the full help overlay behaviour
+- Guided help placement was refined with policy updates:
+  - `tour-step` prefers right-side near vertical middle, with lower/right-side fallbacks
+  - step 3 (`params`) and step 5 (`tile-border-legend`) placement overrides now prefer low positions near the quick slider, with normal policy fallback
+  - placement now enforces a left boundary so help labels do not render left of the leftmost bottom tile anchor
+- Settings panel placement was tightened so the main settings panel (`#rangesEditorPanel`) always opens below the top button bar instead of bottom-docked mobile placement.
+- Default `touchZoomRatioMin` is now `0.01` (including bundled defaults and runtime fallback default).
+- Desktop rotated modulation mapping was fixed by keeping mouse left-drag modulation screen-aligned after Shift-drag rotation, while preserving the existing touch modulation mapping path unchanged.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
