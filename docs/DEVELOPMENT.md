@@ -157,6 +157,10 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Divider positioning in forced single-side tour steps now anchors to the active tap label center so step 1/2 divider alignment matches the tap guidance.
 - Canvas help preferred placement is now centered using the same help placement policy system.
 
+## Canvas help centring fix (PR30.7)
+
+- Canvas help preferred placement now uses a true centered policy target, with nearest-to-center fallback offsets when overlap prevents exact center placement.
+
 ## 3. Common pitfalls
 
 ### State grouping errors

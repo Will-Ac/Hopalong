@@ -612,7 +612,6 @@ const HELP_PLACEMENT_POLICY = {
     maxLines: 4,
     wrappingAllowed: true,
     shrinkAllowed: true,
-    constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "viewportBand",
       alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 0 },
@@ -621,7 +620,12 @@ const HELP_PLACEMENT_POLICY = {
     fallbackPlacements: [
       {
         primitive: "viewportBand",
-        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 60 },
+        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 36 },
+        band: { sourceType: "viewport", position: "middle", offset: 0 },
+      },
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: -36 },
         band: { sourceType: "viewport", position: "middle", offset: 0 },
       },
     ],
