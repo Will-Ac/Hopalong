@@ -516,6 +516,12 @@ const HELP_PLACEMENT_POLICY = {
         alignment: { sourceType: "anchor", sourceKey: "topbarRight", sourceEdge: "x", selfEdge: "right", offset: 0 },
         band: { sourceType: "viewport", position: "top", offset: 0 },
       },
+      {
+        primitive: "targetAligned",
+        targetKey: "topRightActions",
+        alignment: { sourceType: "target", sourceEdge: "left", selfEdge: "right", offset: -10 },
+        vertical: { sourceEdge: "bottom", offset: 4 },
+      },
     ],
   },
   "tour-step": {
@@ -533,6 +539,16 @@ const HELP_PLACEMENT_POLICY = {
         primitive: "viewportBand",
         alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
         band: { sourceType: "viewport", position: "middle", y: 190, offset: 0 },
+      },
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
+        band: { sourceType: "between", sourceGroup: "topbar", minY: 34, bottomPadding: 10, offset: 0 },
+      },
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
+        band: { sourceType: "uiTop", offset: 12 },
       },
     ],
   },
@@ -1166,6 +1182,7 @@ function placementVariants(layout) {
     variants.push({ wrapped: false, fontScale: 0.92 });
     variants.push({ wrapped: true, fontScale: 0.92 });
     variants.push({ wrapped: true, fontScale: 0.86 });
+    variants.push({ wrapped: true, fontScale: 0.8 });
   }
   return variants;
 }
@@ -1441,7 +1458,6 @@ function resolvePlacement(layout, ctx, placed, placedRects) {
       if (!scored.valid) continue;
       if (!best || scored.score < best.score) best = { ...candidate, score: scored.score };
     }
-    if (best && variant.fontScale === 1) break;
   }
 
   return best;

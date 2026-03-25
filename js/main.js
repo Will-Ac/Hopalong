@@ -415,6 +415,22 @@ const TOUR_STEP_PLACEMENT_OVERRIDES = {
           y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
         },
       },
+      {
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
+        relation: {
+          x: { sourceEdge: "center", selfEdge: "center", offset: -82 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+        },
+      },
+      {
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
+        relation: {
+          x: { sourceEdge: "center", selfEdge: "center", offset: -42 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+        },
+      },
     ],
   },
   slider: {
@@ -452,6 +468,22 @@ const TOUR_STEP_PLACEMENT_OVERRIDES = {
         targetKey: "quickSlider",
         relation: {
           x: { sourceEdge: "center", selfEdge: "center", offset: 126 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+        },
+      },
+      {
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
+        relation: {
+          x: { sourceEdge: "center", selfEdge: "center", offset: 88 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+        },
+      },
+      {
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
+        relation: {
+          x: { sourceEdge: "center", selfEdge: "center", offset: 48 },
           y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
         },
       },

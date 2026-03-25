@@ -161,6 +161,13 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 
 - Canvas help preferred placement now uses a true centered policy target, with nearest-to-center fallback offsets when overlap prevents exact center placement.
 
+## Mobile help policy fixes (PR31.1)
+
+- Guided tour step 3 (**Parameters**) and step 5 (**Border**) keep policy-based low placement above the slider area with additional policy fallbacks for tight mobile layouts.
+- `topbar` policy now includes a left-of-topbar fallback placement to avoid overlap with top buttons and the tour-step dialog on tight/mobile landscape screens.
+- `tour-step` policy keeps right-side centered preference and adds lower non-overlapping fallback bands through the same shared policy engine.
+- Normal help placement now evaluates shrink variants more reliably on tight screens so overlap avoidance can choose a better fit only when needed, while preserving existing desktop/tablet behaviour.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
