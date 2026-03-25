@@ -1106,14 +1106,15 @@
         font-weight: 500;
       }
       .helpOverlay__tourControls {
-        display: flex;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         align-items: center;
         gap: 8px;
-        flex-wrap: wrap;
+        width: 100%;
       }
-      .helpOverlay__tourStep {
-        min-width: 108px;
-        color: rgba(255, 255, 255, 0.9);
+      .helpOverlay__tourSlot {
+        display: inline-flex;
+        justify-content: center;
       }
       .helpOverlay__tourBtn {
         border-radius: 8px;
@@ -1335,7 +1336,7 @@
   </head>
   <body>
     <div id="app">
-      <div id="version-badge">PR30.4</div>
+      <div id="version-badge">PR30.5</div>
       <div id="canvasStack">
         <canvas id="c"></canvas>
         <canvas id="interestOverlayCanvas"></canvas>

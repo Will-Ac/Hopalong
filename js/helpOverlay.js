@@ -274,6 +274,8 @@ export function createHelpOverlay(options) {
       if (row.controlType === "tourStepper") {
         const controlsEl = document.createElement("div");
         controlsEl.className = "helpOverlay__tourControls";
+        const previousSlot = document.createElement("span");
+        previousSlot.className = "helpOverlay__tourSlot";
         if (row.showPrevious) {
           const previousBtn = document.createElement("button");
           previousBtn.type = "button";
@@ -284,20 +286,12 @@ export function createHelpOverlay(options) {
             event.stopPropagation();
             options.onTourPrevious?.();
           });
-          controlsEl.append(previousBtn);
+          previousSlot.append(previousBtn);
         }
+        controlsEl.append(previousSlot);
 
-        const nextBtn = document.createElement("button");
-        nextBtn.type = "button";
-        nextBtn.className = "helpOverlay__tourBtn";
-        nextBtn.textContent = row.nextLabel || "Next";
-        nextBtn.addEventListener("click", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          options.onTourNext?.();
-        });
-        controlsEl.append(nextBtn);
-
+        const endSlot = document.createElement("span");
+        endSlot.className = "helpOverlay__tourSlot";
         const endBtn = document.createElement("button");
         endBtn.type = "button";
         endBtn.className = "helpOverlay__tourBtn";
@@ -307,7 +301,22 @@ export function createHelpOverlay(options) {
           event.stopPropagation();
           options.onTourClose?.();
         });
-        controlsEl.append(endBtn);
+        endSlot.append(endBtn);
+        controlsEl.append(endSlot);
+
+        const nextSlot = document.createElement("span");
+        nextSlot.className = "helpOverlay__tourSlot";
+        const nextBtn = document.createElement("button");
+        nextBtn.type = "button";
+        nextBtn.className = "helpOverlay__tourBtn";
+        nextBtn.textContent = row.nextLabel || "Next";
+        nextBtn.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          options.onTourNext?.();
+        });
+        nextSlot.append(nextBtn);
+        controlsEl.append(nextSlot);
 
         rowEl.append(controlsEl);
         el.append(rowEl);
@@ -580,7 +589,6 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     maxLines: 2,
     shrinkAllowed: true,
-    dependencyIds: ["canvas-left"],
     constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "centerSplit",
@@ -1113,7 +1121,7 @@ function setLabelMeasureStyle(layout, variant, viewportWidth) {
   }
 
   if (variant.fontScale < 1) {
-    labelEl.style.fontSize = `${Math.max(11, Math.round(13 * variant.fontScale))}px`;
+    labelEl.style.fontSize = `${Math.max(9, Math.round(13 * variant.fontScale))}px`;
   }
 
   const measured = labelEl.getBoundingClientRect();
@@ -1433,10 +1441,21 @@ function resolvePlacement(layout, ctx, placed, placedRects) {
 }
 
 function resolveFallbackPlacement(layout, ctx, placedRects) {
-  setLabelMeasureStyle(layout, { wrapped: true, fontScale: 0.86 }, ctx.viewportWidth);
   const lockX = getStrictX(layout, ctx);
-  const free = findFirstFreeSpot(layout, ctx, placedRects, lockX);
-  if (free) return free;
+  const fallbackVariants = layout.item.policy.shrinkAllowed
+    ? [
+      { wrapped: true, fontScale: 0.86 },
+      { wrapped: true, fontScale: 0.8 },
+      { wrapped: true, fontScale: 0.74 },
+    ]
+    : [{ wrapped: true, fontScale: 0.86 }];
+  for (const variant of fallbackVariants) {
+    setLabelMeasureStyle(layout, variant, ctx.viewportWidth);
+    const free = findFirstFreeSpot(layout, ctx, placedRects, lockX);
+    if (free) {
+      return free;
+    }
+  }
   return {
     x: Number.isFinite(lockX) ? lockX : clamp(layout.x, ctx.margin, ctx.viewportWidth - layout.width - ctx.margin),
     y: clamp(ctx.margin, ctx.margin, ctx.uiTop - layout.height - ctx.margin),

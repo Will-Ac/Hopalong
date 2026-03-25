@@ -143,6 +143,14 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Fixed rotated-view pan commit alignment so post-redraw position remains consistent with live gesture movement.
 - Randomize/new-image flow now restores auto scale mode so the newly generated image re-centers predictably.
 
+## Tour/footer and mobile help overlap fixes (PR30.5)
+
+- Tour footer now keeps fixed button slots in a stable left-to-right order: **Previous**, **End tour**, **Next**.
+- Step 1 and Step 2 guided help now explicitly show divider + one-side tap guidance:
+  - step 1: center divider + tap right
+  - step 2: center divider + tap left (no tap right)
+- Mobile help overlay now correctly applies deeper shrink-to-fit fallback when no free placement is found, reducing overlap without global text-size reduction.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
