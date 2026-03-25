@@ -216,6 +216,14 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Touch manual modulation deltas are now kept screen-aligned even after view rotation, so finger drag direction maps directly to crosshair movement direction on screen.
 - Touch two-finger rotation activation now uses net angle change from gesture start (`startAngle`) instead of accumulated per-frame absolute jitter, reducing accidental rotation activation during pan/zoom.
 
+## Factory reset and UI refinements (PR33.9)
+
+- Added a **Factory reset** button at the bottom of the full/developer settings panel.
+- Factory reset clears app-owned persisted local state (namespaced `hopalong.*` keys, including defaults, parameter modes, and onboarding/help suppression flags) and then reloads the app to start clean.
+- Rotation threshold default is now `15°`.
+- Quick slider `+ / −` buttons were reduced to 80% of their previous PR33.7 size, and top spacing in the slider box above controls was tightened.
+- On mobile-sized layouts, formula and colour-map tile text now truncates with ellipsis to avoid edge overlap.
+
 ## 3. Common pitfalls
 
 ### State grouping errors

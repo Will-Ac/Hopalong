@@ -462,6 +462,10 @@
       .perfSettingCard.is-hidden {
         display: none;
       }
+      .factoryResetBtn {
+        width: 100%;
+        min-height: 34px;
+      }
       .perfSettingHead {
         display: flex;
         justify-content: space-between;
@@ -627,13 +631,13 @@
         background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 10px;
-        padding: 4px 7px 5px;
+        padding: 2px 7px 5px;
         touch-action: none;
         pointer-events: auto;
       }
       .qsTop {
-        margin-bottom: 1px;
-        min-height: 12px;
+        margin-bottom: 0;
+        min-height: 6px;
       }
       .qsReadout {
         display: flex;
@@ -656,7 +660,7 @@
       }
       .qsControlRow {
         display: grid;
-        grid-template-columns: 54px 1fr 54px 18px 28px;
+        grid-template-columns: 43px 1fr 43px 18px 28px;
         gap: 4px;
         align-items: center;
       }
@@ -665,12 +669,12 @@
         height: 1px;
       }
       .qsStepBtn {
-        min-height: 42px;
+        min-height: 34px;
         border-radius: 7px;
         border: 1px solid rgba(var(--ui-gray-rgb), 0.18);
         background: rgba(var(--ui-gray-rgb), 0.08);
         color: var(--text);
-        font-size: calc(var(--ui-font-size) * 1.5);
+        font-size: calc(var(--ui-font-size) * 1.2);
       }
       #qsRange { width: 100%; height: 24px; touch-action: pan-x; }
 
@@ -1334,13 +1338,19 @@
           width: auto;
           max-height: calc(72vh - env(safe-area-inset-top));
         }
+        .poItem.poName .poLabel,
+        .poItem.poName .poBtn {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
       }
 
     </style>
   </head>
   <body>
     <div id="app">
-      <div id="version-badge">PR33.8</div>
+      <div id="version-badge">PR33.9</div>
       <div id="canvasStack">
         <canvas id="c"></canvas>
         <canvas id="interestOverlayCanvas"></canvas>
@@ -1513,13 +1523,16 @@
             <div class="perfSettingHead"><span class="perfSettingLabel">Rotation threshold (°)</span></div>
             <div class="perfControlRow">
               <input id="rotationThresholdRange" class="perfRangeInput" type="range" min="0" max="30" step="1" />
-              <div id="rotationThresholdValue" class="perfFormattedValue">Rotation threshold: 10°</div>
+              <div id="rotationThresholdValue" class="perfFormattedValue">Rotation threshold: 15°</div>
             </div>
           </div>
           <div class="perfSettingCard simpleSettingsCard">
             <div class="perfSettingHead"><span id="detailDebugLabel" class="perfSettingLabel">Debug overlay</span><button id="infoDebug" class="perfInfoBtn fullSettingsOnly" type="button">i</button></div>
             <label class="modeOption"><input id="detailDebugToggle" type="checkbox" /> <span id="detailDebugToggleLabel">Show debug overlays and diagnostics</span></label>
             <label class="modeOption fullSettingsOnly"><input id="detailDebugTextToggle" type="checkbox" /> Show debug text</label>
+          </div>
+          <div class="perfSettingCard fullSettingsOnly">
+            <button id="factoryResetBtn" class="rangeActionBtn factoryResetBtn" type="button">Factory reset</button>
           </div>
         </div>
         <div id="settingsInfoPopup" class="is-hidden" role="dialog" aria-live="polite">

@@ -71,6 +71,7 @@ const detailDebugToggleEl = document.getElementById("detailDebugToggle");
 const detailDebugToggleLabelEl = document.getElementById("detailDebugToggleLabel");
 const detailDebugTextToggleEl = document.getElementById("detailDebugTextToggle");
 const detailDebugLabelEl = document.getElementById("detailDebugLabel");
+const factoryResetBtnEl = document.getElementById("factoryResetBtn");
 const detailInterestOverlayToggleEl = document.getElementById("detailInterestOverlayToggle");
 const detailInterestOverlayOpacityRangeEl = document.getElementById("detailInterestOverlayOpacityRange");
 const detailInterestOverlayOpacityFormattedEl = document.getElementById("detailInterestOverlayOpacityFormatted");
@@ -385,6 +386,7 @@ const PARAM_LONG_PRESS_MS = 550;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
 const APP_DEFAULTS_STORAGE_KEY = "hopalong.defaults.v2";
 const WELCOME_DISMISSED_STORAGE_KEY = "hopalong.welcomeDismissed.v1";
+const FACTORY_RESET_STORAGE_PREFIX = "hopalong.";
 const GUIDED_TOUR_STEPS = [
   { title: "Tap right + center divider", itemIds: ["canvas-right"] },
   { title: "Tap left + center divider", itemIds: ["canvas-left"] },
@@ -2980,6 +2982,61 @@ function loadDefaultsFromStorage() {
     console.warn("Could not load defaults.", error);
     return { hasRestoredState: false };
   }
+}
+
+function clearAppOwnedStorageForFactoryReset() {
+  const explicitLocalKeys = [
+    APP_DEFAULTS_STORAGE_KEY,
+    PARAM_MODES_STORAGE_KEY,
+    WELCOME_DISMISSED_STORAGE_KEY,
+    LANDSCAPE_HINT_STORAGE_KEY,
+  ];
+  const explicitSessionKeys = [];
+
+  try {
+    for (const key of explicitLocalKeys) {
+      window.localStorage.removeItem(key);
+    }
+    const localKeysToRemove = [];
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (typeof key === "string" && key.startsWith(FACTORY_RESET_STORAGE_PREFIX)) {
+        localKeysToRemove.push(key);
+      }
+    }
+    for (const key of localKeysToRemove) {
+      window.localStorage.removeItem(key);
+    }
+  } catch (error) {
+    console.warn("Could not clear localStorage during factory reset.", error);
+  }
+
+  try {
+    for (const key of explicitSessionKeys) {
+      window.sessionStorage.removeItem(key);
+    }
+    const sessionKeysToRemove = [];
+    for (let i = 0; i < window.sessionStorage.length; i += 1) {
+      const key = window.sessionStorage.key(i);
+      if (typeof key === "string" && key.startsWith(FACTORY_RESET_STORAGE_PREFIX)) {
+        sessionKeysToRemove.push(key);
+      }
+    }
+    for (const key of sessionKeysToRemove) {
+      window.sessionStorage.removeItem(key);
+    }
+  } catch (error) {
+    console.warn("Could not clear sessionStorage during factory reset.", error);
+  }
+}
+
+function runFactoryReset() {
+  const confirmed = window.confirm("Reset app to factory defaults on this device?");
+  if (!confirmed) {
+    return;
+  }
+  clearAppOwnedStorageForFactoryReset();
+  window.location.reload();
 }
 
 function captureCurrentState() {
@@ -6215,6 +6272,7 @@ function registerHandlers() {
   touchZoomDeadbandRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("touchZoomDeadbandPx", touchZoomDeadbandRangeEl.value));
   touchZoomRatioMinRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("touchZoomRatioMin", touchZoomRatioMinRangeEl.value));
   rotationThresholdRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("rotationActivationThresholdDegrees", rotationThresholdRangeEl.value));
+  factoryResetBtnEl?.addEventListener("click", runFactoryReset);
 
   detailDebugToggleEl?.addEventListener("change", () => {
     appData.defaults.debug = Boolean(detailDebugToggleEl.checked);
