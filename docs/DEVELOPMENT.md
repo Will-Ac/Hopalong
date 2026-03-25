@@ -193,6 +193,11 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
   - params help prefers lower-right of center
 - Both still use the existing policy system and fallback/overlap handling.
 
+## Rotation layer alignment fix (PR33.5)
+
+- Rotation interaction now keeps the rendered pattern layer and XY/grid/debug overlays aligned during live interaction by using one consistent rotation-aware view transform basis for both cached-frame draw and overlay metadata.
+- Committed redraw now keeps crop/view metadata consistent with the live rotation-aware path, avoiding post-gesture jump/re-alignment between pattern and overlay layers.
+
 ## 3. Common pitfalls
 
 ### State grouping errors

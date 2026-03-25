@@ -776,17 +776,17 @@ function drawCachedFrameEntry(frameEntry, { syncExport = true } = {}) {
   return true;
 }
 
-function buildLiveInteractionMeta(frameEntry) {
+function buildLiveInteractionMeta(frameEntry, fixedView = renderState.fixedView) {
   const baseMeta = frameEntry?.meta || renderState.lastRenderMeta;
   const width = Math.max(1, canvas.width);
   const height = Math.max(1, canvas.height);
-  const scale = getFixedViewScale(width, height);
+  const scale = getFixedViewScaleForView(fixedView, width, height);
   const mapCenterX = width * 0.5;
   const mapCenterY = height * 0.5;
-  const cos = Number.isFinite(renderState.fixedView?.rotationCos) ? renderState.fixedView.rotationCos : 1;
-  const sin = Number.isFinite(renderState.fixedView?.rotationSin) ? renderState.fixedView.rotationSin : 0;
-  const centerScreenX = width * 0.5 + Number(renderState.fixedView?.offsetX ?? 0);
-  const centerScreenY = height * 0.5 + Number(renderState.fixedView?.offsetY ?? 0);
+  const cos = Number.isFinite(fixedView?.rotationCos) ? fixedView.rotationCos : 1;
+  const sin = Number.isFinite(fixedView?.rotationSin) ? fixedView.rotationSin : 0;
+  const centerScreenX = width * 0.5 + Number(fixedView?.offsetX ?? 0);
+  const centerScreenY = height * 0.5 + Number(fixedView?.offsetY ?? 0);
   const deltaWorldX = (mapCenterX - centerScreenX) / Math.max(scale, 1e-9);
   const deltaWorldY = (mapCenterY - centerScreenY) / Math.max(scale, 1e-9);
   const mapWorldCenterX = deltaWorldX * cos + deltaWorldY * sin;
@@ -832,10 +832,56 @@ function buildLiveInteractionMeta(frameEntry) {
       centerY: height * 0.5,
       scaleX: scale,
       scaleY: scale,
-      rotation: renderState.fixedView?.rotation ?? 0,
+      rotation: fixedView?.rotation ?? 0,
       rotationCos: cos,
       rotationSin: sin,
     },
+  };
+}
+
+function screenToWorldFromMeta(screenX, screenY, meta) {
+  const view = meta?.view;
+  const world = meta?.world;
+  if (!view || !world) {
+    return null;
+  }
+  const centerX = Number.isFinite(world.centerX) ? world.centerX : (world.minX + world.maxX) * 0.5;
+  const centerY = Number.isFinite(world.centerY) ? world.centerY : (world.minY + world.maxY) * 0.5;
+  const scaleX = Number(view.scaleX);
+  const scaleY = Number(view.scaleY);
+  if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY) || scaleX <= 0 || scaleY <= 0) {
+    return null;
+  }
+  const cos = Number.isFinite(view.rotationCos) ? view.rotationCos : Math.cos(Number(view.rotation) || 0);
+  const sin = Number.isFinite(view.rotationSin) ? view.rotationSin : Math.sin(Number(view.rotation) || 0);
+  const rx = (screenX - Number(view.centerX)) / scaleX;
+  const ry = (screenY - Number(view.centerY)) / scaleY;
+  return {
+    x: centerX + rx * cos + ry * sin,
+    y: centerY - rx * sin + ry * cos,
+  };
+}
+
+function worldToScreenFromMeta(worldX, worldY, meta) {
+  const view = meta?.view;
+  const world = meta?.world;
+  if (!view || !world) {
+    return null;
+  }
+  const centerX = Number.isFinite(world.centerX) ? world.centerX : (world.minX + world.maxX) * 0.5;
+  const centerY = Number.isFinite(world.centerY) ? world.centerY : (world.minY + world.maxY) * 0.5;
+  const scaleX = Number(view.scaleX);
+  const scaleY = Number(view.scaleY);
+  if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY) || scaleX <= 0 || scaleY <= 0) {
+    return null;
+  }
+  const cos = Number.isFinite(view.rotationCos) ? view.rotationCos : Math.cos(Number(view.rotation) || 0);
+  const sin = Number.isFinite(view.rotationSin) ? view.rotationSin : Math.sin(Number(view.rotation) || 0);
+  const dx = worldX - centerX;
+  const dy = worldY - centerY;
+  return {
+    x: Number(view.centerX) + (dx * cos - dy * sin) * scaleX,
+    y: Number(view.centerY) + (dx * sin + dy * cos) * scaleY,
   };
 }
 
@@ -845,59 +891,43 @@ function drawInteractionFrameFromCache(frameEntry) {
   }
   const viewportWidth = Math.max(1, canvas.width);
   const viewportHeight = Math.max(1, canvas.height);
-  const sourceZoom = Number(frameEntry.sourceFixedView.zoom) || 1;
-  const targetZoom = Number(renderState.fixedView.zoom) || 1;
-  if (sourceZoom <= 0 || targetZoom <= 0) {
-    return false;
-  }
-  const zoomRatio = targetZoom / sourceZoom;
-  if (!Number.isFinite(zoomRatio) || zoomRatio <= 0) {
-    return false;
-  }
-
+  const sourceMeta = buildLiveInteractionMeta(frameEntry, frameEntry.sourceFixedView);
+  const liveMeta = buildLiveInteractionMeta(frameEntry, renderState.fixedView);
   const cropX = Math.max(0, (frameEntry.canvas.width - viewportWidth) * 0.5);
   const cropY = Math.max(0, (frameEntry.canvas.height - viewportHeight) * 0.5);
-  const sourceRectWidth = viewportWidth / zoomRatio;
-  const sourceRectHeight = viewportHeight / zoomRatio;
-  const sourceRectX = cropX + viewportWidth * 0.5 + (frameEntry.sourceFixedView.offsetX || 0)
-    - (viewportWidth * 0.5 + (renderState.fixedView.offsetX || 0)) / zoomRatio;
-  const sourceRectY = cropY + viewportHeight * 0.5 + (frameEntry.sourceFixedView.offsetY || 0)
-    - (viewportHeight * 0.5 + (renderState.fixedView.offsetY || 0)) / zoomRatio;
-
-  const clippedX = clamp(sourceRectX, 0, frameEntry.canvas.width);
-  const clippedY = clamp(sourceRectY, 0, frameEntry.canvas.height);
-  const clippedMaxX = clamp(sourceRectX + sourceRectWidth, 0, frameEntry.canvas.width);
-  const clippedMaxY = clamp(sourceRectY + sourceRectHeight, 0, frameEntry.canvas.height);
-  const clippedWidth = clippedMaxX - clippedX;
-  const clippedHeight = clippedMaxY - clippedY;
-  if (clippedWidth <= 0 || clippedHeight <= 0) {
+  const p0World = screenToWorldFromMeta(0, 0, sourceMeta);
+  const p1World = screenToWorldFromMeta(1, 0, sourceMeta);
+  const p2World = screenToWorldFromMeta(0, 1, sourceMeta);
+  if (!p0World || !p1World || !p2World) {
     return false;
   }
-
-  const destScaleX = viewportWidth / sourceRectWidth;
-  const destScaleY = viewportHeight / sourceRectHeight;
-  const destX = (clippedX - sourceRectX) * destScaleX;
-  const destY = (clippedY - sourceRectY) * destScaleY;
-  const destWidth = clippedWidth * destScaleX;
-  const destHeight = clippedHeight * destScaleY;
-  const sourceRotation = Number(frameEntry.sourceFixedView?.rotation) || 0;
-  const targetRotation = Number(renderState.fixedView?.rotation) || 0;
-  const rotationDelta = normalizeRotationAngle(targetRotation - sourceRotation);
+  const p0 = worldToScreenFromMeta(p0World.x, p0World.y, liveMeta);
+  const p1 = worldToScreenFromMeta(p1World.x, p1World.y, liveMeta);
+  const p2 = worldToScreenFromMeta(p2World.x, p2World.y, liveMeta);
+  if (!p0 || !p1 || !p2) {
+    return false;
+  }
+  const a = p1.x - p0.x;
+  const b = p1.y - p0.y;
+  const c = p2.x - p0.x;
+  const d = p2.y - p0.y;
+  const e = p0.x - a * cropX - c * cropY;
+  const f = p0.y - b * cropX - d * cropY;
+  if (![a, b, c, d, e, f].every(Number.isFinite)) {
+    return false;
+  }
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = true;
-  if (Math.abs(rotationDelta) > 1e-12) {
-    ctx.save();
-    ctx.translate(viewportWidth * 0.5, viewportHeight * 0.5);
-    ctx.rotate(rotationDelta);
-    ctx.translate(-viewportWidth * 0.5, -viewportHeight * 0.5);
-    ctx.drawImage(frameEntry.canvas, clippedX, clippedY, clippedWidth, clippedHeight, destX, destY, destWidth, destHeight);
-    ctx.restore();
-  } else {
-    ctx.drawImage(frameEntry.canvas, clippedX, clippedY, clippedWidth, clippedHeight, destX, destY, destWidth, destHeight);
-  }
-  // Keep debug/overlay layers synced to live pan+zoom instead of stale cached frame metadata.
-  const liveMeta = buildLiveInteractionMeta(frameEntry);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, viewportWidth, viewportHeight);
+  ctx.clip();
+  ctx.setTransform(a, b, c, d, e, f);
+  ctx.drawImage(frameEntry.canvas, 0, 0);
+  ctx.restore();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
   renderState.lastRenderMeta = liveMeta;
   renderState.lastFullRenderMeta = frameEntry.fullMeta || liveMeta;
   redrawOverlayCanvases(liveMeta);
@@ -3375,9 +3405,9 @@ function requestLiveModulationDraw() {
   requestDraw({ invalidate: false });
 }
 
-function getFixedViewScale(viewWidth = canvas.width, viewHeight = canvas.height) {
+function getFixedViewScaleForView(fixedView, viewWidth = canvas.width, viewHeight = canvas.height) {
   const minDim = Math.max(1, Math.min(viewWidth, viewHeight));
-  const zoom = Number(renderState.fixedView?.zoom ?? 1);
+  const zoom = Number(fixedView?.zoom ?? 1);
   return (minDim / 220) * (Number.isFinite(zoom) && zoom > 0 ? zoom : 1);
 }
 
@@ -5403,8 +5433,8 @@ function redrawOverlayCanvases(meta = renderState.lastRenderMeta) {
 function drawBaseRenderFromFullCanvas(fullCanvas, frameMetaFull) {
   const viewportWidth = Math.max(1, canvas.width);
   const viewportHeight = Math.max(1, canvas.height);
-  const cropX = Math.max(0, Math.floor((fullCanvas.width - viewportWidth) * 0.5));
-  const cropY = Math.max(0, Math.floor((fullCanvas.height - viewportHeight) * 0.5));
+  const cropX = Math.max(0, (fullCanvas.width - viewportWidth) * 0.5);
+  const cropY = Math.max(0, (fullCanvas.height - viewportHeight) * 0.5);
   const cropW = Math.min(viewportWidth, fullCanvas.width - cropX);
   const cropH = Math.min(viewportHeight, fullCanvas.height - cropY);
 
