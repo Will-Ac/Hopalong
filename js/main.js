@@ -2378,10 +2378,11 @@ function isTouchDeviceForHelp() {
   return navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches;
 }
 
-function shouldUseGuidedHelpForCurrentScreen() {
-  const viewportWidth = Math.round(window.innerWidth || 0);
-  const viewportHeight = Math.round(window.innerHeight || 0);
-  return Math.min(viewportWidth, viewportHeight) < 1500;
+function isMobilePhoneDevice() {
+  const ua = navigator.userAgent || "";
+  const isIPhone = /iPhone/i.test(ua);
+  const isAndroidPhone = /Android/i.test(ua) && /Mobile/i.test(ua);
+  return isIPhone || isAndroidPhone;
 }
 
 function getCanvasDeviceHelpLines() {
@@ -5971,7 +5972,7 @@ function registerHandlers() {
       endGuidedTour();
       return;
     }
-    if (shouldUseGuidedHelpForCurrentScreen()) {
+    if (isMobilePhoneDevice()) {
       startGuidedTour();
       return;
     }

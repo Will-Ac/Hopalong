@@ -300,10 +300,10 @@ Before opening or merging a PR:
 
 ## Help button behaviour by screen size (PR32.1)
 
-- The `?` help button now routes by current viewport size (`window.innerWidth`/`window.innerHeight`):
-  - small screens (`Math.min(width, height) < 1500`) start the existing guided tour at step 1
-  - larger screens continue to open the normal full help overlay (all relevant help items at once)
-- Small-screen `?` launches the same guided tour system used by onboarding and does not show the onboarding welcome splash first.
+- The `?` help button routes by device class:
+  - mobile phones open the existing guided tour at step 1
+  - tablets/desktops continue to open the normal full help overlay (all relevant help items at once)
+- Phone `?` launches the same guided tour system used by onboarding and does not show the onboarding welcome splash first.
 
 ## Guided help, settings placement, and modulation fixes (PR32.2)
 
@@ -313,3 +313,9 @@ Before opening or merging a PR:
 - `#rangesEditorPanel` now stays top-aligned below the top button bar on small screens instead of anchoring to the bottom.
 - `touchZoomRatioMin` default is now `0.01` (data/defaults and code fallback consistent).
 - Desktop rotated modulation mapping now keeps mouse left-drag modulation screen-aligned after rotation, while touch modulation mapping remains unchanged.
+
+## Device-based help mode split (PR32.3)
+
+- The `?` help mode routing now uses device type detection instead of viewport-size detection.
+- `isMobilePhoneDevice()` detects phones via user-agent checks (`iPhone`, or `Android` + `Mobile`).
+- Phones open the guided tour from `?`; non-phone devices (tablet + desktop) continue to use the full help overlay.
