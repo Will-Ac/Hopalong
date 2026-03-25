@@ -211,6 +211,11 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Quick slider `+` and `−` step buttons were enlarged by ~50% for easier interaction.
 - Quick slider panel positioning now stays anchored to its CSS bottom position (no runtime bottom-offset shifting).
 
+## Touch modulation + rotation-threshold refinement (PR33.8)
+
+- Touch manual modulation deltas are now kept screen-aligned even after view rotation, so finger drag direction maps directly to crosshair movement direction on screen.
+- Touch two-finger rotation activation now uses net angle change from gesture start (`startAngle`) instead of accumulated per-frame absolute jitter, reducing accidental rotation activation during pan/zoom.
+
 ## 3. Common pitfalls
 
 ### State grouping errors

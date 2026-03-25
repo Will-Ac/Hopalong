@@ -3443,11 +3443,9 @@ function getFixedViewScaleForView(fixedView, viewWidth = canvas.width, viewHeigh
 }
 
 function mapScreenDeltaToTouchModulationDelta(deltaX, deltaY) {
-  const cos = Number.isFinite(renderState.fixedView?.rotationCos) ? renderState.fixedView.rotationCos : 1;
-  const sin = Number.isFinite(renderState.fixedView?.rotationSin) ? renderState.fixedView.rotationSin : 0;
   return {
-    x: deltaX * cos + deltaY * sin,
-    y: -deltaX * sin + deltaY * cos,
+    x: deltaX,
+    y: deltaY,
   };
 }
 
@@ -3617,6 +3615,7 @@ function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
     idA: pointerIdA,
     idB: pointerIdB,
     startD: lastD,
+    startAngle: lastAngle,
     startZoom: renderState.fixedView.zoom,
     lastD,
     lastAngle,
@@ -3624,7 +3623,7 @@ function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
     lastMY,
     justStarted: true,
     isArmed: false,
-    accumulatedRotation: 0,
+    netRotation: 0,
     rotationActive: rotationActivationThresholdRadians <= 0,
   };
   overlayState.interactionState = INTERACTION_STATE.TWO_ACTIVE;
@@ -3909,9 +3908,10 @@ function onCanvasPointerMove(event) {
   const shouldPan = panMagnitude > PAN_DEADBAND_PX;
   const shouldZoom = Math.abs(dd) > touchZoomDeadbandThreshold || zoomRatioDelta > touchZoomRatioMin;
   const deltaAngle = normalizeRotationAngle(angle - overlayState.twoFingerGesture.lastAngle);
-  overlayState.twoFingerGesture.accumulatedRotation += Math.abs(deltaAngle);
+  const netRotation = normalizeRotationAngle(angle - overlayState.twoFingerGesture.startAngle);
+  overlayState.twoFingerGesture.netRotation = netRotation;
   if (!overlayState.twoFingerGesture.rotationActive
-    && overlayState.twoFingerGesture.accumulatedRotation >= rotationActivationThresholdRadians) {
+    && Math.abs(netRotation) >= rotationActivationThresholdRadians) {
     overlayState.twoFingerGesture.rotationActive = true;
   }
   const shouldRotate = overlayState.twoFingerGesture.rotationActive && Math.abs(deltaAngle) > 0.001;
@@ -3926,7 +3926,7 @@ function onCanvasPointerMove(event) {
     viewZoom: renderState.fixedView.zoom,
     touchZoomDeadbandThreshold,
     touchZoomRatioMin,
-    accumulatedRotation: overlayState.twoFingerGesture.accumulatedRotation,
+    netRotation,
     rotationActive: overlayState.twoFingerGesture.rotationActive,
     rotationThresholdRadians: rotationActivationThresholdRadians,
   };
