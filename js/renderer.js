@@ -230,8 +230,10 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
     const scale = (minDim / 220) * zoom;
     const centerX = width * 0.5 + (fixedView?.offsetX ?? 0);
     const centerY = height * 0.5 + (fixedView?.offsetY ?? 0);
-    mapWorldCenterX = (width * 0.5 - centerX) / Math.max(scale, 1e-9);
-    mapWorldCenterY = (height * 0.5 - centerY) / Math.max(scale, 1e-9);
+    const deltaWorldX = (width * 0.5 - centerX) / Math.max(scale, 1e-9);
+    const deltaWorldY = (height * 0.5 - centerY) / Math.max(scale, 1e-9);
+    mapWorldCenterX = deltaWorldX * mapRotationCos + deltaWorldY * mapRotationSin;
+    mapWorldCenterY = -deltaWorldX * mapRotationSin + deltaWorldY * mapRotationCos;
     mapScaleX = scale;
     mapScaleY = scale;
     mapCenterX = width * 0.5;

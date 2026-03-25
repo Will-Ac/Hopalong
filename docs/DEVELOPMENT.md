@@ -101,6 +101,66 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
   - scroll/wheel = zoom
 - **Show debug text** now defaults to OFF for fresh/default state.
 
+## Welcome + guided help onboarding (PR30)
+
+- First-run startup now shows a large welcome panel with a short plain-language summary of what the app does.
+- The welcome panel has **Take tour**, **Don’t show me again**, and **Continue** actions.
+- **Don’t show me again** is stored locally in `localStorage` and suppresses future automatic startup display.
+- **Take tour** starts a guided mode that steps through help overlay items one at a time using **Next** and **End tour** controls.
+- The guided sequence reuses the existing help overlay and placement logic, instead of creating a separate positioning system.
+- A new canvas help item was added with device-specific input text:
+  - desktop: wheel/right-drag/shift-drag/left-drag controls
+  - touch: two-finger pinch/drag/rotate and one-finger drag controls
+
+## Onboarding fixes (PR30.2)
+
+- Welcome title now reads **AttractorLab**.
+- Guided tour steps now support grouped help activation so context can stay visible:
+  - step 1 shows tap-right with the center divider context
+  - step 2 shows tap-left with tap-right + center divider context
+- Tour step controls now render as a help-overlay item and use the same help placement policy engine (top-middle preferred with normal fallback handling).
+- Final tour step now reliably shows the new device-specific canvas help panel.
+
+## Onboarding/tour refinements (PR30.3)
+
+- Splash copy was updated to the new single-line attractor description while keeping the **AttractorLab** title unchanged.
+- Guided tour step content was tightened so:
+  - step 1 shows only tap-right plus the center divider
+  - step 2 shows only tap-left plus the center divider
+- Guided placement was refined so steps 3–5 (Parameters, Slider, Border) prefer low placement above the slider area using help policy overrides.
+- Top button help wording now reads **save / share image**.
+- Tour guide dialog is now a compact title-and-controls panel (Previous / Next / End tour) placed via the same help placement policy system on the right-middle side.
+
+## Onboarding, tour, and rotation fixes (PR30.4)
+
+- Updated onboarding splash copy to the latest welcome wording while keeping the existing panel style and structure.
+- Refined tour placement:
+  - tour dialog now prefers right-side, vertically centered policy placement
+  - slider help (step 4) is policy-overridden to stay close to the quick slider
+  - canvas help (step 9) now prefers centered placement
+- Step 1 is explicitly forced to show tap-right plus center divider in guided mode.
+- Rotation threshold defaults were adjusted to `15°` with a maximum setting of `30°`.
+- Fixed rotated-view pan commit alignment so post-redraw position remains consistent with live gesture movement.
+- Randomize/new-image flow now restores auto scale mode so the newly generated image re-centers predictably.
+
+## Tour/footer and mobile help overlap fixes (PR30.5)
+
+- Tour footer now keeps fixed button slots in a stable left-to-right order: **Previous**, **End tour**, **Next**.
+- Step 1 and Step 2 guided help now explicitly show divider + one-side tap guidance:
+  - step 1: center divider + tap right
+  - step 2: center divider + tap left (no tap right)
+- Mobile help overlay now correctly applies deeper shrink-to-fit fallback when no free placement is found, reducing overlap without global text-size reduction.
+
+## Tour position refinements (PR30.6)
+
+- Guided step 1 and step 2 canvas tap labels now use centered vertical placement, keeping their label centers aligned to screen center.
+- Divider positioning in forced single-side tour steps now anchors to the active tap label center so step 1/2 divider alignment matches the tap guidance.
+- Canvas help preferred placement is now centered using the same help placement policy system.
+
+## Canvas help centring fix (PR30.7)
+
+- Canvas help preferred placement now uses a true centered policy target, with nearest-to-center fallback offsets when overlap prevents exact center placement.
+
 ## 3. Common pitfalls
 
 ### State grouping errors

@@ -21,10 +21,17 @@ export const HELP_OVERLAY_GROUPS = [
       line("", "open/close help", { iconSelector: "#helpBtn", noAction: true }),
       line("", "open/close settings", { iconSelector: "#rangesEditorToggle", noAction: true }),
       line("", "auto/fix scale to screen", { iconSelector: "#scaleModeBtn", noAction: true }),
-      line("", "save image", { iconSelector: "#cameraBtn", noAction: true }),
+      line("", "save / share image", { iconSelector: "#cameraBtn", noAction: true }),
     ],
     label: { x: 0.82, y: 0.18 },
     target: { selector: "#topRightActions", attach: "bottom" },
+    noArrow: true,
+  },
+  {
+    id: "tour-step",
+    group: "tour",
+    lines: [],
+    label: { x: 0.5, y: 0.12 },
     noArrow: true,
   },
   {
@@ -41,6 +48,14 @@ export const HELP_OVERLAY_GROUPS = [
     variant: "canvasSplit",
     lines: [line("Tap right", "next image")],
     label: { x: 0.62, y: 0.31 },
+    noArrow: true,
+  },
+  {
+    id: "canvas-device-controls",
+    group: "canvas",
+    variant: "canvasSplit",
+    lines: [],
+    label: { x: 0.72, y: 0.31 },
     noArrow: true,
   },
   {

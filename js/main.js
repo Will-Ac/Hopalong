@@ -20,6 +20,10 @@ const interestOverlayCanvas = document.getElementById("interestOverlayCanvas");
 const debugOverlayCanvas = document.getElementById("debugOverlayCanvas");
 const manualOverlayCanvas = document.getElementById("manualOverlayCanvas");
 const toastEl = document.getElementById("toast");
+const welcomeOverlayEl = document.getElementById("welcomeOverlay");
+const welcomeTakeTourBtnEl = document.getElementById("welcomeTakeTourBtn");
+const welcomeDontShowBtnEl = document.getElementById("welcomeDontShowBtn");
+const welcomeDismissBtnEl = document.getElementById("welcomeDismissBtn");
 const formulaBtn = document.getElementById("formulaBtn");
 const cmapBtn = document.getElementById("cmapBtn");
 const debugInfoEl = document.getElementById("debugInfo");
@@ -307,6 +311,9 @@ const uiState = {
   lastSizingViewport: { width: 0, height: 0 },
   lastQuickSliderTopTapAt: 0,
   helpOverlayController: null,
+  welcomeVisible: false,
+  guidedTourActive: false,
+  guidedTourIndex: 0,
   openRangesEditor: undefined,
   closeRangesEditor: undefined,
   openFormulaSettingsPanel: undefined,
@@ -377,6 +384,80 @@ const SETTINGS_LONG_PRESS_MS = 5000;
 const PARAM_LONG_PRESS_MS = 550;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
 const APP_DEFAULTS_STORAGE_KEY = "hopalong.defaults.v2";
+const WELCOME_DISMISSED_STORAGE_KEY = "hopalong.welcomeDismissed.v1";
+const GUIDED_TOUR_STEPS = [
+  { title: "Tap right + center divider", itemIds: ["canvas-right"] },
+  { title: "Tap left + center divider", itemIds: ["canvas-left"] },
+  { title: "Parameters", itemIds: ["params"] },
+  { title: "Slider", itemIds: ["slider"] },
+  { title: "Border", itemIds: ["tile-border-legend"] },
+  { title: "Formula / color map", itemIds: ["formula-cmap"] },
+  { title: "Random / fixed all", itemIds: ["random"] },
+  { title: "Top button bar", itemIds: ["topbar"] },
+  { title: "Canvas help", itemIds: ["canvas-device-controls"] },
+];
+const TOUR_STEP_PLACEMENT_OVERRIDES = {
+  params: {
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "quickSlider",
+      relation: {
+        x: { sourceEdge: "center", selfEdge: "center", offset: -120 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
+        relation: {
+          x: { sourceEdge: "center", selfEdge: "center", offset: -120 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+        },
+      },
+    ],
+  },
+  slider: {
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "quickSlider",
+      relation: {
+        x: { sourceEdge: "center", selfEdge: "center", offset: 0 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: -12 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
+        relation: {
+          x: { sourceEdge: "center", selfEdge: "center", offset: 0 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -12 },
+        },
+      },
+    ],
+  },
+  "tile-border-legend": {
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "quickSlider",
+      relation: {
+        x: { sourceEdge: "center", selfEdge: "center", offset: 126 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+      },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "relativeToTarget",
+        targetKey: "quickSlider",
+        relation: {
+          x: { sourceEdge: "center", selfEdge: "center", offset: 126 },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -14 },
+        },
+      },
+    ],
+  },
+};
 const PARAM_LOCK_STATES = new Set(["fix", "rand"]);
 const PARAM_MOD_AXES = new Set(["none", "manX", "manY"]);
 const PARAM_MODE_KEYS = ["formula", "cmap", "a", "b", "c", "d", "iters"];
@@ -434,9 +515,9 @@ const TOUCH_ZOOM_DEADBAND_PX_MAX = 40;
 const TOUCH_ZOOM_RATIO_MIN_DEFAULT = 0.002;
 const TOUCH_ZOOM_RATIO_MIN_MIN = 0;
 const TOUCH_ZOOM_RATIO_MIN_MAX = 0.12;
-const ROTATION_ACTIVATION_THRESHOLD_DEGREES_DEFAULT = 10;
+const ROTATION_ACTIVATION_THRESHOLD_DEGREES_DEFAULT = 15;
 const ROTATION_ACTIVATION_THRESHOLD_DEGREES_MIN = 0;
-const ROTATION_ACTIVATION_THRESHOLD_DEGREES_MAX = 20;
+const ROTATION_ACTIVATION_THRESHOLD_DEGREES_MAX = 30;
 const DEGREES_TO_RADIANS = Math.PI / 180;
 const SINGLE_TOUCH_MODULATION_START_DRAW_DELAY_MS = 24;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
@@ -622,15 +703,17 @@ function buildLiveInteractionMeta(frameEntry) {
   const width = Math.max(1, canvas.width);
   const height = Math.max(1, canvas.height);
   const scale = getFixedViewScale(width, height);
-  const centerScreenX = width * 0.5 + Number(renderState.fixedView?.offsetX ?? 0);
-  const centerScreenY = height * 0.5 + Number(renderState.fixedView?.offsetY ?? 0);
   const mapCenterX = width * 0.5;
   const mapCenterY = height * 0.5;
-  const mapWorldCenterX = (mapCenterX - centerScreenX) / Math.max(scale, 1e-9);
-  const mapWorldCenterY = (mapCenterY - centerScreenY) / Math.max(scale, 1e-9);
-  const invScale = 1 / Math.max(scale, 1e-9);
   const cos = Number.isFinite(renderState.fixedView?.rotationCos) ? renderState.fixedView.rotationCos : 1;
   const sin = Number.isFinite(renderState.fixedView?.rotationSin) ? renderState.fixedView.rotationSin : 0;
+  const centerScreenX = width * 0.5 + Number(renderState.fixedView?.offsetX ?? 0);
+  const centerScreenY = height * 0.5 + Number(renderState.fixedView?.offsetY ?? 0);
+  const deltaWorldX = (mapCenterX - centerScreenX) / Math.max(scale, 1e-9);
+  const deltaWorldY = (mapCenterY - centerScreenY) / Math.max(scale, 1e-9);
+  const mapWorldCenterX = deltaWorldX * cos + deltaWorldY * sin;
+  const mapWorldCenterY = -deltaWorldX * sin + deltaWorldY * cos;
+  const invScale = 1 / Math.max(scale, 1e-9);
   const corners = [
     [0, 0],
     [width, 0],
@@ -2138,9 +2221,13 @@ function getWorldSharedViewModel() {
 
   const viewCenterX = canvasWidth * 0.5 + Number(renderState.fixedView?.offsetX ?? 0);
   const viewCenterY = canvasHeight * 0.5 + Number(renderState.fixedView?.offsetY ?? 0);
+  const cos = Number.isFinite(renderState.fixedView?.rotationCos) ? renderState.fixedView.rotationCos : 1;
+  const sin = Number.isFinite(renderState.fixedView?.rotationSin) ? renderState.fixedView.rotationSin : 0;
+  const deltaWorldX = (canvasWidth * 0.5 - viewCenterX) / scale;
+  const deltaWorldY = (canvasHeight * 0.5 - viewCenterY) / scale;
   return {
-    cx: (canvasWidth * 0.5 - viewCenterX) / scale,
-    cy: (canvasHeight * 0.5 - viewCenterY) / scale,
+    cx: deltaWorldX * cos + deltaWorldY * sin,
+    cy: -deltaWorldX * sin + deltaWorldY * cos,
     ms: minDim / scale,
     ar: canvasWidth / canvasHeight,
     rot: normalizeRotationAngle(Number(renderState.fixedView?.rotation ?? 0)),
@@ -2171,13 +2258,18 @@ function getFixedViewFromSharedWorldView(view) {
     return null;
   }
 
-  const fixedCenterX = canvasWidth * 0.5 - centerX * scale;
-  const fixedCenterY = canvasHeight * 0.5 - centerY * scale;
+  const rotation = normalizeRotationAngle(Number(view?.[4]) || 0);
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const deltaScreenX = -((centerX * cos - centerY * sin) * scale);
+  const deltaScreenY = -((centerX * sin + centerY * cos) * scale);
+  const fixedCenterX = canvasWidth * 0.5 + deltaScreenX;
+  const fixedCenterY = canvasHeight * 0.5 + deltaScreenY;
   return {
     offsetX: fixedCenterX - canvasWidth * 0.5,
     offsetY: fixedCenterY - canvasHeight * 0.5,
     zoom: scale / (minDim / 220),
-    rotation: normalizeRotationAngle(Number(view?.[4]) || 0),
+    rotation,
   };
 }
 
@@ -2255,6 +2347,145 @@ function maybeShowLandscapeHint() {
       // ignore storage access errors
     }
   }, 350);
+}
+
+function isTouchDeviceForHelp() {
+  return navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches;
+}
+
+function getCanvasDeviceHelpLines() {
+  if (isTouchDeviceForHelp()) {
+    return [
+      { action: "2 finger pinch", body: "zoom" },
+      { action: "2 finger drag", body: "pan" },
+      { action: "2 finger rotate", body: "rotate" },
+      { action: "1 finger drag", body: "screen control selected values" },
+    ];
+  }
+
+  return [
+    { action: "Scroll", body: "zoom" },
+    { action: "Right drag", body: "pan" },
+    { action: "Shift drag", body: "rotate" },
+    { action: "Left drag", body: "screen control selected values" },
+  ];
+}
+
+function getWelcomeAutoShowEnabled() {
+  try {
+    return window.localStorage.getItem(WELCOME_DISMISSED_STORAGE_KEY) !== "1";
+  } catch {
+    return true;
+  }
+}
+
+function setWelcomeAutoShowEnabled(enabled) {
+  try {
+    if (enabled) {
+      window.localStorage.removeItem(WELCOME_DISMISSED_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(WELCOME_DISMISSED_STORAGE_KEY, "1");
+    }
+  } catch {
+    // ignore storage access errors
+  }
+}
+
+function showWelcomePanel() {
+  uiState.welcomeVisible = true;
+  welcomeOverlayEl?.classList.add("is-open");
+  welcomeOverlayEl?.setAttribute("aria-hidden", "false");
+}
+
+function hideWelcomePanel() {
+  uiState.welcomeVisible = false;
+  welcomeOverlayEl?.classList.remove("is-open");
+  welcomeOverlayEl?.setAttribute("aria-hidden", "true");
+}
+
+function getGuidedTourStep() {
+  return GUIDED_TOUR_STEPS[uiState.guidedTourIndex] || GUIDED_TOUR_STEPS[0];
+}
+
+function getGuidedTourFocusItemIds() {
+  if (!uiState.guidedTourActive) {
+    return null;
+  }
+  const step = getGuidedTourStep();
+  return [...step.itemIds, "tour-step"];
+}
+
+function getTourPlacementOverrideForItem(itemId) {
+  if (!uiState.guidedTourActive) {
+    return null;
+  }
+  if (uiState.guidedTourIndex < 2 || uiState.guidedTourIndex > 4) {
+    return null;
+  }
+  return TOUR_STEP_PLACEMENT_OVERRIDES[itemId] || null;
+}
+
+function shouldForceCanvasDividerForTourStep() {
+  if (!uiState.guidedTourActive) {
+    return false;
+  }
+  return uiState.guidedTourIndex === 0 || uiState.guidedTourIndex === 1;
+}
+
+function updateGuidedTourUi() {
+  uiState.helpOverlayController?.render();
+}
+
+function endGuidedTour({ closeHelpOverlay = true } = {}) {
+  if (!uiState.guidedTourActive) {
+    updateGuidedTourUi();
+    return;
+  }
+  uiState.guidedTourActive = false;
+  uiState.guidedTourIndex = 0;
+  updateGuidedTourUi();
+  if (closeHelpOverlay) {
+    uiState.helpOverlayController?.close();
+  } else {
+    uiState.helpOverlayController?.render();
+  }
+}
+
+function startGuidedTour() {
+  hideWelcomePanel();
+  uiState.guidedTourActive = true;
+  uiState.guidedTourIndex = 0;
+  updateGuidedTourUi();
+  if (!uiState.helpOverlayController?.isOpen()) {
+    uiState.helpOverlayController?.open();
+  }
+  uiState.helpOverlayController?.render();
+}
+
+function goToNextGuidedTourStep() {
+  if (!uiState.guidedTourActive) {
+    return;
+  }
+  if (uiState.guidedTourIndex >= GUIDED_TOUR_STEPS.length - 1) {
+    endGuidedTour();
+    return;
+  }
+  uiState.guidedTourIndex += 1;
+  updateGuidedTourUi();
+  uiState.helpOverlayController?.render();
+}
+
+function goToPreviousGuidedTourStep() {
+  if (!uiState.guidedTourActive) {
+    return;
+  }
+  if (uiState.guidedTourIndex <= 0) {
+    uiState.helpOverlayController?.render();
+    return;
+  }
+  uiState.guidedTourIndex -= 1;
+  updateGuidedTourUi();
+  uiState.helpOverlayController?.render();
 }
 
 function getGlobalRandomFixMixState() {
@@ -2924,6 +3155,8 @@ function randomizeAllParameters() {
     appData.defaults.sliders[sliderKey] = preservedValue;
   }
 
+  appData.defaults.scaleMode = "auto";
+  syncScaleModeButton();
   saveDefaultsToStorage();
   requestDraw();
   commitCurrentStateToHistory();
@@ -5536,10 +5769,47 @@ function initHelpOverlay() {
 
       return contexts;
     },
+    getFocusedHelpItemIds: () => getGuidedTourFocusItemIds(),
+    getHelpPolicyOverride: (itemId) => getTourPlacementOverrideForItem(itemId),
+    shouldForceCanvasDivider: () => shouldForceCanvasDividerForTourStep(),
+    getHelpLinesForItem: (itemId) => {
+      if (itemId === "canvas-device-controls") {
+        return getCanvasDeviceHelpLines();
+      }
+      if (itemId === "tour-step" && uiState.guidedTourActive) {
+        const totalSteps = GUIDED_TOUR_STEPS.length;
+        const currentStep = getGuidedTourStep();
+        const isFirstStep = uiState.guidedTourIndex === 0;
+        const isLastStep = uiState.guidedTourIndex >= totalSteps - 1;
+        return [
+          { heading: true, action: `Step ${uiState.guidedTourIndex + 1}/${totalSteps} — ${currentStep.title}`, delimiter: "" },
+          {
+            controlType: "tourStepper",
+            showPrevious: !isFirstStep,
+            previousLabel: "Previous",
+            nextLabel: isLastStep ? "Finish" : "Next",
+            endLabel: "End tour",
+          },
+        ];
+      }
+      return null;
+    },
+    onTourPrevious: () => {
+      goToPreviousGuidedTourStep();
+    },
+    onTourNext: () => {
+      goToNextGuidedTourStep();
+    },
+    onTourClose: () => {
+      endGuidedTour();
+    },
     onOpened: () => {
       showToast("Help mode enabled.");
     },
     onClosed: () => {
+      if (uiState.guidedTourActive) {
+        endGuidedTour({ closeHelpOverlay: false });
+      }
       showToast("Help mode closed.");
     },
   });
@@ -5659,6 +5929,16 @@ function registerHandlers() {
       return;
     }
     uiState.helpOverlayController.toggle();
+  });
+  welcomeDismissBtnEl?.addEventListener("click", () => {
+    hideWelcomePanel();
+  });
+  welcomeDontShowBtnEl?.addEventListener("click", () => {
+    setWelcomeAutoShowEnabled(false);
+    hideWelcomePanel();
+  });
+  welcomeTakeTourBtnEl?.addEventListener("click", () => {
+    startGuidedTour();
   });
 
   const toggleRandomMode = (event) => {
@@ -6159,6 +6439,12 @@ function bootstrap() {
 
     registerHandlers();
     initHelpOverlay();
+    updateGuidedTourUi();
+    if (getWelcomeAutoShowEnabled()) {
+      showWelcomePanel();
+    } else {
+      hideWelcomePanel();
+    }
     maybeShowLandscapeHint();
     commitCurrentStateToHistory();
     requestDraw();

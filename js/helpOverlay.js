@@ -271,6 +271,58 @@ export function createHelpOverlay(options) {
       const rowEl = document.createElement("div");
       rowEl.className = "helpOverlay__row";
 
+      if (row.controlType === "tourStepper") {
+        const controlsEl = document.createElement("div");
+        controlsEl.className = "helpOverlay__tourControls";
+        const previousSlot = document.createElement("span");
+        previousSlot.className = "helpOverlay__tourSlot";
+        if (row.showPrevious) {
+          const previousBtn = document.createElement("button");
+          previousBtn.type = "button";
+          previousBtn.className = "helpOverlay__tourBtn";
+          previousBtn.textContent = row.previousLabel || "Previous";
+          previousBtn.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            options.onTourPrevious?.();
+          });
+          previousSlot.append(previousBtn);
+        }
+        controlsEl.append(previousSlot);
+
+        const endSlot = document.createElement("span");
+        endSlot.className = "helpOverlay__tourSlot";
+        const endBtn = document.createElement("button");
+        endBtn.type = "button";
+        endBtn.className = "helpOverlay__tourBtn";
+        endBtn.textContent = row.endLabel || "End tour";
+        endBtn.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          options.onTourClose?.();
+        });
+        endSlot.append(endBtn);
+        controlsEl.append(endSlot);
+
+        const nextSlot = document.createElement("span");
+        nextSlot.className = "helpOverlay__tourSlot";
+        const nextBtn = document.createElement("button");
+        nextBtn.type = "button";
+        nextBtn.className = "helpOverlay__tourBtn";
+        nextBtn.textContent = row.nextLabel || "Next";
+        nextBtn.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          options.onTourNext?.();
+        });
+        nextSlot.append(nextBtn);
+        controlsEl.append(nextSlot);
+
+        rowEl.append(controlsEl);
+        el.append(rowEl);
+        continue;
+      }
+
       if (row.iconSelector) rowEl.append(makeTopbarIcon(row.iconSelector));
       if (row.tilePreview) rowEl.append(makeTilePreviewIcon(row.tilePreview));
 
@@ -466,6 +518,24 @@ const HELP_PLACEMENT_POLICY = {
       },
     ],
   },
+  "tour-step": {
+    priority: 0,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    constraints: { preserveSideOfCenter: "right" },
+    preferredPlacement: {
+      primitive: "viewportBand",
+      alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
+      band: { sourceType: "groupOrViewportRatio", sourceGroup: "topbar", position: "alignTop", ratio: 0.5, offset: 0 },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
+        band: { sourceType: "viewport", position: "middle", y: 190, offset: 0 },
+      },
+    ],
+  },
   "tile-border-legend": {
     priority: 2,
     wrappingAllowed: true,
@@ -502,7 +572,7 @@ const HELP_PLACEMENT_POLICY = {
       centerAnchorKey: "viewportCenter",
       side: "left",
       gap: LAYOUT.dividerTapGap,
-      band: { sourceType: "between", sourceGroup: "topbar", position: "center", minY: 8, bottomPadding: 180 },
+      band: { sourceType: "viewport", position: "middle", offset: 0 },
     },
     fallbackPlacements: [
       {
@@ -510,7 +580,7 @@ const HELP_PLACEMENT_POLICY = {
         centerAnchorKey: "viewportCenter",
         side: "left",
         gap: LAYOUT.dividerTapGap,
-        band: { sourceType: "between", sourceGroup: "topbar", position: "center", minY: 8, bottomPadding: 180 },
+        band: { sourceType: "viewport", position: "middle", offset: 0 },
       },
     ],
   },
@@ -519,14 +589,13 @@ const HELP_PLACEMENT_POLICY = {
     wrappingAllowed: true,
     maxLines: 2,
     shrinkAllowed: true,
-    dependencyIds: ["canvas-left"],
     constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "centerSplit",
       centerAnchorKey: "viewportCenter",
       side: "right",
       gap: LAYOUT.dividerTapGap,
-      band: { sourceType: "group", sourceGroup: "canvas-left", position: "alignTop", offset: 0 },
+      band: { sourceType: "viewport", position: "middle", offset: 0 },
     },
     fallbackPlacements: [
       {
@@ -534,7 +603,30 @@ const HELP_PLACEMENT_POLICY = {
         centerAnchorKey: "viewportCenter",
         side: "right",
         gap: LAYOUT.dividerTapGap,
-        band: { sourceType: "group", sourceGroup: "canvas-left", position: "alignTop", offset: 0 },
+        band: { sourceType: "viewport", position: "middle", offset: 0 },
+      },
+    ],
+  },
+  "canvas-device-controls": {
+    priority: 3,
+    maxLines: 4,
+    wrappingAllowed: true,
+    shrinkAllowed: true,
+    preferredPlacement: {
+      primitive: "viewportBand",
+      alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 0 },
+      band: { sourceType: "viewport", position: "middle", offset: 0 },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 36 },
+        band: { sourceType: "viewport", position: "middle", offset: 0 },
+      },
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: -36 },
+        band: { sourceType: "viewport", position: "middle", offset: 0 },
       },
     ],
   },
@@ -808,16 +900,27 @@ function resolveAnchors(ctx) {
 
 function buildHelpItemRegistry(groups) {
   return groups.map((group) => {
-    const policy = HELP_PLACEMENT_POLICY[group.id] || {
+    const dynamicLines = options.getHelpLinesForItem?.(group.id);
+    const normalizedLines = Array.isArray(dynamicLines) && dynamicLines.length ? dynamicLines : group.lines;
+    const basePolicy = HELP_PLACEMENT_POLICY[group.id] || {
       priority: 50,
       wrappingAllowed: true,
       shrinkAllowed: true,
       preferredPlacement: { primitive: "viewportBand", xAlign: "center", band: "middle" },
       fallbackPlacements: [{ primitive: "viewportBand", xAlign: "center", band: "middle" }],
     };
+    const policyOverride = options.getHelpPolicyOverride?.(group.id) || null;
+    const policy = policyOverride
+      ? {
+        ...basePolicy,
+        ...policyOverride,
+        preferredPlacement: policyOverride.preferredPlacement ?? basePolicy.preferredPlacement,
+        fallbackPlacements: policyOverride.fallbackPlacements ?? basePolicy.fallbackPlacements,
+      }
+      : basePolicy;
     return {
       id: group.id,
-      group,
+      group: { ...group, lines: normalizedLines },
       policy,
       dependencyIds: policy.dependencyIds || [],
       visibleWhen: policy.visibleWhen || (() => true),
@@ -851,7 +954,16 @@ function resolveVisibleHelpContexts() {
 function resolveHelpContent() {
   const activeContexts = resolveVisibleHelpContexts();
   if (activeContexts.length === 1 && activeContexts[0] === "main") {
-    return { groups: MAIN_HELP_ITEMS, brackets: HELP_GROUP_BRACKETS, activeContexts: [] };
+    const focusedHelpItemId = options.getFocusedHelpItemId?.();
+    const focusedHelpItemIds = options.getFocusedHelpItemIds?.()
+      ?? (focusedHelpItemId ? [focusedHelpItemId] : null);
+    const groups = focusedHelpItemIds?.length
+      ? MAIN_HELP_ITEMS.filter((group) => focusedHelpItemIds.includes(group.id))
+      : MAIN_HELP_ITEMS;
+    const brackets = focusedHelpItemIds?.length
+      ? HELP_GROUP_BRACKETS.filter((bracket) => groups.some((group) => group.target?.bracketId === bracket.id))
+      : HELP_GROUP_BRACKETS;
+    return { groups, brackets, activeContexts: [] };
   }
 
   return {
@@ -1013,7 +1125,7 @@ function setLabelMeasureStyle(layout, variant, viewportWidth) {
   }
 
   if (variant.fontScale < 1) {
-    labelEl.style.fontSize = `${Math.max(11, Math.round(13 * variant.fontScale))}px`;
+    labelEl.style.fontSize = `${Math.max(9, Math.round(13 * variant.fontScale))}px`;
   }
 
   const measured = labelEl.getBoundingClientRect();
@@ -1099,7 +1211,10 @@ function resolveBandY(layout, bandSpec = {}, ctx) {
   const offset = bandSpec.offset || 0;
 
   if (sourceType === "viewport") {
-    if (position === "middle") return Math.max(margin, uiTop - layout.height - 12) + offset;
+    if (position === "middle") {
+      const centered = (ctx.viewportHeight - layout.height) / 2;
+      return clamp(centered, margin, uiTop - layout.height - margin) + offset;
+    }
     return margin + offset + (bandSpec.y || 0);
   }
 
@@ -1333,10 +1448,21 @@ function resolvePlacement(layout, ctx, placed, placedRects) {
 }
 
 function resolveFallbackPlacement(layout, ctx, placedRects) {
-  setLabelMeasureStyle(layout, { wrapped: true, fontScale: 0.86 }, ctx.viewportWidth);
   const lockX = getStrictX(layout, ctx);
-  const free = findFirstFreeSpot(layout, ctx, placedRects, lockX);
-  if (free) return free;
+  const fallbackVariants = layout.item.policy.shrinkAllowed
+    ? [
+      { wrapped: true, fontScale: 0.86 },
+      { wrapped: true, fontScale: 0.8 },
+      { wrapped: true, fontScale: 0.74 },
+    ]
+    : [{ wrapped: true, fontScale: 0.86 }];
+  for (const variant of fallbackVariants) {
+    setLabelMeasureStyle(layout, variant, ctx.viewportWidth);
+    const free = findFirstFreeSpot(layout, ctx, placedRects, lockX);
+    if (free) {
+      return free;
+    }
+  }
   return {
     x: Number.isFinite(lockX) ? lockX : clamp(layout.x, ctx.margin, ctx.viewportWidth - layout.width - ctx.margin),
     y: clamp(ctx.margin, ctx.margin, ctx.uiTop - layout.height - ctx.margin),
@@ -1380,14 +1506,20 @@ function clampPlacedGroupsToViewport(ctx) {
 function renderCanvasDivider({ viewportHeight, layouts }) {
     const leftTap = layouts.find((item) => item.group.id === "canvas-left");
     const rightTap = layouts.find((item) => item.group.id === "canvas-right");
-    if (!leftTap || !rightTap) {
+    const forceSingleDivider = options.shouldForceCanvasDivider?.();
+    if (!leftTap && !rightTap) {
+      dom.centerDivider.style.display = "none";
+      return;
+    }
+    if (!forceSingleDivider && (!leftTap || !rightTap)) {
       dom.centerDivider.style.display = "none";
       return;
     }
     dom.centerDivider.style.display = "";
     const tapLineCenterY = leftTap && rightTap
       ? Math.round((leftTap.y + leftTap.height / 2 + rightTap.y + rightTap.height / 2) / 2)
-      : Math.round(viewportHeight * LAYOUT.dividerYOffsetFactor);
+      : Math.round((leftTap || rightTap)?.y + (leftTap || rightTap)?.height / 2)
+        || Math.round(viewportHeight * LAYOUT.dividerYOffsetFactor);
 
     const tapLineHeight = leftTap && rightTap
       ? Math.round(Math.max(leftTap.height, rightTap.height) * 2)
