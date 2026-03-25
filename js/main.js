@@ -3456,6 +3456,7 @@ function applyManualModulation(deltaX, deltaY, { invalidate = true } = {}) {
   if (!manX && !manY) {
     return false;
   }
+  let shouldSyncActiveQuickSlider = false;
 
   if (manX) {
     const control = sliderControls[manX];
@@ -3464,6 +3465,7 @@ function applyManualModulation(deltaX, deltaY, { invalidate = true } = {}) {
       control.min,
       control.max,
     );
+    shouldSyncActiveQuickSlider = shouldSyncActiveQuickSlider || uiState.activeSliderKey === manX;
   }
 
   if (manY) {
@@ -3473,6 +3475,11 @@ function applyManualModulation(deltaX, deltaY, { invalidate = true } = {}) {
       control.min,
       control.max,
     );
+    shouldSyncActiveQuickSlider = shouldSyncActiveQuickSlider || uiState.activeSliderKey === manY;
+  }
+
+  if (shouldSyncActiveQuickSlider) {
+    syncQuickSliderPosition();
   }
 
   if (invalidate) {
@@ -4055,13 +4062,10 @@ function closeQuickSlider() {
 }
 
 function alignQuickSliderAboveBottomBar() {
-  if (!paramOverlayEl || !quickSliderEl) {
+  if (!quickSliderEl) {
     return;
   }
-
-  const overlayRect = paramOverlayEl.getBoundingClientRect();
-  const overlayHeight = Math.max(0, window.innerHeight - overlayRect.top);
-  quickSliderEl.style.bottom = `${overlayHeight + 6}px`;
+  quickSliderEl.style.removeProperty("bottom");
   uiState.helpOverlayController?.scheduleRender();
 }
 

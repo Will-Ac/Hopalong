@@ -205,6 +205,12 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - The shared rotation-aware alignment path between pattern and XY/grid/debug overlays from PR33.5 is preserved.
 - Auto Scale now uses a fit-to-screen icon (four outward diagonal arrows) in the top button bar, and the matching small icon shown in help content updates automatically from that same button SVG.
 
+## Slider live sync and panel stability (PR33.7)
+
+- During manual screen modulation, if the currently open quick slider matches a modulated parameter, the quick slider thumb and displayed numeric value now update live.
+- Quick slider `+` and `−` step buttons were enlarged by ~50% for easier interaction.
+- Quick slider panel positioning now stays anchored to its CSS bottom position (no runtime bottom-offset shifting).
+
 ## 3. Common pitfalls
 
 ### State grouping errors
