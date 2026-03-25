@@ -174,6 +174,17 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Default `touchZoomRatioMin` is now `0.01` (including bundled defaults and runtime fallback default).
 - Desktop rotated modulation mapping was fixed by keeping mouse left-drag modulation screen-aligned after Shift-drag rotation, while preserving the existing touch modulation mapping path unchanged.
 
+## Large-screen full-help placement refinements (PR33.2)
+
+- Large-screen full-help policy placement was refined for:
+  - tap group (`tap left`, `tap right`, and center dashed divider context)
+  - canvas help
+  - slider help
+  - params help
+- The centered tap group now takes priority in full-help large-screen mode so left/right guidance remains centered around the screen centreline.
+- Canvas help now prefers a centered-above position so it stays above the tap group instead of competing for the same central zone.
+- Slider and params help now prefer placement just above the quick slider area in full-help large-screen mode.
+
 ## 3. Common pitfalls
 
 ### State grouping errors

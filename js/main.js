@@ -474,6 +474,68 @@ const TOUR_STEP_PLACEMENT_OVERRIDES = {
     ],
   },
 };
+const FULL_HELP_LARGE_SCREEN_PLACEMENT_OVERRIDES = {
+  "canvas-left": {
+    priority: 2,
+    preferredPlacement: {
+      primitive: "centerSplit",
+      centerAnchorKey: "viewportCenter",
+      side: "left",
+      gap: 15,
+      band: { sourceType: "viewport", position: "middle", offset: 0 },
+    },
+  },
+  "canvas-right": {
+    priority: 2,
+    preferredPlacement: {
+      primitive: "centerSplit",
+      centerAnchorKey: "viewportCenter",
+      side: "right",
+      gap: 15,
+      band: { sourceType: "viewport", position: "middle", offset: 0 },
+    },
+  },
+  "canvas-device-controls": {
+    priority: 4,
+    preferredPlacement: {
+      primitive: "viewportBand",
+      alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 0 },
+      band: { sourceType: "viewport", position: "middle", offset: -96 },
+    },
+    fallbackPlacements: [
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: 0 },
+        band: { sourceType: "viewport", position: "middle", offset: -56 },
+      },
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "center", selfEdge: "center", offset: -40 },
+        band: { sourceType: "viewport", position: "middle", offset: -96 },
+      },
+    ],
+  },
+  params: {
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "quickSlider",
+      relation: {
+        x: { sourceEdge: "center", selfEdge: "center", offset: -140 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: -12 },
+      },
+    },
+  },
+  slider: {
+    preferredPlacement: {
+      primitive: "relativeToTarget",
+      targetKey: "quickSlider",
+      relation: {
+        x: { sourceEdge: "center", selfEdge: "center", offset: 0 },
+        y: { sourceEdge: "top", selfEdge: "bottom", offset: -12 },
+      },
+    },
+  },
+};
 const PARAM_LOCK_STATES = new Set(["fix", "rand"]);
 const PARAM_MOD_AXES = new Set(["none", "manX", "manY"]);
 const PARAM_MODE_KEYS = ["formula", "cmap", "a", "b", "c", "d", "iters"];
@@ -2430,6 +2492,16 @@ function shouldUseGuidedHelpMode() {
   return isMobilePhoneDevice();
 }
 
+function isLargeScreenFullHelpPlacementMode() {
+  if (uiState.guidedTourActive) {
+    return false;
+  }
+  if (shouldUseGuidedHelpMode()) {
+    return false;
+  }
+  return window.matchMedia("(min-width: 1024px)").matches;
+}
+
 function getGuidedTourStep() {
   return GUIDED_TOUR_STEPS[uiState.guidedTourIndex] || GUIDED_TOUR_STEPS[0];
 }
@@ -2443,13 +2515,16 @@ function getGuidedTourFocusItemIds() {
 }
 
 function getTourPlacementOverrideForItem(itemId) {
-  if (!uiState.guidedTourActive) {
+  if (uiState.guidedTourActive) {
+    if (uiState.guidedTourIndex < 2 || uiState.guidedTourIndex > 4) {
+      return null;
+    }
+    return TOUR_STEP_PLACEMENT_OVERRIDES[itemId] || null;
+  }
+  if (!isLargeScreenFullHelpPlacementMode()) {
     return null;
   }
-  if (uiState.guidedTourIndex < 2 || uiState.guidedTourIndex > 4) {
-    return null;
-  }
-  return TOUR_STEP_PLACEMENT_OVERRIDES[itemId] || null;
+  return FULL_HELP_LARGE_SCREEN_PLACEMENT_OVERRIDES[itemId] || null;
 }
 
 function shouldForceCanvasDividerForTourStep() {
