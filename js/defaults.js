@@ -32,7 +32,7 @@ export const DEFAULTS = {
   "holdRepeatMs": 300,
   "holdAccelStartMs": 5000,
   "holdAccelEndMs": 8000,
-  "touchPanDeadbandPx": 1.5,
+  "touchPanDeadbandPx": 0.5,
   "touchZoomDeadbandPx": 2.5,
   "touchZoomRatioMin": 0.01,
   "panZoomSettleMs": 200,

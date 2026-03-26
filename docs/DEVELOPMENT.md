@@ -390,3 +390,9 @@ Before opening or merging a PR:
 - Hidden developer settings now open after a 3-second hold on the settings button.
 - When developer/full settings are open, tapping outside no longer closes the panel; it closes when pressing the settings button again.
 - Developer pan/zoom tuning ranges were tightened: pan deadband max `10`, zoom deadband max `10`, zoom ratio min max `0.01`, settle delay max `1000`.
+
+
+## PR34.5 notes
+
+- Updated default **Touch pan deadband** to `0.5 px`.
+- Updated **Touch zoom ratio min** maximum range to `0.03`.
