@@ -178,7 +178,7 @@ const sliderControls = {
   b: { button: document.getElementById("btnBeta"), label: "b", paramKey: "b", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   c: { button: document.getElementById("btnDelta"), label: "c", paramKey: "c", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
   d: { button: document.getElementById("btnGamma"), label: "d", paramKey: "d", min: 0, max: 100, sliderStep: 0.1, stepSize: 0.0001, displayDp: 4 },
-  iters: { button: document.getElementById("btnIters"), label: "iter", paramKey: "iters", min: ITERATION_MIN, max: ITERATION_FALLBACK_ABSOLUTE_MAX, sliderStep: 100, stepSize: 100, displayDp: 0 },
+  iters: { button: document.getElementById("btnIters"), label: "iterations", paramKey: "iters", min: ITERATION_MIN, max: ITERATION_FALLBACK_ABSOLUTE_MAX, sliderStep: 100, stepSize: 100, displayDp: 0 },
   burn: { button: null, label: "Burn", paramKey: "burn", min: 0, max: 5000, sliderStep: 1, stepSize: 1, displayDp: 0 },
 };
 
@@ -1533,7 +1533,7 @@ function collectUiTextLines() {
     }
   }
 
-  lines.push("Random", "All", "Fix", "Auto", "Scale", "Fixed", "iter");
+  lines.push("Random", "All", "Fix", "Auto", "Scale", "Fixed", "iterations");
 
   return lines;
 }
@@ -4205,6 +4205,13 @@ function renderFormulaPicker() {
   pickerList.innerHTML = "";
 
   for (const formula of appData.formulas) {
+    if (formula.id === "classic_sqrt" || formula.id === "pickover_clifford") {
+      const header = document.createElement("div");
+      header.className = "formulaPickerHeaderRow";
+      header.textContent = formula.id === "classic_sqrt" ? "Hopalong attractors" : "Other attractors";
+      pickerList.append(header);
+    }
+
     const rowWrap = document.createElement("div");
     rowWrap.className = "pickerOptionRow";
 
@@ -6215,7 +6222,7 @@ function registerHandlers() {
       setSettingsPanelMode("full");
       uiState.openRangesEditor();
       clearSettingsLongPressTimer();
-    }, SETTINGS_LONG_PRESS_MS + 1);
+    }, SETTINGS_LONG_PRESS_MS);
   });
 
   rangesEditorToggleEl?.addEventListener("pointerup", (event) => {

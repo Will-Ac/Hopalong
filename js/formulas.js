@@ -30,6 +30,8 @@ export const FORMULA_DEFS = [
     },
     defaults: { a: 1.0, b: 5.0, c: 0.0, d: 0.0 },
     seed: { x: 0.0, y: 0.0 },
+    detailX: "x_next = y - sign(x) * sqrt(abs(b*x - d))",
+    detailY: "y_next = a - x",
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
       return [y - s * Math.sqrt(Math.abs(p.b * x - p.d)), p.a - x];

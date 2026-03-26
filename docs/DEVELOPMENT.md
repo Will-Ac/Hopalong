@@ -360,3 +360,13 @@ Before opening or merging a PR:
 4. Open DevTools and confirm the console stays clear during startup and your quick smoke test.
 5. Verify the on-screen version badge matches the PR build you expect.
 6. If the browser appears to serve old files, reload with a cache-busting query string such as `?v=XYZ`.
+
+
+## PR34 notes
+
+- Updated user-facing `iter` wording to `iterations` in the quick slider label path and bottom parameter tile.
+- Moved **Factory reset** from full/developer settings visibility into the user settings view.
+- Hidden developer settings access remains a tap-and-hold on the gear button, with a 5-second hold delay.
+- Confirmed **Classic (sqrt)** uses parameter **b** (not **c**) in formula definition and displayed equation detail.
+- Added grouped, non-selectable bold headers in the formula picker: **Hopalong attractors** (above Classic (sqrt)) and **Other attractors** (above Pickover Clifford).
+- Refined top-right controls so the eye icon sits left of Auto Scale, with Help and Settings shifted left, and moved the PR badge to sit just left of the leftmost top-right control.
