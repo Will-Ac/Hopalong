@@ -407,3 +407,8 @@ Before opening or merging a PR:
 ## PR35.1 notes
 
 - Tightened **Gingerbreadman** parameter `c` range to a very narrow band around `1` (`0.999999999` to `1.000000001`) while keeping its default at `1`.
+
+
+## PR35.2 notes
+
+- In random mode, the quick slider now stays live-synced to the currently displayed parameter or iterations value whenever randomization updates that same active slider item.

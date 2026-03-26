@@ -3318,6 +3318,8 @@ function randomizeAllParameters() {
   clearSharedParamsOverride();
   const randomIterationCap = getRandomIterationCap();
   const preservedFixedSliderValues = {};
+  const activeSliderKey = uiState.activeSliderKey;
+  let activeSliderValueChanged = false;
 
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
     if (sliderKey === "burn") {
@@ -3352,14 +3354,27 @@ function randomizeAllParameters() {
     }
 
     if (sliderKey === "iters") {
-      appData.defaults.sliders[sliderKey] = randomInt(control.min, randomIterationCap);
+      const nextIterations = randomInt(control.min, randomIterationCap);
+      activeSliderValueChanged = activeSliderValueChanged
+        || (activeSliderKey === sliderKey && appData.defaults.sliders[sliderKey] !== nextIterations);
+      appData.defaults.sliders[sliderKey] = nextIterations;
       continue;
     }
-    appData.defaults.sliders[sliderKey] = Number((Math.random() * (control.max - control.min) + control.min).toFixed(4));
+    const nextSliderValue = Number((Math.random() * (control.max - control.min) + control.min).toFixed(4));
+    activeSliderValueChanged = activeSliderValueChanged
+      || (activeSliderKey === sliderKey && appData.defaults.sliders[sliderKey] !== nextSliderValue);
+    appData.defaults.sliders[sliderKey] = nextSliderValue;
   }
 
   for (const [sliderKey, preservedValue] of Object.entries(preservedFixedSliderValues)) {
+    if (activeSliderKey === sliderKey && appData.defaults.sliders[sliderKey] !== preservedValue) {
+      activeSliderValueChanged = true;
+    }
     appData.defaults.sliders[sliderKey] = preservedValue;
+  }
+
+  if (activeSliderValueChanged && activeSliderKey) {
+    syncQuickSliderPosition();
   }
 
   appData.defaults.scaleMode = "auto";
