@@ -61,10 +61,14 @@ const holdAccelStartMsRangeEl = document.getElementById("holdAccelStartMsRange")
 const holdAccelStartMsValueEl = document.getElementById("holdAccelStartMsValue");
 const holdAccelEndMsRangeEl = document.getElementById("holdAccelEndMsRange");
 const holdAccelEndMsValueEl = document.getElementById("holdAccelEndMsValue");
+const touchPanDeadbandRangeEl = document.getElementById("touchPanDeadbandRange");
+const touchPanDeadbandValueEl = document.getElementById("touchPanDeadbandValue");
 const touchZoomDeadbandRangeEl = document.getElementById("touchZoomDeadbandRange");
 const touchZoomDeadbandValueEl = document.getElementById("touchZoomDeadbandValue");
 const touchZoomRatioMinRangeEl = document.getElementById("touchZoomRatioMinRange");
 const touchZoomRatioMinValueEl = document.getElementById("touchZoomRatioMinValue");
+const panZoomSettleMsRangeEl = document.getElementById("panZoomSettleMsRange");
+const panZoomSettleMsValueEl = document.getElementById("panZoomSettleMsValue");
 const rotationThresholdRangeEl = document.getElementById("rotationThresholdRange");
 const rotationThresholdValueEl = document.getElementById("rotationThresholdValue");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
@@ -210,7 +214,7 @@ const INTEREST_OVERLAY_OPACITY_DEFAULT = 0.2;
 const INTEREST_HIGH_THRESHOLD_MIN = 0.05;
 const INTEREST_HIGH_THRESHOLD_MAX = 0.5;
 const INTEREST_HIGH_THRESHOLD_DEFAULT = 0.1;
-const PAN_ZOOM_SETTLE_MS = 200;
+const PAN_ZOOM_SETTLE_MS_DEFAULT = 200;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MIN = -1;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MAX = 1;
 const INTEREST_LYAPUNOV_DELTA0_MIN = 1e-7;
@@ -588,13 +592,17 @@ const INTERACTION_STATE = {
   PAN_MOUSE_RMB: "pan_mouse_rmb",
 };
 const DPR = window.devicePixelRatio || 1;
-const PAN_DEADBAND_PX = 1.5 * DPR;
+const TOUCH_PAN_DEADBAND_PX_DEFAULT = 1.5;
+const TOUCH_PAN_DEADBAND_PX_MIN = 0;
+const TOUCH_PAN_DEADBAND_PX_MAX = 40;
 const TOUCH_ZOOM_DEADBAND_PX_DEFAULT = 2.5;
 const TOUCH_ZOOM_DEADBAND_PX_MIN = 0;
 const TOUCH_ZOOM_DEADBAND_PX_MAX = 40;
 const TOUCH_ZOOM_RATIO_MIN_DEFAULT = 0.01;
 const TOUCH_ZOOM_RATIO_MIN_MIN = 0;
 const TOUCH_ZOOM_RATIO_MIN_MAX = 0.12;
+const PAN_ZOOM_SETTLE_MS_MIN = 0;
+const PAN_ZOOM_SETTLE_MS_MAX = 1000;
 const ROTATION_ACTIVATION_THRESHOLD_DEGREES_DEFAULT = 15;
 const ROTATION_ACTIVATION_THRESHOLD_DEGREES_MIN = 0;
 const ROTATION_ACTIVATION_THRESHOLD_DEGREES_MAX = 30;
@@ -1927,8 +1935,10 @@ function syncDetailedSettingsControls() {
   if (detailInterestHighThresholdFormattedEl) detailInterestHighThresholdFormattedEl.textContent = formatNumberForUi(interestHighThreshold, 2);
   interestOverlay.syncToggleUi();
   const holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 50), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+  const touchPanDeadbandPx = getTouchPanDeadbandPx();
   const touchZoomDeadbandPx = getTouchZoomDeadbandPx();
   const touchZoomRatioMin = getTouchZoomRatioMin();
+  const panZoomSettleMs = getPanZoomSettleMs();
   const rotationThresholdDegrees = getRotationActivationThresholdDegrees();
   const { holdRepeatMs, holdAccelStartMs, holdAccelEndMs } = getHoldTimingSettings();
   if (holdSpeedRangeEl) holdSpeedRangeEl.value = String(holdSpeedScale);
@@ -1939,10 +1949,14 @@ function syncDetailedSettingsControls() {
   if (holdAccelStartMsValueEl) holdAccelStartMsValueEl.textContent = `Accel start: ${holdAccelStartMs} ms`;
   if (holdAccelEndMsRangeEl) holdAccelEndMsRangeEl.value = String(holdAccelEndMs);
   if (holdAccelEndMsValueEl) holdAccelEndMsValueEl.textContent = `Accel end: ${holdAccelEndMs} ms`;
+  if (touchPanDeadbandRangeEl) touchPanDeadbandRangeEl.value = String(touchPanDeadbandPx);
+  if (touchPanDeadbandValueEl) touchPanDeadbandValueEl.textContent = `Touch pan deadband: ${touchPanDeadbandPx.toFixed(1)} px`;
   if (touchZoomDeadbandRangeEl) touchZoomDeadbandRangeEl.value = String(touchZoomDeadbandPx);
   if (touchZoomDeadbandValueEl) touchZoomDeadbandValueEl.textContent = `Touch zoom deadband: ${touchZoomDeadbandPx.toFixed(1)} px`;
   if (touchZoomRatioMinRangeEl) touchZoomRatioMinRangeEl.value = String(touchZoomRatioMin);
   if (touchZoomRatioMinValueEl) touchZoomRatioMinValueEl.textContent = `Touch zoom ratio min: ${touchZoomRatioMin.toFixed(3)}`;
+  if (panZoomSettleMsRangeEl) panZoomSettleMsRangeEl.value = String(panZoomSettleMs);
+  if (panZoomSettleMsValueEl) panZoomSettleMsValueEl.textContent = `Pan/zoom settle delay: ${panZoomSettleMs} ms`;
   if (rotationThresholdRangeEl) rotationThresholdRangeEl.value = String(rotationThresholdDegrees);
   if (rotationThresholdValueEl) rotationThresholdValueEl.textContent = `Rotation threshold: ${rotationThresholdDegrees.toFixed(0)}°`;
   if (detailColorModeSelectEl) detailColorModeSelectEl.value = appData.defaults.renderColorMode;
@@ -1972,10 +1986,14 @@ function applyTouchZoomTuningSetting(key, nextValue) {
     return;
   }
 
-  if (key === "touchZoomDeadbandPx") {
+  if (key === "touchPanDeadbandPx") {
+    appData.defaults.touchPanDeadbandPx = clamp(Number(nextValue), TOUCH_PAN_DEADBAND_PX_MIN, TOUCH_PAN_DEADBAND_PX_MAX);
+  } else if (key === "touchZoomDeadbandPx") {
     appData.defaults.touchZoomDeadbandPx = clamp(Number(nextValue), TOUCH_ZOOM_DEADBAND_PX_MIN, TOUCH_ZOOM_DEADBAND_PX_MAX);
   } else if (key === "touchZoomRatioMin") {
     appData.defaults.touchZoomRatioMin = clamp(Number(nextValue), TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
+  } else if (key === "panZoomSettleMs") {
+    appData.defaults.panZoomSettleMs = Math.round(clamp(Number(nextValue), PAN_ZOOM_SETTLE_MS_MIN, PAN_ZOOM_SETTLE_MS_MAX));
   } else if (key === "rotationActivationThresholdDegrees") {
     appData.defaults.rotationActivationThresholdDegrees = clamp(
       Number(nextValue),
@@ -3754,6 +3772,14 @@ function resetPanZoomInteractionStateForModulation() {
   clearPanZoomInteractionCache();
 }
 
+function getTouchPanDeadbandPx() {
+  return clamp(Number(appData?.defaults?.touchPanDeadbandPx ?? TOUCH_PAN_DEADBAND_PX_DEFAULT), TOUCH_PAN_DEADBAND_PX_MIN, TOUCH_PAN_DEADBAND_PX_MAX);
+}
+
+function getTouchPanDeadbandThreshold() {
+  return getTouchPanDeadbandPx() * DPR;
+}
+
 function getTouchZoomDeadbandPx() {
   return clamp(Number(appData?.defaults?.touchZoomDeadbandPx ?? TOUCH_ZOOM_DEADBAND_PX_DEFAULT), TOUCH_ZOOM_DEADBAND_PX_MIN, TOUCH_ZOOM_DEADBAND_PX_MAX);
 }
@@ -3764,6 +3790,10 @@ function getTouchZoomDeadbandThreshold() {
 
 function getTouchZoomRatioMin() {
   return clamp(Number(appData?.defaults?.touchZoomRatioMin ?? TOUCH_ZOOM_RATIO_MIN_DEFAULT), TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
+}
+
+function getPanZoomSettleMs() {
+  return Math.round(clamp(Number(appData?.defaults?.panZoomSettleMs ?? PAN_ZOOM_SETTLE_MS_DEFAULT), PAN_ZOOM_SETTLE_MS_MIN, PAN_ZOOM_SETTLE_MS_MAX));
 }
 
 function getRotationActivationThresholdDegrees() {
@@ -3811,7 +3841,7 @@ function schedulePanZoomSettledRedraw() {
     renderState.panZoomSettleTimer = null;
     renderState.panZoomInteractionActive = false;
     requestDraw();
-  }, PAN_ZOOM_SETTLE_MS);
+  }, getPanZoomSettleMs());
 }
 
 function onCanvasPointerDown(event) {
@@ -3962,7 +3992,7 @@ function onCanvasPointerMove(event) {
   const zoomRatioDelta = Math.abs(ratioStep - 1);
   const touchZoomDeadbandThreshold = getTouchZoomDeadbandThreshold();
   const touchZoomRatioMin = getTouchZoomRatioMin();
-  const shouldPan = panMagnitude > PAN_DEADBAND_PX;
+  const shouldPan = panMagnitude > getTouchPanDeadbandThreshold();
   const shouldZoom = Math.abs(dd) > touchZoomDeadbandThreshold || zoomRatioDelta > touchZoomRatioMin;
   const deltaAngle = normalizeRotationAngle(angle - overlayState.twoFingerGesture.lastAngle);
   const netRotation = normalizeRotationAngle(angle - overlayState.twoFingerGesture.startAngle);
@@ -6276,8 +6306,10 @@ function registerHandlers() {
   holdRepeatMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdRepeatMs", holdRepeatMsRangeEl.value));
   holdAccelStartMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdAccelStartMs", holdAccelStartMsRangeEl.value));
   holdAccelEndMsRangeEl?.addEventListener("input", () => applyHoldTimingSetting("holdAccelEndMs", holdAccelEndMsRangeEl.value));
+  touchPanDeadbandRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("touchPanDeadbandPx", touchPanDeadbandRangeEl.value));
   touchZoomDeadbandRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("touchZoomDeadbandPx", touchZoomDeadbandRangeEl.value));
   touchZoomRatioMinRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("touchZoomRatioMin", touchZoomRatioMinRangeEl.value));
+  panZoomSettleMsRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("panZoomSettleMs", panZoomSettleMsRangeEl.value));
   rotationThresholdRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("rotationActivationThresholdDegrees", rotationThresholdRangeEl.value));
   factoryResetBtnEl?.addEventListener("click", runFactoryReset);
 
@@ -6531,6 +6563,9 @@ function loadData() {
   if (typeof data.defaults.holdAccelEndMs !== "number") {
     data.defaults.holdAccelEndMs = HOLD_ACCEL_END_MS_DEFAULT;
   }
+  if (typeof data.defaults.touchPanDeadbandPx !== "number") {
+    data.defaults.touchPanDeadbandPx = TOUCH_PAN_DEADBAND_PX_DEFAULT;
+  }
   if (typeof data.defaults.touchZoomDeadbandPx !== "number") {
     data.defaults.touchZoomDeadbandPx = TOUCH_ZOOM_DEADBAND_PX_DEFAULT;
   }
@@ -6538,6 +6573,9 @@ function loadData() {
     data.defaults.touchZoomRatioMin = typeof data.defaults.touchZoomSensitivityThreshold === "number"
       ? data.defaults.touchZoomSensitivityThreshold
       : TOUCH_ZOOM_RATIO_MIN_DEFAULT;
+  }
+  if (typeof data.defaults.panZoomSettleMs !== "number") {
+    data.defaults.panZoomSettleMs = PAN_ZOOM_SETTLE_MS_DEFAULT;
   }
   if (typeof data.defaults.rotationActivationThresholdDegrees !== "number") {
     data.defaults.rotationActivationThresholdDegrees = ROTATION_ACTIVATION_THRESHOLD_DEGREES_DEFAULT;
@@ -6560,8 +6598,10 @@ function loadData() {
   data.defaults.holdRepeatMs = Math.round(clamp(data.defaults.holdRepeatMs, HOLD_REPEAT_MS_MIN, HOLD_REPEAT_MS_MAX));
   data.defaults.holdAccelStartMs = Math.round(clamp(data.defaults.holdAccelStartMs, HOLD_ACCEL_START_MS_MIN, HOLD_ACCEL_START_MS_MAX));
   data.defaults.holdAccelEndMs = Math.round(clamp(data.defaults.holdAccelEndMs, HOLD_ACCEL_END_MS_MIN, HOLD_ACCEL_END_MS_MAX));
+  data.defaults.touchPanDeadbandPx = clamp(data.defaults.touchPanDeadbandPx, TOUCH_PAN_DEADBAND_PX_MIN, TOUCH_PAN_DEADBAND_PX_MAX);
   data.defaults.touchZoomDeadbandPx = clamp(data.defaults.touchZoomDeadbandPx, TOUCH_ZOOM_DEADBAND_PX_MIN, TOUCH_ZOOM_DEADBAND_PX_MAX);
   data.defaults.touchZoomRatioMin = clamp(data.defaults.touchZoomRatioMin, TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
+  data.defaults.panZoomSettleMs = Math.round(clamp(data.defaults.panZoomSettleMs, PAN_ZOOM_SETTLE_MS_MIN, PAN_ZOOM_SETTLE_MS_MAX));
   data.defaults.rotationActivationThresholdDegrees = clamp(
     data.defaults.rotationActivationThresholdDegrees,
     ROTATION_ACTIVATION_THRESHOLD_DEGREES_MIN,
@@ -6623,8 +6663,10 @@ function bootstrap() {
     appData.defaults.interestHighThreshold = normalizeInterestHighThreshold(appData.defaults.interestHighThreshold ?? INTEREST_HIGH_THRESHOLD_DEFAULT);
     normalizeIterationSettings();
     appData.defaults.holdSpeedScale = clamp(Number(appData.defaults.holdSpeedScale ?? 50), HOLD_SPEED_SCALE_MIN, HOLD_SPEED_SCALE_MAX);
+    appData.defaults.touchPanDeadbandPx = clamp(Number(appData.defaults.touchPanDeadbandPx ?? TOUCH_PAN_DEADBAND_PX_DEFAULT), TOUCH_PAN_DEADBAND_PX_MIN, TOUCH_PAN_DEADBAND_PX_MAX);
     appData.defaults.touchZoomDeadbandPx = clamp(Number(appData.defaults.touchZoomDeadbandPx ?? TOUCH_ZOOM_DEADBAND_PX_DEFAULT), TOUCH_ZOOM_DEADBAND_PX_MIN, TOUCH_ZOOM_DEADBAND_PX_MAX);
     appData.defaults.touchZoomRatioMin = clamp(Number(appData.defaults.touchZoomRatioMin ?? TOUCH_ZOOM_RATIO_MIN_DEFAULT), TOUCH_ZOOM_RATIO_MIN_MIN, TOUCH_ZOOM_RATIO_MIN_MAX);
+    appData.defaults.panZoomSettleMs = Math.round(clamp(Number(appData.defaults.panZoomSettleMs ?? PAN_ZOOM_SETTLE_MS_DEFAULT), PAN_ZOOM_SETTLE_MS_MIN, PAN_ZOOM_SETTLE_MS_MAX));
     appData.defaults.rotationActivationThresholdDegrees = clamp(
       Number(appData.defaults.rotationActivationThresholdDegrees ?? ROTATION_ACTIVATION_THRESHOLD_DEGREES_DEFAULT),
       ROTATION_ACTIVATION_THRESHOLD_DEGREES_MIN,

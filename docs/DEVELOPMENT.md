@@ -376,3 +376,10 @@ Before opening or merging a PR:
 
 - Classic (sqrt) now uses parameter `c` instead of `d` in both computation and displayed equation text.
 - Formula picker group headers were made visually heavier to improve heading clarity versus formula rows.
+
+
+## PR34.3 notes
+
+- Added developer-settings touch pan/zoom tuning controls for **Touch pan deadband (px)** and **Pan/zoom settle delay (ms)**.
+- Grouped these with existing touch zoom tuning controls (**Touch zoom deadband (px)** and **Touch zoom ratio min**).
+- Touch pan/zoom gesture thresholds and settle redraw delay now read from persisted defaults/settings instead of hardcoded-only values.
