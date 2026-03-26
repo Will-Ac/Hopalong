@@ -370,3 +370,9 @@ Before opening or merging a PR:
 - Confirmed **Classic (sqrt)** uses parameter **b** (not **c**) in formula definition and displayed equation detail.
 - Added grouped, non-selectable bold headers in the formula picker: **Hopalong attractors** (above Classic (sqrt)) and **Other attractors** (above Pickover Clifford).
 - Refined top-right controls so the eye icon sits left of Auto Scale, with Help and Settings shifted left, and moved the PR badge to sit just left of the leftmost top-right control.
+
+
+## PR34.2 notes
+
+- Classic (sqrt) now uses parameter `c` instead of `d` in both computation and displayed equation text.
+- Formula picker group headers were made visually heavier to improve heading clarity versus formula rows.
