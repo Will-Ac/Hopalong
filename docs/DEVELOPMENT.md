@@ -360,3 +360,45 @@ Before opening or merging a PR:
 4. Open DevTools and confirm the console stays clear during startup and your quick smoke test.
 5. Verify the on-screen version badge matches the PR build you expect.
 6. If the browser appears to serve old files, reload with a cache-busting query string such as `?v=XYZ`.
+
+
+## PR34 notes
+
+- Updated user-facing `iter` wording to `iterations` in the quick slider label path and bottom parameter tile.
+- Moved **Factory reset** from full/developer settings visibility into the user settings view.
+- Hidden developer settings access remains a tap-and-hold on the gear button, with a 5-second hold delay.
+- Confirmed **Classic (sqrt)** uses parameter **b** (not **c**) in formula definition and displayed equation detail.
+- Added grouped, non-selectable bold headers in the formula picker: **Hopalong attractors** (above Classic (sqrt)) and **Other attractors** (above Pickover Clifford).
+- Refined top-right controls so the eye icon sits left of Auto Scale, with Help and Settings shifted left, and moved the PR badge to sit just left of the leftmost top-right control.
+
+
+## PR34.2 notes
+
+- Classic (sqrt) now uses parameter `c` instead of `d` in both computation and displayed equation text.
+- Formula picker group headers were made visually heavier to improve heading clarity versus formula rows.
+
+
+## PR34.3 notes
+
+- Added developer-settings touch pan/zoom tuning controls for **Touch pan deadband (px)** and **Pan/zoom settle delay (ms)**.
+- Grouped these with existing touch zoom tuning controls (**Touch zoom deadband (px)** and **Touch zoom ratio min**).
+- Touch pan/zoom gesture thresholds and settle redraw delay now read from persisted defaults/settings instead of hardcoded-only values.
+
+
+## PR34.4 notes
+
+- Hidden developer settings now open after a 3-second hold on the settings button.
+- When developer/full settings are open, tapping outside no longer closes the panel; it closes when pressing the settings button again.
+- Developer pan/zoom tuning ranges were tightened: pan deadband max `10`, zoom deadband max `10`, zoom ratio min max `0.01`, settle delay max `1000`.
+
+
+## PR34.5 notes
+
+- Updated default **Touch pan deadband** to `0.5 px`.
+- Updated **Touch zoom ratio min** maximum range to `0.03`.
+
+
+## PR34.6 notes
+
+- The default first-open experience now starts from a curated **Classic (sqrt)** state (formula, colour map, parameters, iterations, and shared-view/rotation).
+- Classic (sqrt) built-in defaults were updated to the curated values so startup defaults and formula defaults stay aligned.

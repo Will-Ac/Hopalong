@@ -1,8 +1,9 @@
 {
-  "cmapName": "Turbo",
+  "cmapName": "Sand → Coral → Rose",
+  "formulaId": "classic_sqrt",
   "scaleMode": "auto",
   "sliders": {
-    "iters": 500000.0,
+    "iters": 754901.0,
     "burn": 120.0
   },
   "notes": [
@@ -13,7 +14,7 @@
   "debug": false,
   "debugText": true,
   "iterationAbsoluteMax": 100000000,
-  "iterationStartupDefault": 500000,
+  "iterationStartupDefault": 754901,
   "maxRandomIters": 1000000,
   "historyCacheSize": 6,
   "renderColorMode": "iteration_order",
@@ -27,8 +28,10 @@
   "holdRepeatMs": 300,
   "holdAccelStartMs": 5000,
   "holdAccelEndMs": 8000,
+  "touchPanDeadbandPx": 0.5,
   "touchZoomDeadbandPx": 2.5,
   "touchZoomRatioMin": 0.01,
+  "panZoomSettleMs": 200,
   "rotationActivationThresholdDegrees": 15,
   "interestOverlayEnabled": false,
   "interestGridSize": 256,

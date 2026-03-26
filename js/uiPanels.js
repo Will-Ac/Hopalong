@@ -20,6 +20,7 @@ export function initUIPanels({
   buildColorMapGradient,
   renderColorStopsEditor,
   saveDefaultsToStorage,
+  getSettingsPanelMode,
 }) {
   let activeColourPanelSettings = "mode";
 
@@ -185,7 +186,9 @@ export function initUIPanels({
     if (isPanelOpen(formulaSettingsPanelEl) && !target.closest("#formulaSettingsPanel, #pickerOverlay")) {
       closeFormulaSettingsPanel();
     }
-    if (isPanelOpen(rangesEditorPanelEl) && !target.closest("#rangesEditorPanel, #rangesEditorToggle, #settingsInfoPopup")) {
+    if (isPanelOpen(rangesEditorPanelEl)
+      && !target.closest("#rangesEditorPanel, #rangesEditorToggle, #settingsInfoPopup")
+      && (getSettingsPanelMode?.() || "simple") !== "full") {
       closeRangesEditor();
     }
   }
