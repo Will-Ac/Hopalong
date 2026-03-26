@@ -525,14 +525,19 @@ const HELP_PLACEMENT_POLICY = {
     constraints: { preserveSideOfCenter: "right" },
     preferredPlacement: {
       primitive: "viewportBand",
-      alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
-      band: { sourceType: "groupOrViewportRatio", sourceGroup: "topbar", position: "alignTop", ratio: 0.5, offset: 0 },
+      alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -12 },
+      band: { sourceType: "viewport", position: "middle", offset: -20 },
     },
     fallbackPlacements: [
       {
         primitive: "viewportBand",
-        alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -18 },
-        band: { sourceType: "viewport", position: "middle", y: 190, offset: 0 },
+        alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -12 },
+        band: { sourceType: "viewport", position: "middle", offset: 26 },
+      },
+      {
+        primitive: "viewportBand",
+        alignment: { sourceType: "viewport", sourceEdge: "right", selfEdge: "right", offset: -12 },
+        band: { sourceType: "viewport", position: "middle", offset: -64 },
       },
     ],
   },
@@ -1287,7 +1292,7 @@ function resolveAxisLock(layout, ctx) {
   return sourceValue - getSelfEdgeOffset(layout, lock.lockToEdge || "left") + (lock.lockOffset || 0);
 }
 
-function resolveRelationAxis(layout, relationAxis = {}, sourceRect, ctx) {
+function resolveRelationAxis(layout, relationAxis = {}, sourceRect) {
   if (!sourceRect) return null;
   const sourceEdge = relationAxis.sourceEdge || "left";
   const selfEdge = relationAxis.selfEdge || "left";
@@ -1297,7 +1302,7 @@ function resolveRelationAxis(layout, relationAxis = {}, sourceRect, ctx) {
 }
 
 function buildCandidate(layout, placement, ctx) {
-  const { rects, placed, anchors, viewportWidth, margin } = ctx;
+  const { rects, placed, anchors, viewportWidth } = ctx;
   const targetRect = placement.targetKey ? rects.get(placement.targetKey) : null;
   const groupRect = placement.groupId ? placed.get(placement.groupId) : null;
   const centerX = anchors.get(placement.centerAnchorKey || "viewportCenter")?.x ?? (viewportWidth / 2);
@@ -1365,6 +1370,11 @@ function getStrictX(layout, ctx) {
   return resolveAxisLock(layout, ctx);
 }
 
+function getGlobalLeftBoundary(ctx) {
+  const leftBottomTileX = ctx.anchors.get("leftBottomTile")?.x;
+  return Number.isFinite(leftBottomTileX) ? leftBottomTileX : ctx.margin;
+}
+
 function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
   const { forbiddenRegions, viewportWidth, margin, uiTop, placedRects } = ctx;
   const rect = {
@@ -1375,7 +1385,8 @@ function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
   };
 
   const strictX = getStrictX(layout, ctx);
-  const minX = Number.isFinite(strictX) ? 0 : margin;
+  const globalLeftBoundary = getGlobalLeftBoundary(ctx);
+  const minX = Number.isFinite(strictX) ? globalLeftBoundary : Math.max(margin, globalLeftBoundary);
   const maxX = Number.isFinite(strictX) ? viewportWidth : viewportWidth - margin;
   if (rect.left < minX || rect.right > maxX || rect.top < margin || rect.bottom > uiTop - margin) {
     return { valid: false, score: Number.POSITIVE_INFINITY };
@@ -1414,7 +1425,8 @@ function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
 function findFirstFreeSpot(layout, ctx, placedRects, lockX = null) {
   const step = 10;
   const maxY = Math.max(ctx.margin, ctx.uiTop - layout.height - ctx.margin);
-  const xStart = Number.isFinite(lockX) ? lockX : ctx.margin;
+  const globalLeftBoundary = getGlobalLeftBoundary(ctx);
+  const xStart = Number.isFinite(lockX) ? Math.max(lockX, globalLeftBoundary) : Math.max(ctx.margin, globalLeftBoundary);
   const xEnd = Number.isFinite(lockX) ? lockX : (ctx.viewportWidth - layout.width - ctx.margin);
 
   for (let y = ctx.margin; y <= maxY; y += step) {

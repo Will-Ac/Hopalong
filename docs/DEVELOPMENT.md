@@ -161,6 +161,69 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 
 - Canvas help preferred placement now uses a true centered policy target, with nearest-to-center fallback offsets when overlap prevents exact center placement.
 
+## Mobile guided help and rotation fixes (PR33.1)
+
+- `?` help mode selection now uses device-type detection:
+  - phones (`iPhone`, or `Android` with `Mobile` in user-agent) open the guided tour
+  - tablets/desktops keep the full help overlay behaviour
+- Guided help placement was refined with policy updates:
+  - `tour-step` prefers right-side near vertical middle, with lower/right-side fallbacks
+  - step 3 (`params`) and step 5 (`tile-border-legend`) placement overrides now prefer low positions near the quick slider, with normal policy fallback
+  - placement now enforces a left boundary so help labels do not render left of the leftmost bottom tile anchor
+- Settings panel placement was tightened so the main settings panel (`#rangesEditorPanel`) always opens below the top button bar instead of bottom-docked mobile placement.
+- Default `touchZoomRatioMin` is now `0.01` (including bundled defaults and runtime fallback default).
+- Desktop rotated modulation mapping was fixed by keeping mouse left-drag modulation screen-aligned after Shift-drag rotation, while preserving the existing touch modulation mapping path unchanged.
+
+## Large-screen full-help placement refinements (PR33.2)
+
+- Large-screen full-help policy placement was refined for:
+  - tap group (`tap left`, `tap right`, and center dashed divider context)
+  - canvas help
+  - slider help
+  - params help
+- The centered tap group now takes priority in full-help large-screen mode so left/right guidance remains centered around the screen centreline.
+- Canvas help now prefers a centered-above position so it stays above the tap group instead of competing for the same central zone.
+- Slider and params help now prefer placement just above the quick slider area in full-help large-screen mode.
+
+## Branding and lower help pair refinement (PR33.3)
+
+- User-facing onboarding branding now reads **Attractor Lab** (with a space).
+- In large-screen full-help mode, slider and params preferred placement was refined as a lower left/right pair near the quick slider:
+  - slider help prefers lower-left of center
+  - params help prefers lower-right of center
+- Both still use the existing policy system and fallback/overlap handling.
+
+## Rotation layer alignment fix (PR33.5)
+
+- Rotation interaction now keeps the rendered pattern layer and XY/grid/debug overlays aligned during live interaction by using one consistent rotation-aware view transform basis for both cached-frame draw and overlay metadata.
+- Committed redraw now keeps crop/view metadata consistent with the live rotation-aware path, avoiding post-gesture jump/re-alignment between pattern and overlay layers.
+
+## Rotation pivot and Auto Scale icon update (PR33.6)
+
+- Touch two-finger rotation now pivots around the midpoint between the two active touch points.
+- Desktop Shift-drag rotation now pivots around the screen center.
+- The shared rotation-aware alignment path between pattern and XY/grid/debug overlays from PR33.5 is preserved.
+- Auto Scale now uses a fit-to-screen icon (four outward diagonal arrows) in the top button bar, and the matching small icon shown in help content updates automatically from that same button SVG.
+
+## Slider live sync and panel stability (PR33.7)
+
+- During manual screen modulation, if the currently open quick slider matches a modulated parameter, the quick slider thumb and displayed numeric value now update live.
+- Quick slider `+` and `−` step buttons were enlarged by ~50% for easier interaction.
+- Quick slider panel positioning now stays anchored to its CSS bottom position (no runtime bottom-offset shifting).
+
+## Touch modulation + rotation-threshold refinement (PR33.8)
+
+- Touch manual modulation deltas are now kept screen-aligned even after view rotation, so finger drag direction maps directly to crosshair movement direction on screen.
+- Touch two-finger rotation activation now uses net angle change from gesture start (`startAngle`) instead of accumulated per-frame absolute jitter, reducing accidental rotation activation during pan/zoom.
+
+## Factory reset and UI refinements (PR33.9)
+
+- Added a **Factory reset** button at the bottom of the full/developer settings panel.
+- Factory reset clears app-owned persisted local state (namespaced `hopalong.*` keys, including defaults, parameter modes, and onboarding/help suppression flags) and then reloads the app to start clean.
+- Rotation threshold default is now `15°`.
+- Quick slider `+ / −` buttons were reduced to 80% of their previous PR33.7 size, and top spacing in the slider box above controls was tightened.
+- On mobile-sized layouts, formula and colour-map tile text now truncates with ellipsis to avoid edge overlap.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
