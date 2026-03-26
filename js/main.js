@@ -591,6 +591,7 @@ const INTERACTION_STATE = {
   TWO_ACTIVE: "two_active",
   PAN_MOUSE_RMB: "pan_mouse_rmb",
 };
+const CURATED_OPENING_SHARED_VIEW = [3.2801224354724923, 6.1748775645274705, 256.0595656764636, 1.6912181303116147, -0.10368976712055133];
 const DPR = window.devicePixelRatio || 1;
 const TOUCH_PAN_DEADBAND_PX_DEFAULT = 0.5;
 const TOUCH_PAN_DEADBAND_PX_MIN = 0;
@@ -6698,6 +6699,8 @@ function bootstrap() {
     if (!hasExternalState) {
       applyFormulaDefaults(currentFormulaId);
       normalizeSliderDefaults();
+      appData.defaults.scaleMode = "fixed";
+      renderState.pendingSharedWorldView = [...CURATED_OPENING_SHARED_VIEW];
     }
     const loadedSharedState = applySharedStateFromUrl();
     if (loadedSharedState && historyStateRef.sharedParamsFormulaId === currentFormulaId && historyStateRef.sharedParamsOverride) {

@@ -396,3 +396,9 @@ Before opening or merging a PR:
 
 - Updated default **Touch pan deadband** to `0.5 px`.
 - Updated **Touch zoom ratio min** maximum range to `0.03`.
+
+
+## PR34.6 notes
+
+- The default first-open experience now starts from a curated **Classic (sqrt)** state (formula, colour map, parameters, iterations, and shared-view/rotation).
+- Classic (sqrt) built-in defaults were updated to the curated values so startup defaults and formula defaults stay aligned.

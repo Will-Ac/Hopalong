@@ -28,7 +28,7 @@ export const FORMULA_DEFS = [
       c: [-10.0, 10.0],
       d: [-5.0, 5.0],
     },
-    defaults: { a: 1.0, b: 5.0, c: 0.0, d: 0.0 },
+    defaults: { a: 9.454999999999998, b: 1.7581399999999991, c: 7.1841599999999985, d: -1.2194099999999999 },
     seed: { x: 0.0, y: 0.0 },
     detailX: "x_next = y - sign(x) * sqrt(abs(b*x - c))",
     detailY: "y_next = a - x",

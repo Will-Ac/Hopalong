@@ -1,13 +1,14 @@
 // Bundled user defaults extracted from data/defaults.json
 export const DEFAULTS = {
-  "cmapName": "Turbo",
+  "cmapName": "Sand → Coral → Rose",
+  "formulaId": "classic_sqrt",
   "scaleMode": "auto",
   "sliders": {
     "a": 50.0,
     "b": 50.0,
     "c": 50.0,
     "d": 50.0,
-    "iters": 500000.0,
+    "iters": 754901.0,
     "burn": 120.0
   },
   "notes": [
@@ -18,7 +19,7 @@ export const DEFAULTS = {
   "debug": false,
   "debugText": false,
   "iterationAbsoluteMax": 100000000,
-  "iterationStartupDefault": 500000,
+  "iterationStartupDefault": 754901,
   "maxRandomIters": 1000000,
   "historyCacheSize": 6,
   "renderColorMode": "iteration_order",
