@@ -385,7 +385,7 @@ const LANDSCAPE_HINT_STORAGE_KEY = "hopalong.landscapeHintShown.v1";
 const PARAM_MOVE_CANCEL_PX = 10;
 const PARAM_SWIPE_TRIGGER_PX = 20;
 const DOUBLE_TAP_MS = 320;
-const SETTINGS_LONG_PRESS_MS = 5000;
+const SETTINGS_LONG_PRESS_MS = 3000;
 const PARAM_LONG_PRESS_MS = 550;
 const PARAM_MODES_STORAGE_KEY = "hopalong.paramModes.v1";
 const APP_DEFAULTS_STORAGE_KEY = "hopalong.defaults.v2";
@@ -594,13 +594,13 @@ const INTERACTION_STATE = {
 const DPR = window.devicePixelRatio || 1;
 const TOUCH_PAN_DEADBAND_PX_DEFAULT = 1.5;
 const TOUCH_PAN_DEADBAND_PX_MIN = 0;
-const TOUCH_PAN_DEADBAND_PX_MAX = 40;
+const TOUCH_PAN_DEADBAND_PX_MAX = 10;
 const TOUCH_ZOOM_DEADBAND_PX_DEFAULT = 2.5;
 const TOUCH_ZOOM_DEADBAND_PX_MIN = 0;
-const TOUCH_ZOOM_DEADBAND_PX_MAX = 40;
+const TOUCH_ZOOM_DEADBAND_PX_MAX = 10;
 const TOUCH_ZOOM_RATIO_MIN_DEFAULT = 0.01;
 const TOUCH_ZOOM_RATIO_MIN_MIN = 0;
-const TOUCH_ZOOM_RATIO_MIN_MAX = 0.12;
+const TOUCH_ZOOM_RATIO_MIN_MAX = 0.01;
 const PAN_ZOOM_SETTLE_MS_MIN = 0;
 const PAN_ZOOM_SETTLE_MS_MAX = 1000;
 const ROTATION_ACTIVATION_THRESHOLD_DEGREES_DEFAULT = 15;
@@ -4565,6 +4565,7 @@ function renderColorStopsEditor() {
   buildColorMapGradient,
   renderColorStopsEditor,
   saveDefaultsToStorage,
+  getSettingsPanelMode: () => uiState.settingsPanelMode,
 }));
 
 function openPicker(kind, triggerEl) {

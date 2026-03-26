@@ -383,3 +383,10 @@ Before opening or merging a PR:
 - Added developer-settings touch pan/zoom tuning controls for **Touch pan deadband (px)** and **Pan/zoom settle delay (ms)**.
 - Grouped these with existing touch zoom tuning controls (**Touch zoom deadband (px)** and **Touch zoom ratio min**).
 - Touch pan/zoom gesture thresholds and settle redraw delay now read from persisted defaults/settings instead of hardcoded-only values.
+
+
+## PR34.4 notes
+
+- Hidden developer settings now open after a 3-second hold on the settings button.
+- When developer/full settings are open, tapping outside no longer closes the panel; it closes when pressing the settings button again.
+- Developer pan/zoom tuning ranges were tightened: pan deadband max `10`, zoom deadband max `10`, zoom ratio min max `0.01`, settle delay max `1000`.
