@@ -402,3 +402,8 @@ Before opening or merging a PR:
 
 - The default first-open experience now starts from a curated **Classic (sqrt)** state (formula, colour map, parameters, iterations, and shared-view/rotation).
 - Classic (sqrt) built-in defaults were updated to the curated values so startup defaults and formula defaults stay aligned.
+
+
+## PR35.1 notes
+
+- Tightened **Gingerbreadman** parameter `c` range to a very narrow band around `1` (`0.999999999` to `1.000000001`) while keeping its default at `1`.
