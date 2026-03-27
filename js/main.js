@@ -5270,7 +5270,6 @@ exportState.exportManager = initExportManager({
   sliderControls,
   formatNumberForUi,
   showToast,
-  requestDraw,
   updateExportRenderProgressToast,
   buildShareUrl,
   overlayTextColor: OVERLAY_TEXT_COLOR,

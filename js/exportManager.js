@@ -16,7 +16,6 @@ export function initExportManager({
   sliderControls,
   formatNumberForUi,
   showToast,
-  requestDraw,
   updateExportRenderProgressToast,
   buildShareUrl,
   overlayTextColor,
@@ -217,7 +216,7 @@ export function initExportManager({
   }
 
   function getExportWorldFromLiveMeta(exportWidth, exportHeight) {
-    const sourceMeta = getLastFullRenderMeta() || getLastRenderMeta();
+    const sourceMeta = getLastRenderMeta() || getLastFullRenderMeta();
     if (!sourceMeta?.world || !sourceMeta?.view) {
       return null;
     }
@@ -226,23 +225,15 @@ export function initExportManager({
     const liveWorld = sourceMeta.world;
     const liveSpanX = Math.max(liveWorld.maxX - liveWorld.minX, 1e-6);
     const liveSpanY = Math.max(liveWorld.maxY - liveWorld.minY, 1e-6);
-    const sourceShortSpan = liveView.width <= liveView.height ? liveSpanX : liveSpanY;
-    const targetAspect = Math.max(1e-6, exportWidth / Math.max(1, exportHeight));
-
-    let exportSpanX;
-    let exportSpanY;
-    if (exportWidth >= exportHeight) {
-      exportSpanY = sourceShortSpan;
-      exportSpanX = exportSpanY * targetAspect;
-    } else {
-      exportSpanX = sourceShortSpan;
-      exportSpanY = exportSpanX / targetAspect;
-    }
+    const liveWidth = Math.max(1, Number(liveView.width) || 1);
+    const liveHeight = Math.max(1, Number(liveView.height) || 1);
+    const worldPerPxX = liveSpanX / Math.max(1, liveWidth - 1);
+    const worldPerPxY = liveSpanY / Math.max(1, liveHeight - 1);
+    const exportSpanX = worldPerPxX * Math.max(1, exportWidth - 1);
+    const exportSpanY = worldPerPxY * Math.max(1, exportHeight - 1);
 
     const centerX = Number.isFinite(liveWorld.centerX) ? liveWorld.centerX : (liveWorld.minX + liveWorld.maxX) * 0.5;
     const centerY = Number.isFinite(liveWorld.centerY) ? liveWorld.centerY : (liveWorld.minY + liveWorld.maxY) * 0.5;
-    const worldPerPxX = exportSpanX / Math.max(1, exportWidth - 1);
-    const worldPerPxY = exportSpanY / Math.max(1, exportHeight - 1);
 
     return {
       minX: centerX - exportSpanX * 0.5,
@@ -399,7 +390,6 @@ export function initExportManager({
       showToast(`Saved clean ${label} screenshot.`);
     } finally {
       highResExportInProgress = false;
-      requestDraw();
     }
   }
 
