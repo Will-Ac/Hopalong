@@ -208,12 +208,13 @@ const INTEREST_GRID_SIZE_MIN = 8;
 const INTEREST_GRID_SIZE_MAX = 256;
 const INTEREST_SCAN_ITERATIONS_MIN = 100;
 const INTEREST_SCAN_ITERATIONS_MAX = 5000;
+const INTEREST_SCAN_ITERATIONS_DEFAULT = 300;
 const INTEREST_OVERLAY_OPACITY_MIN = 0.05;
 const INTEREST_OVERLAY_OPACITY_MAX = 0.8;
-const INTEREST_OVERLAY_OPACITY_DEFAULT = 0.2;
+const INTEREST_OVERLAY_OPACITY_DEFAULT = 0.35;
 const INTEREST_HIGH_THRESHOLD_MIN = 0.05;
 const INTEREST_HIGH_THRESHOLD_MAX = 0.5;
-const INTEREST_HIGH_THRESHOLD_DEFAULT = 0.1;
+const INTEREST_HIGH_THRESHOLD_DEFAULT = 0.2;
 const PAN_ZOOM_SETTLE_MS_DEFAULT = 200;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MIN = -1;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MAX = 1;
@@ -6601,7 +6602,7 @@ function loadData() {
     data.defaults.interestGridSize = 256;
   }
   if (typeof data.defaults.interestScanIterations !== "number") {
-    data.defaults.interestScanIterations = 500;
+    data.defaults.interestScanIterations = INTEREST_SCAN_ITERATIONS_DEFAULT;
   }
   if (typeof data.defaults.interestLyapunovEnabled !== "boolean") {
     data.defaults.interestLyapunovEnabled = true;
@@ -6724,7 +6725,7 @@ function bootstrap() {
     appData.defaults.debugText = Boolean(appData.defaults.debugText ?? false);
     appData.defaults.interestOverlayOpacity = normalizeInterestOverlayOpacity(appData.defaults.interestOverlayOpacity ?? INTEREST_OVERLAY_OPACITY_DEFAULT);
     appData.defaults.interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize ?? 256);
-    appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? 500), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+    appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? INTEREST_SCAN_ITERATIONS_DEFAULT), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
     appData.defaults.interestLyapunovEnabled = appData.defaults.interestLyapunovEnabled !== false;
     appData.defaults.interestLyapunovMinExponent = clamp(Number(appData.defaults.interestLyapunovMinExponent ?? 0), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
     appData.defaults.interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0 ?? 1e-6), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);

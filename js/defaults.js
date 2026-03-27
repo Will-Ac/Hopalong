@@ -40,14 +40,14 @@ export const DEFAULTS = {
   "rotationActivationThresholdDegrees": 15,
   "interestOverlayEnabled": false,
   "interestGridSize": 256,
-  "interestScanIterations": 500,
+  "interestScanIterations": 300,
   "interestLyapunovEnabled": true,
   "interestLyapunovMinExponent": 0.0,
   "interestLyapunovDelta0": 1e-06,
   "interestLyapunovRescale": true,
   "interestLyapunovMaxDistance": 1000000,
-  "interestHighThreshold": 0.1,
-  "interestOverlayOpacity": 0.2
+  "interestHighThreshold": 0.2,
+  "interestOverlayOpacity": 0.35
 };
 
 

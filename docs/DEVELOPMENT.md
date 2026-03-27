@@ -230,6 +230,14 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Both horizontal and vertical mouse movement now contribute naturally to rotation during Shift-drag.
 - Desktop rotation remains pivoted around the screen centre, and the existing pattern/XY-grid rotation alignment path is unchanged.
 
+## Interest default tuning update (PR36.2)
+
+- Updated default interest/scanning settings:
+  - interest overlay opacity default is now `0.35`
+  - scan iterations per cell default is now `300`
+  - high interest threshold default is now `0.20`
+- This PR changes defaults only; interest scan/render logic remains unchanged.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
