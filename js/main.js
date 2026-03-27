@@ -611,7 +611,6 @@ const DEGREES_TO_RADIANS = Math.PI / 180;
 const SINGLE_TOUCH_MODULATION_START_DRAW_DELAY_MS = 24;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
-const DESKTOP_SHIFT_DRAG_ROTATION_SENSITIVITY = 0.005;
 
 const LEGACY_SLIDER_KEY_MAP = {
   alpha: "a",
@@ -652,6 +651,7 @@ const overlayState = {
   primaryPointerId: null,
   lastPointerPosition: null,
   isManualModulating: false,
+  desktopShiftRotateGesture: null,
   twoFingerGesture: null,
   lastTwoDebug: null,
   historyTapTracker: null,
@@ -3475,6 +3475,26 @@ function normalizeRotationAngle(angle) {
   return next;
 }
 
+function getAngleAroundScreenCenter(x, y) {
+  const centerX = canvas.width * 0.5;
+  const centerY = canvas.height * 0.5;
+  return Math.atan2(y - centerY, x - centerX);
+}
+
+function beginDesktopShiftRotateGesture(pos) {
+  if (!pos) {
+    return;
+  }
+  overlayState.desktopShiftRotateGesture = {
+    startAngle: getAngleAroundScreenCenter(pos.x, pos.y),
+    startRotation: normalizeRotationAngle(renderState.fixedView.rotation),
+  };
+}
+
+function clearDesktopShiftRotateGesture() {
+  overlayState.desktopShiftRotateGesture = null;
+}
+
 function syncFixedViewRotationCache() {
   const rotation = normalizeRotationAngle(renderState.fixedView?.rotation ?? 0);
   renderState.fixedView.rotation = rotation;
@@ -3922,6 +3942,7 @@ function onCanvasPointerDown(event) {
     overlayState.isManualModulating = false;
     const pos = getCanvasPointerPosition(event);
     overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
+    clearDesktopShiftRotateGesture();
     if (isDirectTouchPointer) {
       resetPanZoomInteractionStateForModulation();
       scheduleSingleTouchModulationStartDraw();
@@ -3960,14 +3981,22 @@ function onCanvasPointerMove(event) {
     const dxScreen = pos.x - overlayState.lastPointerPosition.x;
     const dyScreen = pos.y - overlayState.lastPointerPosition.y;
     if (event.pointerType === "mouse" && event.shiftKey) {
+      if (!overlayState.desktopShiftRotateGesture) {
+        beginDesktopShiftRotateGesture(pos);
+      }
       prepareFixedViewForPanZoom("manual pan/zoom");
       beginPanZoomInteraction();
-      rotateFixedViewAroundScreenPivot(dxScreen * DESKTOP_SHIFT_DRAG_ROTATION_SENSITIVITY, canvas.width * 0.5, canvas.height * 0.5);
+      const currentAngle = getAngleAroundScreenCenter(pos.x, pos.y);
+      const deltaAngle = normalizeRotationAngle(currentAngle - overlayState.desktopShiftRotateGesture.startAngle);
+      const targetRotation = normalizeRotationAngle(overlayState.desktopShiftRotateGesture.startRotation + deltaAngle);
+      const incrementalDelta = normalizeRotationAngle(targetRotation - renderState.fixedView.rotation);
+      rotateFixedViewAroundScreenPivot(incrementalDelta, canvas.width * 0.5, canvas.height * 0.5);
       persistCurrentHistoryViewState(renderState.fixedView);
       requestDraw();
       overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
       return;
     }
+    clearDesktopShiftRotateGesture();
     const modulationDelta = event.pointerType === "mouse"
       ? { x: dxScreen, y: dyScreen }
       : mapScreenDeltaToTouchModulationDelta(dxScreen, dyScreen);
@@ -4106,6 +4135,7 @@ function clearPointerState(pointerId) {
     overlayState.primaryPointerId = null;
     overlayState.lastPointerPosition = null;
     overlayState.isManualModulating = false;
+    clearDesktopShiftRotateGesture();
     clearTwoFingerGesture();
     if (endingPanZoomGesture) {
       schedulePanZoomSettledRedraw();
@@ -4121,6 +4151,7 @@ function clearPointerState(pointerId) {
     overlayState.primaryPointerId = null;
     overlayState.lastPointerPosition = null;
     overlayState.isManualModulating = false;
+    clearDesktopShiftRotateGesture();
     clearTwoFingerGesture();
     schedulePanZoomSettledRedraw();
     return;
@@ -4132,6 +4163,7 @@ function clearPointerState(pointerId) {
     overlayState.primaryPointerId = remaining.pointerId;
     overlayState.interactionState = INTERACTION_STATE.MOD_1;
     overlayState.isManualModulating = false;
+    clearDesktopShiftRotateGesture();
     const pos = getCanvasPointerPosition(remaining);
     overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
     requestDraw();

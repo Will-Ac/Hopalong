@@ -224,6 +224,12 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Quick slider `+ / −` buttons were reduced to 80% of their previous PR33.7 size, and top spacing in the slider box above controls was tightened.
 - On mobile-sized layouts, formula and colour-map tile text now truncates with ellipsis to avoid edge overlap.
 
+## Desktop Shift-drag rotation refinement (PR36.1)
+
+- Desktop **Shift + left drag** rotation now uses the pointer’s angular movement around the screen centre instead of horizontal-delta-only mapping.
+- Both horizontal and vertical mouse movement now contribute naturally to rotation during Shift-drag.
+- Desktop rotation remains pivoted around the screen centre, and the existing pattern/XY-grid rotation alignment path is unchanged.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
