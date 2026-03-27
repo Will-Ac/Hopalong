@@ -429,3 +429,11 @@ Before opening or merging a PR:
 
 - High-resolution export sizing now derives aspect from the live rendered view metadata (not the separate export-size probe), so device, 4K, and 8K outputs use the same composition aspect source.
 - 4K/8K export world now preserves the live visible world window and only applies minimal one-axis expansion around the same centre when integer aspect rounding requires reconciliation.
+
+
+## PR35.6 notes
+
+- Default **Dialog transparency** is now `0.8` (with matching fallback defaults).
+- Dialog transparency readout now displays as a percentage (for example `80%`) instead of a decimal.
+- While editing a user-defined colour map, the colour-map picker preview bars now refresh immediately without closing/reopening the picker.
+- The picker label **Mode** is now **Colour mode**.
