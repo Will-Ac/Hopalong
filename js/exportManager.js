@@ -221,25 +221,24 @@ export function initExportManager({
       return null;
     }
 
-    const liveView = sourceMeta.view;
     const liveWorld = sourceMeta.world;
-    const liveSpanX = Math.max(liveWorld.maxX - liveWorld.minX, 1e-6);
-    const liveSpanY = Math.max(liveWorld.maxY - liveWorld.minY, 1e-6);
-    const liveWidth = Math.max(1, Number(liveView.width) || 1);
-    const liveHeight = Math.max(1, Number(liveView.height) || 1);
-    const worldPerPxX = liveSpanX / Math.max(1, liveWidth - 1);
-    const worldPerPxY = liveSpanY / Math.max(1, liveHeight - 1);
-    const exportSpanX = worldPerPxX * Math.max(1, exportWidth - 1);
-    const exportSpanY = worldPerPxY * Math.max(1, exportHeight - 1);
-
-    const centerX = Number.isFinite(liveWorld.centerX) ? liveWorld.centerX : (liveWorld.minX + liveWorld.maxX) * 0.5;
-    const centerY = Number.isFinite(liveWorld.centerY) ? liveWorld.centerY : (liveWorld.minY + liveWorld.maxY) * 0.5;
+    const minX = Number(liveWorld.minX);
+    const maxX = Number(liveWorld.maxX);
+    const minY = Number(liveWorld.minY);
+    const maxY = Number(liveWorld.maxY);
+    if (![minX, maxX, minY, maxY].every(Number.isFinite)) {
+      return null;
+    }
+    const exportSpanX = Math.max(maxX - minX, 1e-6);
+    const exportSpanY = Math.max(maxY - minY, 1e-6);
+    const worldPerPxX = exportSpanX / Math.max(1, exportWidth - 1);
+    const worldPerPxY = exportSpanY / Math.max(1, exportHeight - 1);
 
     return {
-      minX: centerX - exportSpanX * 0.5,
-      maxX: centerX + exportSpanX * 0.5,
-      minY: centerY - exportSpanY * 0.5,
-      maxY: centerY + exportSpanY * 0.5,
+      minX,
+      maxX,
+      minY,
+      maxY,
       worldPerPxX,
       worldPerPxY,
     };

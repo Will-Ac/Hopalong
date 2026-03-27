@@ -418,3 +418,8 @@ Before opening or merging a PR:
 
 - High-resolution (4K/8K) clean exports now derive export framing from the current live render framing/scale so zoomed exports match the on-screen view more closely.
 - Removed an unnecessary redraw call after high-resolution export completes, so closing save/share no longer triggers an extra render when nothing changed.
+
+
+## PR35.4 notes
+
+- 4K/8K clean export now preserves the exact live world framing (`minX/maxX/minY/maxY`) instead of scaling world-per-pixel to larger export dimensions, so high-res images match the on-screen/device-full composition.
