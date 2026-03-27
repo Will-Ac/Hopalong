@@ -16,7 +16,6 @@ export function initExportManager({
   sliderControls,
   formatNumberForUi,
   showToast,
-  requestDraw,
   updateExportRenderProgressToast,
   buildShareUrl,
   overlayTextColor,
@@ -217,30 +216,34 @@ export function initExportManager({
   }
 
   function getExportWorldFromLiveMeta(exportWidth, exportHeight) {
-    const sourceMeta = getLastFullRenderMeta() || getLastRenderMeta();
+    const sourceMeta = getLastRenderMeta() || getLastFullRenderMeta();
     if (!sourceMeta?.world || !sourceMeta?.view) {
       return null;
     }
 
-    const liveView = sourceMeta.view;
     const liveWorld = sourceMeta.world;
-    const liveSpanX = Math.max(liveWorld.maxX - liveWorld.minX, 1e-6);
-    const liveSpanY = Math.max(liveWorld.maxY - liveWorld.minY, 1e-6);
-    const sourceShortSpan = liveView.width <= liveView.height ? liveSpanX : liveSpanY;
+    const minX = Number(liveWorld.minX);
+    const maxX = Number(liveWorld.maxX);
+    const minY = Number(liveWorld.minY);
+    const maxY = Number(liveWorld.maxY);
+    if (![minX, maxX, minY, maxY].every(Number.isFinite)) {
+      return null;
+    }
+    const liveSpanX = Math.max(maxX - minX, 1e-6);
+    const liveSpanY = Math.max(maxY - minY, 1e-6);
+    const liveAspect = liveSpanX / liveSpanY;
     const targetAspect = Math.max(1e-6, exportWidth / Math.max(1, exportHeight));
 
-    let exportSpanX;
-    let exportSpanY;
-    if (exportWidth >= exportHeight) {
-      exportSpanY = sourceShortSpan;
-      exportSpanX = exportSpanY * targetAspect;
-    } else {
-      exportSpanX = sourceShortSpan;
-      exportSpanY = exportSpanX / targetAspect;
+    let exportSpanX = liveSpanX;
+    let exportSpanY = liveSpanY;
+    if (targetAspect > liveAspect) {
+      exportSpanX = liveSpanY * targetAspect;
+    } else if (targetAspect < liveAspect) {
+      exportSpanY = liveSpanX / targetAspect;
     }
 
-    const centerX = Number.isFinite(liveWorld.centerX) ? liveWorld.centerX : (liveWorld.minX + liveWorld.maxX) * 0.5;
-    const centerY = Number.isFinite(liveWorld.centerY) ? liveWorld.centerY : (liveWorld.minY + liveWorld.maxY) * 0.5;
+    const centerX = (minX + maxX) * 0.5;
+    const centerY = (minY + maxY) * 0.5;
     const worldPerPxX = exportSpanX / Math.max(1, exportWidth - 1);
     const worldPerPxY = exportSpanY / Math.max(1, exportHeight - 1);
 
@@ -335,9 +338,12 @@ export function initExportManager({
   }
 
   function getLongEdgeExportSize(targetLongEdge) {
-    const size = getExportSizePx(canvas);
+    const sourceMeta = getLastRenderMeta() || getLastFullRenderMeta();
+    const liveView = sourceMeta?.view;
+    const liveWidth = Math.max(1, Number(liveView?.width) || canvas.width || 1);
+    const liveHeight = Math.max(1, Number(liveView?.height) || canvas.height || 1);
     const longEdge = Math.max(1, Number(targetLongEdge) || 1);
-    const aspect = size.pxW / Math.max(1, size.pxH);
+    const aspect = liveWidth / Math.max(1, liveHeight);
     if (aspect >= 1) {
       return { width: longEdge, height: Math.max(1, Math.round(longEdge / aspect)) };
     }
@@ -399,7 +405,6 @@ export function initExportManager({
       showToast(`Saved clean ${label} screenshot.`);
     } finally {
       highResExportInProgress = false;
-      requestDraw();
     }
   }
 

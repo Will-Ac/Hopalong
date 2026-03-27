@@ -402,3 +402,43 @@ Before opening or merging a PR:
 
 - The default first-open experience now starts from a curated **Classic (sqrt)** state (formula, colour map, parameters, iterations, and shared-view/rotation).
 - Classic (sqrt) built-in defaults were updated to the curated values so startup defaults and formula defaults stay aligned.
+
+
+## PR35.1 notes
+
+- Tightened **Gingerbreadman** parameter `c` range to a very narrow band around `1` (`0.999999999` to `1.000000001`) while keeping its default at `1`.
+
+
+## PR35.2 notes
+
+- In random mode, the quick slider now stays live-synced to the currently displayed parameter or iterations value whenever randomization updates that same active slider item.
+
+
+## PR35.3 notes
+
+- High-resolution (4K/8K) clean exports now derive export framing from the current live render framing/scale so zoomed exports match the on-screen view more closely.
+- Removed an unnecessary redraw call after high-resolution export completes, so closing save/share no longer triggers an extra render when nothing changed.
+
+
+## PR35.4 notes
+
+- 4K/8K clean export now preserves the exact live world framing (`minX/maxX/minY/maxY`) instead of scaling world-per-pixel to larger export dimensions, so high-res images match the on-screen/device-full composition.
+
+
+## PR35.5 notes
+
+- High-resolution export sizing now derives aspect from the live rendered view metadata (not the separate export-size probe), so device, 4K, and 8K outputs use the same composition aspect source.
+- 4K/8K export world now preserves the live visible world window and only applies minimal one-axis expansion around the same centre when integer aspect rounding requires reconciliation.
+
+
+## PR35.6 notes
+
+- Default **Dialog transparency** is now `0.8` (with matching fallback defaults).
+- Dialog transparency readout now displays as a percentage (for example `80%`) instead of a decimal.
+- While editing a user-defined colour map, the colour-map picker preview bars now refresh immediately without closing/reopening the picker.
+- The picker label **Mode** is now **Colour mode**.
+
+
+## PR35.7 notes
+
+- Updated formula default parameter values (`a`, `b`, `c`, `d`) for the requested formula set in `js/formulas.js`.

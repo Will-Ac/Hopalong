@@ -1438,6 +1438,21 @@ function buildColorMapGradient(cmapName) {
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
 
+function refreshOpenColorMapPickerPreviews() {
+  if (uiState.activePicker !== "cmap" || !pickerList) {
+    return;
+  }
+  const rows = pickerList.querySelectorAll(".pickerOption.colorPickerOption[data-value]");
+  for (const row of rows) {
+    const cmapName = row.dataset.value;
+    const bar = row.querySelector(".cmapBar");
+    if (!cmapName || !bar) {
+      continue;
+    }
+    bar.style.background = buildColorMapGradient(cmapName);
+  }
+}
+
 function getActiveActualValue() {
   if (!uiState.activeSliderKey) {
     return null;
@@ -1906,8 +1921,9 @@ function syncDetailedSettingsControls() {
   if (detailBurnFormattedEl) detailBurnFormattedEl.textContent = formatNumberForUi(burnValue, 0);
   if (detailDebugToggleEl) detailDebugToggleEl.checked = Boolean(appData.defaults.debug);
   if (detailDebugTextToggleEl) detailDebugTextToggleEl.checked = appData.defaults.debugText !== false;
-  if (detailOverlayAlphaRangeEl) detailOverlayAlphaRangeEl.value = String(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1));
-  if (detailOverlayAlphaFormattedEl) detailOverlayAlphaFormattedEl.textContent = formatNumberForUi(clamp(Number(appData.defaults.overlayAlpha), 0.1, 1), 2);
+  const dialogTransparency = clamp(Number(appData.defaults.overlayAlpha), 0.1, 1);
+  if (detailOverlayAlphaRangeEl) detailOverlayAlphaRangeEl.value = String(dialogTransparency);
+  if (detailOverlayAlphaFormattedEl) detailOverlayAlphaFormattedEl.textContent = `${Math.round(dialogTransparency * 100)}%`;
   if (detailInterestOverlayToggleEl) detailInterestOverlayToggleEl.checked = Boolean(appData.defaults.interestOverlayEnabled);
   const interestOverlayOpacity = normalizeInterestOverlayOpacity(appData.defaults.interestOverlayOpacity);
   if (detailInterestOverlayOpacityRangeEl) detailInterestOverlayOpacityRangeEl.value = String(interestOverlayOpacity);
@@ -3318,6 +3334,8 @@ function randomizeAllParameters() {
   clearSharedParamsOverride();
   const randomIterationCap = getRandomIterationCap();
   const preservedFixedSliderValues = {};
+  const activeSliderKey = uiState.activeSliderKey;
+  let activeSliderValueChanged = false;
 
   for (const [sliderKey, control] of Object.entries(sliderControls)) {
     if (sliderKey === "burn") {
@@ -3352,14 +3370,27 @@ function randomizeAllParameters() {
     }
 
     if (sliderKey === "iters") {
-      appData.defaults.sliders[sliderKey] = randomInt(control.min, randomIterationCap);
+      const nextIterations = randomInt(control.min, randomIterationCap);
+      activeSliderValueChanged = activeSliderValueChanged
+        || (activeSliderKey === sliderKey && appData.defaults.sliders[sliderKey] !== nextIterations);
+      appData.defaults.sliders[sliderKey] = nextIterations;
       continue;
     }
-    appData.defaults.sliders[sliderKey] = Number((Math.random() * (control.max - control.min) + control.min).toFixed(4));
+    const nextSliderValue = Number((Math.random() * (control.max - control.min) + control.min).toFixed(4));
+    activeSliderValueChanged = activeSliderValueChanged
+      || (activeSliderKey === sliderKey && appData.defaults.sliders[sliderKey] !== nextSliderValue);
+    appData.defaults.sliders[sliderKey] = nextSliderValue;
   }
 
   for (const [sliderKey, preservedValue] of Object.entries(preservedFixedSliderValues)) {
+    if (activeSliderKey === sliderKey && appData.defaults.sliders[sliderKey] !== preservedValue) {
+      activeSliderValueChanged = true;
+    }
     appData.defaults.sliders[sliderKey] = preservedValue;
+  }
+
+  if (activeSliderValueChanged && activeSliderKey) {
+    syncQuickSliderPosition();
   }
 
   appData.defaults.scaleMode = "auto";
@@ -4319,8 +4350,8 @@ function renderColorMapPicker() {
       <button id="pickerBackgroundSettingsProxy" class="compactIconBtn" type="button" aria-label="Open background settings">⚙</button>
     </div>
     <div class="modeRow">
-      <span class="perfSettingLabel modeRowLabel">Mode</span>
-      <select id="pickerColorModeProxy" class="perfSelect" aria-label="Mode">
+      <span class="perfSettingLabel modeRowLabel">Colour mode</span>
+      <select id="pickerColorModeProxy" class="perfSelect" aria-label="Colour mode">
         <option value="iteration_order">Iteration order (default)</option>
         <option value="hit_density_linear">Hit density (linear)</option>
         <option value="hit_density_log">Hit density (log)</option>
@@ -4487,6 +4518,7 @@ function renderColorStopsEditor() {
       setColorMapStops(uiState.activeColorSettingsMap, next);
       renderColorStopsEditor();
       colorSettingsPreviewEl.style.background = buildColorMapGradient(uiState.activeColorSettingsMap);
+      refreshOpenColorMapPickerPreviews();
       requestDraw();
     });
 
@@ -4496,6 +4528,7 @@ function renderColorStopsEditor() {
       setColorMapStops(uiState.activeColorSettingsMap, next);
       renderColorStopsEditor();
       colorSettingsPreviewEl.style.background = buildColorMapGradient(uiState.activeColorSettingsMap);
+      refreshOpenColorMapPickerPreviews();
       requestDraw();
     });
 
@@ -4505,6 +4538,7 @@ function renderColorStopsEditor() {
       setColorMapStops(uiState.activeColorSettingsMap, next);
       renderColorStopsEditor();
       colorSettingsPreviewEl.style.background = buildColorMapGradient(uiState.activeColorSettingsMap);
+      refreshOpenColorMapPickerPreviews();
       requestDraw();
     });
 
@@ -4515,6 +4549,7 @@ function renderColorStopsEditor() {
       setColorMapStops(uiState.activeColorSettingsMap, next);
       renderColorStopsEditor();
       colorSettingsPreviewEl.style.background = buildColorMapGradient(uiState.activeColorSettingsMap);
+      refreshOpenColorMapPickerPreviews();
       requestDraw();
     });
 
@@ -5255,7 +5290,6 @@ exportState.exportManager = initExportManager({
   sliderControls,
   formatNumberForUi,
   showToast,
-  requestDraw,
   updateExportRenderProgressToast,
   buildShareUrl,
   overlayTextColor: OVERLAY_TEXT_COLOR,
@@ -6355,6 +6389,7 @@ function registerHandlers() {
     setColorMapStops(uiState.activeColorSettingsMap, next);
     renderColorStopsEditor();
     colorSettingsPreviewEl.style.background = buildColorMapGradient(uiState.activeColorSettingsMap);
+    refreshOpenColorMapPickerPreviews();
     requestDraw();
   });
 
@@ -6363,6 +6398,7 @@ function registerHandlers() {
     setColorMapStops(uiState.activeColorSettingsMap, null);
     renderColorStopsEditor();
     colorSettingsPreviewEl.style.background = buildColorMapGradient(uiState.activeColorSettingsMap);
+    refreshOpenColorMapPickerPreviews();
     requestDraw();
     saveDefaultsToStorage();
   });
@@ -6521,7 +6557,7 @@ function loadData() {
     data.defaults.renderHybridBlend = 0.3;
   }
   if (typeof data.defaults.overlayAlpha !== "number") {
-    data.defaults.overlayAlpha = 0.5;
+    data.defaults.overlayAlpha = 0.8;
   }
   if (typeof data.defaults.interestOverlayEnabled !== "boolean") {
     data.defaults.interestOverlayEnabled = false;
@@ -6651,7 +6687,7 @@ function bootstrap() {
     normalizeSliderDefaults();
     appData.defaults.backgroundColor = typeof appData.defaults.backgroundColor === "string" ? appData.defaults.backgroundColor : "#05070c";
     appData.defaults.colorMapStopOverrides = appData.defaults.colorMapStopOverrides || {};
-    appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.5), 0.1, 1);
+    appData.defaults.overlayAlpha = clamp(Number(appData.defaults.overlayAlpha ?? 0.8), 0.1, 1);
     appData.defaults.interestOverlayEnabled = Boolean(appData.defaults.interestOverlayEnabled);
     appData.defaults.debugText = Boolean(appData.defaults.debugText ?? false);
     appData.defaults.interestOverlayOpacity = normalizeInterestOverlayOpacity(appData.defaults.interestOverlayOpacity ?? INTEREST_OVERLAY_OPACITY_DEFAULT);
