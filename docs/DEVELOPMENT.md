@@ -238,6 +238,11 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
   - high interest threshold default is now `0.20`
 - This PR changes defaults only; interest scan/render logic remains unchanged.
 
+## Touch pan deadband default update (PR36.3)
+
+- Updated the default touch pan deadband to `2.0 px`.
+- This is a default-value update only; touch gesture logic and other gesture settings are unchanged.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
