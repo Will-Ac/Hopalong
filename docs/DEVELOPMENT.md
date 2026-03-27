@@ -423,3 +423,9 @@ Before opening or merging a PR:
 ## PR35.4 notes
 
 - 4K/8K clean export now preserves the exact live world framing (`minX/maxX/minY/maxY`) instead of scaling world-per-pixel to larger export dimensions, so high-res images match the on-screen/device-full composition.
+
+
+## PR35.5 notes
+
+- High-resolution export sizing now derives aspect from the live rendered view metadata (not the separate export-size probe), so device, 4K, and 8K outputs use the same composition aspect source.
+- 4K/8K export world now preserves the live visible world window and only applies minimal one-axis expansion around the same centre when integer aspect rounding requires reconciliation.

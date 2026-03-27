@@ -229,16 +229,29 @@ export function initExportManager({
     if (![minX, maxX, minY, maxY].every(Number.isFinite)) {
       return null;
     }
-    const exportSpanX = Math.max(maxX - minX, 1e-6);
-    const exportSpanY = Math.max(maxY - minY, 1e-6);
+    const liveSpanX = Math.max(maxX - minX, 1e-6);
+    const liveSpanY = Math.max(maxY - minY, 1e-6);
+    const liveAspect = liveSpanX / liveSpanY;
+    const targetAspect = Math.max(1e-6, exportWidth / Math.max(1, exportHeight));
+
+    let exportSpanX = liveSpanX;
+    let exportSpanY = liveSpanY;
+    if (targetAspect > liveAspect) {
+      exportSpanX = liveSpanY * targetAspect;
+    } else if (targetAspect < liveAspect) {
+      exportSpanY = liveSpanX / targetAspect;
+    }
+
+    const centerX = (minX + maxX) * 0.5;
+    const centerY = (minY + maxY) * 0.5;
     const worldPerPxX = exportSpanX / Math.max(1, exportWidth - 1);
     const worldPerPxY = exportSpanY / Math.max(1, exportHeight - 1);
 
     return {
-      minX,
-      maxX,
-      minY,
-      maxY,
+      minX: centerX - exportSpanX * 0.5,
+      maxX: centerX + exportSpanX * 0.5,
+      minY: centerY - exportSpanY * 0.5,
+      maxY: centerY + exportSpanY * 0.5,
       worldPerPxX,
       worldPerPxY,
     };
@@ -325,9 +338,12 @@ export function initExportManager({
   }
 
   function getLongEdgeExportSize(targetLongEdge) {
-    const size = getExportSizePx(canvas);
+    const sourceMeta = getLastRenderMeta() || getLastFullRenderMeta();
+    const liveView = sourceMeta?.view;
+    const liveWidth = Math.max(1, Number(liveView?.width) || canvas.width || 1);
+    const liveHeight = Math.max(1, Number(liveView?.height) || canvas.height || 1);
     const longEdge = Math.max(1, Number(targetLongEdge) || 1);
-    const aspect = size.pxW / Math.max(1, size.pxH);
+    const aspect = liveWidth / Math.max(1, liveHeight);
     if (aspect >= 1) {
       return { width: longEdge, height: Math.max(1, Math.round(longEdge / aspect)) };
     }
