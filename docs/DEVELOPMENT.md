@@ -437,3 +437,8 @@ Before opening or merging a PR:
 - Dialog transparency readout now displays as a percentage (for example `80%`) instead of a decimal.
 - While editing a user-defined colour map, the colour-map picker preview bars now refresh immediately without closing/reopening the picker.
 - The picker label **Mode** is now **Colour mode**.
+
+
+## PR35.7 notes
+
+- Updated formula default parameter values (`a`, `b`, `c`, `d`) for the requested formula set in `js/formulas.js`.

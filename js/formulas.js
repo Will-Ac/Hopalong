@@ -48,7 +48,7 @@ export const FORMULA_DEFS = [
       c: [-28.94, 26.57],
       d: [-2.14, 2.89],
     },
-    defaults: { a: -1.205, b: 4.125, c: -1.185, d: 0.375 },
+    defaults: { a: -42.8261, b: 9.837, c: 0, d: -1.6445 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
@@ -84,7 +84,7 @@ export const FORMULA_DEFS = [
       c: [-25.91, 30.0],
       d: [-3.0, 2.92],
     },
-    defaults: { a: 0.0, b: 0.99, c: 2.045, d: -0.04 },
+    defaults: { a: 37.8266, b: -9.3775, c: 2.045, d: 1.8907 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
@@ -163,7 +163,7 @@ export const FORMULA_DEFS = [
       c: [-30.0, 30.0],
       d: [-2.4, 2.75],
     },
-    defaults: { a: -0.57, b: -0.69, c: 0.0, d: 0.175 },
+    defaults: { a: -31.0335, b: -4.7044, c: -2.8787, d: 2.6083 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
@@ -184,7 +184,7 @@ export const FORMULA_DEFS = [
       c: [-30.0, 30.0],
       d: [-0.03, 0.09],
     },
-    defaults: { a: 1.42, b: 0.0, c: 0.0, d: 0.03 },
+    defaults: { a: 9.2588, b: -9.7436, c: 0, d: -0.0286 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
@@ -205,7 +205,7 @@ export const FORMULA_DEFS = [
       c: [-30.0, 30.0],
       d: [-1.18, 2.79],
     },
-    defaults: { a: -0.715, b: 0.0, c: 0.0, d: 0.805 },
+    defaults: { a: -21.9811, b: -3.3258, c: 0.2373, d: -0.1491 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
@@ -226,7 +226,7 @@ export const FORMULA_DEFS = [
       c: [-29.85, 30.0],
       d: [-2.84, 3.0],
     },
-    defaults: { a: -0.68, b: 0.66, c: 0.075, d: 0.08 },
+    defaults: { a: 43.9389, b: -0.4782, c: -20.7934, d: 1.0744 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
@@ -245,7 +245,7 @@ export const FORMULA_DEFS = [
       c: [-30.0, 29.85],
       d: [-2.34, 3.0],
     },
-    defaults: { a: 1.47, b: 1.19, c: -0.075, d: 0.33 },
+    defaults: { a: -52.747, b: 1.5785, c: 0.2301, d: 1.5103 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
@@ -321,7 +321,7 @@ export const FORMULA_DEFS = [
       c: [-30.0, 25.26],
       d: [-1.15, 2.5],
     },
-    defaults: { a: -1.115, b: 0.795, c: -2.37, d: 0.675 },
+    defaults: { a: -8.663, b: 4.5356, c: 1.1666, d: 2.42 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
@@ -341,7 +341,7 @@ export const FORMULA_DEFS = [
       c: [-27.33, 30.0],
       d: [-0.46, 2.25],
     },
-    defaults: { a: -0.61, b: 0.615, c: 1.335, d: 0.895 },
+    defaults: { a: 50.158, b: -6.369, c: -0.0001, d: 0.6279 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
@@ -378,7 +378,7 @@ export const FORMULA_DEFS = [
       c: [-29.31, 30.0],
       d: [0.0, 0.0],
     },
-    defaults: { a: 15.075, b: -1.07, c: 0.345, d: 0.0 },
+    defaults: { a: 12.0214, b: 1.3914, c: 0, d: 0 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => [y + Math.sin(p.b * x - p.d), p.a - x],
   },
@@ -393,7 +393,7 @@ export const FORMULA_DEFS = [
       c: [-30.0, 30.0],
       d: [-5.24, 10.94],
     },
-    defaults: { a: 0.285, b: 0.0, c: 0.0, d: 2.85 },
+    defaults: { a: -0.8013, b: -10.664, c: 21.3486, d: 0 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
@@ -413,7 +413,7 @@ export const FORMULA_DEFS = [
       c: [-28.89, 30.0],
       d: [0.0, 0.0],
     },
-    defaults: { a: -2.01, b: 0.0, c: 0.555, d: 0.0 },
+    defaults: { a: 42.2471, b: -0.586, c: 0, d: 0 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
@@ -434,7 +434,7 @@ export const FORMULA_DEFS = [
       c: [-30.0, 29.98],
       d: [0.0, 0.0],
     },
-    defaults: { a: 0.0, b: -0.06, c: -0.01, d: 0.0 },
+    defaults: { a: 47.0189, b: -1.5289, c: 0, d: 0 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
@@ -492,7 +492,7 @@ export const FORMULA_DEFS = [
     desc: "fractal dream",
     params: PARAM_KEYS,
     ranges: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-0.5, 1.5], d: [-0.5, 1.5] },
-    defaults: { a: -1.4, b: 1.6, c: 1.0, d: 0.7 },
+    defaults: { a: 2.8642, b: 1.2909, c: 1.4687, d: -0.2114 },
     seed: { x: 0.1, y: 0.1 },
     step: (x, y, p) => [
       Math.sin(y * p.b) + p.c * Math.sin(x * p.b),
@@ -538,7 +538,7 @@ export const FORMULA_DEFS = [
     desc: "ikeda",
     params: PARAM_KEYS,
     ranges: { a: [0.0, 1.5], b: [0.5, 0.99], c: [-1.0, 1.0], d: [0.0, 10.0] },
-    defaults: { a: 0.4, b: 0.9, c: 0.0, d: 6.0 },
+    defaults: { a: 1.45, b: 0.8014, c: -0.9446, d: 7.6465 },
     seed: { x: 0.0, y: 0.0 },
     step: (x, y, p) => {
       const r2 = x * x + y * y;
@@ -554,7 +554,7 @@ export const FORMULA_DEFS = [
     desc: "gingerbread",
     params: PARAM_KEYS,
     ranges: { a: [-2.0, 2.0], b: [0.4, 1.6], c: [0.999999999, 1.000000001], d: [-1.0, 1.0] },
-    defaults: { a: 1.2, b: 1.0, c: 1, d: 0.0 },
+    defaults: { a: 1.1514, b: 1.1167, c: 1.0, d: 0.818 },
     seed: { x: 0.1, y: 0.1 },
     step: (x, y, p) => [p.a - y + p.b * Math.abs(x), p.c * x + p.d],
   },
@@ -569,7 +569,7 @@ export const FORMULA_DEFS = [
       c: [-0.5, 0.5],
       d: [-0.5, 0.5],
     },
-    defaults: { a: 0.03, b: 0.03, c: 0.0, d: 0.0 },
+    defaults: { a: 0.0389, b: 0.0393, c: 0, d: 0 },
     seed: { x: 0.1, y: 0.1 },
     step: (x, y, p) => {
       const safeTan = (v) => {
@@ -620,7 +620,7 @@ export const FORMULA_DEFS = [
     desc: "rampe 2",
     params: PARAM_KEYS,
     ranges: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-3.0, 3.0], d: [-3.0, 3.0] },
-    defaults: { a: -1.4, b: 1.6, c: 1.0, d: 0.7 },
+    defaults: { a: 2.7984, b: -2.3153, c: -2.8539, d: 2.0394 },
     seed: { x: 0.1, y: 0.1 },
     step: (x, y, p) => [
       Math.cos(y * p.b) + p.c * Math.cos(x * p.b),
@@ -633,7 +633,7 @@ export const FORMULA_DEFS = [
     desc: "rampe 3",
     params: PARAM_KEYS,
     ranges: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-3.0, 3.0], d: [-3.0, 3.0] },
-    defaults: { a: -1.4, b: 1.6, c: 1.0, d: 0.7 },
+    defaults: { a: 1.236, b: -0.6384, c: -2.5295, d: -1.6068 },
     seed: { x: 0.1, y: 0.1 },
     step: (x, y, p) => [
       Math.sin(y * p.b) + p.c * Math.cos(x * p.b),
@@ -646,7 +646,7 @@ export const FORMULA_DEFS = [
     desc: "svensson",
     params: PARAM_KEYS,
     ranges: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-3.0, 3.0], d: [-3.0, 3.0] },
-    defaults: { a: -1.4, b: 1.6, c: 1.0, d: 0.7 },
+    defaults: { a: -0.8443, b: -2.3802, c: -1.5998, d: 2.3864 },
     seed: { x: 0.1, y: 0.1 },
     step: (x, y, p) => [
       p.d * Math.sin(x * p.a) - Math.sin(y * p.b),
@@ -659,7 +659,7 @@ export const FORMULA_DEFS = [
     desc: "gumowski",
     params: PARAM_KEYS,
     ranges: { a: [-0.05, 0.05], b: [-1.0, 1.0], c: [0.0, 1.0], d: [0.3, 1.0] },
-    defaults: { a: 0.01, b: -0.7, c: 0.05, d: 0.7 },
+    defaults: { a: 0.0133, b: 0.3397, c: 0.2943, d: 0.8206 },
     seed: { x: 0.0, y: 0.5 },
     step: (x, y, p) => {
       const f = (u) => p.c * u + (2 * (1 - p.c) * u * u) / (1 + u * u);
