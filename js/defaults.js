@@ -34,7 +34,7 @@ export const DEFAULTS = {
   "holdAccelStartMs": 5000,
   "holdAccelEndMs": 8000,
   "touchPanDeadbandPx": 2.0,
-  "touchZoomDeadbandPx": 2.5,
+  "touchZoomDeadbandPx": 1.5,
   "touchZoomRatioMin": 0.01,
   "panZoomSettleMs": 200,
   "rotationActivationThresholdDegrees": 15,
