@@ -20,8 +20,9 @@ export const FORMULA_DEFS = [
   {
     id: "classic_sqrt",
     name: "Classic (sqrt)",
-    desc: "Classic sqrt",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - c|)",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-10.0, 10.0],
       b: [-10.0, 10.0],
@@ -30,8 +31,6 @@ export const FORMULA_DEFS = [
     },
     defaults: { a: 9.454999999999998, b: 1.7581399999999991, c: 7.1841599999999985, d: -1.2194099999999999 },
     seed: { x: 0.0, y: 0.0 },
-    detailX: "x_next = y - sign(x) * sqrt(abs(b*x - c))",
-    detailY: "y_next = a - x",
     step: (x, y, p) => {
       const s = x > 0 ? 1 : x < 0 ? -1 : 0;
       return [y - s * Math.sqrt(Math.abs(p.b * x - p.c)), p.a - x];
@@ -40,8 +39,9 @@ export const FORMULA_DEFS = [
   {
     id: "sqrt_plus_gamma_y",
     name: "Classic + dy",
-    desc: "sqrt + c*y",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * y",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-80.0, 77.59],
       b: [-21.75, 30.0],
@@ -58,8 +58,9 @@ export const FORMULA_DEFS = [
   {
     id: "sqrt_plus_gamma_x",
     name: "Classic + dx",
-    desc: "sqrt + c*x",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * x",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-78.55, 77.52],
       b: [-30.0, 24.37],
@@ -76,8 +77,9 @@ export const FORMULA_DEFS = [
   {
     id: "mix_inside",
     name: "sqrt(|b(x+dy)−c|)",
-    desc: "mix in sqrt",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - c|) + d * y",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-80.0, 80.0],
       b: [-28.02, 30.0],
@@ -94,8 +96,9 @@ export const FORMULA_DEFS = [
   {
     id: "trig_kick_x",
     name: "Trig kick (sin x)",
-    desc: "sin x kick",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * sin(x)",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-75.2, 80.0],
       b: [-28.73, 30.0],
@@ -115,8 +118,9 @@ export const FORMULA_DEFS = [
   {
     id: "damped",
     name: "Damped (|d|)",
-    desc: "damped",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = (y - sign(x) * sqrt(|b * x - d|)) * (1 - min(0.95, |c|))",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-56.36, 60.0],
       b: [-20.0, 19.92],
@@ -135,8 +139,9 @@ export const FORMULA_DEFS = [
   {
     id: "y_feedback",
     name: "Y feedback (a−x+d·y)",
-    desc: "y feedback",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|)",
+    yNew: "y_new = a - x + c * y",
     ranges: {
       a: [-60.0, 57.06],
       b: [-19.92, 20.0],
@@ -155,8 +160,9 @@ export const FORMULA_DEFS = [
   {
     id: "trig_kick_y",
     name: "Trig kick (sin y)",
-    desc: "sin y kick",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * sin(y)",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-79.84, 78.7],
       b: [-30.0, 28.62],
@@ -176,8 +182,9 @@ export const FORMULA_DEFS = [
   {
     id: "classic_plus_yy",
     name: "Classic + d·y²",
-    desc: "c*y^2",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * y * y",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-57.16, 60.0],
       b: [-20.0, 20.0],
@@ -197,8 +204,9 @@ export const FORMULA_DEFS = [
   {
     id: "cos_xy_kick",
     name: "Trig kick (cos(x+y))",
-    desc: "cos(x+y)",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * cos(x + y)",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-80.0, 78.57],
       b: [-30.0, 30.0],
@@ -218,8 +226,9 @@ export const FORMULA_DEFS = [
   {
     id: "inside_sin_y",
     name: "Inside sqrt sin(y)",
-    desc: "sin in sqrt",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * (x + c * sin(y)) - d|)",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-80.0, 78.64],
       b: [-28.68, 30.0],
@@ -237,8 +246,9 @@ export const FORMULA_DEFS = [
   {
     id: "inside_cos_x",
     name: "Inside sqrt cos(x)",
-    desc: "cos in sqrt",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * (x + c * cos(x)) - d|)",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-75.39, 78.33],
       b: [-27.62, 30.0],
@@ -256,8 +266,9 @@ export const FORMULA_DEFS = [
   {
     id: "softsign_kick",
     name: "Softsign kick",
-    desc: "softsign",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * (x / (1 + |x|))",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-76.43, 80.0],
       b: [-30.0, 29.48],
@@ -275,8 +286,9 @@ export const FORMULA_DEFS = [
   {
     id: "tanh_kick",
     name: "Tanh kick",
-    desc: "tanh kick",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * tanh(x)",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-79.66, 76.93],
       b: [-30.0, 30.0],
@@ -294,8 +306,9 @@ export const FORMULA_DEFS = [
   {
     id: "sign_xy",
     name: "Sign of (x·y)",
-    desc: "sign(x*y)",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x*y) * sqrt(|b * x - d|)",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-28.57, 75.71],
       b: [-26.8, 30.0],
@@ -313,8 +326,9 @@ export const FORMULA_DEFS = [
   {
     id: "double_root",
     name: "Double-root kick",
-    desc: "double root",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * (sqrt(|b * x - d|) + c * sqrt(|b * y - d|))",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-60.0, 57.77],
       b: [-10.41, 12.0],
@@ -333,8 +347,9 @@ export const FORMULA_DEFS = [
   {
     id: "xy_coupling",
     name: "XY coupling",
-    desc: "xy coupling",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * ((x * y) / 50)",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-80.0, 78.78],
       b: [-28.77, 30.0],
@@ -352,8 +367,9 @@ export const FORMULA_DEFS = [
   {
     id: "positive_hopalong",
     name: "Positive Hopalong",
-    desc: "positive hop",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y + sign(x) * sqrt(|b * x - d|)",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-76.57, 73.43],
       b: [-30.0, 28.86],
@@ -370,8 +386,9 @@ export const FORMULA_DEFS = [
   {
     id: "sinusoidal_hopalong",
     name: "Sinusoidal Hopalong",
-    desc: "sin hop",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y + sin(b * x - d)",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-26.13, 56.28],
       b: [-29.48, 27.34],
@@ -383,10 +400,34 @@ export const FORMULA_DEFS = [
     step: (x, y, p) => [y + Math.sin(p.b * x - p.d), p.a - x],
   },
   {
+    id: "shifted_hopalong",
+    name: "Shifted Hopalong",
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x + c) * sqrt(|b * (x + c) - a|)",
+    yNew: "y_new = a - (x + c) + d",
+    ranges: {
+      a: [-2.0, 10.0],
+      b: [-10.0, 10.0],
+      c: [-4.0, 4.0],
+      d: [-4.0, 4.0],
+    },
+    defaults: { a: 7.0, b: 8.0, c: 2.5, d: 1.0 },
+    seed: { x: 0.0, y: 0.0 },
+    step: (x, y, p) => {
+      const xShift = x + p.c;
+      const sign = xShift >= 0 ? 1 : -1;
+      return [
+        y - sign * Math.sqrt(Math.abs(p.b * xShift - p.a)),
+        p.a - xShift + p.d,
+      ];
+    },
+  },
+  {
     id: "threeply",
     name: "Threeply (Peters)",
-    desc: "threeply",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * |sin(x) * cos(b) + c - x * sin(a + b + c)|",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-11.16, 11.73],
       b: [-12.0, 12.0],
@@ -405,8 +446,9 @@ export const FORMULA_DEFS = [
   {
     id: "quadrup2",
     name: "Quadrup-2 (Peters)",
-    desc: "quadrup2",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * (sin(log(|b * x - d| + 1e-12)) * atan(log(|d * x - b| + 1e-12) * log(|d * x - b| + 1e-12)))",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-80.0, 75.98],
       b: [-10.0, 10.0],
@@ -426,8 +468,9 @@ export const FORMULA_DEFS = [
   {
     id: "chip",
     name: "Chip (Peters)",
-    desc: "chip",
-    params: PARAM_KEYS,
+    type: "Hopalong",
+    xNew: "x_new = y - sign(x) * (cos((log(|b * x - d| + 1e-12) * log(|b * x - d| + 1e-12))) * atan((log(|b * x - d| + 1e-12) * log(|b * x - d| + 1e-12))))",
+    yNew: "y_new = a - x",
     ranges: {
       a: [-80.0, 80.0],
       b: [-10.0, 9.88],
@@ -447,8 +490,9 @@ export const FORMULA_DEFS = [
   {
     id: "pickover_clifford",
     name: "Pickover/Clifford",
-    desc: "pickover",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = 20.0 * (sin(b * y) + c * sin(b * x))",
+    yNew: "y_new = 20.0 * (sin(a * x) + d * sin(a * y))",
     ranges: { a: [-2.0, 2.0], b: [-2.0, 2.0], c: [-2.0, 2.0], d: [-2.0, 2.0] },
     defaults: { a: 0.024, b: 0.228, c: -0.456, d: 0.252 },
     seed: { x: 0.1, y: 0.1 },
@@ -463,8 +507,9 @@ export const FORMULA_DEFS = [
   {
     id: "peter_de_jong",
     name: "Peter de Jong",
-    desc: "de jong",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = sin(a * y) - cos(b * x)",
+    yNew: "y_new = sin(c * x) - cos(d * y)",
     ranges: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-3.0, 3.0], d: [-3.0, 3.0] },
     defaults: { a: 1.4, b: -2.3, c: 2.4, d: -2.1 },
     seed: { x: 0.1, y: 0.1 },
@@ -476,8 +521,9 @@ export const FORMULA_DEFS = [
   {
     id: "clifford",
     name: "Clifford (Pickover)",
-    desc: "clifford",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = sin(a * y) + c * cos(a * x)",
+    yNew: "y_new = sin(b * x) + d * cos(b * y)",
     ranges: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-3.0, 3.0], d: [-3.0, 3.0] },
     defaults: { a: -1.4, b: 1.6, c: 1.0, d: 0.7 },
     seed: { x: 0.1, y: 0.1 },
@@ -489,8 +535,9 @@ export const FORMULA_DEFS = [
   {
     id: "fractal_dream",
     name: "Fractal Dream",
-    desc: "fractal dream",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = sin(b * y) + c * sin(b * x)",
+    yNew: "y_new = sin(a * x) + d * sin(a * y)",
     ranges: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-0.5, 1.5], d: [-0.5, 1.5] },
     defaults: { a: 2.8642, b: 1.2909, c: 1.4687, d: -0.2114 },
     seed: { x: 0.1, y: 0.1 },
@@ -502,8 +549,9 @@ export const FORMULA_DEFS = [
   {
     id: "tinkerbell",
     name: "Tinkerbell map",
-    desc: "tinkerbell",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = x * x - y * y + a * x + b * y",
+    yNew: "y_new = 2 * x * y + c * x + d * y",
     ranges: { a: [-1.5, 1.5], b: [-1.5, 1.5], c: [-2.5, 2.5], d: [-1.5, 1.5] },
     defaults: { a: 0.9, b: -0.6013, c: 2.0, d: 0.5 },
     seed: { x: 0.01, y: 0.01 },
@@ -515,8 +563,9 @@ export const FORMULA_DEFS = [
   {
     id: "henon",
     name: "Hénon (with offsets)",
-    desc: "henon",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = 1 - a * x * x + y + c",
+    yNew: "y_new = b * x + d",
     ranges: { a: [0.8, 1.6], b: [0.1, 0.4], c: [-1.0, 1.0], d: [-1.0, 1.0] },
     defaults: { a: 1.4, b: 0.3, c: 0.0, d: 0.0 },
     seed: { x: 0.1, y: 0.0 },
@@ -525,8 +574,9 @@ export const FORMULA_DEFS = [
   {
     id: "lozi",
     name: "Lozi (with offsets)",
-    desc: "lozi",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = 1 - a * |x| + y + c",
+    yNew: "y_new = b * x + d",
     ranges: { a: [1.2, 2.0], b: [0.2, 0.7], c: [-1.0, 1.0], d: [-1.0, 1.0] },
     defaults: { a: 1.7, b: 0.5, c: 0.0, d: 0.0 },
     seed: { x: 0.1, y: 0.0 },
@@ -535,8 +585,9 @@ export const FORMULA_DEFS = [
   {
     id: "ikeda",
     name: "Ikeda (4-param)",
-    desc: "ikeda",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = a + b * (x * cos(c - d / (1 + (x * x + y * y))) - y * sin(c - d / (1 + (x * x + y * y))))",
+    yNew: "y_new = b * (x * sin(c - d / (1 + (x * x + y * y))) + y * cos(c - d / (1 + (x * x + y * y))))",
     ranges: { a: [0.0, 1.5], b: [0.5, 0.99], c: [-1.0, 1.0], d: [0.0, 10.0] },
     defaults: { a: 1.45, b: 0.8014, c: -0.9446, d: 7.6465 },
     seed: { x: 0.0, y: 0.0 },
@@ -551,8 +602,9 @@ export const FORMULA_DEFS = [
   {
     id: "gingerbread",
     name: "Gingerbreadman (generalized)",
-    desc: "gingerbread",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = a - y + b * |x|",
+    yNew: "y_new = c * x + d",
     ranges: { a: [-2.0, 2.0], b: [0.4, 1.6], c: [0.999999999, 1.000000001], d: [-1.0, 1.0] },
     defaults: { a: 1.1514, b: 1.1167, c: 1.0, d: 0.818 },
     seed: { x: 0.1, y: 0.1 },
@@ -561,8 +613,9 @@ export const FORMULA_DEFS = [
   {
     id: "popcorn",
     name: "Popcorn",
-    desc: "popcorn",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "safeTan(u) = (isFinite(tan(u)) ? max(-10, min(10, tan(u))) : 0); x_new = x - a * sin(y + (isFinite(tan(3 * y)) ? max(-10, min(10, tan(3 * y))) : 0)) + c",
+    yNew: "safeTan(u) = (isFinite(tan(u)) ? max(-10, min(10, tan(u))) : 0); y_new = y - b * sin(x + (isFinite(tan(3 * x)) ? max(-10, min(10, tan(3 * x))) : 0)) + d",
     ranges: {
       a: [0.001, 0.06],
       b: [0.001, 0.06],
@@ -585,10 +638,9 @@ export const FORMULA_DEFS = [
   {
     id: "bedhead",
     name: "Bedhead",
-    desc: "bedhead",
-    detailX: "x_next = sin(x*y/b)*y+cos(a*x-y)",
-    detailY: "y_next = x+sin(y)/b",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = sin((x * y) / (|b| < 1e-9 ? (b < 0 ? -1e-9 : 1e-9) : b)) * y + cos(a * x - y) + d",
+    yNew: "y_new = x + sin(y) / (|c| < 1e-9 ? (c < 0 ? -1e-9 : 1e-9) : c)",
     ranges: { a: [-1.2, 1.2], b: [0.2, 2.0], c: [0.2, 2.0], d: [-0.8, 0.8] },
     defaults: { a: 0.65, b: 0.73, c: 1.1, d: 0.1 },
     seed: { x: 1.0, y: 1.0 },
@@ -604,8 +656,9 @@ export const FORMULA_DEFS = [
   {
     id: "jason_rampe_1",
     name: "Jason Rampe 1",
-    desc: "rampe 1",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = cos(y * b) + c * sin(x * b)",
+    yNew: "y_new = cos(x * a) + d * sin(y * a)",
     ranges: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-3.0, 3.0], d: [-3.0, 3.0] },
     defaults: { a: -1.4, b: 1.6, c: 1.0, d: 0.7 },
     seed: { x: 0.1, y: 0.1 },
@@ -617,8 +670,9 @@ export const FORMULA_DEFS = [
   {
     id: "jason_rampe_2",
     name: "Jason Rampe 2",
-    desc: "rampe 2",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = cos(y * b) + c * cos(x * b)",
+    yNew: "y_new = cos(x * a) + d * cos(y * a)",
     ranges: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-3.0, 3.0], d: [-3.0, 3.0] },
     defaults: { a: 2.7984, b: -2.3153, c: -2.8539, d: 2.0394 },
     seed: { x: 0.1, y: 0.1 },
@@ -630,8 +684,9 @@ export const FORMULA_DEFS = [
   {
     id: "jason_rampe_3",
     name: "Jason Rampe 3",
-    desc: "rampe 3",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = sin(y * b) + c * cos(x * b)",
+    yNew: "y_new = cos(x * a) + d * sin(y * a)",
     ranges: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-3.0, 3.0], d: [-3.0, 3.0] },
     defaults: { a: 1.236, b: -0.6384, c: -2.5295, d: -1.6068 },
     seed: { x: 0.1, y: 0.1 },
@@ -643,8 +698,9 @@ export const FORMULA_DEFS = [
   {
     id: "johnny_svensson",
     name: "Johnny Svensson",
-    desc: "svensson",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = d * sin(x * a) - sin(y * b)",
+    yNew: "y_new = c * cos(x * a) + cos(y * b)",
     ranges: { a: [-3.0, 3.0], b: [-3.0, 3.0], c: [-3.0, 3.0], d: [-3.0, 3.0] },
     defaults: { a: -0.8443, b: -2.3802, c: -1.5998, d: 2.3864 },
     seed: { x: 0.1, y: 0.1 },
@@ -656,245 +712,24 @@ export const FORMULA_DEFS = [
   {
     id: "gumowski_mira",
     name: "Gumowski–Mira",
-    desc: "gumowski",
-    params: PARAM_KEYS,
+    type: "Other",
+    xNew: "x_new = b * y + f(x), where f(x) = a * x + (2 * (1 - a) * x * x) / (1 + x * x)^2",
+    yNew: "y_new = f(x_new) - x",
     ranges: { a: [-0.05, 0.05], b: [-1.0, 1.0], c: [0.0, 1.0], d: [0.3, 1.0] },
     defaults: { a: 0.0133, b: 0.3397, c: 0.2943, d: 0.8206 },
     seed: { x: 0.0, y: 0.5 },
     step: (x, y, p) => {
-      const f = (u) => p.c * u + (2 * (1 - p.c) * u * u) / (1 + u * u);
-      const x1 = y + p.a * (1 - p.b * y * y) * y + f(x);
-      return [x1, -x + p.d * f(x1)];
-    },
-  },
-  {
-    id: "shifted_hopalong",
-    name: "Shifted Hopalong",
-    desc: "shifted hop",
-    detailX: "x_next = y-1-sqrt(abs(b*x-1-c))*sign(x-1)",
-    detailY: "y_next = a-x-1",
-    params: PARAM_KEYS,
-    ranges: {
-      a: [-2.0, 10.0],
-      b: [-10.0, 10.0],
-      c: [-4.0, 4.0],
-      d: [-4.0, 4.0],
-    },
-    defaults: { a: 7.0, b: 8.0, c: 2.5, d: 1.0 },
-    seed: { x: 0.0, y: 0.0 },
-    step: (x, y, p) => {
-      const xShift = x + p.c;
-      const sign = xShift >= 0 ? 1 : -1;
-      return [
-        y - sign * Math.sqrt(Math.abs(p.b * xShift - p.a)),
-        p.a - xShift + p.d,
-      ];
+      const f = (u) => p.a * u + (2 * (1 - p.a) * u * u) / ((1 + u * u) * (1 + u * u));
+      const x1 = p.b * y + f(x);
+      return [x1, f(x1) - x];
     },
   },
 ];
 
-export const FORMULA_UI_EQUATIONS = {
-  classic_sqrt: {
-    name: "Classic (sqrt)",
-    xNew: "x_new = y - sign(x) * sqrt(|b * x - c|)",
-    yNew: "y_new = a - x",
-  },
-  sqrt_plus_gamma_y: {
-    name: "Classic + dy",
-    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * y",
-    yNew: "y_new = a - x",
-  },
-  sqrt_plus_gamma_x: {
-    name: "Classic + dx",
-    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * x",
-    yNew: "y_new = a - x",
-  },
-  mix_inside: {
-    name: "sqrt inside",
-    xNew: "x_new = y - sign(x) * sqrt(|b * x - c|) + d * y",
-    yNew: "y_new = a - x",
-  },
-  trig_kick_x: {
-    name: "Trig kick X",
-    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * sin(x)",
-    yNew: "y_new = a - x",
-  },
-  damped: {
-    name: "Damped",
-    xNew: "x_new = (y - sign(x) * sqrt(|b * x - d|)) * (1 - min(0.95, |c|))",
-    yNew: "y_new = a - x",
-  },
-  y_feedback: {
-    name: "Y feedback",
-    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|)",
-    yNew: "y_new = a - x + c * y",
-  },
-  trig_kick_y: {
-    name: "Trig kick Y",
-    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * sin(y)",
-    yNew: "y_new = a - x",
-  },
-  classic_plus_yy: {
-    name: "Classic + y^2",
-    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * y * y",
-    yNew: "y_new = a - x",
-  },
-  cos_xy_kick: {
-    name: "cos(x+y) kick",
-    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * cos(x + y)",
-    yNew: "y_new = a - x",
-  },
-  inside_sin_y: {
-    name: "Inside sin(y)",
-    xNew: "x_new = y - sign(x) * sqrt(|b * (x + c * sin(y)) - d|)",
-    yNew: "y_new = a - x",
-  },
-  inside_cos_x: {
-    name: "Inside cos(x)",
-    xNew: "x_new = y - sign(x) * sqrt(|b * (x + c * cos(x)) - d|)",
-    yNew: "y_new = a - x",
-  },
-  softsign_kick: {
-    name: "Softsign kick",
-    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * (x / (1 + |x|))",
-    yNew: "y_new = a - x",
-  },
-  tanh_kick: {
-    name: "Tanh kick",
-    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * tanh(x)",
-    yNew: "y_new = a - x",
-  },
-  sign_xy: {
-    name: "sign(x*y)",
-    xNew: "x_new = y - sign(x*y) * sqrt(|b * x - d|)",
-    yNew: "y_new = a - x",
-  },
-  double_root: {
-    name: "Double root",
-    xNew: "x_new = y - sign(x) * (sqrt(|b * x - d|) + c * sqrt(|b * y - d|))",
-    yNew: "y_new = a - x",
-  },
-  xy_coupling: {
-    name: "x*y coupling",
-    xNew: "x_new = y - sign(x) * sqrt(|b * x - d|) + c * ((x * y) / 50)",
-    yNew: "y_new = a - x",
-  },
-  positive_hopalong: {
-    name: "Positive Hopalong",
-    xNew: "x_new = y + sign(x) * sqrt(|b * x - d|)",
-    yNew: "y_new = a - x",
-  },
-  sinusoidal_hopalong: {
-    name: "Threeply (abs kick)",
-    xNew: "x_new = y - sign(x) * |sin(x) * cos(b) + c - x * sin(a + b + c)|",
-    yNew: "y_new = a - x",
-  },
-  threeply: {
-    name: "Threeply",
-    xNew: "x_new = y - sign(x) * |sin(x) * cos(b) + c - x * sin(a + b + c)|",
-    yNew: "y_new = a - x",
-  },
-  quadrup2: {
-    name: "Quadrup-2",
-    xNew: "x_new = y - sign(x) * (sin(log(|b * x - d| + 1e-12)) * atan(log(|d * x - b| + 1e-12) * log(|d * x - b| + 1e-12)))",
-    yNew: "y_new = a - x",
-  },
-  chip: {
-    name: "Chip",
-    xNew: "x_new = y - sign(x) * (cos((log(|b * x - d| + 1e-12) * log(|b * x - d| + 1e-12))) * atan((log(|b * x - d| + 1e-12) * log(|b * x - d| + 1e-12))))",
-    yNew: "y_new = a - x",
-  },
-  pickover_clifford: {
-    name: "Pickover/Clifford",
-    xNew: "x_new = 20.0 * (sin(b * y) + c * sin(b * x))",
-    yNew: "y_new = 20.0 * (sin(a * x) + d * sin(a * y))",
-  },
-  peter_de_jong: {
-    name: "Ikeda (named “Peter de Jong” in file)",
-    xNew: "x_new = a + b * (x * cos(c - d / (1 + (x * x + y * y))) - y * sin(c - d / (1 + (x * x + y * y))))",
-    yNew: "y_new = b * (x * sin(c - d / (1 + (x * x + y * y))) + y * cos(c - d / (1 + (x * x + y * y))))",
-  },
-  clifford: {
-    name: "Clifford",
-    xNew: "x_new = sin(a * y) + c * cos(a * x)",
-    yNew: "y_new = sin(b * x) + d * cos(b * y)",
-  },
-  fractal_dream: {
-    name: "Fractal Dream",
-    xNew: "x_new = sin(b * y) + c * sin(b * x)",
-    yNew: "y_new = sin(a * x) + d * sin(a * y)",
-  },
-  tinkerbell: {
-    name: "Tinkerbell",
-    xNew: "x_new = x * x - y * y + a * x + b * y",
-    yNew: "y_new = 2 * x * y + c * x + d * y",
-  },
-  henon: {
-    name: "Henon",
-    xNew: "x_new = 1 - a * x * x + y + c",
-    yNew: "y_new = b * x + d",
-  },
-  lozi: {
-    name: "Lozi",
-    xNew: "x_new = 1 - a * |x| + y + c",
-    yNew: "y_new = b * x + d",
-  },
-  ikeda: {
-    name: "Ikeda",
-    xNew: "x_new = a + b * (x * cos(c - d / (1 + (x * x + y * y))) - y * sin(c - d / (1 + (x * x + y * y))))",
-    yNew: "y_new = b * (x * sin(c - d / (1 + (x * x + y * y))) + y * cos(c - d / (1 + (x * x + y * y))))",
-  },
-  gingerbread: {
-    name: "Gingerbread",
-    xNew: "x_new = a - y + b * |x|",
-    yNew: "y_new = c * x + d",
-  },
-  popcorn: {
-    name: "Popcorn",
-    xNew: "safeTan(u) = (isFinite(tan(u)) ? max(-10, min(10, tan(u))) : 0); x_new = x - a * sin(y + (isFinite(tan(3 * y)) ? max(-10, min(10, tan(3 * y))) : 0)) + c",
-    yNew: "safeTan(u) = (isFinite(tan(u)) ? max(-10, min(10, tan(u))) : 0); y_new = y - b * sin(x + (isFinite(tan(3 * x)) ? max(-10, min(10, tan(3 * x))) : 0)) + d",
-  },
-  bedhead: {
-    name: "Bedhead",
-    xNew: "x_new = sin((x * y) / (|b| < 1e-9 ? (b < 0 ? -1e-9 : 1e-9) : b)) * y + cos(a * x - y) + d",
-    yNew: "y_new = x + sin(y) / (|c| < 1e-9 ? (c < 0 ? -1e-9 : 1e-9) : c)",
-  },
-  jason_rampe_1: {
-    name: "Jason Rampe 1",
-    xNew: "x_new = cos(y * b) + c * sin(x * b)",
-    yNew: "y_new = cos(x * a) + d * sin(y * a)",
-  },
-  jason_rampe_2: {
-    name: "Jason Rampe 2",
-    xNew: "x_new = cos(y * b) + c * cos(x * b)",
-    yNew: "y_new = cos(x * a) + d * cos(y * a)",
-  },
-  jason_rampe_3: {
-    name: "Jason Rampe 3",
-    xNew: "x_new = sin(y * b) + c * cos(x * b)",
-    yNew: "y_new = cos(x * a) + d * sin(y * a)",
-  },
-  johnny_svensson: {
-    name: "Johnny Svensson",
-    xNew: "x_new = d * sin(x * a) - sin(y * b)",
-    yNew: "y_new = c * cos(x * a) + cos(y * b)",
-  },
-  gumowski_mira: {
-    name: "Gumowski–Mira",
-    xNew: "x_new = (y + a * (1 - b * y * y) * y + (c * (x) + (2 * (1 - c) * (x) * (x)) / (1 + (x) * (x))))",
-    yNew: "y_new = -x + d * (c * ((y + a * (1 - b * y * y) * y + (c * (x) + (2 * (1 - c) * (x) * (x)) / (1 + (x) * (x))))) + (2 * (1 - c) * ((y + a * (1 - b * y * y) * y + (c * (x) + (2 * (1 - c) * (x) * (x)) / (1 + (x) * (x))))) * ((y + a * (1 - b * y * y) * y + (c * (x) + (2 * (1 - c) * (x) * (x)) / (1 + (x) * (x)))))) / (1 + ((y + a * (1 - b * y * y) * y + (c * (x) + (2 * (1 - c) * (x) * (x)) / (1 + (x) * (x))))) * ((y + a * (1 - b * y * y) * y + (c * (x) + (2 * (1 - c) * (x) * (x)) / (1 + (x) * (x)))))))",
-  },
-  shifted_hopalong: {
-    name: "Shifted Hopalong",
-    xNew: "x_new = y - sign(x + c) * sqrt(|b * (x + c) - a|)",
-    yNew: "y_new = a - (x + c) + d",
-  },
-};
 
 export const VARIANTS = FORMULA_DEFS.map((formula) => ({
   id: formula.id,
   name: formula.name,
-  desc: formula.desc,
   step: (x, y, a, b, c, d) => formula.step(x, y, { a, b, c, d }),
 }));
 
@@ -911,8 +746,8 @@ export const FORMULA_DEFAULT_SEEDS = Object.fromEntries(
 export const FORMULA_METADATA = FORMULA_DEFS.map((formula) => ({
   id: formula.id,
   name: formula.name,
-  desc: formula.desc,
-  detailX: formula.detailX || "",
-  detailY: formula.detailY || "",
+  type: formula.type,
+  xNew: formula.xNew,
+  yNew: formula.yNew,
   usedParams: inferUsedParams(formula),
 }));
