@@ -208,12 +208,13 @@ const INTEREST_GRID_SIZE_MIN = 8;
 const INTEREST_GRID_SIZE_MAX = 256;
 const INTEREST_SCAN_ITERATIONS_MIN = 100;
 const INTEREST_SCAN_ITERATIONS_MAX = 5000;
+const INTEREST_SCAN_ITERATIONS_DEFAULT = 300;
 const INTEREST_OVERLAY_OPACITY_MIN = 0.05;
 const INTEREST_OVERLAY_OPACITY_MAX = 0.8;
-const INTEREST_OVERLAY_OPACITY_DEFAULT = 0.2;
+const INTEREST_OVERLAY_OPACITY_DEFAULT = 0.35;
 const INTEREST_HIGH_THRESHOLD_MIN = 0.05;
 const INTEREST_HIGH_THRESHOLD_MAX = 0.5;
-const INTEREST_HIGH_THRESHOLD_DEFAULT = 0.1;
+const INTEREST_HIGH_THRESHOLD_DEFAULT = 0.2;
 const PAN_ZOOM_SETTLE_MS_DEFAULT = 200;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MIN = -1;
 const INTEREST_LYAPUNOV_MIN_EXPONENT_MAX = 1;
@@ -593,10 +594,10 @@ const INTERACTION_STATE = {
 };
 const CURATED_OPENING_SHARED_VIEW = [3.2801224354724923, 6.1748775645274705, 256.0595656764636, 1.6912181303116147, -0.10368976712055133];
 const DPR = window.devicePixelRatio || 1;
-const TOUCH_PAN_DEADBAND_PX_DEFAULT = 0.5;
+const TOUCH_PAN_DEADBAND_PX_DEFAULT = 2.0;
 const TOUCH_PAN_DEADBAND_PX_MIN = 0;
 const TOUCH_PAN_DEADBAND_PX_MAX = 10;
-const TOUCH_ZOOM_DEADBAND_PX_DEFAULT = 2.5;
+const TOUCH_ZOOM_DEADBAND_PX_DEFAULT = 1.5;
 const TOUCH_ZOOM_DEADBAND_PX_MIN = 0;
 const TOUCH_ZOOM_DEADBAND_PX_MAX = 10;
 const TOUCH_ZOOM_RATIO_MIN_DEFAULT = 0.01;
@@ -611,7 +612,6 @@ const DEGREES_TO_RADIANS = Math.PI / 180;
 const SINGLE_TOUCH_MODULATION_START_DRAW_DELAY_MS = 24;
 const HISTORY_TAP_MAX_MOVE_PX = 10;
 const MODULATION_SENSITIVITY = 80;
-const DESKTOP_SHIFT_DRAG_ROTATION_SENSITIVITY = 0.005;
 
 const LEGACY_SLIDER_KEY_MAP = {
   alpha: "a",
@@ -652,6 +652,7 @@ const overlayState = {
   primaryPointerId: null,
   lastPointerPosition: null,
   isManualModulating: false,
+  desktopShiftRotateGesture: null,
   twoFingerGesture: null,
   lastTwoDebug: null,
   historyTapTracker: null,
@@ -3475,6 +3476,26 @@ function normalizeRotationAngle(angle) {
   return next;
 }
 
+function getAngleAroundScreenCenter(x, y) {
+  const centerX = canvas.width * 0.5;
+  const centerY = canvas.height * 0.5;
+  return Math.atan2(y - centerY, x - centerX);
+}
+
+function beginDesktopShiftRotateGesture(pos) {
+  if (!pos) {
+    return;
+  }
+  overlayState.desktopShiftRotateGesture = {
+    startAngle: getAngleAroundScreenCenter(pos.x, pos.y),
+    startRotation: normalizeRotationAngle(renderState.fixedView.rotation),
+  };
+}
+
+function clearDesktopShiftRotateGesture() {
+  overlayState.desktopShiftRotateGesture = null;
+}
+
 function syncFixedViewRotationCache() {
   const rotation = normalizeRotationAngle(renderState.fixedView?.rotation ?? 0);
   renderState.fixedView.rotation = rotation;
@@ -3922,6 +3943,7 @@ function onCanvasPointerDown(event) {
     overlayState.isManualModulating = false;
     const pos = getCanvasPointerPosition(event);
     overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
+    clearDesktopShiftRotateGesture();
     if (isDirectTouchPointer) {
       resetPanZoomInteractionStateForModulation();
       scheduleSingleTouchModulationStartDraw();
@@ -3960,14 +3982,22 @@ function onCanvasPointerMove(event) {
     const dxScreen = pos.x - overlayState.lastPointerPosition.x;
     const dyScreen = pos.y - overlayState.lastPointerPosition.y;
     if (event.pointerType === "mouse" && event.shiftKey) {
+      if (!overlayState.desktopShiftRotateGesture) {
+        beginDesktopShiftRotateGesture(pos);
+      }
       prepareFixedViewForPanZoom("manual pan/zoom");
       beginPanZoomInteraction();
-      rotateFixedViewAroundScreenPivot(dxScreen * DESKTOP_SHIFT_DRAG_ROTATION_SENSITIVITY, canvas.width * 0.5, canvas.height * 0.5);
+      const currentAngle = getAngleAroundScreenCenter(pos.x, pos.y);
+      const deltaAngle = normalizeRotationAngle(currentAngle - overlayState.desktopShiftRotateGesture.startAngle);
+      const targetRotation = normalizeRotationAngle(overlayState.desktopShiftRotateGesture.startRotation + deltaAngle);
+      const incrementalDelta = normalizeRotationAngle(targetRotation - renderState.fixedView.rotation);
+      rotateFixedViewAroundScreenPivot(incrementalDelta, canvas.width * 0.5, canvas.height * 0.5);
       persistCurrentHistoryViewState(renderState.fixedView);
       requestDraw();
       overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
       return;
     }
+    clearDesktopShiftRotateGesture();
     const modulationDelta = event.pointerType === "mouse"
       ? { x: dxScreen, y: dyScreen }
       : mapScreenDeltaToTouchModulationDelta(dxScreen, dyScreen);
@@ -4106,6 +4136,7 @@ function clearPointerState(pointerId) {
     overlayState.primaryPointerId = null;
     overlayState.lastPointerPosition = null;
     overlayState.isManualModulating = false;
+    clearDesktopShiftRotateGesture();
     clearTwoFingerGesture();
     if (endingPanZoomGesture) {
       schedulePanZoomSettledRedraw();
@@ -4121,6 +4152,7 @@ function clearPointerState(pointerId) {
     overlayState.primaryPointerId = null;
     overlayState.lastPointerPosition = null;
     overlayState.isManualModulating = false;
+    clearDesktopShiftRotateGesture();
     clearTwoFingerGesture();
     schedulePanZoomSettledRedraw();
     return;
@@ -4132,6 +4164,7 @@ function clearPointerState(pointerId) {
     overlayState.primaryPointerId = remaining.pointerId;
     overlayState.interactionState = INTERACTION_STATE.MOD_1;
     overlayState.isManualModulating = false;
+    clearDesktopShiftRotateGesture();
     const pos = getCanvasPointerPosition(remaining);
     overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
     requestDraw();
@@ -6569,7 +6602,7 @@ function loadData() {
     data.defaults.interestGridSize = 256;
   }
   if (typeof data.defaults.interestScanIterations !== "number") {
-    data.defaults.interestScanIterations = 500;
+    data.defaults.interestScanIterations = INTEREST_SCAN_ITERATIONS_DEFAULT;
   }
   if (typeof data.defaults.interestLyapunovEnabled !== "boolean") {
     data.defaults.interestLyapunovEnabled = true;
@@ -6692,7 +6725,7 @@ function bootstrap() {
     appData.defaults.debugText = Boolean(appData.defaults.debugText ?? false);
     appData.defaults.interestOverlayOpacity = normalizeInterestOverlayOpacity(appData.defaults.interestOverlayOpacity ?? INTEREST_OVERLAY_OPACITY_DEFAULT);
     appData.defaults.interestGridSize = normalizeInterestGridSize(appData.defaults.interestGridSize ?? 256);
-    appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? 500), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
+    appData.defaults.interestScanIterations = Math.round(clamp(Number(appData.defaults.interestScanIterations ?? INTEREST_SCAN_ITERATIONS_DEFAULT), INTEREST_SCAN_ITERATIONS_MIN, INTEREST_SCAN_ITERATIONS_MAX));
     appData.defaults.interestLyapunovEnabled = appData.defaults.interestLyapunovEnabled !== false;
     appData.defaults.interestLyapunovMinExponent = clamp(Number(appData.defaults.interestLyapunovMinExponent ?? 0), INTEREST_LYAPUNOV_MIN_EXPONENT_MIN, INTEREST_LYAPUNOV_MIN_EXPONENT_MAX);
     appData.defaults.interestLyapunovDelta0 = clamp(Number(appData.defaults.interestLyapunovDelta0 ?? 1e-6), INTEREST_LYAPUNOV_DELTA0_MIN, INTEREST_LYAPUNOV_DELTA0_MAX);

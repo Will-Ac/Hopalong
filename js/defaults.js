@@ -33,21 +33,21 @@ export const DEFAULTS = {
   "holdRepeatMs": 300,
   "holdAccelStartMs": 5000,
   "holdAccelEndMs": 8000,
-  "touchPanDeadbandPx": 0.5,
-  "touchZoomDeadbandPx": 2.5,
+  "touchPanDeadbandPx": 2.0,
+  "touchZoomDeadbandPx": 1.5,
   "touchZoomRatioMin": 0.01,
   "panZoomSettleMs": 200,
   "rotationActivationThresholdDegrees": 15,
   "interestOverlayEnabled": false,
   "interestGridSize": 256,
-  "interestScanIterations": 500,
+  "interestScanIterations": 300,
   "interestLyapunovEnabled": true,
   "interestLyapunovMinExponent": 0.0,
   "interestLyapunovDelta0": 1e-06,
   "interestLyapunovRescale": true,
   "interestLyapunovMaxDistance": 1000000,
-  "interestHighThreshold": 0.1,
-  "interestOverlayOpacity": 0.2
+  "interestHighThreshold": 0.2,
+  "interestOverlayOpacity": 0.35
 };
 
 

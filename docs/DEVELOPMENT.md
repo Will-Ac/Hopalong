@@ -224,6 +224,25 @@ Share dialog uses the Web Share API where supported. When file sharing is suppor
 - Quick slider `+ / −` buttons were reduced to 80% of their previous PR33.7 size, and top spacing in the slider box above controls was tightened.
 - On mobile-sized layouts, formula and colour-map tile text now truncates with ellipsis to avoid edge overlap.
 
+## Desktop Shift-drag rotation refinement (PR36.1)
+
+- Desktop **Shift + left drag** rotation now uses the pointer’s angular movement around the screen centre instead of horizontal-delta-only mapping.
+- Both horizontal and vertical mouse movement now contribute naturally to rotation during Shift-drag.
+- Desktop rotation remains pivoted around the screen centre, and the existing pattern/XY-grid rotation alignment path is unchanged.
+
+## Interest default tuning update (PR36.2)
+
+- Updated default interest/scanning settings:
+  - interest overlay opacity default is now `0.35`
+  - scan iterations per cell default is now `300`
+  - high interest threshold default is now `0.20`
+- This PR changes defaults only; interest scan/render logic remains unchanged.
+
+## Touch pan deadband default update (PR36.3)
+
+- Updated the default touch pan deadband to `2.0 px`.
+- This is a default-value update only; touch gesture logic and other gesture settings are unchanged.
+
 ## 3. Common pitfalls
 
 ### State grouping errors
