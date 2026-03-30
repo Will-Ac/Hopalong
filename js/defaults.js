@@ -20,6 +20,7 @@ export const DEFAULTS = {
   "debugText": false,
   "iterationAbsoluteMax": 100000000,
   "iterationStartupDefault": 754901,
+  "otherLiveModulationIterations": 400000,
   "maxRandomIters": 1000000,
   "historyCacheSize": 6,
   "renderColorMode": "iteration_order",

@@ -42,6 +42,8 @@ const formulaSettingsApplyEl = document.getElementById("formulaSettingsApply");
 const formulaSettingsResetEl = document.getElementById("formulaSettingsReset");
 const detailStartupIterationsRangeEl = document.getElementById("detailStartupIterationsRange");
 const detailStartupIterationsFormattedEl = document.getElementById("detailStartupIterationsFormatted");
+const detailOtherLiveModulationIterationsRangeEl = document.getElementById("detailOtherLiveModulationIterationsRange");
+const detailOtherLiveModulationIterationsFormattedEl = document.getElementById("detailOtherLiveModulationIterationsFormatted");
 const detailMaxRandomItersRangeEl = document.getElementById("detailMaxRandomItersRange");
 const detailMaxRandomItersFormattedEl = document.getElementById("detailMaxRandomItersFormatted");
 const detailIterationAbsoluteMaxRangeEl = document.getElementById("detailIterationAbsoluteMaxRange");
@@ -171,6 +173,9 @@ const randomModeTile = document.getElementById("randomModeTile");
 const ITERATION_FALLBACK_ABSOLUTE_MAX = 1000000000;
 const ITERATION_FALLBACK_STARTUP_DEFAULT = 500000;
 const ITERATION_FALLBACK_RANDOM_MAX = 1000000;
+const OTHER_LIVE_MODULATION_ITERATIONS_DEFAULT = 400000;
+const OTHER_LIVE_MODULATION_ITERATIONS_MIN = 5000;
+const OTHER_LIVE_MODULATION_ITERATIONS_MAX = 2000000;
 const HISTORY_CACHE_SIZE_DEFAULT = 6;
 const HISTORY_CACHE_SIZE_MIN = 1;
 const HISTORY_CACHE_SIZE_MAX = 20;
@@ -254,6 +259,15 @@ function getIterationStartupDefault(defaults = appData?.defaults) {
 function getRandomIterationCap(defaults = appData?.defaults) {
   const absoluteMax = getIterationAbsoluteMax(defaults);
   return normalizeIterationValue(defaults?.maxRandomIters, ITERATION_FALLBACK_RANDOM_MAX, ITERATION_MIN, absoluteMax);
+}
+
+function getOtherLiveModulationIterations(defaults = appData?.defaults) {
+  return normalizeIterationValue(
+    defaults?.otherLiveModulationIterations,
+    OTHER_LIVE_MODULATION_ITERATIONS_DEFAULT,
+    OTHER_LIVE_MODULATION_ITERATIONS_MIN,
+    OTHER_LIVE_MODULATION_ITERATIONS_MAX,
+  );
 }
 
 function getHistoryCacheSize(defaults = appData?.defaults) {
@@ -674,6 +688,14 @@ function invalidatePendingRenders() {
 
 function isRenderGenerationCurrent(generation) {
   return generation === renderState.renderGeneration;
+}
+
+function cancelActiveRenderForInteraction() {
+  invalidatePendingRenders();
+}
+
+function suppressQueuedSettledRedraw() {
+  renderState.drawDirty = false;
 }
 
 function requestDraw({ invalidate = true } = {}) {
@@ -1249,6 +1271,10 @@ function applyFormulaDefaults(formulaId) {
 
 function findFormulaMeta(formulaId) {
   return appData?.formulas?.find((formula) => formula.id === formulaId) || null;
+}
+
+function isFormulaTypeOther(formulaId = currentFormulaId) {
+  return String(findFormulaMeta(formulaId)?.type || "").trim().toLowerCase() === "other";
 }
 
 function getFormulaUsedParams(formulaId) {
@@ -1897,6 +1923,15 @@ function syncDetailedSettingsControls() {
     detailStartupIterationsRangeEl.value = String(iterationStartupDefault);
   }
   if (detailStartupIterationsFormattedEl) detailStartupIterationsFormattedEl.textContent = formatNumberForUi(iterationStartupDefault, 0);
+  const otherLiveModulationIterations = getOtherLiveModulationIterations();
+  if (detailOtherLiveModulationIterationsRangeEl) {
+    detailOtherLiveModulationIterationsRangeEl.min = String(OTHER_LIVE_MODULATION_ITERATIONS_MIN);
+    detailOtherLiveModulationIterationsRangeEl.max = String(OTHER_LIVE_MODULATION_ITERATIONS_MAX);
+    detailOtherLiveModulationIterationsRangeEl.value = String(otherLiveModulationIterations);
+  }
+  if (detailOtherLiveModulationIterationsFormattedEl) {
+    detailOtherLiveModulationIterationsFormattedEl.textContent = formatNumberForUi(otherLiveModulationIterations, 0);
+  }
   if (detailMaxRandomItersRangeEl) detailMaxRandomItersRangeEl.value = String(maxRandomIters);
   if (detailMaxRandomItersRangeEl) {
     detailMaxRandomItersRangeEl.min = String(sliderControls.iters.min);
@@ -2063,6 +2098,15 @@ function applyIterationStartupDefault(nextValue) {
 
 function applyMaxRandomIterations(nextValue) {
   appData.defaults.maxRandomIters = normalizeIterationValue(nextValue, getRandomIterationCap(), ITERATION_MIN, getIterationAbsoluteMax());
+  syncDetailedSettingsControls();
+  saveDefaultsToStorage();
+  commitCurrentStateToHistory();
+}
+
+function applyOtherLiveModulationIterations(nextValue) {
+  appData.defaults.otherLiveModulationIterations = getOtherLiveModulationIterations({
+    otherLiveModulationIterations: nextValue,
+  });
   syncDetailedSettingsControls();
   saveDefaultsToStorage();
   commitCurrentStateToHistory();
@@ -3898,6 +3942,7 @@ function onCanvasPointerDown(event) {
   if (!appData) {
     return;
   }
+  cancelActiveRenderForInteraction();
 
   const isDirectTouchPointer = event.pointerType !== "mouse";
   if (event.pointerType !== "mouse") {
@@ -3935,6 +3980,8 @@ function onCanvasPointerDown(event) {
   }
 
   if (overlayState.activePointers.size === 1) {
+    cancelActiveRenderForInteraction();
+    suppressQueuedSettledRedraw();
     overlayState.interactionState = INTERACTION_STATE.MOD_1;
     overlayState.primaryPointerId = event.pointerId;
     overlayState.isManualModulating = false;
@@ -3998,6 +4045,7 @@ function onCanvasPointerMove(event) {
     const modulationDelta = event.pointerType === "mouse"
       ? { x: dxScreen, y: dyScreen }
       : mapScreenDeltaToTouchModulationDelta(dxScreen, dyScreen);
+    cancelActiveRenderForInteraction();
     const didModulate = applyManualModulation(modulationDelta.x, modulationDelta.y, { invalidate: false });
     overlayState.isManualModulating = overlayState.isManualModulating || didModulate;
     overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
@@ -4191,6 +4239,7 @@ function onCanvasPointerUp(event) {
 
 function onCanvasWheel(event) {
   event.preventDefault();
+  cancelActiveRenderForInteraction();
   prepareFixedViewForPanZoom("manual pan/zoom");
   beginPanZoomInteraction();
   const pos = getCanvasPointerPosition(event);
@@ -4214,7 +4263,17 @@ function alignQuickSliderAboveBottomBar() {
   if (!quickSliderEl) {
     return;
   }
-  quickSliderEl.style.removeProperty("bottom");
+  if (window.matchMedia("(pointer: fine)").matches) {
+    const bottomUiTop = paramOverlayEl?.getBoundingClientRect()?.top;
+    if (Number.isFinite(bottomUiTop)) {
+      const bottomInset = Math.max(0, Math.round(window.innerHeight - bottomUiTop + 2));
+      quickSliderEl.style.bottom = `${bottomInset}px`;
+    } else {
+      quickSliderEl.style.removeProperty("bottom");
+    }
+  } else {
+    quickSliderEl.style.removeProperty("bottom");
+  }
   uiState.helpOverlayController?.scheduleRender();
 }
 
@@ -4870,7 +4929,9 @@ function onParamPointerEnd(event) {
   }
 
   const now = performance.now();
-  const isDoubleTap = uiState.lastParamTap.targetKey === targetKey && now - uiState.lastParamTap.timestamp <= DOUBLE_TAP_MS;
+  const isFormulaOrCmapTile = targetKey === "formula" || targetKey === "cmap";
+  const doubleTapWindowMs = isFormulaOrCmapTile ? Math.round(DOUBLE_TAP_MS * 1.35) : DOUBLE_TAP_MS;
+  const isDoubleTap = uiState.lastParamTap.targetKey === targetKey && now - uiState.lastParamTap.timestamp <= doubleTapWindowMs;
   uiState.lastParamTap = { targetKey, timestamp: now };
 
   if (isDoubleTap) {
@@ -4892,7 +4953,7 @@ function onParamPointerEnd(event) {
   uiState.pendingTileTapTimer = window.setTimeout(() => {
     uiState.pendingTileTapTimer = null;
     paramTileTargets[targetKey]?.shortTap();
-  }, DOUBLE_TAP_MS + 10);
+  }, doubleTapWindowMs + 10);
 }
 
 function clearStepHold() {
@@ -5894,9 +5955,19 @@ async function draw() {
       renderState.pendingSharedWorldView = null;
     }
   }
+  const modulationPointerDown = overlayState.interactionState === INTERACTION_STATE.MOD_1
+    && overlayState.activePointers.size > 0;
+  if (modulationPointerDown && !overlayState.isManualModulating) {
+    redrawOverlayCanvases(renderState.lastRenderMeta);
+    layoutFloatingActions();
+    return;
+  }
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
-  const iterations = iterationSetting;
+  const useOtherLiveIterations = modulationPointerDown && isFormulaTypeOther(currentFormulaId);
+  const iterations = useOtherLiveIterations
+    ? getOtherLiveModulationIterations()
+    : iterationSetting;
   if (renderState.panZoomInteractionActive && !didResize && renderState.activePanZoomCacheEntry && drawInteractionFrameFromCache(renderState.activePanZoomCacheEntry)) {
     redrawOverlayCanvases(renderState.lastRenderMeta);
     layoutFloatingActions();
@@ -6353,6 +6424,7 @@ function registerHandlers() {
     resetFormulaDefaults(getSelectedRangesEditorFormulaId());
   });
   detailStartupIterationsRangeEl?.addEventListener("input", () => applyIterationStartupDefault(detailStartupIterationsRangeEl.value));
+  detailOtherLiveModulationIterationsRangeEl?.addEventListener("input", () => applyOtherLiveModulationIterations(detailOtherLiveModulationIterationsRangeEl.value));
   detailMaxRandomItersRangeEl?.addEventListener("input", () => applyMaxRandomIterations(detailMaxRandomItersRangeEl.value));
   detailIterationAbsoluteMaxRangeEl?.addEventListener("input", () => applyIterationAbsoluteMax(detailIterationAbsoluteMaxRangeEl.value));
   detailHistoryCacheSizeRangeEl?.addEventListener("input", () => applyHistoryCacheSize(detailHistoryCacheSizeRangeEl.value));
@@ -6648,6 +6720,9 @@ function loadData() {
   if (typeof data.defaults.rotationActivationThresholdDegrees !== "number") {
     data.defaults.rotationActivationThresholdDegrees = ROTATION_ACTIVATION_THRESHOLD_DEGREES_DEFAULT;
   }
+  if (typeof data.defaults.otherLiveModulationIterations !== "number") {
+    data.defaults.otherLiveModulationIterations = OTHER_LIVE_MODULATION_ITERATIONS_DEFAULT;
+  }
 
   normalizeIterationSettings(data.defaults);
   data.defaults.sliders.burn = Math.round(clamp(data.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
@@ -6675,6 +6750,7 @@ function loadData() {
     ROTATION_ACTIVATION_THRESHOLD_DEGREES_MIN,
     ROTATION_ACTIVATION_THRESHOLD_DEGREES_MAX,
   );
+  data.defaults.otherLiveModulationIterations = getOtherLiveModulationIterations(data.defaults);
   if (data.defaults.holdAccelEndMs <= data.defaults.holdAccelStartMs) {
     data.defaults.holdAccelEndMs = data.defaults.holdAccelStartMs + 1;
   }
