@@ -690,6 +690,10 @@ function isRenderGenerationCurrent(generation) {
   return generation === renderState.renderGeneration;
 }
 
+function cancelActiveRenderForInteraction() {
+  invalidatePendingRenders();
+}
+
 function requestDraw({ invalidate = true } = {}) {
   if (appData) {
     refreshParamButtons();
@@ -3934,6 +3938,7 @@ function onCanvasPointerDown(event) {
   if (!appData) {
     return;
   }
+  cancelActiveRenderForInteraction();
 
   const isDirectTouchPointer = event.pointerType !== "mouse";
   if (event.pointerType !== "mouse") {
@@ -4227,6 +4232,7 @@ function onCanvasPointerUp(event) {
 
 function onCanvasWheel(event) {
   event.preventDefault();
+  cancelActiveRenderForInteraction();
   prepareFixedViewForPanZoom("manual pan/zoom");
   beginPanZoomInteraction();
   const pos = getCanvasPointerPosition(event);
