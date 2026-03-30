@@ -461,3 +461,12 @@ Before opening or merging a PR:
 ## PR35.7 notes
 
 - Updated formula default parameter values (`a`, `b`, `c`, `d`) for the requested formula set in `js/formulas.js`.
+
+
+## PR38.0 notes
+
+- Added a new developer setting **Other live modulation iterations** (range `5000` to `2000000`, default `400000`) at the top of Dev Settings.
+- During live pointer-drag modulation only, formulas with `type: "Other"` now use the reduced iteration count above; release/settled redraws still use the normal full iteration count.
+- `type: "Hopalong"` formulas keep their existing modulation iteration behaviour unchanged.
+- Formula and Color Map tiles now use a slightly wider double-tap recognition window so double-tap toggle (Random/Fixed) is more reliable and accidental panel opens are reduced.
+- On desktop pointer layouts, the quick slider popup now sits with a 2px gap above the tile bar.
