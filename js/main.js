@@ -6,7 +6,6 @@ import {
   FORMULA_RANGES_RAW,
   FORMULA_DEFAULT_PRESETS,
   FORMULA_DEFAULT_SEEDS,
-  FORMULA_UI_EQUATIONS,
 } from "./formulas.js";
 import { createHelpOverlay } from "./helpOverlay.js";
 import { clamp } from "./utils.js";
@@ -1277,14 +1276,12 @@ function renderFormulaDetail(formulaId) {
   }
 
   const formula = findFormulaMeta(formulaId);
-  const ui = FORMULA_UI_EQUATIONS[formulaId] || null;
-
   if (rangesFormulaNameEl) {
-    rangesFormulaNameEl.textContent = ui?.name || formula?.name || formulaId || "Formula";
+    rangesFormulaNameEl.textContent = formula?.name || formulaId || "Formula";
   }
 
-  rangesFormulaLineXEl.textContent = String(ui?.xNew || "x_new = --").trim();
-  rangesFormulaLineYEl.textContent = String(ui?.yNew || "y_new = --").trim();
+  rangesFormulaLineXEl.textContent = String(formula?.xNew || "x_new = --").trim();
+  rangesFormulaLineYEl.textContent = String(formula?.yNew || "y_new = --").trim();
 }
 
 function getDerivedParams() {
