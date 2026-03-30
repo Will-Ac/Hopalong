@@ -694,6 +694,10 @@ function cancelActiveRenderForInteraction() {
   invalidatePendingRenders();
 }
 
+function suppressQueuedSettledRedraw() {
+  renderState.drawDirty = false;
+}
+
 function requestDraw({ invalidate = true } = {}) {
   if (appData) {
     refreshParamButtons();
@@ -3976,6 +3980,8 @@ function onCanvasPointerDown(event) {
   }
 
   if (overlayState.activePointers.size === 1) {
+    cancelActiveRenderForInteraction();
+    suppressQueuedSettledRedraw();
     overlayState.interactionState = INTERACTION_STATE.MOD_1;
     overlayState.primaryPointerId = event.pointerId;
     overlayState.isManualModulating = false;
@@ -4039,6 +4045,7 @@ function onCanvasPointerMove(event) {
     const modulationDelta = event.pointerType === "mouse"
       ? { x: dxScreen, y: dyScreen }
       : mapScreenDeltaToTouchModulationDelta(dxScreen, dyScreen);
+    cancelActiveRenderForInteraction();
     const didModulate = applyManualModulation(modulationDelta.x, modulationDelta.y, { invalidate: false });
     overlayState.isManualModulating = overlayState.isManualModulating || didModulate;
     overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
@@ -5948,12 +5955,17 @@ async function draw() {
       renderState.pendingSharedWorldView = null;
     }
   }
+  const modulationPointerDown = overlayState.interactionState === INTERACTION_STATE.MOD_1
+    && overlayState.activePointers.size > 0;
+  if (modulationPointerDown && !overlayState.isManualModulating) {
+    redrawOverlayCanvases(renderState.lastRenderMeta);
+    layoutFloatingActions();
+    return;
+  }
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
-  const isLiveManualModulation = overlayState.interactionState === INTERACTION_STATE.MOD_1
-    && overlayState.activePointers.size > 0
-    && overlayState.isManualModulating;
-  const iterations = isLiveManualModulation && isFormulaTypeOther(currentFormulaId)
+  const useOtherLiveIterations = modulationPointerDown && isFormulaTypeOther(currentFormulaId);
+  const iterations = useOtherLiveIterations
     ? getOtherLiveModulationIterations()
     : iterationSetting;
   if (renderState.panZoomInteractionActive && !didResize && renderState.activePanZoomCacheEntry && drawInteractionFrameFromCache(renderState.activePanZoomCacheEntry)) {
