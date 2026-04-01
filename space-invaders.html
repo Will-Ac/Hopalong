@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Space Invaders (Vanilla JavaScript)</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at top, #1b2640 0%, #090c16 45%, #04050a 100%);
+        color: #e6edf7;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      .game-shell {
+        width: min(94vw, 860px);
+        display: grid;
+        gap: 12px;
+      }
+      .hud {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 14px;
+        background: rgba(10, 14, 24, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+      }
+      .hud strong {
+        color: #8dd6ff;
+      }
+      canvas {
+        width: 100%;
+        aspect-ratio: 16 / 10;
+        background: linear-gradient(#060b14 0%, #04070e 70%, #02050b 100%);
+        border: 2px solid rgba(140, 190, 255, 0.45);
+        border-radius: 12px;
+        box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+      }
+      .controls {
+        font-size: 0.95rem;
+        line-height: 1.5;
+        color: #c8d4ea;
+        background: rgba(10, 14, 24, 0.75);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+        padding: 10px 14px;
+      }
+      .overlay {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        pointer-events: none;
+        font-size: clamp(1.2rem, 3vw, 2rem);
+        font-weight: 700;
+        text-align: center;
+        color: #eaf3ff;
+        text-shadow: 0 0 24px rgba(70, 160, 255, 0.75);
+      }
+      .canvas-wrap {
+        position: relative;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="game-shell">
+      <div class="hud">
+        <div>Score: <strong id="score">0</strong></div>
+        <div>Lives: <strong id="lives">3</strong></div>
+        <div>Level: <strong id="level">1</strong></div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="game" width="960" height="600" aria-label="Space Invaders canvas"></canvas>
+        <div id="message" class="overlay">Press Space to start</div>
+      </div>
+      <div class="controls">
+        <strong>Controls:</strong> Move with <kbd>←</kbd>/<kbd>→</kbd> (or <kbd>A</kbd>/<kbd>D</kbd>),
+        shoot with <kbd>Space</kbd>, restart after game over with <kbd>R</kbd>.
+      </div>
+    </div>
+
+    <script>
+      const canvas = document.getElementById('game');
+      const ctx = canvas.getContext('2d');
+      const scoreEl = document.getElementById('score');
+      const livesEl = document.getElementById('lives');
+      const levelEl = document.getElementById('level');
+      const messageEl = document.getElementById('message');
+
+      const keys = new Set();
+      const state = {
+        running: false,
+        score: 0,
+        lives: 3,
+        level: 1,
+        invaderDirection: 1,
+        enemyFireCooldown: 700,
+        lastEnemyShotAt: 0,
+        playerShotCooldown: 220,
+        lastPlayerShotAt: 0,
+        player: {
+          x: canvas.width / 2 - 35,
+          y: canvas.height - 56,
+          width: 70,
+          height: 26,
+          speed: 380,
+        },
+        bullets: [],
+        enemyBullets: [],
+        invaders: [],
+      };
+
+      function resetLevel() {
+        state.bullets = [];
+        state.enemyBullets = [];
+        state.invaders = [];
+        state.invaderDirection = 1;
+
+        const rows = Math.min(6, 2 + state.level);
+        const cols = 10;
+        const marginX = 90;
+        const startY = 70;
+        const gapX = 70;
+        const gapY = 54;
+
+        for (let row = 0; row < rows; row += 1) {
+          for (let col = 0; col < cols; col += 1) {
+            state.invaders.push({
+              x: marginX + col * gapX,
+              y: startY + row * gapY,
+              width: 42,
+              height: 28,
+              alive: true,
+              points: (rows - row) * 10,
+            });
+          }
+        }
+      }
+
+      function resetGame() {
+        state.score = 0;
+        state.lives = 3;
+        state.level = 1;
+        state.player.x = canvas.width / 2 - state.player.width / 2;
+        state.running = true;
+        state.enemyFireCooldown = 700;
+        resetLevel();
+        updateHud();
+        messageEl.textContent = '';
+      }
+
+      function updateHud() {
+        scoreEl.textContent = state.score;
+        livesEl.textContent = state.lives;
+        levelEl.textContent = state.level;
+      }
+
+      function shootPlayer(now) {
+        if (now - state.lastPlayerShotAt < state.playerShotCooldown || !state.running) {
+          return;
+        }
+        state.lastPlayerShotAt = now;
+        state.bullets.push({
+          x: state.player.x + state.player.width / 2 - 3,
+          y: state.player.y - 16,
+          width: 6,
+          height: 16,
+          speed: 520,
+        });
+      }
+
+      function enemyShoot(now) {
+        if (now - state.lastEnemyShotAt < state.enemyFireCooldown) {
+          return;
+        }
+        const living = state.invaders.filter((inv) => inv.alive);
+        if (!living.length) {
+          return;
+        }
+        state.lastEnemyShotAt = now;
+        const shooter = living[Math.floor(Math.random() * living.length)];
+        state.enemyBullets.push({
+          x: shooter.x + shooter.width / 2 - 3,
+          y: shooter.y + shooter.height,
+          width: 6,
+          height: 16,
+          speed: 260 + state.level * 22,
+        });
+      }
+
+      function update(dt, now) {
+        if (!state.running) {
+          return;
+        }
+
+        const moveLeft = keys.has('ArrowLeft') || keys.has('a');
+        const moveRight = keys.has('ArrowRight') || keys.has('d');
+
+        if (moveLeft) {
+          state.player.x -= state.player.speed * dt;
+        }
+        if (moveRight) {
+          state.player.x += state.player.speed * dt;
+        }
+
+        state.player.x = Math.max(0, Math.min(canvas.width - state.player.width, state.player.x));
+
+        state.bullets.forEach((bullet) => {
+          bullet.y -= bullet.speed * dt;
+        });
+        state.enemyBullets.forEach((bullet) => {
+          bullet.y += bullet.speed * dt;
+        });
+
+        state.bullets = state.bullets.filter((b) => b.y + b.height >= 0);
+        state.enemyBullets = state.enemyBullets.filter((b) => b.y <= canvas.height);
+
+        // Move invaders together in a classic left-right sweep.
+        const livingInvaders = state.invaders.filter((inv) => inv.alive);
+        const moveX = (65 + state.level * 14) * state.invaderDirection * dt;
+        livingInvaders.forEach((inv) => {
+          inv.x += moveX;
+        });
+
+        let hitEdge = false;
+        for (const inv of livingInvaders) {
+          if (inv.x <= 18 || inv.x + inv.width >= canvas.width - 18) {
+            hitEdge = true;
+            break;
+          }
+        }
+        if (hitEdge) {
+          state.invaderDirection *= -1;
+          livingInvaders.forEach((inv) => {
+            inv.y += 20;
+          });
+        }
+
+        enemyShoot(now);
+
+        for (const bullet of state.bullets) {
+          for (const inv of livingInvaders) {
+            if (!inv.alive) {
+              continue;
+            }
+            const hit =
+              bullet.x < inv.x + inv.width &&
+              bullet.x + bullet.width > inv.x &&
+              bullet.y < inv.y + inv.height &&
+              bullet.y + bullet.height > inv.y;
+            if (hit) {
+              inv.alive = false;
+              bullet.y = -100;
+              state.score += inv.points;
+              updateHud();
+              break;
+            }
+          }
+        }
+
+        const player = state.player;
+        for (const bullet of state.enemyBullets) {
+          const hit =
+            bullet.x < player.x + player.width &&
+            bullet.x + bullet.width > player.x &&
+            bullet.y < player.y + player.height &&
+            bullet.y + bullet.height > player.y;
+          if (hit) {
+            bullet.y = canvas.height + 100;
+            state.lives -= 1;
+            updateHud();
+            if (state.lives <= 0) {
+              state.running = false;
+              messageEl.textContent = 'Game over — press R to restart';
+            }
+          }
+        }
+
+        const invaderReachedBottom = livingInvaders.some((inv) => inv.y + inv.height >= state.player.y);
+        if (invaderReachedBottom) {
+          state.running = false;
+          messageEl.textContent = 'Invaders landed — press R to restart';
+        }
+
+        if (state.invaders.every((inv) => !inv.alive)) {
+          state.level += 1;
+          state.enemyFireCooldown = Math.max(240, state.enemyFireCooldown - 70);
+          updateHud();
+          resetLevel();
+        }
+      }
+
+      function drawStarfield(now) {
+        for (let i = 0; i < 90; i += 1) {
+          const seed = i * 97.131;
+          const x = (seed * 53) % canvas.width;
+          const y = ((seed * 19 + now * 0.03) % canvas.height);
+          const brightness = 120 + (i % 80);
+          ctx.fillStyle = `rgba(${brightness}, ${brightness}, 255, 0.28)`;
+          ctx.fillRect(x, y, 2, 2);
+        }
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawStarfield(performance.now());
+
+        // Player ship
+        const p = state.player;
+        ctx.fillStyle = '#68d8ff';
+        ctx.fillRect(p.x, p.y, p.width, p.height);
+        ctx.fillStyle = '#aef4ff';
+        ctx.fillRect(p.x + 16, p.y - 10, p.width - 32, 10);
+
+        // Invaders
+        state.invaders.forEach((inv) => {
+          if (!inv.alive) {
+            return;
+          }
+          ctx.fillStyle = '#ff8f73';
+          ctx.fillRect(inv.x, inv.y, inv.width, inv.height);
+          ctx.fillStyle = '#ffd6ca';
+          ctx.fillRect(inv.x + 6, inv.y + 6, 8, 8);
+          ctx.fillRect(inv.x + inv.width - 14, inv.y + 6, 8, 8);
+        });
+
+        ctx.fillStyle = '#fff36b';
+        state.bullets.forEach((b) => ctx.fillRect(b.x, b.y, b.width, b.height));
+
+        ctx.fillStyle = '#ffa7f4';
+        state.enemyBullets.forEach((b) => ctx.fillRect(b.x, b.y, b.width, b.height));
+      }
+
+      let lastTime = performance.now();
+      function frame(now) {
+        const dt = Math.min((now - lastTime) / 1000, 0.033);
+        lastTime = now;
+        update(dt, now);
+        draw();
+        requestAnimationFrame(frame);
+      }
+
+      window.addEventListener('keydown', (event) => {
+        const key = event.key.toLowerCase();
+        if (['arrowleft', 'arrowright', 'a', 'd', ' ', 'r'].includes(key)) {
+          event.preventDefault();
+        }
+
+        if (key === ' ') {
+          if (!state.running && state.lives === 3 && state.score === 0) {
+            resetGame();
+          } else {
+            shootPlayer(performance.now());
+          }
+        } else if (key === 'r') {
+          resetGame();
+        } else {
+          keys.add(key);
+        }
+      });
+
+      window.addEventListener('keyup', (event) => {
+        keys.delete(event.key.toLowerCase());
+      });
+
+      draw();
+      requestAnimationFrame(frame);
+    </script>
+  </body>
+</html>
