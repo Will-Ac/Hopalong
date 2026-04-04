@@ -28,7 +28,7 @@ export const DEFAULTS = {
   "renderHybridBlend": 0.3,
   "backgroundColor": "#05070c",
   "colorMapStopOverrides": {},
-  "overlayAlpha": 0.5,
+  "overlayAlpha": 0.8,
   "holdSpeedScale": 50.0,
   "holdRepeatMs": 300,
   "holdAccelStartMs": 5000,
