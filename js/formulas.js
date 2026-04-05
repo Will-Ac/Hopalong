@@ -713,15 +713,15 @@ export const FORMULA_DEFS = [
     id: "gumowski_mira",
     name: "Gumowski–Mira",
     type: "Other",
-    xNew: "x_new = b * y + f(x), where f(x) = a * x + (2 * (1 - a) * x * x) / (1 + x * x)^2",
-    yNew: "y_new = f(x_new) - x",
+    xNew: "f(u) = c*u + (2*(1-c)*u^2)/(1+u^2); x_new = y + a*(1 - b*y^2)*y + f(x)",
+    yNew: "y_new = -x + d * f(x_new)",
     ranges: { a: [-0.05, 0.05], b: [-1.0, 1.0], c: [0.0, 1.0], d: [0.3, 1.0] },
     defaults: { a: 0.0133, b: 0.3397, c: 0.2943, d: 0.8206 },
     seed: { x: 0.0, y: 0.5 },
     step: (x, y, p) => {
-      const f = (u) => p.a * u + (2 * (1 - p.a) * u * u) / ((1 + u * u) * (1 + u * u));
-      const x1 = p.b * y + f(x);
-      return [x1, f(x1) - x];
+      const f = (u) => p.c * u + (2 * (1 - p.c) * u * u) / (1 + u * u);
+      const x1 = y + p.a * (1 - p.b * y * y) * y + f(x);
+      return [x1, -x + p.d * f(x1)];
     },
   },
 ];
