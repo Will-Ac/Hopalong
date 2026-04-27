@@ -581,11 +581,20 @@ const HELP_PLACEMENT_POLICY = {
     },
     fallbackPlacements: [
       {
-        primitive: "centerSplit",
-        centerAnchorKey: "viewportCenter",
-        side: "left",
-        gap: LAYOUT.dividerTapGap,
-        band: { sourceType: "viewport", position: "middle", offset: 0 },
+        primitive: "relativeToGroup",
+        groupId: "tour-step",
+        relation: {
+          x: { sourceType: "anchor", sourceKey: "viewportCenter", sourceEdge: "x", selfEdge: "right", offset: -LAYOUT.dividerTapGap },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -8 },
+        },
+      },
+      {
+        primitive: "relativeToGroup",
+        groupId: "tour-step",
+        relation: {
+          x: { sourceType: "anchor", sourceKey: "viewportCenter", sourceEdge: "x", selfEdge: "right", offset: -LAYOUT.dividerTapGap },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 8 },
+        },
       },
     ],
   },
@@ -604,11 +613,20 @@ const HELP_PLACEMENT_POLICY = {
     },
     fallbackPlacements: [
       {
-        primitive: "centerSplit",
-        centerAnchorKey: "viewportCenter",
-        side: "right",
-        gap: LAYOUT.dividerTapGap,
-        band: { sourceType: "viewport", position: "middle", offset: 0 },
+        primitive: "relativeToGroup",
+        groupId: "tour-step",
+        relation: {
+          x: { sourceType: "anchor", sourceKey: "viewportCenter", sourceEdge: "x", selfEdge: "left", offset: LAYOUT.dividerTapGap },
+          y: { sourceEdge: "top", selfEdge: "bottom", offset: -8 },
+        },
+      },
+      {
+        primitive: "relativeToGroup",
+        groupId: "tour-step",
+        relation: {
+          x: { sourceType: "anchor", sourceKey: "viewportCenter", sourceEdge: "x", selfEdge: "left", offset: LAYOUT.dividerTapGap },
+          y: { sourceEdge: "bottom", selfEdge: "top", offset: 8 },
+        },
       },
     ],
   },
@@ -1375,6 +1393,37 @@ function getGlobalLeftBoundary(ctx) {
   return Number.isFinite(leftBottomTileX) ? leftBottomTileX : ctx.margin;
 }
 
+function getSidePreservingXBounds(layout, ctx) {
+  const strictX = getStrictX(layout, ctx);
+  const globalLeftBoundary = getGlobalLeftBoundary(ctx);
+  let minX = Number.isFinite(strictX) ? globalLeftBoundary : Math.max(ctx.margin, globalLeftBoundary);
+  let maxX = Number.isFinite(strictX)
+    ? ctx.viewportWidth - layout.width
+    : ctx.viewportWidth - layout.width - ctx.margin;
+
+  const side = layout.item.policy.constraints?.preserveSideOfCenter;
+  if (side) {
+    const centerX = ctx.anchors.get("viewportCenter")?.x ?? (ctx.viewportWidth / 2);
+    const dividerGap = LAYOUT.dividerTapGap;
+    if (side === "left") {
+      const hardMax = Math.floor(centerX - layout.width);
+      const preferredMax = Math.floor(centerX - dividerGap - layout.width);
+      maxX = Math.min(maxX, preferredMax >= minX ? preferredMax : hardMax);
+    } else if (side === "right") {
+      const hardMin = Math.ceil(centerX);
+      const preferredMin = Math.ceil(centerX + dividerGap);
+      minX = Math.max(minX, preferredMin <= maxX ? preferredMin : hardMin);
+    }
+  }
+
+  if (Number.isFinite(strictX)) {
+    minX = Math.max(minX, strictX);
+    maxX = Math.min(maxX, strictX);
+  }
+
+  return { minX, maxX, valid: minX <= maxX };
+}
+
 function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
   const { forbiddenRegions, viewportWidth, margin, uiTop, placedRects } = ctx;
   const rect = {
@@ -1385,9 +1434,12 @@ function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
   };
 
   const strictX = getStrictX(layout, ctx);
-  const globalLeftBoundary = getGlobalLeftBoundary(ctx);
-  const minX = Number.isFinite(strictX) ? globalLeftBoundary : Math.max(margin, globalLeftBoundary);
-  const maxX = Number.isFinite(strictX) ? viewportWidth : viewportWidth - margin;
+  const xBounds = getSidePreservingXBounds(layout, ctx);
+  if (!xBounds.valid) {
+    return { valid: false, score: Number.POSITIVE_INFINITY };
+  }
+  const minX = xBounds.minX;
+  const maxX = xBounds.maxX + layout.width;
   if (rect.left < minX || rect.right > maxX || rect.top < margin || rect.bottom > uiTop - margin) {
     return { valid: false, score: Number.POSITIVE_INFINITY };
   }
@@ -1425,9 +1477,10 @@ function scoreCandidate(layout, candidate, ctx, preferredCandidate) {
 function findFirstFreeSpot(layout, ctx, placedRects, lockX = null) {
   const step = 10;
   const maxY = Math.max(ctx.margin, ctx.uiTop - layout.height - ctx.margin);
-  const globalLeftBoundary = getGlobalLeftBoundary(ctx);
-  const xStart = Number.isFinite(lockX) ? Math.max(lockX, globalLeftBoundary) : Math.max(ctx.margin, globalLeftBoundary);
-  const xEnd = Number.isFinite(lockX) ? lockX : (ctx.viewportWidth - layout.width - ctx.margin);
+  const xBounds = getSidePreservingXBounds(layout, ctx);
+  if (!xBounds.valid) return null;
+  const xStart = Number.isFinite(lockX) ? clamp(lockX, xBounds.minX, xBounds.maxX) : xBounds.minX;
+  const xEnd = Number.isFinite(lockX) ? xStart : xBounds.maxX;
 
   for (let y = ctx.margin; y <= maxY; y += step) {
     for (let x = xStart; x <= xEnd; x += step) {
@@ -1476,7 +1529,12 @@ function resolveFallbackPlacement(layout, ctx, placedRects) {
     }
   }
   return {
-    x: Number.isFinite(lockX) ? lockX : clamp(layout.x, ctx.margin, ctx.viewportWidth - layout.width - ctx.margin),
+    x: (() => {
+      const xBounds = getSidePreservingXBounds(layout, ctx);
+      if (!xBounds.valid) return Number.isFinite(lockX) ? lockX : ctx.margin;
+      const baseX = Number.isFinite(lockX) ? lockX : layout.x;
+      return clamp(baseX, xBounds.minX, xBounds.maxX);
+    })(),
     y: clamp(ctx.margin, ctx.margin, ctx.uiTop - layout.height - ctx.margin),
   };
 }
@@ -1505,12 +1563,10 @@ function placeGroupsInPriorityOrder(ctx) {
 
 function clampPlacedGroupsToViewport(ctx) {
   for (const layout of ctx.layouts) {
-    const strictX = getStrictX(layout, ctx);
-    const minX = Number.isFinite(strictX) ? 0 : ctx.margin;
-    const maxX = Number.isFinite(strictX)
-      ? ctx.viewportWidth - layout.width
-      : ctx.viewportWidth - layout.width - ctx.margin;
-    layout.x = clamp(layout.x, minX, maxX);
+    const xBounds = getSidePreservingXBounds(layout, ctx);
+    if (xBounds.valid) {
+      layout.x = clamp(layout.x, xBounds.minX, xBounds.maxX);
+    }
     layout.y = clamp(layout.y, ctx.margin, ctx.uiTop - layout.height - ctx.margin);
   }
 }
