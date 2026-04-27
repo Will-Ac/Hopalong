@@ -719,9 +719,9 @@ export const FORMULA_DEFS = [
     defaults: { a: 0.0133, b: 0.3397, c: 0.2943, d: 0.8206 },
     seed: { x: 0.0, y: 0.5 },
     step: (x, y, p) => {
-      const f = (u) => p.a * u + (2 * (1 - p.a) * u * u) / ((1 + u * u) * (1 + u * u));
-      const x1 = p.b * y + f(x);
-      return [x1, f(x1) - x];
+      const f = (u) => p.c * u + (2 * (1 - p.c) * u * u) / (1 + u * u);
+      const x1 = y + p.a * (1 - p.b * y * y) * y + f(x);
+      return [x1, -x + p.d * f(x1)];
     },
   },
 ];
