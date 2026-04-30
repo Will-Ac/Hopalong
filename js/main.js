@@ -1194,48 +1194,16 @@ function formatNumberForUi(value, fractionDigits = 0) {
   });
 }
 
-function formatFullFloatForUi(value) {
+function formatParamForDisplay(value) {
   if (!Number.isFinite(value)) {
     return "--";
   }
-  if (Object.is(value, -0)) {
+  const fixed = Number(value).toFixed(6);
+  const trimmed = fixed.replace(/\.?0+$/u, "");
+  if (trimmed === "-0" || trimmed === "") {
     return "0";
   }
-
-  const direct = value.toString();
-  if (!/[eE]/.test(direct)) {
-    return direct;
-  }
-
-  const expanded = Number(value).toPrecision(15);
-  const [mantissa, exponentRaw] = expanded.split(/[eE]/);
-  const exponent = Number.parseInt(exponentRaw, 10);
-  if (!Number.isFinite(exponent)) {
-    return direct;
-  }
-
-  const sign = mantissa.startsWith("-") ? "-" : "";
-  const unsigned = mantissa.replace("-", "");
-  const digits = unsigned.replace(".", "");
-  const decimalIndex = unsigned.indexOf(".");
-  const fractionLength = decimalIndex >= 0 ? (unsigned.length - decimalIndex - 1) : 0;
-  const shiftedDecimal = digits.length - fractionLength + exponent;
-
-  let plain;
-  if (shiftedDecimal <= 0) {
-    plain = `0.${"0".repeat(Math.abs(shiftedDecimal))}${digits}`;
-  } else if (shiftedDecimal >= digits.length) {
-    plain = `${digits}${"0".repeat(shiftedDecimal - digits.length)}`;
-  } else {
-    plain = `${digits.slice(0, shiftedDecimal)}.${digits.slice(shiftedDecimal)}`;
-  }
-
-  const trimmed = plain
-    .replace(/(\.\d*?[1-9])0+$/u, "$1")
-    .replace(/\.0+$/u, "")
-    .replace(/^(-?)0+(?=\d)/u, "$1");
-  const normalized = trimmed === "" ? "0" : trimmed;
-  return normalized === "-0" ? "0" : `${sign}${normalized}`;
+  return trimmed;
 }
 
 function getRangeValuesForFormula(formulaId) {
@@ -1528,7 +1496,7 @@ function formatControlValue(control, value) {
   if (value === null || Number.isNaN(value)) {
     return "--";
   }
-  return formatFullFloatForUi(value);
+  return formatParamForDisplay(value);
 }
 
 function refreshParamButtons() {
@@ -5903,10 +5871,10 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
 
   debugInfoEl.textContent = [
     `formula: ${formula?.name || currentFormulaId}`,
-    `a: ${formatNumberForUi(params.a, 6)}`,
-    `b: ${formatNumberForUi(params.b, 6)}`,
-    `c: ${formatNumberForUi(params.c, 6)}`,
-    `d: ${formatNumberForUi(params.d, 6)}`,
+    `a: ${formatParamForDisplay(params.a)}`,
+    `b: ${formatParamForDisplay(params.b)}`,
+    `c: ${formatParamForDisplay(params.c)}`,
+    `d: ${formatParamForDisplay(params.d)}`,
     `iterations: ${formatNumberForUi(meta.iterations, 0)}`,
     "seeds: 1",
     `x range: ${formatNumberForUi(world.minX, 3)} to ${formatNumberForUi(world.maxX, 3)}`,
