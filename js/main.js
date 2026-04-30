@@ -1194,6 +1194,18 @@ function formatNumberForUi(value, fractionDigits = 0) {
   });
 }
 
+function formatParamForDisplay(value) {
+  if (!Number.isFinite(value)) {
+    return "--";
+  }
+  const fixed = Number(value).toFixed(6);
+  const trimmed = fixed.replace(/\.?0+$/u, "");
+  if (trimmed === "-0" || trimmed === "") {
+    return "0";
+  }
+  return trimmed;
+}
+
 function getRangeValuesForFormula(formulaId) {
   if (!appData || !formulaId) {
     return DEFAULT_PARAM_RANGES;
@@ -1484,8 +1496,7 @@ function formatControlValue(control, value) {
   if (value === null || Number.isNaN(value)) {
     return "--";
   }
-
-  return formatNumberForUi(value, control.displayDp ?? 4);
+  return formatParamForDisplay(value);
 }
 
 function refreshParamButtons() {
@@ -5860,10 +5871,10 @@ function drawDebugOverlay(meta, targetCtx = ctx) {
 
   debugInfoEl.textContent = [
     `formula: ${formula?.name || currentFormulaId}`,
-    `a: ${formatNumberForUi(params.a, 6)}`,
-    `b: ${formatNumberForUi(params.b, 6)}`,
-    `c: ${formatNumberForUi(params.c, 6)}`,
-    `d: ${formatNumberForUi(params.d, 6)}`,
+    `a: ${formatParamForDisplay(params.a)}`,
+    `b: ${formatParamForDisplay(params.b)}`,
+    `c: ${formatParamForDisplay(params.c)}`,
+    `d: ${formatParamForDisplay(params.d)}`,
     `iterations: ${formatNumberForUi(meta.iterations, 0)}`,
     "seeds: 1",
     `x range: ${formatNumberForUi(world.minX, 3)} to ${formatNumberForUi(world.maxX, 3)}`,
