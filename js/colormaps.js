@@ -267,19 +267,25 @@ for (const [name, fn] of Object.entries({ ...COLORMAPS, ...COLOR_MAP_ALIASES }))
   ColorMapLookup.set(normalizeColorMapName(name), fn);
 }
 
-export function sampleColorMap(name, t, background = [5, 7, 12]) {
-  const runtimeStops = getColorMapStops(name);
-  if (runtimeStops) {
-    const [r, g, b, a] = fromStopsRgba(runtimeStops, t);
-    return [
-      Math.round(background[0] + (r - background[0]) * a),
-      Math.round(background[1] + (g - background[1]) * a),
-      Math.round(background[2] + (b - background[2]) * a),
-    ];
+export function createColorMapSampler(name) {
+  const stops = getColorMapStops(name);
+  if (stops) {
+    return (t, background = [5, 7, 12]) => {
+      const [r, g, b, a] = fromStopsRgba(stops, t);
+      return [
+        Math.round(background[0] + (r - background[0]) * a),
+        Math.round(background[1] + (g - background[1]) * a),
+        Math.round(background[2] + (b - background[2]) * a),
+      ];
+    };
   }
   const fn =
     COLORMAPS[name]
     || ColorMapLookup.get(normalizeColorMapName(name))
     || COLORMAPS[Object.keys(COLORMAPS)[0]];
-  return fn ? fn(t) : [255, 255, 255];
+  return fn || (() => [255, 255, 255]);
+}
+
+export function sampleColorMap(name, t, background) {
+  return createColorMapSampler(name)(t, background);
 }
