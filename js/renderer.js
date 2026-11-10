@@ -1,4 +1,4 @@
-import { sampleColorMap } from "./colormaps.js";
+import { createColorMapSampler } from "./colormaps.js";
 import { VARIANTS } from "./formulas.js";
 import { clamp, clamp01 } from "./utils.js";
 
@@ -39,6 +39,8 @@ function mapHitToT(hits, maxHits, mode, { logStrength, densityGamma }) {
 }
 
 const LUT_SIZE = 2048;
+const DENSITY_LOOKUP_SIZE = 4096;
+const MAX_SPARSE_PIXELS = 1_048_576;
 
 const ESCAPE_ABS_BOUND = 1e6;
 
@@ -88,13 +90,13 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
   const height = canvas.height;
   const image = ctx.createImageData(width, height);
   const pixels = image.data;
+  const packedPixels = new Uint32Array(pixels.buffer, pixels.byteOffset, pixels.length / 4);
 
-  for (let i = 0; i < pixels.length; i += 4) {
-    pixels[i] = backgroundColor[0];
-    pixels[i + 1] = backgroundColor[1];
-    pixels[i + 2] = backgroundColor[2];
-    pixels[i + 3] = 255;
-  }
+  pixels[0] = backgroundColor[0];
+  pixels[1] = backgroundColor[1];
+  pixels[2] = backgroundColor[2];
+  pixels[3] = 255;
+  packedPixels.fill(packedPixels[0]);
 
   const renderMode = String(renderColoring?.mode || "iteration_order").trim();
   const logStrength = Number(renderColoring?.logStrength) || 9;
@@ -314,15 +316,22 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
     }
   }
 
-  const colorLut = new Uint8Array(LUT_SIZE * 3);
+  const sampleColor = createColorMapSampler(cmapName);
+  const isHybrid = renderMode === "hybrid_density_age";
+  const colorLut = isHybrid ? null : new Uint32Array(LUT_SIZE);
 
-  for (let lutIndex = 0; lutIndex < LUT_SIZE; lutIndex += 1) {
-    const t = lutIndex / (LUT_SIZE - 1);
-    const [r, g, b] = sampleColorMap(cmapName, t, backgroundColor);
-    const colorOffset = lutIndex * 3;
-    colorLut[colorOffset] = r;
-    colorLut[colorOffset + 1] = g;
-    colorLut[colorOffset + 2] = b;
+  if (colorLut) {
+    // Use a byte view to preserve RGBA channel order on either byte order.
+    const colorBytes = new Uint8Array(colorLut.buffer);
+    for (let lutIndex = 0; lutIndex < LUT_SIZE; lutIndex += 1) {
+      const t = lutIndex / (LUT_SIZE - 1);
+      const [r, g, b] = sampleColor(t, backgroundColor);
+      const colorOffset = lutIndex * 4;
+      colorBytes[colorOffset] = r;
+      colorBytes[colorOffset + 1] = g;
+      colorBytes[colorOffset + 2] = b;
+      colorBytes[colorOffset + 3] = 255;
+    }
   }
 
   if (renderMode === "iteration_order") {
@@ -347,18 +356,17 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
         continue;
       }
 
-      const idx = (py * width + px) * 4;
-      const lutIndex = Math.floor((i * (LUT_SIZE - 1)) / Math.max(1, sampleCount));
-      const colorOffset = lutIndex * 3;
-      pixels[idx] = colorLut[colorOffset];
-      pixels[idx + 1] = colorLut[colorOffset + 1];
-      pixels[idx + 2] = colorLut[colorOffset + 2];
-      pixels[idx + 3] = 255;
+      const lutIndex = Math.floor((i * (LUT_SIZE - 1)) / sampleCount);
+      packedPixels[py * width + px] = colorLut[lutIndex];
     }
   } else {
     const pixelCount = width * height;
     const hitCounts = new Uint32Array(pixelCount);
-    const lastHitIteration = renderMode === "hybrid_density_age" ? new Uint32Array(pixelCount) : null;
+    const lastHitIteration = isHybrid ? new Uint32Array(pixelCount) : null;
+    // Fall back to scanning the grid when a dense image would make this list large.
+    const sparseLimit = Math.min(sampleCount, Math.floor(pixelCount / 8), MAX_SPARSE_PIXELS);
+    let touchedPixels = sparseLimit > 0 ? new Uint32Array(sparseLimit) : null;
+    let touchedCount = 0;
     let maxHits = 0;
 
     for (let i = 0; i < sampleCount; i += 1) {
@@ -385,6 +393,13 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
       const pixelIndex = py * width + px;
       const nextHits = hitCounts[pixelIndex] + 1;
       hitCounts[pixelIndex] = nextHits;
+      if (nextHits === 1 && touchedPixels) {
+        if (touchedCount < sparseLimit) {
+          touchedPixels[touchedCount++] = pixelIndex;
+        } else {
+          touchedPixels = null;
+        }
+      }
       if (nextHits > maxHits) {
         maxHits = nextHits;
       }
@@ -393,12 +408,13 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
       }
     }
 
+    const scanCount = touchedPixels ? touchedCount : pixelCount;
     const percentileLookup = new Map();
     if (renderMode === "hit_density_percentile" && maxHits > 0) {
       const frequencyByHits = new Map();
       let activePixels = 0;
-      for (let i = 0; i < hitCounts.length; i += 1) {
-        const hits = hitCounts[i];
+      for (let i = 0; i < scanCount; i += 1) {
+        const hits = hitCounts[touchedPixels ? touchedPixels[i] : i];
         if (hits <= 0) continue;
         activePixels += 1;
         frequencyByHits.set(hits, (frequencyByHits.get(hits) || 0) + 1);
@@ -412,40 +428,42 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
       }
     }
 
-    for (let pixelIndex = 0; pixelIndex < hitCounts.length; pixelIndex += 1) {
-      if (pixelIndex % 4096 === 0) {
-        maybeEmitProgress(0.85 + (pixelIndex / Math.max(1, hitCounts.length)) * 0.15);
+    const densityLut = isHybrid ? null : new Uint16Array(Math.min(maxHits + 1, DENSITY_LOOKUP_SIZE));
+    const densityOptions = { logStrength, densityGamma };
+    for (let i = 0; i < scanCount; i += 1) {
+      if (i % 4096 === 0) {
+        maybeEmitProgress(0.85 + (i / scanCount) * 0.15);
         await maybeYieldToBrowser();
       }
+      const pixelIndex = touchedPixels ? touchedPixels[i] : i;
       const hits = hitCounts[pixelIndex];
       if (hits <= 0) {
         continue;
       }
 
-      let t = 0;
-      if (renderMode === "hit_density_percentile") {
-        t = percentileLookup.get(hits) || 0;
-      } else {
-        t = mapHitToT(hits, maxHits, renderMode, { logStrength, densityGamma });
-      }
-
-      const idx = pixelIndex * 4;
-      if (renderMode === "hybrid_density_age") {
+      if (isHybrid) {
+        const t = mapHitToT(hits, maxHits, renderMode, densityOptions);
         const ageT = clamp01((lastHitIteration[pixelIndex] - 1) / Math.max(1, sampleCount - 1));
-        const [baseR, baseG, baseB] = sampleColorMap(cmapName, t);
-        const [ageR, ageG, ageB] = sampleColorMap(cmapName, ageT);
-        const [mixR, mixG, mixB] = blendRgb([baseR, baseG, baseB], [ageR, ageG, ageB], hybridBlend);
+        const [mixR, mixG, mixB] = blendRgb(sampleColor(t), sampleColor(ageT), hybridBlend);
+        const idx = pixelIndex * 4;
         pixels[idx] = mixR;
         pixels[idx + 1] = mixG;
         pixels[idx + 2] = mixB;
       } else {
-        const lutIndex = Math.floor(clamp01(t) * (LUT_SIZE - 1));
-        const colorOffset = lutIndex * 3;
-        pixels[idx] = colorLut[colorOffset];
-        pixels[idx + 1] = colorLut[colorOffset + 1];
-        pixels[idx + 2] = colorLut[colorOffset + 2];
+        // Store indices plus one so zero can represent a cache miss.
+        const cached = densityLut[hits];
+        let lutIndex = cached - 1;
+        if (!cached) {
+          const t = renderMode === "hit_density_percentile"
+            ? (percentileLookup.get(hits) || 0)
+            : mapHitToT(hits, maxHits, renderMode, densityOptions);
+          lutIndex = Math.floor(clamp01(t) * (LUT_SIZE - 1));
+          if (hits < densityLut.length) {
+            densityLut[hits] = lutIndex + 1;
+          }
+        }
+        packedPixels[pixelIndex] = colorLut[lutIndex];
       }
-      pixels[idx + 3] = 255;
     }
   }
 
