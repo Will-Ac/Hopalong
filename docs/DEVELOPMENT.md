@@ -336,6 +336,7 @@ Use this short checklist after a small PR:
 - parameter tiles are visible
 - rendering works after changing formula or params
 - In Developer Settings, compare **Drag iterations** at **Full** and **25%** with **Maximum preview iterations** at **Off** and **250,000**. The lower limit applies during parameter drag. The default combination is **Full** and **Off**.
+- Compare **Drag resolution** at **100%**, **75%** and **50%** with drag iterations set to **Full**. Test a panned and rotated fixed view with a different export aspect ratio. The preview should fill the viewport with the same framing, and release should restore full resolution. Repeat with the iteration cap enabled.
 - In Safari, drag to modulate and pause with the pointer down. Release and verify that the full-detail frame matches a full render of the same parameters, including a clean screenshot. Repeat with the interactive worker request blocked to exercise the main-thread fallback. Check that pinch, pan and Shift-drag rotation still use the existing view controls.
 - palette and density settings recolour the current view. After a resize, pan, or history restore, check that recolouring matches a fresh render of the same state
 - panels open and close correctly

@@ -39,6 +39,7 @@ export const DEFAULTS = {
   "panZoomSettleMs": 200,
   "dragIterationPercent": 100,
   "dragIterationCap": 0,
+  "dragResolutionPercent": 100,
   "rotationActivationThresholdDegrees": 30,
   "interestOverlayEnabled": false,
   "interestGridSize": 256,

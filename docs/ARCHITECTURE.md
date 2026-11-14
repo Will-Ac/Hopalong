@@ -154,7 +154,7 @@ The interactive worker (or the main-thread fallback) holds one in-memory density
 
 ### Parameter changes
 
-The developer drag iteration controls can reduce the point count for one-finger and desktop left-drag modulation. Reduced frames are drawn directly to the live canvas and bypass the history and screenshot caches. If the worker is unavailable, the preview renders into a separate scratch canvas. The existing generation check discards obsolete previews when modulation ends, and the settled draw uses the full iteration count.
+The developer drag preview controls can independently reduce the iteration count and resolution for one-finger and desktop left-drag modulation. Reduced-resolution previews scale fixed-view offsets and crop the bitmap before scaling it to the viewport. Preview frames bypass the history and screenshot caches. If the worker is unavailable, the preview renders into a separate scratch canvas. The generation check discards obsolete previews when modulation ends, and the settled draw uses full resolution and iteration count.
 
 1. User changes a slider, quick slider, picker, or parameter mode.
 2. `main.js` updates `appData.defaults` and related grouped state.
