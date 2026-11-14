@@ -41,6 +41,7 @@ function mapHitToT(hits, maxHits, mode, { logStrength, densityGamma }) {
 const LUT_SIZE = 2048;
 const DENSITY_LOOKUP_SIZE = 4096;
 const MAX_SPARSE_PIXELS = 1_048_576;
+const MAX_CACHED_DENSITY_BYTES = 40 * 1024 * 1024;
 
 const ESCAPE_ABS_BOUND = 1e6;
 
@@ -74,7 +75,24 @@ export function getParamsForFormula({ rangesForFormula, sliderDefaults }) {
   };
 }
 
-export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = DEFAULT_RENDER_ITERATIONS, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {}, backgroundColor = [5, 7, 12], onProgress = null, isCancelled = null }) {
+
+function createPackedColorLut(sampleColor, backgroundColor) {
+  const colorLut = new Uint32Array(LUT_SIZE);
+  // Use a byte view to preserve RGBA channel order on either byte order.
+  const colorBytes = new Uint8Array(colorLut.buffer);
+  for (let lutIndex = 0; lutIndex < LUT_SIZE; lutIndex += 1) {
+    const t = lutIndex / (LUT_SIZE - 1);
+    const [r, g, b] = sampleColor(t, backgroundColor);
+    const colorOffset = lutIndex * 4;
+    colorBytes[colorOffset] = r;
+    colorBytes[colorOffset + 1] = g;
+    colorBytes[colorOffset + 2] = b;
+    colorBytes[colorOffset + 3] = 255;
+  }
+  return colorLut;
+}
+
+export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = DEFAULT_RENDER_ITERATIONS, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {}, backgroundColor = [5, 7, 12], onProgress = null, isCancelled = null, densityCache = null }) {
   const step = formulaStepById.get(formulaId);
   if (!step) {
     throw new Error(`Unknown formula id: ${formulaId}`);
@@ -99,6 +117,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
   packedPixels.fill(packedPixels[0]);
 
   const renderMode = String(renderColoring?.mode || "iteration_order").trim();
+  const isHybrid = renderMode === "hybrid_density_age";
   const logStrength = Number(renderColoring?.logStrength) || 9;
   const densityGamma = Number(renderColoring?.densityGamma) || 0.6;
   const hybridBlend = clamp01(Number(renderColoring?.hybridBlend) || 0.3);
@@ -135,6 +154,95 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
 
   maybeEmitProgress(0, false);
   throwIfCancelled();
+
+  const finishFrame = (meta) => {
+    maybeEmitProgress(1, true);
+    throwIfCancelled();
+    ctx.putImageData(image, 0, 0);
+    return meta;
+  };
+
+  const paintDensity = async ({ hitCounts, lastHitIteration, touchedPixels, touchedCount, maxHits, sampleCount }, progressStart) => {
+    const sampleColor = createColorMapSampler(cmapName);
+    const colorLut = isHybrid ? null : createPackedColorLut(sampleColor, backgroundColor);
+    const scanCount = touchedPixels ? touchedCount : hitCounts.length;
+    const percentileLookup = new Map();
+    if (renderMode === "hit_density_percentile" && maxHits > 0) {
+      const frequencyByHits = new Map();
+      let activePixels = 0;
+      for (let i = 0; i < scanCount; i += 1) {
+        const hits = hitCounts[touchedPixels ? touchedPixels[i] : i];
+        if (hits <= 0) continue;
+        activePixels += 1;
+        frequencyByHits.set(hits, (frequencyByHits.get(hits) || 0) + 1);
+      }
+
+      const sortedHits = [...frequencyByHits.keys()].sort((a, b) => a - b);
+      let cumulative = 0;
+      for (const hits of sortedHits) {
+        cumulative += frequencyByHits.get(hits) || 0;
+        percentileLookup.set(hits, activePixels > 0 ? cumulative / activePixels : 0);
+      }
+    }
+
+    const densityLut = isHybrid ? null : new Uint16Array(Math.min(maxHits + 1, DENSITY_LOOKUP_SIZE));
+    const densityOptions = { logStrength, densityGamma };
+    for (let i = 0; i < scanCount; i += 1) {
+      if (i % 4096 === 0) {
+        maybeEmitProgress(progressStart + (i / scanCount) * (1 - progressStart));
+        await maybeYieldToBrowser();
+      }
+      const pixelIndex = touchedPixels ? touchedPixels[i] : i;
+      const hits = hitCounts[pixelIndex];
+      if (hits <= 0) {
+        continue;
+      }
+
+      if (isHybrid) {
+        const t = mapHitToT(hits, maxHits, renderMode, densityOptions);
+        const ageT = clamp01((lastHitIteration[pixelIndex] - 1) / Math.max(1, sampleCount - 1));
+        const [mixR, mixG, mixB] = blendRgb(sampleColor(t), sampleColor(ageT), hybridBlend);
+        const idx = pixelIndex * 4;
+        pixels[idx] = mixR;
+        pixels[idx + 1] = mixG;
+        pixels[idx + 2] = mixB;
+      } else {
+        // Store indices plus one so zero can represent a cache miss.
+        const cached = densityLut[hits];
+        let lutIndex = cached - 1;
+        if (!cached) {
+          const t = renderMode === "hit_density_percentile"
+            ? (percentileLookup.get(hits) || 0)
+            : mapHitToT(hits, maxHits, renderMode, densityOptions);
+          lutIndex = Math.floor(clamp01(t) * (LUT_SIZE - 1));
+          if (hits < densityLut.length) {
+            densityLut[hits] = lutIndex + 1;
+          }
+        }
+        packedPixels[pixelIndex] = colorLut[lutIndex];
+      }
+    }
+  };
+
+  let cacheKey = null;
+  if (densityCache) {
+    // Only plain density modes share this grid. Hybrid also needs per-pixel ages.
+    if (renderMode !== "iteration_order" && !isHybrid && pixels.byteLength <= MAX_CACHED_DENSITY_BYTES) {
+      cacheKey = [
+        width, height, formulaId, params.a, params.b, params.c, params.d, iterations, burn,
+        seed?.x, seed?.y, scaleMode, fixedView?.offsetX, fixedView?.offsetY, fixedView?.zoom,
+        fixedView?.rotation, fixedView?.rotationCos, fixedView?.rotationSin,
+        Boolean(worldOverride), worldOverride?.minX, worldOverride?.maxX, worldOverride?.minY, worldOverride?.maxY,
+      ];
+      const entry = densityCache.entry;
+      if (entry?.key.every((value, i) => Object.is(value, cacheKey[i]))) {
+        await paintDensity(entry.density, 0);
+        return finishFrame({ world: { ...entry.meta.world }, view: { ...entry.meta.view } });
+      }
+    }
+    // Release the previous buffers before starting an incompatible render.
+    densityCache.entry = null;
+  }
 
   let x = Number(seed?.x);
   let y = Number(seed?.y);
@@ -179,9 +287,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
   }
 
   if (sampleCount === 0) {
-    maybeEmitProgress(1, true);
-    ctx.putImageData(image, 0, 0);
-    return {
+    return finishFrame({
       world: {
         minX: -1,
         maxX: 1,
@@ -198,7 +304,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
         scaleX: (width - 1) / 2,
         scaleY: (height - 1) / 2,
       },
-    };
+    });
   }
 
   let worldMinX;
@@ -316,25 +422,9 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
     }
   }
 
-  const sampleColor = createColorMapSampler(cmapName);
-  const isHybrid = renderMode === "hybrid_density_age";
-  const colorLut = isHybrid ? null : new Uint32Array(LUT_SIZE);
-
-  if (colorLut) {
-    // Use a byte view to preserve RGBA channel order on either byte order.
-    const colorBytes = new Uint8Array(colorLut.buffer);
-    for (let lutIndex = 0; lutIndex < LUT_SIZE; lutIndex += 1) {
-      const t = lutIndex / (LUT_SIZE - 1);
-      const [r, g, b] = sampleColor(t, backgroundColor);
-      const colorOffset = lutIndex * 4;
-      colorBytes[colorOffset] = r;
-      colorBytes[colorOffset + 1] = g;
-      colorBytes[colorOffset + 2] = b;
-      colorBytes[colorOffset + 3] = 255;
-    }
-  }
-
+  let densityToCache = null;
   if (renderMode === "iteration_order") {
+    const colorLut = createPackedColorLut(createColorMapSampler(cmapName), backgroundColor);
     for (let i = 0; i < sampleCount; i += 1) {
       if (i % 2048 === 0) {
         maybeEmitProgress(0.7 + (i / Math.max(1, sampleCount)) * 0.3);
@@ -408,69 +498,14 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
       }
     }
 
-    const scanCount = touchedPixels ? touchedCount : pixelCount;
-    const percentileLookup = new Map();
-    if (renderMode === "hit_density_percentile" && maxHits > 0) {
-      const frequencyByHits = new Map();
-      let activePixels = 0;
-      for (let i = 0; i < scanCount; i += 1) {
-        const hits = hitCounts[touchedPixels ? touchedPixels[i] : i];
-        if (hits <= 0) continue;
-        activePixels += 1;
-        frequencyByHits.set(hits, (frequencyByHits.get(hits) || 0) + 1);
-      }
-
-      const sortedHits = [...frequencyByHits.keys()].sort((a, b) => a - b);
-      let cumulative = 0;
-      for (const hits of sortedHits) {
-        cumulative += frequencyByHits.get(hits) || 0;
-        percentileLookup.set(hits, activePixels > 0 ? cumulative / activePixels : 0);
-      }
-    }
-
-    const densityLut = isHybrid ? null : new Uint16Array(Math.min(maxHits + 1, DENSITY_LOOKUP_SIZE));
-    const densityOptions = { logStrength, densityGamma };
-    for (let i = 0; i < scanCount; i += 1) {
-      if (i % 4096 === 0) {
-        maybeEmitProgress(0.85 + (i / scanCount) * 0.15);
-        await maybeYieldToBrowser();
-      }
-      const pixelIndex = touchedPixels ? touchedPixels[i] : i;
-      const hits = hitCounts[pixelIndex];
-      if (hits <= 0) {
-        continue;
-      }
-
-      if (isHybrid) {
-        const t = mapHitToT(hits, maxHits, renderMode, densityOptions);
-        const ageT = clamp01((lastHitIteration[pixelIndex] - 1) / Math.max(1, sampleCount - 1));
-        const [mixR, mixG, mixB] = blendRgb(sampleColor(t), sampleColor(ageT), hybridBlend);
-        const idx = pixelIndex * 4;
-        pixels[idx] = mixR;
-        pixels[idx + 1] = mixG;
-        pixels[idx + 2] = mixB;
-      } else {
-        // Store indices plus one so zero can represent a cache miss.
-        const cached = densityLut[hits];
-        let lutIndex = cached - 1;
-        if (!cached) {
-          const t = renderMode === "hit_density_percentile"
-            ? (percentileLookup.get(hits) || 0)
-            : mapHitToT(hits, maxHits, renderMode, densityOptions);
-          lutIndex = Math.floor(clamp01(t) * (LUT_SIZE - 1));
-          if (hits < densityLut.length) {
-            densityLut[hits] = lutIndex + 1;
-          }
-        }
-        packedPixels[pixelIndex] = colorLut[lutIndex];
-      }
+    const density = { hitCounts, lastHitIteration, touchedPixels, touchedCount, maxHits, sampleCount };
+    await paintDensity(density, 0.85);
+    if (cacheKey && hitCounts.byteLength + (touchedPixels?.byteLength ?? 0) <= MAX_CACHED_DENSITY_BYTES) {
+      densityToCache = density;
     }
   }
 
-  maybeEmitProgress(1, true);
-  ctx.putImageData(image, 0, 0);
-
-  return {
+  const meta = finishFrame({
     world: {
       minX: worldMinX,
       maxX: worldMaxX,
@@ -490,7 +525,15 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
       rotationCos: mapRotationCos,
       rotationSin: mapRotationSin,
     },
-  };
+  });
+  if (densityToCache) {
+    densityCache.entry = {
+      key: cacheKey,
+      density: densityToCache,
+      meta: { world: { ...meta.world }, view: { ...meta.view } },
+    };
+  }
+  return meta;
 }
 
 

@@ -150,6 +150,8 @@ Read/write use:
 5. `main.js` updates render caches and metadata.
 6. Overlay canvases are redrawn using the latest render metadata.
 
+For the interactive render, `renderState` holds one in-memory density grid. Linear, Log, Gamma and Percentile share it when the orbit, view and render dimensions match. The renderer budgets up to 40 MiB for the hit counts and sparse pixel indices combined. The grid is separate from the frame history and export caches.
+
 ### Parameter changes
 1. User changes a slider, quick slider, picker, or parameter mode.
 2. `main.js` updates `appData.defaults` and related grouped state.

@@ -356,6 +356,7 @@ const renderState = {
   renderRevision: 0,
   renderGeneration: 0,
   currentRenderCache: null,
+  densityCache: { entry: null },
   activePanZoomCacheEntry: null,
   pendingSharedWorldView: null,
   fixedView: {
@@ -5926,8 +5927,9 @@ async function draw() {
       iterations,
       burn: burnSetting,
       scaleMode: getScaleMode(),
-      fixedView: renderState.fixedView,
-      seed: getSeedForFormula(currentFormulaId),
+      fixedView: { ...renderState.fixedView },
+      seed: { ...getSeedForFormula(currentFormulaId) },
+      densityCache: renderState.densityCache,
       renderColoring: getRenderColoringOptions(),
       backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
       onProgress: (percent, isComplete) => {
