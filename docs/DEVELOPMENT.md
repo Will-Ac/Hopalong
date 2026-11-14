@@ -335,6 +335,7 @@ Use this short checklist after a small PR:
 - colour maps populate in the colour picker
 - parameter tiles are visible
 - rendering works after changing formula or params
+- in Safari, drag to modulate, release, then verify the final frame and clean screenshot match. Repeat with the interactive worker request blocked to exercise the main-thread fallback
 - palette and density settings recolour the current view. After a resize, pan, or history restore, check that recolouring matches a fresh render of the same state
 - panels open and close correctly
 - help overlay opens and points at controls correctly

@@ -13,6 +13,9 @@ import { initUIPanels } from "./uiPanels.js";
 import { initInterestOverlay } from "./interestOverlay.js";
 import { initExportManager } from "./exportManager.js";
 import { initHistoryState } from "./historyState.js";
+import { createInteractiveRenderer } from "./interactiveRenderer.js";
+
+const interactiveRenderer = createInteractiveRenderer();
 
 const canvas = document.getElementById("c");
 const interestOverlayCanvas = document.getElementById("interestOverlayCanvas");
@@ -670,6 +673,7 @@ function clampLabel(text, maxChars = NAME_MAX_CHARS) {
 
 function invalidatePendingRenders() {
   renderState.renderGeneration += 1;
+  interactiveRenderer.cancel();
   return renderState.renderGeneration;
 }
 
@@ -698,7 +702,7 @@ function requestDraw({ invalidate = true } = {}) {
   renderState.drawScheduled = true;
   window.requestAnimationFrame(async () => {
     renderState.drawScheduled = false;
-    if (!renderState.drawDirty || renderState.drawInProgress) {
+    if (!renderState.drawDirty || renderState.drawInProgress || exportState.exportManager?.isHighResExportInProgress()) {
       return;
     }
 
@@ -5911,46 +5915,65 @@ async function draw() {
     canvas.width / Math.max(1, pxW),
     canvas.height / Math.max(1, pxH),
   );
-  const fullCanvas = exportState.exportManager.ensureExportCacheCanvas(
-    Math.max(1, Math.round(pxW * cropScale)),
-    Math.max(1, Math.round(pxH * cropScale)),
-  );
-  const exportCtx = exportState.exportManager.getExportContext();
+  const width = Math.max(1, Math.round(pxW * cropScale));
+  const height = Math.max(1, Math.round(pxH * cropScale));
+  let fullCanvas;
+  const options = {
+    formulaId: currentFormulaId,
+    cmapName: appData.defaults.cmapName,
+    params: getDerivedParams(),
+    iterations,
+    burn: burnSetting,
+    scaleMode: getScaleMode(),
+    fixedView: { ...renderState.fixedView },
+    seed: { ...getSeedForFormula(currentFormulaId) },
+    renderColoring: getRenderColoringOptions(),
+    backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
+  };
+  const isCancelled = () => !isRenderGenerationCurrent(renderGenerationAtStart);
+  const onProgress = (percent, isComplete) => {
+    if (!isCancelled()) updateRenderProgressToast(percent, isComplete);
+  };
   let frameMetaFull;
+  let workerFrame;
   try {
-    frameMetaFull = await renderFrame({
-      ctx: exportCtx,
-      canvas: fullCanvas,
-      formulaId: currentFormulaId,
-      cmapName: appData.defaults.cmapName,
-      params: getDerivedParams(),
-      iterations,
-      burn: burnSetting,
-      scaleMode: getScaleMode(),
-      fixedView: { ...renderState.fixedView },
-      seed: { ...getSeedForFormula(currentFormulaId) },
-      densityCache: renderState.densityCache,
-      renderColoring: getRenderColoringOptions(),
-      backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
-      onProgress: (percent, isComplete) => {
-        if (isRenderGenerationCurrent(renderGenerationAtStart)) {
-          updateRenderProgressToast(percent, isComplete);
-        }
-      },
-      isCancelled: () => !isRenderGenerationCurrent(renderGenerationAtStart),
+    workerFrame = await interactiveRenderer.render({
+      width,
+      height,
+      options,
+      paletteOverrides: getColorMapStopOverrides(),
+      onProgress,
     });
-  } catch (error) {
-    if (isRenderCancelledError(error)) {
-      return;
+    if (isCancelled()) return;
+    if (workerFrame) {
+      // During modulation, display completed frames in order. Only the latest
+      // state may update history or the screenshot cache.
+      if (renderState.drawDirty) {
+        drawBaseRenderFromFullCanvas(workerFrame.bitmap, workerFrame.meta);
+        return;
+      }
+      fullCanvas = exportState.exportManager.ensureExportCacheCanvas(width, height);
+      exportState.exportManager.getExportContext().drawImage(workerFrame.bitmap, 0, 0);
+      frameMetaFull = workerFrame.meta;
+    } else {
+      fullCanvas = exportState.exportManager.ensureExportCacheCanvas(width, height);
+      frameMetaFull = await renderFrame({
+        ...options, ctx: exportState.exportManager.getExportContext(), canvas: fullCanvas,
+        densityCache: renderState.densityCache,
+        onProgress, isCancelled,
+      });
     }
+  } catch (error) {
+    if (isRenderCancelledError(error)) return;
     throw error;
+  } finally {
+    workerFrame?.bitmap.close();
   }
 
-  if (!isRenderGenerationCurrent(renderGenerationAtStart)) {
-    return;
-  }
+  if (isCancelled()) return;
 
   const { frameMeta } = drawBaseRenderFromFullCanvas(fullCanvas, frameMetaFull);
+  if (renderState.drawDirty) return;
 
 
   const now = performance.now();
@@ -6222,10 +6245,12 @@ function registerHandlers() {
   screenshotMenu4kEl?.addEventListener("click", async () => {
     closeScreenshotMenu();
     await exportState.exportManager.captureScreenshotAction("4k");
+    if (renderState.drawDirty) requestDraw({ invalidate: false });
   });
   screenshotMenu8kEl?.addEventListener("click", async () => {
     closeScreenshotMenu();
     await exportState.exportManager.captureScreenshotAction("8k");
+    if (renderState.drawDirty) requestDraw({ invalidate: false });
   });
   screenshotMenuCopyLinkEl?.addEventListener("click", async () => {
     await shareLink();

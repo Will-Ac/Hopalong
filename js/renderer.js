@@ -130,7 +130,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
     if (now - lastYieldMs < 20) {
       return;
     }
-    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     lastYieldMs = performance.now();
     throwIfCancelled();
   };
@@ -171,6 +171,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
       const frequencyByHits = new Map();
       let activePixels = 0;
       for (let i = 0; i < scanCount; i += 1) {
+        if (i % 4096 === 0) await maybeYieldToBrowser();
         const hits = hitCounts[touchedPixels ? touchedPixels[i] : i];
         if (hits <= 0) continue;
         activePixels += 1;
