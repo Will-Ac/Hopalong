@@ -74,6 +74,7 @@ const panZoomSettleMsRangeEl = document.getElementById("panZoomSettleMsRange");
 const panZoomSettleMsValueEl = document.getElementById("panZoomSettleMsValue");
 const dragIterationPercentEl = document.getElementById("dragIterationPercent");
 const dragIterationCapEl = document.getElementById("dragIterationCap");
+const dragResolutionPercentEl = document.getElementById("dragResolutionPercent");
 const rotationThresholdRangeEl = document.getElementById("rotationThresholdRange");
 const rotationThresholdValueEl = document.getElementById("rotationThresholdValue");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
@@ -1891,7 +1892,7 @@ function setSettingsPanelMode(mode) {
   }
 }
 
-function readDragIterationSetting(control, key) {
+function readDragPreviewSetting(control, key) {
   const value = String(appData.defaults[key]);
   return Array.from(control.options).some((option) => option.value === value)
     ? Number(value)
@@ -1899,14 +1900,20 @@ function readDragIterationSetting(control, key) {
 }
 
 function getDragIterations(fullIterations) {
-  const percent = readDragIterationSetting(dragIterationPercentEl, "dragIterationPercent");
-  const cap = readDragIterationSetting(dragIterationCapEl, "dragIterationCap");
+  const percent = readDragPreviewSetting(dragIterationPercentEl, "dragIterationPercent");
+  const cap = readDragPreviewSetting(dragIterationCapEl, "dragIterationCap");
   return Math.max(1, Math.min(Math.floor(fullIterations * percent / 100), cap || fullIterations));
 }
 
+function hasDragPreview(fullIterations) {
+  return getDragIterations(fullIterations) < fullIterations
+    || readDragPreviewSetting(dragResolutionPercentEl, "dragResolutionPercent") < 100;
+}
+
 function syncDetailedSettingsControls() {
-  dragIterationPercentEl.value = String(readDragIterationSetting(dragIterationPercentEl, "dragIterationPercent"));
-  dragIterationCapEl.value = String(readDragIterationSetting(dragIterationCapEl, "dragIterationCap"));
+  dragIterationPercentEl.value = String(readDragPreviewSetting(dragIterationPercentEl, "dragIterationPercent"));
+  dragIterationCapEl.value = String(readDragPreviewSetting(dragIterationCapEl, "dragIterationCap"));
+  dragResolutionPercentEl.value = String(readDragPreviewSetting(dragResolutionPercentEl, "dragResolutionPercent"));
   const {
     iterationAbsoluteMax,
     iterationStartupDefault,
@@ -3634,7 +3641,7 @@ function applyManualModulation(deltaX, deltaY, { invalidate = true } = {}) {
     const startingDrag = !overlayState.isManualModulating;
     overlayState.isManualModulating = true;
     const fullIterations = Math.round(appData.defaults.sliders.iters);
-    const startingPreview = startingDrag && getDragIterations(fullIterations) < fullIterations;
+    const startingPreview = startingDrag && hasDragPreview(fullIterations);
     if (startingPreview) cancelSingleTouchModulationStartDraw();
     requestLiveModulationDraw({ invalidate: startingPreview });
   }
@@ -3782,7 +3789,7 @@ function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
   overlayState.interactionState = INTERACTION_STATE.TWO_ACTIVE;
   overlayState.suppressHistoryTap = true;
   const fullIterations = Math.round(appData.defaults.sliders.iters);
-  if (overlayState.isManualModulating && getDragIterations(fullIterations) < fullIterations) {
+  if (overlayState.isManualModulating && hasDragPreview(fullIterations)) {
     invalidatePendingRenders();
   }
 }
@@ -5657,6 +5664,17 @@ function redrawOverlayCanvases(meta = renderState.lastRenderMeta) {
   redrawManualOverlayCanvas(meta);
 }
 
+function drawDragPreview(source, scaleX, scaleY) {
+  const cropWidth = Math.min(source.width, canvas.width * scaleX);
+  const cropHeight = Math.min(source.height, canvas.height * scaleY);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(
+    source,
+    (source.width - cropWidth) / 2, (source.height - cropHeight) / 2, cropWidth, cropHeight,
+    0, 0, canvas.width, canvas.height,
+  );
+}
+
 function drawBaseRenderFromFullCanvas(fullCanvas, frameMetaFull) {
   const viewportWidth = Math.max(1, canvas.width);
   const viewportHeight = Math.max(1, canvas.height);
@@ -5931,7 +5949,9 @@ async function draw() {
   const parameterDragActive = overlayState.interactionState === INTERACTION_STATE.MOD_1
     && overlayState.isManualModulating && !renderState.panZoomInteractionActive;
   const iterations = parameterDragActive ? getDragIterations(iterationSetting) : iterationSetting;
-  const isDragPreview = iterations < iterationSetting;
+  const resolutionScale = parameterDragActive
+    ? readDragPreviewSetting(dragResolutionPercentEl, "dragResolutionPercent") / 100
+    : 1;
   if (renderState.panZoomInteractionActive && !didResize && renderState.activePanZoomCacheEntry && drawInteractionFrameFromCache(renderState.activePanZoomCacheEntry)) {
     redrawOverlayCanvases(renderState.lastRenderMeta);
     layoutFloatingActions();
@@ -5945,8 +5965,18 @@ async function draw() {
     canvas.width / Math.max(1, pxW),
     canvas.height / Math.max(1, pxH),
   );
-  const width = Math.max(1, Math.round(pxW * cropScale));
-  const height = Math.max(1, Math.round(pxH * cropScale));
+  const fullWidth = Math.max(1, Math.round(pxW * cropScale));
+  const fullHeight = Math.max(1, Math.round(pxH * cropScale));
+  const width = Math.max(1, Math.round(fullWidth * resolutionScale));
+  const height = Math.max(1, Math.round(fullHeight * resolutionScale));
+  const scaleX = width / fullWidth;
+  const scaleY = height / fullHeight;
+  const isDragPreview = iterations < iterationSetting || width !== fullWidth || height !== fullHeight;
+  const fixedView = { ...renderState.fixedView };
+  if (resolutionScale < 1) {
+    fixedView.offsetX = (fixedView.offsetX ?? 0) * scaleX;
+    fixedView.offsetY = (fixedView.offsetY ?? 0) * scaleY;
+  }
   let fullCanvas;
   const options = {
     formulaId: currentFormulaId,
@@ -5955,7 +5985,7 @@ async function draw() {
     iterations,
     burn: burnSetting,
     scaleMode: getScaleMode(),
-    fixedView: { ...renderState.fixedView },
+    fixedView,
     seed: { ...getSeedForFormula(currentFormulaId) },
     renderColoring: getRenderColoringOptions(),
     backgroundColor: hexToRgb(appData.defaults.backgroundColor || "#05070c"),
@@ -5978,7 +6008,11 @@ async function draw() {
     if (workerFrame) {
       // During modulation, display completed frames in order. Only the latest
       // state may update history or the screenshot cache.
-      if (isDragPreview || renderState.drawDirty) {
+      if (isDragPreview) {
+        drawDragPreview(workerFrame.bitmap, scaleX, scaleY);
+        return;
+      }
+      if (renderState.drawDirty) {
         drawBaseRenderFromFullCanvas(workerFrame.bitmap, workerFrame.meta);
         return;
       }
@@ -5990,13 +6024,13 @@ async function draw() {
         dragPreviewCanvas ??= document.createElement("canvas");
         if (dragPreviewCanvas.width !== width) dragPreviewCanvas.width = width;
         if (dragPreviewCanvas.height !== height) dragPreviewCanvas.height = height;
-        const meta = await renderFrame({
+        await renderFrame({
           ...options,
           ctx: dragPreviewCanvas.getContext("2d"),
           canvas: dragPreviewCanvas,
           isCancelled,
         });
-        if (!isCancelled()) drawBaseRenderFromFullCanvas(dragPreviewCanvas, meta);
+        if (!isCancelled()) drawDragPreview(dragPreviewCanvas, scaleX, scaleY);
         return;
       }
       dragPreviewCanvas = undefined;
@@ -6453,6 +6487,10 @@ function registerHandlers() {
   });
   dragIterationCapEl.addEventListener("change", () => {
     appData.defaults.dragIterationCap = Number(dragIterationCapEl.value);
+    saveDefaultsToStorage();
+  });
+  dragResolutionPercentEl.addEventListener("change", () => {
+    appData.defaults.dragResolutionPercent = Number(dragResolutionPercentEl.value);
     saveDefaultsToStorage();
   });
   rotationThresholdRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("rotationActivationThresholdDegrees", rotationThresholdRangeEl.value));
