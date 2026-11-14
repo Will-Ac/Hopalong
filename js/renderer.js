@@ -92,7 +92,7 @@ function createPackedColorLut(sampleColor, backgroundColor) {
   return colorLut;
 }
 
-export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = DEFAULT_RENDER_ITERATIONS, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {}, backgroundColor = [5, 7, 12], onProgress = null, isCancelled = null, densityCache = null }) {
+export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, iterations = DEFAULT_RENDER_ITERATIONS, burn = 120, scaleMode = "auto", fixedView = null, worldOverride = null, seed = null, renderColoring = {}, backgroundColor = [5, 7, 12], onProgress = null, isCancelled = null, densityCache = null, yieldIntervalMs = 20, progressIntervalMs = 0 }) {
   const step = formulaStepById.get(formulaId);
   if (!step) {
     throw new Error(`Unknown formula id: ${formulaId}`);
@@ -123,13 +123,13 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
   const hybridBlend = clamp01(Number(renderColoring?.hybridBlend) || 0.3);
 
   let nextProgressPercent = 0;
+  let lastProgressMs = -Infinity;
   let lastYieldMs = performance.now();
-  const maybeYieldToBrowser = async () => {
+  const shouldYield = () => {
     throwIfCancelled();
-    const now = performance.now();
-    if (now - lastYieldMs < 20) {
-      return;
-    }
+    return performance.now() - lastYieldMs >= yieldIntervalMs;
+  };
+  const yieldToTaskQueue = async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     lastYieldMs = performance.now();
     throwIfCancelled();
@@ -146,6 +146,16 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
     }
 
     const percent = Math.max(0, Math.min(100, Math.floor(fraction * 100)));
+    if (progressIntervalMs > 0) {
+      const now = performance.now();
+      if (percent >= nextProgressPercent && now - lastProgressMs >= progressIntervalMs) {
+        const latestBucket = Math.floor(percent / 5) * 5;
+        onProgress(latestBucket, false);
+        nextProgressPercent = latestBucket + 5;
+        lastProgressMs = now;
+      }
+      return;
+    }
     while (nextProgressPercent <= percent) {
       onProgress(nextProgressPercent, false);
       nextProgressPercent += 5;
@@ -171,7 +181,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
       const frequencyByHits = new Map();
       let activePixels = 0;
       for (let i = 0; i < scanCount; i += 1) {
-        if (i % 4096 === 0) await maybeYieldToBrowser();
+        if (i % 4096 === 0 && shouldYield()) await yieldToTaskQueue();
         const hits = hitCounts[touchedPixels ? touchedPixels[i] : i];
         if (hits <= 0) continue;
         activePixels += 1;
@@ -191,7 +201,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
     for (let i = 0; i < scanCount; i += 1) {
       if (i % 4096 === 0) {
         maybeEmitProgress(progressStart + (i / scanCount) * (1 - progressStart));
-        await maybeYieldToBrowser();
+        if (shouldYield()) await yieldToTaskQueue();
       }
       const pixelIndex = touchedPixels ? touchedPixels[i] : i;
       const hits = hitCounts[pixelIndex];
@@ -270,7 +280,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
   for (let i = 0; i < iterations; i += 1) {
     if (i % 1024 === 0) {
       maybeEmitProgress((i / Math.max(1, iterations)) * 0.7);
-      await maybeYieldToBrowser();
+      if (shouldYield()) await yieldToTaskQueue();
     }
     [x, y] = step(x, y, params.a, params.b, params.c, params.d);
     if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > ESCAPE_ABS_BOUND || Math.abs(y) > ESCAPE_ABS_BOUND) {
@@ -429,7 +439,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
     for (let i = 0; i < sampleCount; i += 1) {
       if (i % 2048 === 0) {
         maybeEmitProgress(0.7 + (i / Math.max(1, sampleCount)) * 0.3);
-        await maybeYieldToBrowser();
+        if (shouldYield()) await yieldToTaskQueue();
       }
       let px;
       let py;
@@ -463,7 +473,7 @@ export async function renderFrame({ ctx, canvas, formulaId, cmapName, params, it
     for (let i = 0; i < sampleCount; i += 1) {
       if (i % 2048 === 0) {
         maybeEmitProgress(0.7 + (i / Math.max(1, sampleCount)) * 0.15);
-        await maybeYieldToBrowser();
+        if (shouldYield()) await yieldToTaskQueue();
       }
       let px;
       let py;

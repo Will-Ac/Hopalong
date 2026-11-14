@@ -25,10 +25,13 @@ self.onmessage = async ({ data }) => {
     if (canvas.width !== width) canvas.width = width;
     if (canvas.height !== height) canvas.height = height;
     setColorMapStopOverrides(paletteOverrides);
+    const { suppressProgress, ...renderOptions } = options;
     const meta = await renderFrame({
-      ...options, ctx, canvas, densityCache,
+      ...renderOptions, ctx, canvas, densityCache,
       isCancelled: () => job.cancelled,
-      onProgress: (percent, complete) => self.postMessage({ id, type: "progress", percent, complete }),
+      onProgress: suppressProgress
+        ? null
+        : (percent, complete) => self.postMessage({ id, type: "progress", percent, complete }),
     });
     const bitmap = canvas.transferToImageBitmap();
     try {

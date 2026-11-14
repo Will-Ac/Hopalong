@@ -75,6 +75,8 @@ const panZoomSettleMsValueEl = document.getElementById("panZoomSettleMsValue");
 const dragIterationPercentEl = document.getElementById("dragIterationPercent");
 const dragIterationCapEl = document.getElementById("dragIterationCap");
 const dragResolutionPercentEl = document.getElementById("dragResolutionPercent");
+const workerYieldIntervalEl = document.getElementById("workerYieldInterval");
+const workerProgressRateEl = document.getElementById("workerProgressRate");
 const rotationThresholdRangeEl = document.getElementById("rotationThresholdRange");
 const rotationThresholdValueEl = document.getElementById("rotationThresholdValue");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
@@ -1892,7 +1894,7 @@ function setSettingsPanelMode(mode) {
   }
 }
 
-function readDragPreviewSetting(control, key) {
+function readRenderExperimentSetting(control, key) {
   const value = String(appData.defaults[key]);
   return Array.from(control.options).some((option) => option.value === value)
     ? Number(value)
@@ -1900,20 +1902,22 @@ function readDragPreviewSetting(control, key) {
 }
 
 function getDragIterations(fullIterations) {
-  const percent = readDragPreviewSetting(dragIterationPercentEl, "dragIterationPercent");
-  const cap = readDragPreviewSetting(dragIterationCapEl, "dragIterationCap");
+  const percent = readRenderExperimentSetting(dragIterationPercentEl, "dragIterationPercent");
+  const cap = readRenderExperimentSetting(dragIterationCapEl, "dragIterationCap");
   return Math.max(1, Math.min(Math.floor(fullIterations * percent / 100), cap || fullIterations));
 }
 
 function hasDragPreview(fullIterations) {
   return getDragIterations(fullIterations) < fullIterations
-    || readDragPreviewSetting(dragResolutionPercentEl, "dragResolutionPercent") < 100;
+    || readRenderExperimentSetting(dragResolutionPercentEl, "dragResolutionPercent") < 100;
 }
 
 function syncDetailedSettingsControls() {
-  dragIterationPercentEl.value = String(readDragPreviewSetting(dragIterationPercentEl, "dragIterationPercent"));
-  dragIterationCapEl.value = String(readDragPreviewSetting(dragIterationCapEl, "dragIterationCap"));
-  dragResolutionPercentEl.value = String(readDragPreviewSetting(dragResolutionPercentEl, "dragResolutionPercent"));
+  dragIterationPercentEl.value = String(readRenderExperimentSetting(dragIterationPercentEl, "dragIterationPercent"));
+  dragIterationCapEl.value = String(readRenderExperimentSetting(dragIterationCapEl, "dragIterationCap"));
+  dragResolutionPercentEl.value = String(readRenderExperimentSetting(dragResolutionPercentEl, "dragResolutionPercent"));
+  workerYieldIntervalEl.value = String(readRenderExperimentSetting(workerYieldIntervalEl, "workerYieldIntervalMs"));
+  workerProgressRateEl.value = String(readRenderExperimentSetting(workerProgressRateEl, "workerProgressRate"));
   const {
     iterationAbsoluteMax,
     iterationStartupDefault,
@@ -5950,7 +5954,7 @@ async function draw() {
     && overlayState.isManualModulating && !renderState.panZoomInteractionActive;
   const iterations = parameterDragActive ? getDragIterations(iterationSetting) : iterationSetting;
   const resolutionScale = parameterDragActive
-    ? readDragPreviewSetting(dragResolutionPercentEl, "dragResolutionPercent") / 100
+    ? readRenderExperimentSetting(dragResolutionPercentEl, "dragResolutionPercent") / 100
     : 1;
   if (renderState.panZoomInteractionActive && !didResize && renderState.activePanZoomCacheEntry && drawInteractionFrameFromCache(renderState.activePanZoomCacheEntry)) {
     redrawOverlayCanvases(renderState.lastRenderMeta);
@@ -5997,10 +6001,16 @@ async function draw() {
   let frameMetaFull;
   let workerFrame;
   try {
+    const workerProgressRate = readRenderExperimentSetting(workerProgressRateEl, "workerProgressRate");
     workerFrame = await interactiveRenderer.render({
       width,
       height,
-      options,
+      options: {
+        ...options,
+        yieldIntervalMs: readRenderExperimentSetting(workerYieldIntervalEl, "workerYieldIntervalMs"),
+        progressIntervalMs: workerProgressRate > 0 ? 1000 / workerProgressRate : 0,
+        suppressProgress: workerProgressRate === -1 && parameterDragActive,
+      },
       paletteOverrides: getColorMapStopOverrides(),
       onProgress,
     });
@@ -6491,6 +6501,14 @@ function registerHandlers() {
   });
   dragResolutionPercentEl.addEventListener("change", () => {
     appData.defaults.dragResolutionPercent = Number(dragResolutionPercentEl.value);
+    saveDefaultsToStorage();
+  });
+  workerYieldIntervalEl.addEventListener("change", () => {
+    appData.defaults.workerYieldIntervalMs = Number(workerYieldIntervalEl.value);
+    saveDefaultsToStorage();
+  });
+  workerProgressRateEl.addEventListener("change", () => {
+    appData.defaults.workerProgressRate = Number(workerProgressRateEl.value);
     saveDefaultsToStorage();
   });
   rotationThresholdRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("rotationActivationThresholdDegrees", rotationThresholdRangeEl.value));
