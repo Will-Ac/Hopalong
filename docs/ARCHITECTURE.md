@@ -146,11 +146,11 @@ Read/write use:
 1. A control change, gesture, resize, or restore action calls `requestDraw()`.
 2. `main.js` marks the frame dirty and schedules one draw pass.
 3. The draw pass gathers formula, parameter, colour, seed, and view data.
-4. `renderer.renderFrame()` generates the attractor image and returns metadata.
+4. A persistent Web Worker runs `renderer.renderFrame()` on an OffscreenCanvas and transfers the bitmap and metadata. If the worker is unavailable or fails, the same renderer runs on the main thread.
 5. `main.js` updates render caches and metadata.
 6. Overlay canvases are redrawn using the latest render metadata.
 
-For the interactive render, `renderState` holds one in-memory density grid. Linear, Log, Gamma and Percentile share it when the orbit, view and render dimensions match. The renderer budgets up to 40 MiB for the hit counts and sparse pixel indices combined. The grid is separate from the frame history and export caches.
+The interactive worker (or the main-thread fallback) holds one in-memory density grid. Linear, Log, Gamma and Percentile share it when the orbit, view and render dimensions match. The renderer budgets up to 40 MiB for the hit counts and sparse pixel indices combined. The grid is separate from the frame history and export caches. Dragging coalesces pending draws and may paint completed frames while the pointer moves. Only the latest state updates history and screenshot caches. When the gesture ends or the view changes, the scheduler cancels obsolete work. Dedicated high-resolution exports render through the existing export path.
 
 ### Parameter changes
 1. User changes a slider, quick slider, picker, or parameter mode.
