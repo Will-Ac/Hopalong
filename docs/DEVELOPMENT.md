@@ -335,7 +335,8 @@ Use this short checklist after a small PR:
 - colour maps populate in the colour picker
 - parameter tiles are visible
 - rendering works after changing formula or params
-- in Safari, drag to modulate, release, then verify the final frame and clean screenshot match. Repeat with the interactive worker request blocked to exercise the main-thread fallback
+- In Developer Settings, compare **Drag iterations** at **Full** and **25%** with **Maximum preview iterations** at **Off** and **250,000**. The lower limit applies during parameter drag. The default combination is **Full** and **Off**.
+- In Safari, drag to modulate and pause with the pointer down. Release and verify that the full-detail frame matches a full render of the same parameters, including a clean screenshot. Repeat with the interactive worker request blocked to exercise the main-thread fallback. Check that pinch, pan and Shift-drag rotation still use the existing view controls.
 - palette and density settings recolour the current view. After a resize, pan, or history restore, check that recolouring matches a fresh render of the same state
 - panels open and close correctly
 - help overlay opens and points at controls correctly

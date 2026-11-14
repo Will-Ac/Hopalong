@@ -153,6 +153,9 @@ Read/write use:
 The interactive worker (or the main-thread fallback) holds one in-memory density grid. Linear, Log, Gamma and Percentile share it when the orbit, view and render dimensions match. The renderer budgets up to 40 MiB for the hit counts and sparse pixel indices combined. The grid is separate from the frame history and export caches. Dragging coalesces pending draws and may paint completed frames while the pointer moves. Only the latest state updates history and screenshot caches. When the gesture ends or the view changes, the scheduler cancels obsolete work. Dedicated high-resolution exports render through the existing export path.
 
 ### Parameter changes
+
+The developer drag iteration controls can reduce the point count for one-finger and desktop left-drag modulation. Reduced frames are drawn directly to the live canvas and bypass the history and screenshot caches. If the worker is unavailable, the preview renders into a separate scratch canvas. The existing generation check discards obsolete previews when modulation ends, and the settled draw uses the full iteration count.
+
 1. User changes a slider, quick slider, picker, or parameter mode.
 2. `main.js` updates `appData.defaults` and related grouped state.
 3. Defaults are persisted to storage when appropriate.

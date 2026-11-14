@@ -16,6 +16,7 @@ import { initHistoryState } from "./historyState.js";
 import { createInteractiveRenderer } from "./interactiveRenderer.js";
 
 const interactiveRenderer = createInteractiveRenderer();
+let dragPreviewCanvas;
 
 const canvas = document.getElementById("c");
 const interestOverlayCanvas = document.getElementById("interestOverlayCanvas");
@@ -71,6 +72,8 @@ const touchZoomRatioMinRangeEl = document.getElementById("touchZoomRatioMinRange
 const touchZoomRatioMinValueEl = document.getElementById("touchZoomRatioMinValue");
 const panZoomSettleMsRangeEl = document.getElementById("panZoomSettleMsRange");
 const panZoomSettleMsValueEl = document.getElementById("panZoomSettleMsValue");
+const dragIterationPercentEl = document.getElementById("dragIterationPercent");
+const dragIterationCapEl = document.getElementById("dragIterationCap");
 const rotationThresholdRangeEl = document.getElementById("rotationThresholdRange");
 const rotationThresholdValueEl = document.getElementById("rotationThresholdValue");
 const detailDebugToggleEl = document.getElementById("detailDebugToggle");
@@ -1888,7 +1891,22 @@ function setSettingsPanelMode(mode) {
   }
 }
 
+function readDragIterationSetting(control, key) {
+  const value = String(appData.defaults[key]);
+  return Array.from(control.options).some((option) => option.value === value)
+    ? Number(value)
+    : DEFAULTS[key];
+}
+
+function getDragIterations(fullIterations) {
+  const percent = readDragIterationSetting(dragIterationPercentEl, "dragIterationPercent");
+  const cap = readDragIterationSetting(dragIterationCapEl, "dragIterationCap");
+  return Math.max(1, Math.min(Math.floor(fullIterations * percent / 100), cap || fullIterations));
+}
+
 function syncDetailedSettingsControls() {
+  dragIterationPercentEl.value = String(readDragIterationSetting(dragIterationPercentEl, "dragIterationPercent"));
+  dragIterationCapEl.value = String(readDragIterationSetting(dragIterationCapEl, "dragIterationCap"));
   const {
     iterationAbsoluteMax,
     iterationStartupDefault,
@@ -3560,10 +3578,10 @@ function getManualAxisTargets() {
   return { manX, manY };
 }
 
-function requestLiveModulationDraw() {
+function requestLiveModulationDraw({ invalidate }) {
   redrawInterestOverlayCanvas(renderState.lastRenderMeta);
   redrawManualOverlayCanvas(renderState.lastRenderMeta);
-  requestDraw({ invalidate: false });
+  requestDraw({ invalidate });
 }
 
 function getFixedViewScaleForView(fixedView, viewWidth = canvas.width, viewHeight = canvas.height) {
@@ -3613,7 +3631,12 @@ function applyManualModulation(deltaX, deltaY, { invalidate = true } = {}) {
   if (invalidate) {
     requestDraw();
   } else {
-    requestLiveModulationDraw();
+    const startingDrag = !overlayState.isManualModulating;
+    overlayState.isManualModulating = true;
+    const fullIterations = Math.round(appData.defaults.sliders.iters);
+    const startingPreview = startingDrag && getDragIterations(fullIterations) < fullIterations;
+    if (startingPreview) cancelSingleTouchModulationStartDraw();
+    requestLiveModulationDraw({ invalidate: startingPreview });
   }
   return true;
 }
@@ -3758,6 +3781,10 @@ function initializeTwoFingerGesture(pointerIdA, pointerIdB) {
   };
   overlayState.interactionState = INTERACTION_STATE.TWO_ACTIVE;
   overlayState.suppressHistoryTap = true;
+  const fullIterations = Math.round(appData.defaults.sliders.iters);
+  if (overlayState.isManualModulating && getDragIterations(fullIterations) < fullIterations) {
+    invalidatePendingRenders();
+  }
 }
 
 function clearTwoFingerGesture() {
@@ -3984,6 +4011,7 @@ function onCanvasPointerMove(event) {
     const dxScreen = pos.x - overlayState.lastPointerPosition.x;
     const dyScreen = pos.y - overlayState.lastPointerPosition.y;
     if (event.pointerType === "mouse" && event.shiftKey) {
+      overlayState.isManualModulating = false;
       if (!overlayState.desktopShiftRotateGesture) {
         beginDesktopShiftRotateGesture(pos);
       }
@@ -4003,8 +4031,7 @@ function onCanvasPointerMove(event) {
     const modulationDelta = event.pointerType === "mouse"
       ? { x: dxScreen, y: dyScreen }
       : mapScreenDeltaToTouchModulationDelta(dxScreen, dyScreen);
-    const didModulate = applyManualModulation(modulationDelta.x, modulationDelta.y, { invalidate: false });
-    overlayState.isManualModulating = overlayState.isManualModulating || didModulate;
+    applyManualModulation(modulationDelta.x, modulationDelta.y, { invalidate: false });
     overlayState.lastPointerPosition = { x: pos.x, y: pos.y };
     return;
   }
@@ -5901,7 +5928,10 @@ async function draw() {
   }
   const iterationSetting = Math.round(clamp(appData.defaults.sliders.iters, sliderControls.iters.min, sliderControls.iters.max));
   const burnSetting = Math.round(clamp(appData.defaults.sliders.burn, sliderControls.burn.min, sliderControls.burn.max));
-  const iterations = iterationSetting;
+  const parameterDragActive = overlayState.interactionState === INTERACTION_STATE.MOD_1
+    && overlayState.isManualModulating && !renderState.panZoomInteractionActive;
+  const iterations = parameterDragActive ? getDragIterations(iterationSetting) : iterationSetting;
+  const isDragPreview = iterations < iterationSetting;
   if (renderState.panZoomInteractionActive && !didResize && renderState.activePanZoomCacheEntry && drawInteractionFrameFromCache(renderState.activePanZoomCacheEntry)) {
     redrawOverlayCanvases(renderState.lastRenderMeta);
     layoutFloatingActions();
@@ -5948,7 +5978,7 @@ async function draw() {
     if (workerFrame) {
       // During modulation, display completed frames in order. Only the latest
       // state may update history or the screenshot cache.
-      if (renderState.drawDirty) {
+      if (isDragPreview || renderState.drawDirty) {
         drawBaseRenderFromFullCanvas(workerFrame.bitmap, workerFrame.meta);
         return;
       }
@@ -5956,6 +5986,20 @@ async function draw() {
       exportState.exportManager.getExportContext().drawImage(workerFrame.bitmap, 0, 0);
       frameMetaFull = workerFrame.meta;
     } else {
+      if (isDragPreview) {
+        dragPreviewCanvas ??= document.createElement("canvas");
+        if (dragPreviewCanvas.width !== width) dragPreviewCanvas.width = width;
+        if (dragPreviewCanvas.height !== height) dragPreviewCanvas.height = height;
+        const meta = await renderFrame({
+          ...options,
+          ctx: dragPreviewCanvas.getContext("2d"),
+          canvas: dragPreviewCanvas,
+          isCancelled,
+        });
+        if (!isCancelled()) drawBaseRenderFromFullCanvas(dragPreviewCanvas, meta);
+        return;
+      }
+      dragPreviewCanvas = undefined;
       fullCanvas = exportState.exportManager.ensureExportCacheCanvas(width, height);
       frameMetaFull = await renderFrame({
         ...options, ctx: exportState.exportManager.getExportContext(), canvas: fullCanvas,
@@ -6403,6 +6447,14 @@ function registerHandlers() {
   touchZoomDeadbandRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("touchZoomDeadbandPx", touchZoomDeadbandRangeEl.value));
   touchZoomRatioMinRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("touchZoomRatioMin", touchZoomRatioMinRangeEl.value));
   panZoomSettleMsRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("panZoomSettleMs", panZoomSettleMsRangeEl.value));
+  dragIterationPercentEl.addEventListener("change", () => {
+    appData.defaults.dragIterationPercent = Number(dragIterationPercentEl.value);
+    saveDefaultsToStorage();
+  });
+  dragIterationCapEl.addEventListener("change", () => {
+    appData.defaults.dragIterationCap = Number(dragIterationCapEl.value);
+    saveDefaultsToStorage();
+  });
   rotationThresholdRangeEl?.addEventListener("input", () => applyTouchZoomTuningSetting("rotationActivationThresholdDegrees", rotationThresholdRangeEl.value));
   factoryResetBtnEl?.addEventListener("click", runFactoryReset);
 
