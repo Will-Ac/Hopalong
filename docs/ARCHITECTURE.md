@@ -154,6 +154,8 @@ The interactive worker (or the main-thread fallback) holds one in-memory density
 
 ### Parameter changes
 
+The interactive renderer checks elapsed time at orbit and raster checkpoints and only awaits a task-queue yield when the interval is due. The yield lets the worker handle cancellation messages. Developer Settings pass the selected interval and progress policy to the interactive worker. The fallback and dedicated export use the renderer defaults.
+
 The developer drag preview controls can independently reduce the iteration count and resolution for one-finger and desktop left-drag modulation. Reduced-resolution previews scale fixed-view offsets and crop the bitmap before scaling it to the viewport. Preview frames bypass the history and screenshot caches. If the worker is unavailable, the preview renders into a separate scratch canvas. The generation check discards obsolete previews when modulation ends, and the settled draw uses full resolution and iteration count.
 
 1. User changes a slider, quick slider, picker, or parameter mode.

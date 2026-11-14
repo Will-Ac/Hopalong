@@ -40,6 +40,8 @@ export const DEFAULTS = {
   "dragIterationPercent": 100,
   "dragIterationCap": 0,
   "dragResolutionPercent": 100,
+  "workerYieldIntervalMs": 20,
+  "workerProgressRate": 0,
   "rotationActivationThresholdDegrees": 30,
   "interestOverlayEnabled": false,
   "interestGridSize": 256,
